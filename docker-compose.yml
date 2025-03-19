@@ -1,14 +1,80 @@
+volumes:
+  postgres-data:
+  redis-data:
+
 networks:
   default:
 
 services:
-  core-web:
-    build: .
+  postgres:
+    image: postgres:17.4-bookworm
     restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    expose:
+      - "5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4.2-bookworm
+    restart: always
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  core-api:
+    image: ghcr.io/mairie360/core-api:latest
+    pull_policy: always
+    restart: always
+    environment:
+      BINDING_ADDRESS: "0.0.0.0"
+      BINDING_PORT: 3000
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/core
+      REDIS_URL: redis://redis:6379
+    expose:
+      - "3000"
+    networks:
+      - default
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  core-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      API_URL: http://core-api:3000
     ports:
       - "3000:3000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+    networks:
+      - default
+    depends_on:
+      core-api:
+        condition: service_healthy
