@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {
   title: "Core",
@@ -20,9 +21,18 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=swap"
         />
       </head>
-      <body>
-        <main>{children}</main>
+      <body className="h-full">
+        {/* Navbar */}
+        <header className="w-full h-16">
+          <Navbar />
+        </header>
+
+        {/* Main */}
+        <main className="h-[calc(100vh-7vh)]">
+          {children}
+        </main>
       </body>
     </html>
   );
 }
+
