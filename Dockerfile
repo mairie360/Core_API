@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /usr/src/core-web
+WORKDIR /usr/src/core
 
 # Copy the package files
 COPY package.json package-lock.json ./
@@ -24,10 +24,10 @@ COPY . .
 RUN npm run build
 
 # Create non-root user and group
-RUN groupadd --system core-web && useradd --no-log-init --system -g core-web core-web
+RUN groupadd --system core && useradd --no-log-init --system -g core core
 
 # Set permissions
-USER core-web
+USER core
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/npm"]

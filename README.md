@@ -1,6 +1,6 @@
-# core-web
+# core
 
-The web service for Core
+The Core's module.
 
 ## Getting Started
 

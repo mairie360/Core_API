@@ -4,7 +4,7 @@ import Navbar from "@/components/navbar";
 
 export const metadata: Metadata = {
   title: "Core",
-  description: "The web service for Core",
+  description: "The Core's module.",
 };
 
 export default function RootLayout({
