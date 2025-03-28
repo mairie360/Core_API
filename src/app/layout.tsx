@@ -16,10 +16,6 @@ export default function RootLayout({
     <html lang="en" className="h-full">
       <head>
         <meta name="apple-mobile-web-app-title" content="Mairie360" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=swap"
-        />
       </head>
       <body className="h-full">
         {/* Navbar */}
