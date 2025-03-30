@@ -48,7 +48,7 @@ interface Module {
   url: string
 }
 
-let modules: Module[] = [
+const modules: Module[] = [
   {
     id: 1,
     name: 'Files',
