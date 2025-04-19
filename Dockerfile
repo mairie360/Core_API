@@ -1,42 +1,54 @@
-# Define build arguments
 ARG NODE_VERSION=23.10.0
-
-# Stage 1: Builder
 FROM node:${NODE_VERSION}-bookworm-slim AS builder
 
+# Install builder dependencies
+RUN apt update && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /usr/src/core
+
+# Copy package files separately for better caching
+COPY package.json package-lock.json ./
+
 # Install dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the project
+RUN npm run build
+
+
+FROM node:${NODE_VERSION}-bookworm-slim AS runner
+
+# Install runner dependencies
+RUN apt update && apt install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /usr/src/core
 
-# Copy package files separately to leverage caching
-COPY package.json package-lock.json ./
+# Copy only the necessary built files from builder
+COPY --from=builder /usr/src/core/.next .next
+COPY --from=builder /usr/src/core/package.json package.json
+COPY --from=builder /usr/src/core/package-lock.json package-lock.json
 
-# Install dependencies
-RUN npm ci
+# Install only production dependencies
+RUN npm ci --omit=dev
 
-# Copy the source code
-COPY . .
-
-# Build the project
-RUN npm run build
-
-# Create a non-root user
-RUN useradd --system --create-home --shell /usr/sbin/nologin core
-
-# Change ownership of the project
-RUN chown -R core:core /usr/src/core
+# Create non-root user
+RUN useradd --system --home /usr/src/core --shell /usr/sbin/nologin core
 
 # Set permissions
+RUN chown -R core:core /usr/src/core
 USER core
 
 # Set environment variables
+ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
 
-# Start the application
-ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["npm run start -- --hostname=$HOSTNAME --port=$PORT"]
+# Start the app
+CMD ["npm", "run", "start"]
