@@ -98,6 +98,7 @@ CREATE TABLE user_roles (
 ```sql
 CREATE TABLE resources (
     id SERIAL PRIMARY KEY,
+    module_id INT REFERENCES modules(id) ON DELETE CASCADE,
     name VARCHAR(64) UNIQUE NOT NULL,
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
