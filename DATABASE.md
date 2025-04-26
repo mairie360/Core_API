@@ -1,11 +1,5 @@
 # 📘 Database
 
-This document describes the PostgreSQL schema for the **Core module**, which handles:
-
-- Authentication  
-- Authorization (users, roles, permissions)  
-- Module registration and management  
-
 ---
 
 ## 🧭 Overview
@@ -14,9 +8,9 @@ The schema includes tables for users, roles, permissions, and modules, with many
 
 ---
 
-## 📘 Full PostgreSQL Schema for Core Module (Multi-API Ready)
+## Full PostgreSQL Schema for Core Module
 
-### 🔄 Triggers (Auto-update `updated_at`)
+### Triggers (Auto-update `updated_at`)
 
 ```sql
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -30,7 +24,18 @@ $$ LANGUAGE 'plpgsql';
 
 ---
 
-## 🧭 Core Tables
+## Core Tables
+
+### `modules`
+
+```sql
+CREATE TABLE modules (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(64) UNIQUE NOT NULL,
+    description TEXT NOT NULL,
+    base_url TEXT NOT NULL
+);
+```
 
 ---
 
@@ -44,9 +49,7 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
-```
 
-```sql
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -60,11 +63,12 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE sessions (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT NOT NULL UNIQUE INDEX,
-    content JSONB NOT NULL,
+    token TEXT NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 ```
 
 ---
@@ -89,11 +93,14 @@ CREATE TABLE user_roles (
     role_id INT REFERENCES roles(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_id)
 );
+
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 ```
 
 ---
 
-### `resources`
+### `resources` (Linked to modules)
 
 ```sql
 CREATE TABLE resources (
@@ -104,12 +111,12 @@ CREATE TABLE resources (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
-```
 
-```sql
 CREATE TRIGGER trg_resources_updated_at
 BEFORE UPDATE ON resources
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_resources_module_id ON resources(module_id);
 ```
 
 ---
@@ -123,6 +130,8 @@ CREATE TABLE permissions (
     action VARCHAR(16) NOT NULL CHECK (action IN ('create', 'read', 'update', 'delete', 'read_all', 'update_all', 'delete_all')),
     description TEXT
 );
+
+CREATE INDEX idx_permissions_resource_id ON permissions(resource_id);
 ```
 
 ---
@@ -135,4 +144,7 @@ CREATE TABLE role_permissions (
     permission_id INT REFERENCES permissions(id) ON DELETE CASCADE,
     PRIMARY KEY (role_id, permission_id)
 );
+
+CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
+CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
 ```
