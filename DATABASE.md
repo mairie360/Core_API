@@ -45,7 +45,7 @@ CREATE TABLE modules (
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(320) UNIQUE NOT NULL,
-    password CHAR(60) NOT NULL, -- bcrypt hash
+    password CHAR(60) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -64,8 +64,8 @@ CREATE TABLE sessions (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     token TEXT NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
@@ -79,7 +79,7 @@ CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
     name VARCHAR(64) UNIQUE NOT NULL,
-    description TEXT
+    description TEXT,
 );
 ```
 
@@ -100,16 +100,14 @@ CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 
 ---
 
-### `resources` (Linked to modules)
+### `resources`
 
 ```sql
 CREATE TABLE resources (
     id SERIAL PRIMARY KEY,
     module_id INT REFERENCES modules(id) ON DELETE CASCADE,
     name VARCHAR(64) UNIQUE NOT NULL,
-    description TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+    description TEXT
 );
 
 CREATE TRIGGER trg_resources_updated_at
