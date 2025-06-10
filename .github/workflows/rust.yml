@@ -98,7 +98,6 @@ jobs:
 
       - name: Run API with Cargo
         run: cargo run &
-        working-directory: ./your_rust_project_directory
 
       - name: Install Node.js
         uses: actions/setup-node@v2
