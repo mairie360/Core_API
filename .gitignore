@@ -19,3 +19,9 @@ target/
 # Added by cargo
 
 /target
+
+# Postman tests config file
+collection.json
+
+#Env file
+.env
