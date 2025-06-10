@@ -63,7 +63,7 @@ jobs:
   build:
     name: Build Project
     runs-on: ubuntu-latest
-    needs: dependencies  # Assurez-vous que ce job est exécuté avant le build
+    needs: dependencies
 
     steps:
       - name: Checkout Repository
@@ -81,16 +81,21 @@ jobs:
           name: cargo-dependencies
           path: ~/.cargo
 
-      - name: Build Rust Project
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - name: Build Rust Project (Debug and Release)
+        run: |
+          cargo build
+          cargo build --release
 
-      - name: Upload Build Artifacts
+      - name: Upload Debug Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rust-build-artifacts
+          name: rust-build-debug
+          path: target/debug/
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-build-release
           path: target/release/
 
   # test:
