@@ -113,20 +113,11 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Cache Cargo Dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Download Debug Artifacts
+      - name: Download Dependency Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: rust-build-debug
-          path: target/debug/
+          name: cargo-dependencies
+          path: ~/.cargo
 
       - name: Run Rust Tests
         uses: actions-rs/cargo@v1
