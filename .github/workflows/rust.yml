@@ -139,6 +139,15 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Download Dependency Artifacts
         uses: actions/download-artifact@v4
         with:
