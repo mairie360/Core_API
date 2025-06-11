@@ -1,13 +1,31 @@
-use actix_web::{post, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    App,
+    HttpResponse,
+    HttpServer,
+    post,
+    Responder,
+};
+
+use CoreAPI::register::register_request::register;
+
+//                                        -- POST REQUESTS --
 
 #[post("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello, world!")
 }
 
+//                                        -- MAIN FUNCTION --
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let server = HttpServer::new(|| App::new().service(hello)).bind("127.0.0.1:8080")?;
+    let server = HttpServer::new(
+        || App::new()
+        //post requests
+        .service(hello)
+        .service(register)
+    )
+    .bind("127.0.0.1:8080")?;
 
     let addr = server.addrs().first().cloned();
     tokio::spawn(async move {
