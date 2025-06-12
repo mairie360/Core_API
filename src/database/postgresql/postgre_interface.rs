@@ -1,4 +1,8 @@
 use crate::database::db_interface::{DatabaseInterfaceActions, DatabaseQueryView, QueryResultView};
+use crate::database::queries::QUERY::*;
+use super::super::super::get_critical_env_var;
+use super::queries::*;
+
 use tokio_postgres::{Client, NoTls};
 use std::sync::{
     Arc
@@ -7,7 +11,6 @@ use tokio::sync::Mutex;
 use std::future::Future;
 use std::pin::Pin;
 
-use super::super::super::get_critical_env_var;
 
 pub struct PostgreInterface {
     db_name: String,
@@ -65,7 +68,15 @@ impl DatabaseInterfaceActions for PostgreInterface {
 
     fn execute_query(&self, query: Box<dyn DatabaseQueryView> ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
         Box::pin(async move {
-            Err("Not implemented".to_string())
+            println!("Executing query: {}", query.get_query_type());
+            match query.get_query_type() {
+                DoesUserExistByEmail => {
+                    does_user_exist_by_email(query).await
+                }
+                UnknownQuery => {
+                    Err(format!("Unsupported query type: {}", query.get_query_type()))
+                }
+            }
         })
     }
 }

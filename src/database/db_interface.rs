@@ -49,7 +49,7 @@ pub trait QueryResultView {
     fn get_result(&self) -> QueryResult;
 }
 
-pub trait DatabaseQueryView {
+pub trait DatabaseQueryView: Send {
     fn get_request(&self) -> String;
     fn get_query_type(&self) -> QUERY;
 }
@@ -98,6 +98,8 @@ impl DbInterface {
     }
 
     pub async fn execute_query(&self, query: Box<dyn DatabaseQueryView>) -> Result<Box<dyn QueryResultView>, String> {
+        println!("Executing query: {}", query.get_request());
+        // Err("Not implemented yet".to_string())
         match self.db_interface.execute_query(query).await {
             Ok(result) => Ok(result),
             Err(e) => Err(e),

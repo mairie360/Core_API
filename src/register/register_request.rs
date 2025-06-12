@@ -23,12 +23,13 @@ fn is_valid_password(password: String) -> bool {
 
 async fn already_exists(register_view: &RegisterView) -> bool {
     let view = DoesUserExistByEmailQueryView::new(register_view.email());
+    println!("db view: {}", view);
     let query_view= get_db_interface().lock().unwrap().execute_query(Box::new(view)).await;
-    return true;
-    match query_view {
-        Ok(result) => false,
-        Err(_) => false
-    }
+    return false;
+    // match query_view {
+    //     Ok(result) => false,
+    //     Err(_) => false
+    // }
 }
 
 async fn can_be_registered(register_view: &RegisterView) -> Result<(), String> {
