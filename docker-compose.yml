@@ -10,6 +10,10 @@ x-common-env: &common-env
   PORT: 3000
   REDIS_URL: redis://redis:6379
   DB_TYPE: postgres
+  DB_NAME: mairie_360_database
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  DB_HOST: postgresql
 
 x-depends-on: &depends-on
   postgres:
@@ -80,6 +84,8 @@ services:
           target: /usr/src/core/src
         - action: rebuild
           path: package*.json
+    networks:
+      - backend
     environment:
       <<: *common-env
       POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/core

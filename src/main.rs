@@ -10,6 +10,8 @@ use std::env;
 
 use CoreAPI::register::register_request::register;
 use CoreAPI::database::db_interface::get_db_interface;
+use CoreAPI::database::db_interface::db_interface;
+use CoreAPI::get_critical_env_var;
 
 //                                        -- POST REQUESTS --
 
@@ -29,20 +31,9 @@ async fn health() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let host = match env::var("HOST") {
-        Ok(val) => val,
-        Err(_) => {
-            eprintln!("HOST environment variable not set.");
-            std::process::exit(1);
-        }
-    };
-    let port = match env::var("PORT") {
-        Ok(val) => val,
-        Err(_) => {
-            eprintln!("PORT environment variable not set");
-            std::process::exit(1);
-        },
-    };
+    db_interface::new();
+    let host = get_critical_env_var("HOST");
+    let port = get_critical_env_var("PORT");
     let bind_address = format!("{}:{}", host, port);
     let server = HttpServer::new(
         || App::new()
