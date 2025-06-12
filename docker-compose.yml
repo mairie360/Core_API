@@ -13,7 +13,7 @@ x-common-env: &common-env
   DB_NAME: mairie_360_database
   DB_USER: postgres
   DB_PASSWORD: postgres
-  DB_HOST: postgresql
+  DB_HOST: postgres
 
 x-depends-on: &depends-on
   postgres:
