@@ -7,6 +7,7 @@ use std::pin::Pin;
 use std::collections::HashMap;
 use std::env;
 use super::postgresql::postgre_interface::PostgreInterface;
+use crate::database::QUERY;
 
 static DISPLAY: LazyLock<Mutex<DbInterface>> = LazyLock::new(||{
         Mutex::new(DbInterface::new())
@@ -48,13 +49,14 @@ pub trait QueryResultView {
 }
 
 pub trait DatabaseQueryView {
-    fn get_request(&self) -> Result<String, String>;
+    fn get_request(&self) -> String;
+    fn get_query_type(&self) -> QUERY;
 }
 
 pub trait DatabaseInterfaceActions: Send {
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
     fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
-    // fn execute_query(&self, query: &impl DatabaseQueryView) -> Result<&impl DatabaseQueryView, String>;
+    fn execute_query(&self, query: Box<dyn DatabaseQueryView>) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>>;
 }
 pub struct DbInterface {
     db_interface: Box<dyn DatabaseInterfaceActions + Send>
@@ -90,6 +92,13 @@ impl DbInterface {
         // Placeholder for actual database disconnection logic
         match self.db_interface.disconnect().await {
             Ok(message) => Ok(message),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn execute_query(&self, query: Box<dyn DatabaseQueryView>) -> Result<Box<dyn QueryResultView>, String> {
+        match self.db_interface.execute_query(query).await {
+            Ok(result) => Ok(result),
             Err(e) => Err(e),
         }
     }

@@ -1,4 +1,4 @@
-use crate::database::db_interface::DatabaseInterfaceActions;
+use crate::database::db_interface::{DatabaseInterfaceActions, DatabaseQueryView, QueryResultView};
 use tokio_postgres::{Client, NoTls};
 use std::sync::{
     Arc
@@ -60,16 +60,12 @@ impl DatabaseInterfaceActions for PostgreInterface {
     }
 
     fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>> {
-        Box::pin(async move { Ok(String::from("PostgreSql Disconnected")) })
-        // if let Some(conn) = self.connection.take() {
-        //     conn.close().await.map_err(|e| format!("Failed to disconnect: {}", e))?;
-        // }
-        // self.client = None;
-        // Ok(())
+        Box::pin(async move { Ok(String::from("PostgreSql Disconnected"))})
     }
 
-    // fn execute_query(&self, query: &impl DatabaseQueryView) -> Result<&impl DatabaseQueryView, String> {
-    //     // // Implementation for executing a query
-    //     // unimplemented!()
-    // }
+    fn execute_query(&self, query: Box<dyn DatabaseQueryView> ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
+        Box::pin(async move {
+            Err("Not implemented".to_string())
+        })
+    }
 }

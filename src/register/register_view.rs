@@ -10,20 +10,20 @@ pub struct RegisterView {
 }
 
 impl RegisterView {
-    pub fn first_name(&self) -> &str {
-        &self.first_name
+    pub fn first_name(&self) -> String {
+        self.first_name.clone()
     }
 
-    pub fn last_name(&self) -> &str {
-        &self.last_name
+    pub fn last_name(&self) -> String {
+        self.last_name.clone()
     }
 
-    pub fn email(&self) -> &str {
-        &self.email
+    pub fn email(&self) -> String {
+        self.email.clone()
     }
 
-    pub fn password(&self) -> &str {
-        &self.password
+    pub fn password(&self) -> String {
+        self.password.clone()
     }
 }
 
