@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::env;
 use super::postgresql::postgre_interface::PostgreInterface;
 use crate::database::QUERY;
+use crate::database::queries_result_views::QueryResult;
 
 static DISPLAY: LazyLock<Mutex<DbInterface>> = LazyLock::new(||{
         Mutex::new(DbInterface::new())
@@ -45,7 +46,7 @@ pub enum QueryType {
 }
 
 pub trait QueryResultView {
-    fn set_result(&mut self, result: String) -> Result<(), String>;
+    fn get_result(&self) -> QueryResult;
 }
 
 pub trait DatabaseQueryView {

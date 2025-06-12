@@ -10,6 +10,10 @@ impl DoesUserExistByEmailQueryView {
     pub fn new(email: String) -> Self {
         Self { email, query: QUERY::DoesUserExistByEmail }
     }
+
+    pub fn get_email(&self) -> &String {
+        &self.email
+    }
 }
 
 impl DatabaseQueryView for DoesUserExistByEmailQueryView {

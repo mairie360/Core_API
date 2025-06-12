@@ -1,2 +1,2 @@
-mod can_create_user;
-pub use can_create_user::DoesUserExistByEmailQueryView;
+mod does_user_exist_by_email;
+pub use does_user_exist_by_email::DoesUserExistByEmailQueryView;
