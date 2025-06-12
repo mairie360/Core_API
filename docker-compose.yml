@@ -4,13 +4,11 @@ volumes:
 
 networks:
   backend:
-  frontend:
 
 x-common-env: &common-env
-  HOSTNAME: "0.0.0.0"
+  HOST: "0.0.0.0"
   PORT: 3000
   REDIS_URL: redis://redis:6379
-  CORE_PUBLIC_URL: http://development.mairie360.fr
   DB_TYPE: postgres
 
 x-depends-on: &depends-on
@@ -33,7 +31,6 @@ x-service: &service-template
     - "3000"
   networks:
     - backend
-    - frontend
   healthcheck:
     <<: *healthcheck
 
@@ -86,73 +83,30 @@ services:
     environment:
       <<: *common-env
       POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/core
+      PUBLIC_URL: http://core.development.mairie360.fr
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-  # files:
-  #   <<: *service-template
-  #   image: ghcr.io/mairie360/files:latest
-  #   environment:
-  #     <<: *common-env
-  #     POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/files
-  #   depends_on:
-  #     <<: *depends-on
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
-  # calendars:
-  #   <<: *service-template
-  #   image: ghcr.io/mairie360/calendars:latest
-  #   environment:
-  #     <<: *common-env
-  #     POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/calendars
-  #   depends_on:
-  #     <<: *depends-on
-
-  # emails:
-  #   <<: *service-template
-  #   image: ghcr.io/mairie360/emails:latest
-  #   environment:
-  #     <<: *common-env
-  #     POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/emails
-  #   depends_on:
-  #     <<: *depends-on
-
-  # projects:
-  #   <<: *service-template
-  #   image: ghcr.io/mairie360/projects:latest
-  #   environment:
-  #     <<: *common-env
-  #     POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/projects
-  #   depends_on:
-  #     <<: *depends-on
-
-  # messages:
-  #   <<: *service-template
-  #   image: ghcr.io/mairie360/messages:latest
-  #   environment:
-  #     <<: *common-env
-  #     POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/messages
-  #   depends_on:
-  #     <<: *depends-on
-
-  # nginx:
-  #   image: nginx:1.27.4-bookworm
-  #   restart: always
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/nginx.conf
-  #   ports:
-  #     - "80:80"
-  #   networks:
-  #     - frontend
-  #   depends_on:
-  #     files:
-  #       condition: service_healthy
-  #     calendars:
-  #       condition: service_healthy
-  #     emails:
-  #       condition: service_healthy
-  #     projects:
-  #       condition: service_healthy
-  #     messages:
-  #       condition: service_healthy
+  nginx:
+    image: nginx:1.27.4-bookworm
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    networks:
+      - backend
+    depends_on:
+      core:
+        condition: service_healthy
