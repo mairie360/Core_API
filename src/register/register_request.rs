@@ -1,9 +1,12 @@
+use actix_web::web::get;
 use actix_web::{
     HttpResponse,
     post,
     Responder,
     web
 };
+
+use super::super::database::db_interface::get_db_interface;
 
 use super::register_view::RegisterView;
 
@@ -51,7 +54,7 @@ async fn register(payload: web::Json<RegisterView>) -> impl Responder {
     println!("{}", register_view);
     match register_user(&register_view) {
         Ok(_) => {
-            return HttpResponse::Ok().body("User registered successfully!");
+            return HttpResponse::Created().body("User registered successfully!");
         },
         Err(e) => {
             return HttpResponse::BadRequest().body(format!("Error: {}", e));

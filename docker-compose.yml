@@ -11,6 +11,7 @@ x-common-env: &common-env
   PORT: 3000
   REDIS_URL: redis://redis:6379
   CORE_PUBLIC_URL: http://development.mairie360.fr
+  DB_TYPE: postgres
 
 x-depends-on: &depends-on
   postgres:
@@ -38,7 +39,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:latest
+    image: ghcr.io/mairie360/database:3-refacto-change-user-table-15608300550
     restart: always
     environment:
       - POSTGRES_USER=postgres

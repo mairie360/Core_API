@@ -7,6 +7,7 @@ use actix_web::{
 };
 
 use CoreAPI::register::register_request::register;
+use CoreAPI::database::db_interface::get_db_interface;
 
 //                                        -- POST REQUESTS --
 
