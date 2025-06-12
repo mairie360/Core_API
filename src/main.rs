@@ -6,11 +6,9 @@ use actix_web::{
     post,
     Responder,
 };
-use std::env;
 
 use CoreAPI::register::register_request::register;
 use CoreAPI::database::db_interface::get_db_interface;
-use CoreAPI::database::db_interface::db_interface;
 use CoreAPI::get_critical_env_var;
 
 //                                        -- POST REQUESTS --
@@ -31,8 +29,15 @@ async fn health() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let mut interface = db_interface::new();
-    interface.connect().await;
+    match get_db_interface().lock().unwrap().connect().await {
+        Ok(msg) => {
+            println!("{}", msg);
+        },
+        Err(e) => {
+            eprintln!("Failed to connect to the database: {}", e);
+            std::process::exit(1);
+        },
+    }
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{}:{}", host, port);

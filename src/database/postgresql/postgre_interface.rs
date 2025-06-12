@@ -1,7 +1,7 @@
 use crate::database::db_interface::DatabaseInterfaceActions;
-use tokio_postgres::{config, Client, Error, NoTls};
+use tokio_postgres::{Client, NoTls};
 use std::sync::{
-    Arc, LazyLock,
+    Arc
 };
 use tokio::sync::Mutex;
 use std::future::Future;

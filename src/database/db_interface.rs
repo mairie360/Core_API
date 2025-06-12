@@ -1,5 +1,4 @@
 use std::sync::{
-    Arc,
     Mutex,
     LazyLock
 };
@@ -9,8 +8,8 @@ use std::collections::HashMap;
 use std::env;
 use super::postgresql::postgre_interface::PostgreInterface;
 
-static DISPLAY: LazyLock<Mutex<db_interface>> = LazyLock::new(||{
-        Mutex::new(db_interface::new())
+static DISPLAY: LazyLock<Mutex<DbInterface>> = LazyLock::new(||{
+        Mutex::new(DbInterface::new())
     }
 );
 
@@ -27,7 +26,7 @@ fn get_db_type(key: &str) -> DatabaseType {
         .unwrap_or(DatabaseType::Unknown)
 }
 
-pub fn get_db_interface() -> &'static Mutex<db_interface> {
+pub fn get_db_interface() -> &'static Mutex<DbInterface> {
     &DISPLAY
 }
 
@@ -57,22 +56,16 @@ pub trait DatabaseInterfaceActions: Send {
     fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
     // fn execute_query(&self, query: &impl DatabaseQueryView) -> Result<&impl DatabaseQueryView, String>;
 }
-
-pub struct db_interface {
+pub struct DbInterface {
     db_interface: Box<dyn DatabaseInterfaceActions + Send>
 }
 
-// async fn connect_interface(interface: Arc<Mutex<dyn DatabaseInterfaceActions + Send>>) -> Result<String, String> {
-//     let mut locked_interface = interface.lock().map_err(|_| "Failed to lock database interface".to_string())?;
-//     locked_interface.connect().await
-// }
-
-impl db_interface {
+impl DbInterface {
     pub fn new() -> Self {
         println!("Initializing database interface...");
         let db_type = env::var("DB_TYPE");
         println!("Database type: {:?}", db_type);
-        let db_interface = db_interface {
+        let db_interface = DbInterface {
             db_interface: match get_db_type(db_type.clone().unwrap().as_str()) {
                 DatabaseType::PostgreSQL => {
                     Box::new(PostgreInterface::new())
@@ -86,18 +79,18 @@ impl db_interface {
         db_interface
     }
 
-    pub async fn connect(&mut self){
+    pub async fn connect(&mut self) -> Result<String, String> {
         match self.db_interface.connect().await {
-            Ok(message) => println!("{}", message),
-            Err(e) => eprintln!("{}", e),
+            Ok(message) => Ok(message),
+            Err(e) => Err(e),
         }
     }
 
-    pub async fn disconnect(&mut self) {
+    pub async fn disconnect(&mut self) -> Result<String, String> {
         // Placeholder for actual database disconnection logic
         match self.db_interface.disconnect().await {
-            Ok(message) => println!("{}", message),
-            Err(e) => eprintln!("{}", e),
+            Ok(message) => Ok(message),
+            Err(e) => Err(e),
         }
     }
 }
