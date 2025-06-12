@@ -29,14 +29,22 @@ async fn health() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    match get_db_interface().lock().unwrap().connect().await {
-        Ok(msg) => {
-            println!("{}", msg);
+    match get_db_interface().lock().unwrap().as_mut() {
+        Some(db_interface) => {
+            match db_interface.connect().await {
+                Ok(msg) => {
+                    println!("{}", msg);
+                },
+                Err(e) => {
+                    eprintln!("Failed to connect to the database: {}", e);
+                    std::process::exit(1);
+                },
+            }
         },
-        Err(e) => {
-            eprintln!("Failed to connect to the database: {}", e);
+        None => {
+            eprintln!("Database interface is not initialized.");
             std::process::exit(1);
-        },
+        }
     }
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");

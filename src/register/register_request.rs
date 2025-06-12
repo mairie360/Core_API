@@ -23,7 +23,15 @@ fn is_valid_password(password: String) -> bool {
 async fn already_exists(register_view: &RegisterView) -> bool {
     let view = DoesUserExistByEmailQueryView::new(register_view.email());
     println!("db view: {}", view);
-    let query_view= get_db_interface().lock().unwrap().execute_query(Box::new(view)).await;
+    let db_guard = get_db_interface().lock().unwrap();
+    let db_interface = match &*db_guard {
+        Some(db) => db,
+        None => {
+            println!("Database interface is not initialized.");
+            return true;
+        }
+    };
+    let query_view = db_interface.execute_query(Box::new(view)).await;
     match query_view {
         Ok(result) => {
             println!("Query result: {}", result.get_result());
@@ -34,10 +42,6 @@ async fn already_exists(register_view: &RegisterView) -> bool {
             true
         }
     }
-    // match query_view {
-    //     Ok(result) => false,
-    //     Err(_) => false
-    // }
 }
 
 async fn can_be_registered(register_view: &RegisterView) -> Result<(), String> {

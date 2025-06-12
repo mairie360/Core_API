@@ -5,12 +5,24 @@ use super::queries::*;
 
 use tokio_postgres::{Client, NoTls};
 use std::sync::{
-    Arc
+    Arc,
+    LazyLock,
 };
 use tokio::sync::Mutex;
 use std::future::Future;
 use std::pin::Pin;
+static POSTGRESQL_INTERFACE: LazyLock<Mutex<Option<PostgreInterface>>> = LazyLock::new(|| Mutex::new(Some(PostgreInterface::new())));
 
+pub async fn create_postgre_interface() {
+    let mut guard = POSTGRESQL_INTERFACE.lock().await;
+    if guard.is_none() {
+        *guard = Some(PostgreInterface::new());
+    }
+}
+
+pub async fn get_postgre_interface() -> tokio::sync::MutexGuard<'static, Option<PostgreInterface>> {
+    POSTGRESQL_INTERFACE.lock().await
+}
 
 pub struct PostgreInterface {
     db_name: String,
@@ -29,6 +41,10 @@ impl PostgreInterface {
             db_host: get_critical_env_var("DB_HOST"),
             client: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub fn get_client(&self) -> Arc<Mutex<Option<Client>>> {
+        self.client.clone()
     }
 }
 
@@ -67,11 +83,12 @@ impl DatabaseInterfaceActions for PostgreInterface {
     }
 
     fn execute_query(&self, query: Box<dyn DatabaseQueryView> ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
+        let client = self.get_client();
         Box::pin(async move {
             println!("Executing query: {}", query.get_query_type());
             match query.get_query_type() {
                 DoesUserExistByEmail => {
-                    does_user_exist_by_email(query).await
+                    does_user_exist_by_email(query, client).await
                 }
                 UnknownQuery => {
                     Err(format!("Unsupported query type: {}", query.get_query_type()))

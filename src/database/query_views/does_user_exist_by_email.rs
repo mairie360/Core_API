@@ -20,7 +20,7 @@ impl DoesUserExistByEmailQueryView {
 impl DatabaseQueryView for DoesUserExistByEmailQueryView {
     fn get_request(&self) -> String {
         format!(
-            "SELECT COUNT(*) FROM users WHERE email = '{}'",
+            "SELECT EXISTS(SELECT 1 FROM users WHERE email = '{}')",
             self.email
         )
     }
