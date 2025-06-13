@@ -29,7 +29,16 @@ impl std::fmt::Display for RegisterError {
 
 fn is_valid_email(email: String) -> bool {
     //Need to be more complex and based on requirements
-    true
+    if email.is_empty() {
+        return false;
+    }
+    match email.find('@') {
+        Some(index) => {
+            let domain = &email[index + 1..];
+            !domain.is_empty() && domain.contains('.')
+        },
+        None => false,
+    }
 }
 
 fn is_valid_password(password: String) -> bool {
