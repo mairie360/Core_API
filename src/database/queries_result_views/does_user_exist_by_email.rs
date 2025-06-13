@@ -1,5 +1,5 @@
-use crate::database::db_interface::QueryResultView;
 use super::QueryResult;
+use crate::database::db_interface::QueryResultView;
 
 pub struct DoesUserExistByEmailQueryResultView {
     does_user_exist: bool,

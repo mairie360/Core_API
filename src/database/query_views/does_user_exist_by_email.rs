@@ -9,7 +9,10 @@ pub struct DoesUserExistByEmailQueryView {
 
 impl DoesUserExistByEmailQueryView {
     pub fn new(email: String) -> Self {
-        Self { email, query: QUERY::DoesUserExistByEmail }
+        Self {
+            email,
+            query: QUERY::DoesUserExistByEmail,
+        }
     }
 
     pub fn get_email(&self) -> &String {

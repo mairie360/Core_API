@@ -1,14 +1,11 @@
-use actix_web::{
-    HttpResponse,
-    post,
-    Responder,
-    web
-};
+use actix_web::{post, web, HttpResponse, Responder};
 
-use crate::database::query_views::{DoesUserExistByEmailQueryView, RegisterUserQueryView};
 use super::super::database::db_interface::get_db_interface;
 use super::register_view::RegisterView;
-use crate::database::queries_result_views::{get_boolean_from_query_result, get_result_from_query_result};
+use crate::database::queries_result_views::{
+    get_boolean_from_query_result, get_result_from_query_result,
+};
+use crate::database::query_views::{DoesUserExistByEmailQueryView, RegisterUserQueryView};
 
 #[derive(Debug, Clone, PartialEq)]
 enum RegisterError {
@@ -36,7 +33,7 @@ fn is_valid_email(email: String) -> bool {
         Some(index) => {
             let domain = &email[index + 1..];
             !domain.is_empty() && domain.contains('.')
-        },
+        }
         None => false,
     }
 }
@@ -66,9 +63,7 @@ async fn already_exists(register_view: &RegisterView) -> bool {
     };
     let query_view = db_interface.execute_query(Box::new(view)).await;
     match query_view {
-        Ok(result) => {
-            get_boolean_from_query_result(result.get_result())
-        },
+        Ok(result) => get_boolean_from_query_result(result.get_result()),
         Err(e) => {
             eprintln!("Error executing query: {}", e);
             true
@@ -100,7 +95,7 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
                 register_view.last_name(),
                 register_view.email(),
                 register_view.password(),
-                register_view.phone_number()
+                register_view.phone_number(),
             );
             let db_guard = get_db_interface().lock().unwrap();
             let db_interface = match &*db_guard {
@@ -112,13 +107,11 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
             };
             let query_view = db_interface.execute_query(Box::new(view)).await;
             match query_view {
-                Ok(result) => {
-                    match get_result_from_query_result(result.get_result()) {
-                        Ok(_) => Ok(()),
-                        Err(e) => {
-                            eprintln!("Error processing query result: {}", e);
-                            Err(RegisterError::DatabaseError)
-                        }
+                Ok(result) => match get_result_from_query_result(result.get_result()) {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        eprintln!("Error processing query result: {}", e);
+                        Err(RegisterError::DatabaseError)
                     }
                 },
                 Err(e) => {
@@ -126,7 +119,7 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
                     Err(RegisterError::DatabaseError)
                 }
             }
-        },
+        }
         Err(e) => {
             eprintln!("Validation error: {:?}", e);
             Err(e)
@@ -138,17 +131,15 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
 async fn register(payload: web::Json<RegisterView>) -> impl Responder {
     let register_view = payload.into_inner();
     match register_user(&register_view).await {
-        Ok(_) => {
-            return HttpResponse::Created().body("User registered successfully!");
-        },
+        Ok(_) => HttpResponse::Created().body("User registered successfully!"),
         Err(RegisterError::InvalidData) => {
-            return HttpResponse::BadRequest().body("Invalid data provided.");
-        },
+            HttpResponse::BadRequest().body("Invalid data provided.")
+        }
         Err(RegisterError::UserAlreadyExists) => {
-            return HttpResponse::Conflict().body("User already exists.");
-        },
+            HttpResponse::Conflict().body("User already exists.")
+        }
         Err(RegisterError::DatabaseError) => {
-            return HttpResponse::InternalServerError().body("Database error occurred.");
+            HttpResponse::InternalServerError().body("Database error occurred.")
         }
     }
 }

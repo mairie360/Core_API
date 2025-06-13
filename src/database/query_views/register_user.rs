@@ -13,14 +13,20 @@ pub struct RegisterUserQueryView {
 }
 
 impl RegisterUserQueryView {
-    pub fn new(first_name: String, last_name: String, email: String, password: String, phone_number: Option<String>) -> Self {
+    pub fn new(
+        first_name: String,
+        last_name: String,
+        email: String,
+        password: String,
+        phone_number: Option<String>,
+    ) -> Self {
         Self {
             first_name,
             last_name,
             email,
             password,
             phone_number,
-            query: QUERY::RegisterUser
+            query: QUERY::RegisterUser,
         }
     }
 

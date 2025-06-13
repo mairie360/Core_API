@@ -1,17 +1,16 @@
-use crate::database::db_interface::{DatabaseInterfaceActions, DatabaseQueryView, QueryResultView};
-use crate::database::queries::QUERY::*;
 use super::super::super::get_critical_env_var;
 use super::queries::*;
+use crate::database::db_interface::{DatabaseInterfaceActions, DatabaseQueryView, QueryResultView};
+use crate::database::queries::QUERY::*;
 
-use tokio_postgres::{Client, NoTls};
-use std::sync::{
-    Arc,
-    LazyLock,
-};
-use tokio::sync::Mutex;
 use std::future::Future;
 use std::pin::Pin;
-static POSTGRESQL_INTERFACE: LazyLock<Mutex<Option<PostgreInterface>>> = LazyLock::new(|| Mutex::new(Some(PostgreInterface::new())));
+use std::sync::{Arc, LazyLock};
+use tokio::sync::Mutex;
+use tokio_postgres::{Client, NoTls};
+
+static POSTGRESQL_INTERFACE: LazyLock<Mutex<Option<PostgreInterface>>> =
+    LazyLock::new(|| Mutex::new(Some(PostgreInterface::new())));
 
 pub async fn create_postgre_interface() {
     let mut guard = POSTGRESQL_INTERFACE.lock().await;
@@ -29,7 +28,7 @@ pub struct PostgreInterface {
     db_user: String,
     db_password: String,
     db_host: String,
-    client: Arc<Mutex<Option<Client>>>
+    client: Arc<Mutex<Option<Client>>>,
 }
 
 impl PostgreInterface {
@@ -50,20 +49,17 @@ impl PostgreInterface {
 
 impl DatabaseInterfaceActions for PostgreInterface {
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>> {
-    let client_ref = self.client.clone();
-    let config = format!(
+        let client_ref = self.client.clone();
+        let config = format!(
             "host={} user={} password={} dbname={}",
             self.db_host, self.db_user, self.db_password, self.db_name
         );
 
         println!("Connecting to PostgreSQL with config: {}", config);
         Box::pin(async move {
-            let (client, connection) = tokio_postgres::connect(
-                config.as_str(),
-                NoTls
-            )
-            .await
-            .map_err(|e| format!("Failed to connect: {}", e))?;
+            let (client, connection) = tokio_postgres::connect(config.as_str(), NoTls)
+                .await
+                .map_err(|e| format!("Failed to connect: {}", e))?;
 
             // Spawn the connection future
             tokio::spawn(async move {
@@ -79,23 +75,23 @@ impl DatabaseInterfaceActions for PostgreInterface {
     }
 
     fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>> {
-        Box::pin(async move { Ok(String::from("PostgreSql Disconnected"))})
+        Box::pin(async move { Ok(String::from("PostgreSql Disconnected")) })
     }
 
-    fn execute_query(&self, query: Box<dyn DatabaseQueryView> ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
+    fn execute_query(
+        &self,
+        query: Box<dyn DatabaseQueryView>,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
         let client = self.get_client();
         Box::pin(async move {
             println!("Executing query: {}", query.get_query_type());
             match query.get_query_type() {
-                DoesUserExistByEmail => {
-                    does_user_exist_by_email(query, client).await
-                }
-                RegisterUser => {
-                    register_user(query, client).await
-                }
-                UnknownQuery => {
-                    Err(format!("Unsupported query type: {}", query.get_query_type()))
-                }
+                DoesUserExistByEmail => does_user_exist_by_email(query, client).await,
+                RegisterUser => register_user(query, client).await,
+                UnknownQuery => Err(format!(
+                    "Unsupported query type: {}",
+                    query.get_query_type()
+                )),
             }
         })
     }

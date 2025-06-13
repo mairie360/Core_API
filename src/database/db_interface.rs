@@ -1,18 +1,14 @@
-use std::sync::{
-    Mutex,
-    LazyLock
-};
-use std::future::Future;
-use std::pin::Pin;
+use super::postgresql::postgre_interface::{create_postgre_interface, get_postgre_interface};
+use crate::database::queries_result_views::QueryResult;
+use crate::database::QUERY;
 use std::collections::HashMap;
 use std::env;
-use super::postgresql::postgre_interface::{get_postgre_interface, create_postgre_interface};
-use crate::database::QUERY;
-use crate::database::queries_result_views::QueryResult;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{LazyLock, Mutex};
 
-static DB_INTERACE: LazyLock<Mutex<Option<DbInterface>>> = LazyLock::new(|| {
-    Mutex::new(Some(DbInterface::new()))
-});
+static DB_INTERACE: LazyLock<Mutex<Option<DbInterface>>> =
+    LazyLock::new(|| Mutex::new(Some(DbInterface::new())));
 
 static DB_TYPES: LazyLock<HashMap<String, DatabaseType>> = LazyLock::new(|| {
     let mut map = HashMap::new();
@@ -21,10 +17,7 @@ static DB_TYPES: LazyLock<HashMap<String, DatabaseType>> = LazyLock::new(|| {
 });
 
 fn get_db_type(key: &str) -> DatabaseType {
-    DB_TYPES
-        .get(key)
-        .cloned()
-        .unwrap_or(DatabaseType::Unknown)
+    DB_TYPES.get(key).cloned().unwrap_or(DatabaseType::Unknown)
 }
 
 pub fn get_db_interface() -> &'static Mutex<Option<DbInterface>> {
@@ -56,7 +49,10 @@ pub trait DatabaseQueryView: Send {
 pub trait DatabaseInterfaceActions: Send {
     fn connect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
     fn disconnect(&mut self) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
-    fn execute_query(&self, query: Box<dyn DatabaseQueryView>) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>>;
+    fn execute_query(
+        &self,
+        query: Box<dyn DatabaseQueryView>,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>>;
 }
 pub struct DbInterface {
     // db_interface: Box<dyn DatabaseInterfaceActions + Send>
@@ -76,8 +72,7 @@ impl DbInterface {
                 std::process::exit(1);
             }
         }
-        DbInterface {
-        }
+        DbInterface {}
     }
 
     pub async fn connect(&mut self) -> Result<String, String> {
@@ -104,7 +99,10 @@ impl DbInterface {
         }
     }
 
-    pub async fn execute_query(&self, query: Box<dyn DatabaseQueryView>) -> Result<Box<dyn QueryResultView>, String> {
+    pub async fn execute_query(
+        &self,
+        query: Box<dyn DatabaseQueryView>,
+    ) -> Result<Box<dyn QueryResultView>, String> {
         println!("Executing query: {}", query.get_request());
         let guard = get_postgre_interface().await;
         if let Some(ref postgre_interface) = *guard {

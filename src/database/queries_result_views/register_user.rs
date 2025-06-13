@@ -1,5 +1,5 @@
-use crate::database::db_interface::QueryResultView;
 use super::QueryResult;
+use crate::database::db_interface::QueryResultView;
 
 pub struct RegisterUserQueryResultView {
     success: Result<(), String>,
