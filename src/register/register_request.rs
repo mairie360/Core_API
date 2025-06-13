@@ -5,10 +5,27 @@ use actix_web::{
     web
 };
 
-use crate::database::query_views::DoesUserExistByEmailQueryView;
+use crate::database::query_views::{DoesUserExistByEmailQueryView, RegisterUserQueryView};
 use super::super::database::db_interface::get_db_interface;
 use super::register_view::RegisterView;
-use crate::database::queries_result_views::get_boolean_from_query_result;
+use crate::database::queries_result_views::{get_boolean_from_query_result, get_result_from_query_result};
+
+#[derive(Debug, Clone, PartialEq)]
+enum RegisterError {
+    InvalidData,
+    UserAlreadyExists,
+    DatabaseError,
+}
+
+impl std::fmt::Display for RegisterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegisterError::InvalidData => write!(f, "Invalid data provided"),
+            RegisterError::UserAlreadyExists => write!(f, "User already exists"),
+            RegisterError::DatabaseError => write!(f, "Database error occurred"),
+        }
+    }
+}
 
 fn is_valid_email(email: String) -> bool {
     //Need to be more complex and based on requirements
@@ -20,63 +37,109 @@ fn is_valid_password(password: String) -> bool {
     password.len() >= 8
 }
 
+fn is_valid_phone_number(phone_number: Option<String>) -> bool {
+    //Need to be more complex and based on requirements
+    match phone_number {
+        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_digit(10)),
+        None => true,
+    }
+}
+
 async fn already_exists(register_view: &RegisterView) -> bool {
     let view = DoesUserExistByEmailQueryView::new(register_view.email());
-    println!("db view: {}", view);
     let db_guard = get_db_interface().lock().unwrap();
     let db_interface = match &*db_guard {
         Some(db) => db,
         None => {
-            println!("Database interface is not initialized.");
+            eprintln!("Database interface is not initialized.");
             return true;
         }
     };
     let query_view = db_interface.execute_query(Box::new(view)).await;
     match query_view {
         Ok(result) => {
-            println!("Query result: {}", result.get_result());
             get_boolean_from_query_result(result.get_result())
         },
         Err(e) => {
-            println!("Error executing query: {}", e);
+            eprintln!("Error executing query: {}", e);
             true
         }
     }
 }
 
-async fn can_be_registered(register_view: &RegisterView) -> Result<(), String> {
+async fn can_be_registered(register_view: &RegisterView) -> Result<(), RegisterError> {
     if !is_valid_email(register_view.email()) {
-        return Err("Invalid email format".to_string());
+        return Err(RegisterError::InvalidData);
     }
     if already_exists(&register_view).await {
-        return Err("User already exists".to_string());
+        return Err(RegisterError::UserAlreadyExists);
     }
     if !is_valid_password(register_view.password()) {
-        return Err("Password must be at least 8 characters long".to_string());
+        return Err(RegisterError::InvalidData);
+    }
+    if !is_valid_phone_number(register_view.phone_number()) {
+        return Err(RegisterError::InvalidData);
     }
     Ok(())
 }
 
-async fn register_user(register_view: &RegisterView) -> Result<(), String> {
+async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError> {
     match can_be_registered(register_view).await {
         Ok(_) => {
-            //Need to be implemented after db link
-            Ok(())
+            let view = RegisterUserQueryView::new(
+                register_view.first_name(),
+                register_view.last_name(),
+                register_view.email(),
+                register_view.password(),
+                register_view.phone_number()
+            );
+            let db_guard = get_db_interface().lock().unwrap();
+            let db_interface = match &*db_guard {
+                Some(db) => db,
+                None => {
+                    eprintln!("Database interface is not initialized.");
+                    return Err(RegisterError::DatabaseError);
+                }
+            };
+            let query_view = db_interface.execute_query(Box::new(view)).await;
+            match query_view {
+                Ok(result) => {
+                    match get_result_from_query_result(result.get_result()) {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            eprintln!("Error processing query result: {}", e);
+                            Err(RegisterError::DatabaseError)
+                        }
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Error executing query: {}", e);
+                    Err(RegisterError::DatabaseError)
+                }
+            }
         },
-        Err(e) => Err(e),
+        Err(e) => {
+            eprintln!("Validation error: {:?}", e);
+            Err(e)
+        }
     }
 }
 
 #[post("/register")]
 async fn register(payload: web::Json<RegisterView>) -> impl Responder {
     let register_view = payload.into_inner();
-    println!("{}", register_view);
     match register_user(&register_view).await {
         Ok(_) => {
             return HttpResponse::Created().body("User registered successfully!");
         },
-        Err(e) => {
-            return HttpResponse::BadRequest().body(format!("Error: {}", e));
+        Err(RegisterError::InvalidData) => {
+            return HttpResponse::BadRequest().body("Invalid data provided.");
+        },
+        Err(RegisterError::UserAlreadyExists) => {
+            return HttpResponse::Conflict().body("User already exists.");
+        },
+        Err(RegisterError::DatabaseError) => {
+            return HttpResponse::InternalServerError().body("Database error occurred.");
         }
     }
 }

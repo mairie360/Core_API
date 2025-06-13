@@ -90,6 +90,9 @@ impl DatabaseInterfaceActions for PostgreInterface {
                 DoesUserExistByEmail => {
                     does_user_exist_by_email(query, client).await
                 }
+                RegisterUser => {
+                    register_user(query, client).await
+                }
                 UnknownQuery => {
                     Err(format!("Unsupported query type: {}", query.get_query_type()))
                 }

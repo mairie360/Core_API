@@ -20,5 +20,4 @@ pub async fn does_user_exist_by_email(query: Box<dyn DatabaseQueryView>, client:
             Err(format!("Database query error: {}", e))
         }
     }
-    // Ok(Box::new(DoesUserExistByEmailQueryResultView::new(false)))
 }

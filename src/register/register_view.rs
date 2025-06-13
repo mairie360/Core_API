@@ -7,6 +7,7 @@ pub struct RegisterView {
     last_name: String,
     email: String,
     password: String,
+    phone_number: Option<String>,
 }
 
 impl RegisterView {
@@ -25,14 +26,18 @@ impl RegisterView {
     pub fn password(&self) -> String {
         self.password.clone()
     }
+
+    pub fn phone_number(&self) -> Option<String> {
+        self.phone_number.clone()
+    }
 }
 
 impl Display for RegisterView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "RegisterView {{\n\tfirst_name: \"{}\",\n\tlast_name: \"{}\",\n\temail: \"{}\",\n\tpassword: \"{}\"\n}}",
-            self.first_name, self.last_name, self.email, self.password
+            "RegisterView {{ first_name: {}, last_name: {}, email: {}, password: {}, phone_number: {:?} }}",
+            self.first_name, self.last_name, self.email, self.password, self.phone_number
         )
     }
 }
