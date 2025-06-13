@@ -8,8 +8,8 @@ use std::fmt::Display;
  * and a method to get the type of query.
  */
 pub struct DoesUserExistByEmailQueryView {
-    email: String, // The email to check for existence
-    query: QUERY, // The type of query being executed
+    email: String,
+    query: QUERY,
 }
 
 impl DoesUserExistByEmailQueryView {

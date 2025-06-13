@@ -28,7 +28,6 @@ pub fn get_boolean_from_query_result(result: QueryResult) -> bool {
     }
 }
 
-
 /**
  * This function takes a `QueryResult` and returns a `Result<(), String>`.
  * If the result is of type `QueryResult::Result`, it returns the contained result.
