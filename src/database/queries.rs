@@ -1,5 +1,9 @@
 use std::fmt::Display;
 
+/**
+ * This module defines the queries used in the database.
+ * Each query is represented as an enum variant.
+ */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QUERY {
     DoesUserExistByEmail,

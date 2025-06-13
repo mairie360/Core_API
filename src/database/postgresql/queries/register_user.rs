@@ -4,6 +4,18 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
 
+/**
+ * This function registers a user in the database.
+ * It takes a query that implements the DatabaseQueryView trait,
+ * and a client wrapped in an Arc and Mutex for thread safety.
+ * It returns a Result containing a QueryResultView or an error message.
+ * # Arguments
+ * * `query`: A Box containing a query that implements the DatabaseQueryView trait.
+ * * `client`: An Arc<Mutex<Option<Client>>> that holds the database client.
+ * # Returns
+ * * `Result<Box<dyn QueryResultView>, String>`: A Result containing a Box of QueryResultView on success,
+ * or a String error message on failure.
+ */
 pub async fn register_user(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,

@@ -12,6 +12,11 @@ use tokio_postgres::{Client, NoTls};
 static POSTGRESQL_INTERFACE: LazyLock<Mutex<Option<PostgreInterface>>> =
     LazyLock::new(|| Mutex::new(Some(PostgreInterface::new())));
 
+/**
+ * This function initializes the PostgreSQL interface if it hasn't been created yet.
+ * It uses a mutex to ensure that only one instance is created in a thread-safe manner.
+ * The PostgreInterface struct holds the database connection details and a client for executing queries.
+ */
 pub async fn create_postgre_interface() {
     let mut guard = POSTGRESQL_INTERFACE.lock().await;
     if guard.is_none() {
@@ -19,10 +24,23 @@ pub async fn create_postgre_interface() {
     }
 }
 
+/**
+ * This function retrieves the PostgreSQL interface, ensuring that it is initialized.
+ * It returns a guard to the mutex that protects the interface, allowing safe access to it.
+ * The interface can be used to connect to the database, execute queries, and manage the connection.
+ * # Returns
+ * A `MutexGuard` that provides access to the `PostgreInterface`.
+ */
 pub async fn get_postgre_interface() -> tokio::sync::MutexGuard<'static, Option<PostgreInterface>> {
     POSTGRESQL_INTERFACE.lock().await
 }
 
+/**
+ * The PostgreInterface struct represents the interface for interacting with a PostgreSQL database.
+ * It contains the database connection details and a client for executing queries.
+ * The struct implements the DatabaseInterfaceActions trait, which defines methods for connecting to the database,
+ * disconnecting, and executing queries.
+ */
 pub struct PostgreInterface {
     db_name: String,
     db_user: String,
@@ -32,6 +50,13 @@ pub struct PostgreInterface {
 }
 
 impl PostgreInterface {
+    /**
+     * Creates a new instance of the PostgreInterface.
+     * It retrieves the database connection details from environment variables,
+     * ensuring that they are set before proceeding.
+     * # Returns
+     * A new instance of PostgreInterface with the database connection details.
+     */
     pub fn new() -> Self {
         PostgreInterface {
             db_name: get_critical_env_var("DB_NAME"),
@@ -42,6 +67,13 @@ impl PostgreInterface {
         }
     }
 
+    /**
+     * Retrieves the client used for executing queries.
+     * This method returns an Arc<Mutex<Option<Client>>> that allows safe access to the client.
+     * The client is wrapped in a Mutex to ensure thread safety when accessing it.
+     * # Returns
+     * An Arc<Mutex<Option<Client>>> that provides access to the PostgreSQL client.
+     */
     pub fn get_client(&self) -> Arc<Mutex<Option<Client>>> {
         self.client.clone()
     }

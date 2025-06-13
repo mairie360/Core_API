@@ -4,6 +4,18 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
 
+/**
+ * Checks if a user exists in the database by their email address.
+ * This function takes a query object and a database client,
+ * executes the query to check for the existence of a user with the given email,
+ * and returns a result indicating whether the user exists.
+ * # Arguments
+ * * `query`: A boxed trait object implementing `DatabaseQueryView`, which contains the SQL query to execute.
+ * * `client`: An `Arc<Mutex<Option<Client>>>` that holds the database client.
+ * # Returns
+ * * `Result<Box<dyn QueryResultView>, String>`: A result containing a boxed trait object implementing `QueryResultView` if the query is successful,
+ * or an error message if the query fails.
+ */
 pub async fn does_user_exist_by_email(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,

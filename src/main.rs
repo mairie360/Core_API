@@ -6,6 +6,9 @@ use CoreAPI::register::register_request::register;
 
 //                                        -- POST REQUESTS --
 
+/** * Handles a POST request to the root endpoint.
+ * Responds with a simple "Hello, world!" message.
+ */
 #[post("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello, world!")
@@ -13,6 +16,9 @@ async fn hello() -> impl Responder {
 
 //                                        -- GET REQUESTS --
 
+/** * Handles a GET request to the /health endpoint.
+ * Responds with a simple "OK" message to indicate the service is healthy.
+ */
 #[get("/health")]
 async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")

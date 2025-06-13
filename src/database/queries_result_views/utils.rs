@@ -1,10 +1,23 @@
 use std::fmt;
 
+/**
+ * This module provides utility functions to handle query results in a database context.
+ * It defines a `QueryResult` enum to encapsulate different types of results,
+ */
 pub enum QueryResult {
     Boolean(bool),
     Result(Result<(), String>),
 }
 
+/**
+ * This function takes a `QueryResult` and returns a boolean value.
+ * If the result is of type `QueryResult::Boolean`, it returns the boolean value.
+ * If the result is not of type `QueryResult::Boolean`, it prints an error message and returns `false`.
+ * * # Arguments
+ * * `result`: A `QueryResult` enum instance.
+ * # Returns
+ * * A boolean value extracted from the `QueryResult`.
+ */
 pub fn get_boolean_from_query_result(result: QueryResult) -> bool {
     match result {
         QueryResult::Boolean(b) => b,
@@ -15,6 +28,16 @@ pub fn get_boolean_from_query_result(result: QueryResult) -> bool {
     }
 }
 
+
+/**
+ * This function takes a `QueryResult` and returns a `Result<(), String>`.
+ * If the result is of type `QueryResult::Result`, it returns the contained result.
+ * If the result is not of type `QueryResult::Result`, it prints an error message and returns an error.
+ * * # Arguments
+ * * `result`: A `QueryResult` enum instance.
+ * # Returns
+ * * A `Result<(), String>` extracted from the `QueryResult`.
+ */
 pub fn get_result_from_query_result(result: QueryResult) -> Result<(), String> {
     match result {
         QueryResult::Result(res) => res,
