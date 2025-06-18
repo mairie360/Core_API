@@ -38,7 +38,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: postgres:17.4-bookworm
+    image: ghcr.io/mairie360/database:latest
     restart: always
     environment:
       - POSTGRES_USER=postgres
