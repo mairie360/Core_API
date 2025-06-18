@@ -1,5 +1,5 @@
 pub mod database;
-pub mod register;
+pub mod endpoints;
 
 /**
  * Retrieves an environment variable by name.
