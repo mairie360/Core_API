@@ -1,6 +1,6 @@
-use std::env;
-use once_cell::sync::Lazy;
 use core_api::{get_critical_env_var, get_env_var};
+use once_cell::sync::Lazy;
+use std::env;
 
 static INIT: Lazy<()> = Lazy::new(|| {
     // This code runs ONCE before any test

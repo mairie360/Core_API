@@ -45,10 +45,7 @@ async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
             }
             let jwt = generate_jwt(user_id.to_string().as_str());
             match jwt {
-                Ok(token) => {
-                    println!("Generated JWT: {}", token);
-                    Ok(token)
-                },
+                Ok(token) => Ok(token),
                 Err(e) => {
                     eprintln!("Error generating JWT: {}", e);
                     return Err(LoginError::TokenGenerationError);
@@ -67,8 +64,8 @@ async fn login(payload: web::Json<LoginView>) -> impl Responder {
     let login_view = payload.into_inner();
     match login_user(&login_view).await {
         Ok(jwt) => HttpResponse::Ok()
-        .append_header(("Authorization", format!("Bearer {}", jwt)))
-        .body("User login successfully!"),
+            .append_header(("Authorization", format!("Bearer {}", jwt)))
+            .body("User login successfully!"),
         Err(LoginError::InvalidCredentials) => {
             eprintln!("Invalid credentials provided during login.");
             HttpResponse::Unauthorized().body("Invalid email or password.")
