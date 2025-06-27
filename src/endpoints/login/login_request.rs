@@ -6,6 +6,18 @@ use crate::database::queries_result_views::get_u64_from_query_result;
 use crate::database::query_views::LoginUserQueryView;
 use crate::jwt_manager::generate_jwt::generate_jwt;
 
+/**
+ * Enum representing possible errors during user login.
+ * This enum is used to handle different error scenarios that can occur
+ * when a user attempts to log in, such as invalid credentials, database errors,
+ * or issues with JWT token generation.
+ *
+ * InvalidCredentials: Indicates that the provided email or password is incorrect.
+ * DatabaseError: Indicates that there was an issue accessing the database,
+ * such as a connection failure or query execution error.
+ * TokenGenerationError: Indicates that there was an error while generating the JWT token
+ * for the user after a successful login.
+ */
 #[derive(Debug, Clone, PartialEq)]
 enum LoginError {
     InvalidCredentials,
@@ -25,6 +37,20 @@ impl std::fmt::Display for LoginError {
     }
 }
 
+/**
+ * Asynchronously logs in a user by validating their credentials.
+ * This function takes a reference to a LoginView object containing the user's email and password,
+ * and attempts to authenticate the user against the database.
+ * If the credentials are valid, it generates a JWT token for the user.
+ * If the credentials are invalid, it returns an InvalidCredentials error.
+ * If there is a database error, it returns a DatabaseError.
+ *
+ * # Arguments
+ * * `login_view` - A reference to a LoginView object containing the user's email and password.
+ * # Returns
+ * * `Result<String, LoginError>` - On success, returns a JWT token as a `String`.
+ * On failure, returns a `LoginError` indicating the type of error encountered.
+ */
 async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
     let db_guard = get_db_interface().lock().unwrap();
@@ -59,6 +85,14 @@ async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
     }
 }
 
+/**
+ * Asynchronous handler for user login requests.
+ * This function processes incoming login requests, validates the user's credentials,
+ * and returns an appropriate HTTP response.
+ * If the login is successful, it returns a 200 OK response with a JWT token in the Authorization header.
+ * If the login fails due to invalid credentials, it returns a 401 Unauthorized response.
+ * If there is a database error or an error generating the JWT token, it returns a 500 Internal Server Error response.
+ */
 #[post("/login")]
 async fn login(payload: web::Json<LoginView>) -> impl Responder {
     let login_view = payload.into_inner();

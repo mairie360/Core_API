@@ -4,6 +4,16 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
 
+/**
+ * Function to login a user by executing a query against the PostgreSQL database.
+ * It retrieves the user ID from the query result and returns it wrapped in a `LoginUserQueryResultView`.
+ * # Arguments
+ * * `query`: A boxed trait object implementing `DatabaseQueryView`, which contains the SQL query to be executed.
+ * * `client`: An `Arc<Mutex<Option<Client>>>` that provides access to the PostgreSQL client.
+ * # Returns
+ * * `Result<Box<dyn QueryResultView>, String>`: On success, it returns a boxed trait object containing the result of the query.
+ *   On failure, it returns an error message as a `String`.
+ */
 pub async fn login_user(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,
