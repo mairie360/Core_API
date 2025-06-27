@@ -3,18 +3,6 @@
 version = 4
 
 [[package]]
-name = "CoreAPI"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "futures-util",
- "jsonwebtoken",
- "serde",
- "tokio",
- "tokio-postgres",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -363,6 +351,18 @@ dependencies = [
  "percent-encoding",
  "time",
  "version_check",
+]
+
+[[package]]
+name = "core_api"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "futures-util",
+ "jsonwebtoken",
+ "serde",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]
