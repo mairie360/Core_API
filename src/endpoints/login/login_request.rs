@@ -3,7 +3,7 @@ use actix_web::{post, web, HttpResponse, Responder};
 use super::super::super::database::db_interface::get_db_interface;
 use super::login_view::LoginView;
 use crate::database::queries_result_views::get_u64_from_query_result;
-use crate::database::query_views::{LoginUserQueryView};
+use crate::database::query_views::LoginUserQueryView;
 use crate::jwt_manager::generate_jwt::generate_jwt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,17 +17,16 @@ impl std::fmt::Display for LoginError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LoginError::InvalidCredentials => write!(f, "Invalid credentials provided."),
-            LoginError::DatabaseError => write!(f, "An error occurred while accessing the database."),
+            LoginError::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
+            }
             LoginError::TokenGenerationError => write!(f, "Failed to generate JWT token."),
         }
     }
 }
 
 async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
-    let view = LoginUserQueryView::new(
-        login_view.email(),
-        login_view.password(),
-    );
+    let view = LoginUserQueryView::new(login_view.email(), login_view.password());
     let db_guard = get_db_interface().lock().unwrap();
     let db_interface = match &*db_guard {
         Some(db) => db,
@@ -53,7 +52,7 @@ async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
                 }
             }
             Ok(())
-        },
+        }
         Err(e) => {
             eprintln!("Error executing query: {}", e);
             Err(LoginError::DatabaseError)

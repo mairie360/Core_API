@@ -1,9 +1,9 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 
 use CoreAPI::database::db_interface::get_db_interface;
-use CoreAPI::get_critical_env_var;
-use CoreAPI::endpoints::register::register_request::register;
 use CoreAPI::endpoints::login::login_request::login;
+use CoreAPI::endpoints::register::register_request::register;
+use CoreAPI::get_critical_env_var;
 
 //                                        -- POST REQUESTS --
 

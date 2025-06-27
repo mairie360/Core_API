@@ -9,10 +9,7 @@ pub struct LoginUserQueryView {
 }
 
 impl LoginUserQueryView {
-    pub fn new(
-        email: String,
-        password: String,
-    ) -> Self {
+    pub fn new(email: String, password: String) -> Self {
         Self {
             email,
             password,
@@ -44,6 +41,10 @@ impl DatabaseQueryView for LoginUserQueryView {
 
 impl Display for LoginUserQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LoginUserQueryView: email = {}, password = {}", self.email, self.password)
+        write!(
+            f,
+            "LoginUserQueryView: email = {}, password = {}",
+            self.email, self.password
+        )
     }
 }
