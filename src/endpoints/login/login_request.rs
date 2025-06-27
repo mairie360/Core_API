@@ -28,7 +28,6 @@ async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
         login_view.email(),
         login_view.password(),
     );
-    println!("Executing login query: {}", view);
     let db_guard = get_db_interface().lock().unwrap();
     let db_interface = match &*db_guard {
         Some(db) => db,
@@ -45,7 +44,6 @@ async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
                 eprintln!("Login failed: User not found or invalid credentials.");
                 return Err(LoginError::InvalidCredentials);
             }
-            println!("User logged in successfully with ID: {}", user_id);
             let jwt = generate_jwt(user_id.to_string().as_str());
             match jwt {
                 Ok(token) => println!("Generated JWT: {}", token),

@@ -87,7 +87,6 @@ impl DatabaseInterfaceActions for PostgreInterface {
             self.db_host, self.db_user, self.db_password, self.db_name
         );
 
-        println!("Connecting to PostgreSQL with config: {}", config);
         Box::pin(async move {
             let (client, connection) = tokio_postgres::connect(config.as_str(), NoTls)
                 .await
@@ -116,7 +115,6 @@ impl DatabaseInterfaceActions for PostgreInterface {
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
         let client = self.get_client();
         Box::pin(async move {
-            println!("Executing query: {}", query.get_query_type());
             match query.get_query_type() {
                 DoesUserExistByEmail => does_user_exist_by_email(query, client).await,
                 RegisterUser => register_user(query, client).await,

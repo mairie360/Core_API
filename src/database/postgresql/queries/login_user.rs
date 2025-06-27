@@ -8,13 +8,11 @@ pub async fn login_user(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,
 ) -> Result<Box<dyn QueryResultView>, String> {
-    println!("Login user with query: {}", query.get_request());
     let tmp_client = client.lock().await;
     let client = tmp_client
         .as_ref()
         .ok_or("Database client is not initialized")?;
     let result = client.query_one(query.get_request().as_str(), &[]).await;
-    println!("Login user result: {:?}", result);
     match result {
         Ok(row) => {
             match row.columns().first() {
@@ -22,7 +20,6 @@ pub async fn login_user(
                     match column.column_id() {
                         Some(column_id) => {
                             let user_id: u64 = column_id as u64;
-                            println!("User ID: {}", user_id);
                             Ok(Box::new(LoginUserQueryResultView::new(user_id)))
                         }
                         None => { eprintln!("Column ID not available");
@@ -37,7 +34,7 @@ pub async fn login_user(
             }
         }
         Err(e) => {
-            println!("Error executing query: {}", e);
+            eprintln!("Error executing query: {}", e);
             Ok(Box::new(LoginUserQueryResultView::new(0)))
         }
     }

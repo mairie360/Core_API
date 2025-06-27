@@ -176,7 +176,6 @@ impl DbInterface {
         &self,
         query: Box<dyn DatabaseQueryView>,
     ) -> Result<Box<dyn QueryResultView>, String> {
-        println!("Executing query: {}", query.get_request());
         let guard = get_postgre_interface().await;
         if let Some(ref postgre_interface) = *guard {
             match postgre_interface.execute_query(query).await {
