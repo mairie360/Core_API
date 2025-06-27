@@ -106,18 +106,6 @@ jobs:
           POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
           POSTMAN_CORE_API_COLLECTION_ID: ${{ secrets.POSTMAN_CORE_API_COLLECTION_ID }}
         run: |
-          curl -X GET "https://api.getpostman.com/collections/$POSTMAN_CORE_API_COLLECTION_ID" \
-            -H "X-Api-Key: $POSTMAN_API_KEY" \
-            -o collection.json
-
-          # Check if the curl command was successful
-          if [ $? -eq 0 ]; then
-            echo "The collection was successfully retrieved and saved to collection.json"
-
-            # Run the collection with Newman
-            newman run collection.json
-          else
-            echo "An error occurred while retrieving the collection"
-            exit 1
-          fi
+          postman login --with-api-key $POSTMAN_API_KEY
+          postman collection run 40336666-2cd6fef2-1ec7-4ed6-acd9-b34fb37409aa
 
