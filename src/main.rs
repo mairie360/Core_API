@@ -1,8 +1,9 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 
-use CoreAPI::database::db_interface::get_db_interface;
-use CoreAPI::get_critical_env_var;
-use CoreAPI::register::register_request::register;
+use core_api::database::db_interface::get_db_interface;
+use core_api::endpoints::login::login_request::login;
+use core_api::endpoints::register::register_request::register;
+use core_api::get_critical_env_var;
 
 //                                        -- POST REQUESTS --
 
@@ -51,6 +52,7 @@ async fn main() -> std::io::Result<()> {
             // post requests
             .service(hello)
             .service(register)
+            .service(login)
             // get requests
             .service(health)
     })

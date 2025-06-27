@@ -1,6 +1,6 @@
 use actix_web::{post, web, HttpResponse, Responder};
 
-use super::super::database::db_interface::get_db_interface;
+use super::super::super::database::db_interface::get_db_interface;
 use super::register_view::RegisterView;
 use crate::database::queries_result_views::{
     get_boolean_from_query_result, get_result_from_query_result,
