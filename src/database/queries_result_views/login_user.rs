@@ -2,20 +2,17 @@ use super::QueryResult;
 use crate::database::db_interface::QueryResultView;
 
 pub struct LoginUserQueryResultView {
-    nb: Result<u64, String>,
+    nb: u64,
 }
 
 impl LoginUserQueryResultView {
-    pub fn new(nb: Result<u64, String>) -> Self {
+    pub fn new(nb: u64) -> Self {
         Self { nb }
     }
 }
 
 impl QueryResultView for LoginUserQueryResultView {
     fn get_result(&self) -> QueryResult {
-        match &self.nb {
-            Ok(nb) => QueryResult::U64(*nb),
-            Err(e) => QueryResult::U64(0),
-        }
+        QueryResult::U64(self.nb)
     }
 }

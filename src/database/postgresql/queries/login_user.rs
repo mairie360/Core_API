@@ -23,7 +23,7 @@ pub async fn login_user(
                         Some(column_id) => {
                             let user_id: u64 = column_id as u64;
                             println!("User ID: {}", user_id);
-                            Ok(Box::new(LoginUserQueryResultView::new(Ok(user_id))))
+                            Ok(Box::new(LoginUserQueryResultView::new(user_id)))
                         }
                         None => { eprintln!("Column ID not available");
                             Err("Column ID not available".to_string())
@@ -38,7 +38,7 @@ pub async fn login_user(
         }
         Err(e) => {
             println!("Error executing query: {}", e);
-            Err(format!("Database query error: {}", e))
+            Ok(Box::new(LoginUserQueryResultView::new(0)))
         }
     }
 }
