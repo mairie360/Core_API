@@ -360,6 +360,7 @@ dependencies = [
  "actix-web",
  "futures-util",
  "jsonwebtoken",
+ "once_cell",
  "serde",
  "tokio",
  "tokio-postgres",
