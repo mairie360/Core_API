@@ -134,11 +134,6 @@ jobs:
       - name: Build and start services
         run: docker-compose up -d --build
 
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting 30 seconds for services to be ready..."
-          sleep 30
-
       - name: Install Node.js
         uses: actions/setup-node@v2
         with:
