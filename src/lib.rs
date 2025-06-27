@@ -1,5 +1,6 @@
 pub mod database;
 pub mod endpoints;
+pub mod jwt_manager;
 
 /**
  * Retrieves an environment variable by name.
