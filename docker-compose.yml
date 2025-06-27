@@ -91,6 +91,7 @@ services:
       POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/core
       PUBLIC_URL: http://core.development.mairie360.fr
       JWT_SECRET: b"secret"
+      JWT_TIMEOUT: 3600
     depends_on:
       postgres:
         condition: service_healthy
