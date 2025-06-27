@@ -25,7 +25,7 @@ impl std::fmt::Display for LoginError {
     }
 }
 
-async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
+async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
     let db_guard = get_db_interface().lock().unwrap();
     let db_interface = match &*db_guard {
@@ -45,13 +45,15 @@ async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
             }
             let jwt = generate_jwt(user_id.to_string().as_str());
             match jwt {
-                Ok(token) => println!("Generated JWT: {}", token),
+                Ok(token) => {
+                    println!("Generated JWT: {}", token);
+                    Ok(token)
+                },
                 Err(e) => {
                     eprintln!("Error generating JWT: {}", e);
                     return Err(LoginError::TokenGenerationError);
                 }
             }
-            Ok(())
         }
         Err(e) => {
             eprintln!("Error executing query: {}", e);
@@ -64,7 +66,9 @@ async fn login_user(login_view: &LoginView) -> Result<(), LoginError> {
 async fn login(payload: web::Json<LoginView>) -> impl Responder {
     let login_view = payload.into_inner();
     match login_user(&login_view).await {
-        Ok(_) => HttpResponse::Ok().body("User login successfully!"),
+        Ok(jwt) => HttpResponse::Ok()
+        .append_header(("Authorization", format!("Bearer {}", jwt)))
+        .body("User login successfully!"),
         Err(LoginError::InvalidCredentials) => {
             eprintln!("Invalid credentials provided during login.");
             HttpResponse::Unauthorized().body("Invalid email or password.")
