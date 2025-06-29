@@ -8,6 +8,8 @@ jobs:
     with:
       type: back
       postman_collection: ${{ vars.POSTMAN_CORE_API_COLLECTION_ID }}
+    secrets:
+      POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
 
 # jobs:
 #   dependencies:
