@@ -4,6 +4,7 @@ use core_api::database::db_interface::get_db_interface;
 use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::register::register_request::register;
 use core_api::get_critical_env_var;
+use core_api::redis::redis_manager::{create_redis_manager, get_redis_manager};
 
 //                                        -- POST REQUESTS --
 
@@ -41,6 +42,22 @@ async fn main() -> std::io::Result<()> {
         },
         None => {
             eprintln!("Database interface is not initialized.");
+            std::process::exit(1);
+        }
+    }
+    create_redis_manager().await;
+    match get_redis_manager().await.as_mut() {
+        Some(redis_manager) => match redis_manager.connect() {
+            Ok(msg) => {
+                println!("{}", msg);
+            }
+            Err(e) => {
+                eprintln!("Failed to connect to Redis: {}", e);
+                std::process::exit(1);
+            }
+        },
+        None => {
+            eprintln!("Redis manager is not initialized.");
             std::process::exit(1);
         }
     }
