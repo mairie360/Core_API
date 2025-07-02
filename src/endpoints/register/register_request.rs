@@ -127,6 +127,18 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/register",
+    request_body = RegisterView,
+    responses(
+        (status = 201, description = "User registered successfully", body = String),
+        (status = 400, description = "Invalid data provided", body = String),
+        (status = 409, description = "User already exists", body = String),
+        (status = 500, description = "Database error occurred", body = String)
+    ),
+    tag = "Authentication"
+)]
 #[post("/register")]
 async fn register(payload: web::Json<RegisterView>) -> impl Responder {
     let register_view = payload.into_inner();

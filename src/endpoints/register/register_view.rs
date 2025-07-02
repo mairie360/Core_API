@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use std::fmt::Display;
+use utoipa::ToSchema;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RegisterView {
     first_name: String,
     last_name: String,
