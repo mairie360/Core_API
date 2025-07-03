@@ -1,12 +1,13 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use utoipa::ToSchema;
 
 /**
  * LoginView struct
  * This struct is used to represent the data sent by the client when logging in.
  * It contains the email and password fields.
  */
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct LoginView {
     email: String,
     password: String,

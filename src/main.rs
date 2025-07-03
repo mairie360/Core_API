@@ -2,17 +2,29 @@ use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 
 use core_api::database::db_interface::get_db_interface;
 use core_api::endpoints::login::login_request::login;
+use core_api::endpoints::login::login_view::LoginView;
 use core_api::endpoints::register::register_request::register;
+use core_api::endpoints::register::register_view::RegisterView;
 use core_api::get_critical_env_var;
 use core_api::redis::redis_manager::{create_redis_manager, get_redis_manager};
+
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 //                                        -- POST REQUESTS --
 
 /** * Handles a POST request to the root endpoint.
  * Responds with a simple "Hello, world!" message.
  */
+#[utoipa::path(
+    post,
+    path = "/",
+    responses(
+        (status = 200, description = "Returns a greeting message", body = String)
+    )
+)]
 #[post("/")]
-async fn hello() -> impl Responder {
+pub async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello, world!")
 }
 
@@ -21,10 +33,34 @@ async fn hello() -> impl Responder {
 /** * Handles a GET request to the /health endpoint.
  * Responds with a simple "OK" message to indicate the service is healthy.
  */
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Service is healthy", body = String)
+    )
+)]
 #[get("/health")]
-async fn health() -> impl Responder {
+pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
 }
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        health,
+        hello,
+        core_api::endpoints::login::login_request::login,
+        core_api::endpoints::register::register_request::register
+    ),
+    components(
+        schemas(LoginView, RegisterView)
+    ),
+    tags(
+        (name = "Core API", description = "Endpoints for core functionalities")
+    )
+)]
+struct ApiDoc;
 
 //                                        -- MAIN FUNCTION --
 
@@ -72,6 +108,8 @@ async fn main() -> std::io::Result<()> {
             .service(login)
             // get requests
             .service(health)
+            // API documentation
+            .service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", ApiDoc::openapi()))
     })
     .bind(bind_address)?;
 
