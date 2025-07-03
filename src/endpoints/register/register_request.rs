@@ -7,6 +7,14 @@ use crate::database::queries_result_views::{
 };
 use crate::database::query_views::{DoesUserExistByEmailQueryView, RegisterUserQueryView};
 
+/**
+ * Custom error type for registration errors.
+ * This enum defines the possible errors that can occur during user registration.
+ * It includes:
+ * - `InvalidData`: Indicates that the provided data is invalid.
+ * - `UserAlreadyExists`: Indicates that a user with the provided email already exists.
+ * - `DatabaseError`: Indicates that there was an error interacting with the database.
+ */
 #[derive(Debug, Clone, PartialEq)]
 enum RegisterError {
     InvalidData,
@@ -24,6 +32,15 @@ impl std::fmt::Display for RegisterError {
     }
 }
 
+/**
+ * Checks if an email is valid.
+ *
+ * # Arguments:
+ * - `email`: A string representing the email address.
+ * # Returns:
+ * - `true` if the email is valid.
+ * - `false` if the email is empty or does not contain a valid domain.
+ */
 fn is_valid_email(email: String) -> bool {
     //Need to be more complex and based on requirements
     if email.is_empty() {
@@ -38,11 +55,29 @@ fn is_valid_email(email: String) -> bool {
     }
 }
 
+/**
+ * Checks if a password is valid.
+ *
+ * # Arguments:
+ * - `password`: A string representing the password.
+ * # Returns:
+ * - `true` if the password is valid.
+ * - `false` if the password does not meet the criteria.
+ */
 fn is_valid_password(password: String) -> bool {
     //Need to be more complex and based on requirements
     password.len() >= 8
 }
 
+/**
+ * Checks if a phone number is valid.
+ *
+ * # Arguments:
+ * - `phone_number`: An optional string representing the phone number.
+ * # Returns:
+ * - `true` if the phone number is valid or if it is `None`.
+ * - `false` if the phone number is provided and does not meet the criteria.
+ */
 fn is_valid_phone_number(phone_number: Option<String>) -> bool {
     //Need to be more complex and based on requirements
     match phone_number {
@@ -51,6 +86,15 @@ fn is_valid_phone_number(phone_number: Option<String>) -> bool {
     }
 }
 
+/**
+ * Checks if a user already exists in the database.
+ *
+ * # Arguments:
+ * - `register_view`: A reference to a `RegisterView` containing the user's email.
+ * # Returns:
+ * - `true` if the user already exists.
+ * - `false` if the user does not exist or if there is an error during the query.
+ */
 async fn already_exists(register_view: &RegisterView) -> bool {
     let view = DoesUserExistByEmailQueryView::new(register_view.email());
     let db_guard = get_db_interface().lock().unwrap();
@@ -71,6 +115,17 @@ async fn already_exists(register_view: &RegisterView) -> bool {
     }
 }
 
+/**
+ * Checks if the user can be registered.
+ * This function validates the provided user data,
+ * checks if the user already exists, and returns an appropriate error if any checks fail.
+ *
+ * # Arguments:
+ * - `register_view`: A reference to a `RegisterView` containing user details.
+ * # Returns:
+ * - `Ok(())` if the user can be registered.
+ * - `Err(RegisterError)` if there is an error, such as invalid data or user already exists.
+ */
 async fn can_be_registered(register_view: &RegisterView) -> Result<(), RegisterError> {
     if !is_valid_email(register_view.email()) {
         return Err(RegisterError::InvalidData);
@@ -87,6 +142,18 @@ async fn can_be_registered(register_view: &RegisterView) -> Result<(), RegisterE
     Ok(())
 }
 
+/**
+ * Registers a new user in the system.
+ * This function validates the provided user data,
+ * checks if the user already exists, and registers the user if all checks pass.
+ *
+ * # Arguments:
+ * - `register_view`: A reference to a `RegisterView` containing user details.
+ * # Returns:
+ * - `Ok(())` if the user is registered successfully.
+ * - `Err(RegisterError)` if there is an error during registration, such as invalid data,
+ *   user already exists, or a database error.
+ */
 async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError> {
     match can_be_registered(register_view).await {
         Ok(_) => {
@@ -127,6 +194,18 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
     }
 }
 
+/**
+ * Endpoint to register a new user.
+ * This endpoint accepts a JSON payload containing user details,
+ * validates the data, checks if the user already exists,
+ * and registers the user if all checks pass.
+ *
+ * # Returns:
+ * - `201 Created` if the user is registered successfully.
+ * - `400 Bad Request` if the provided data is invalid.
+ * - `409 Conflict` if the user already exists.
+ * - `500 Internal Server Error` if there is a database error.
+ */
 #[utoipa::path(
     post,
     path = "/register",
@@ -140,7 +219,7 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
     tag = "Authentication"
 )]
 #[post("/register")]
-async fn register(payload: web::Json<RegisterView>) -> impl Responder {
+pub async fn register(payload: web::Json<RegisterView>) -> impl Responder {
     let register_view = payload.into_inner();
     match register_user(&register_view).await {
         Ok(_) => HttpResponse::Created().body("User registered successfully!"),
