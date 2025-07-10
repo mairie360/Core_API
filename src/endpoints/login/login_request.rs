@@ -93,8 +93,19 @@ async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
  * If the login fails due to invalid credentials, it returns a 401 Unauthorized response.
  * If there is a database error or an error generating the JWT token, it returns a 500 Internal Server Error response.
  */
+#[utoipa::path(
+    post,
+    path = "/login",
+    request_body = LoginView,
+    responses(
+        (status = 200, description = "User login successfully", body = String),
+        (status = 401, description = "Invalid email or password"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "Authentication"
+)]
 #[post("/login")]
-async fn login(payload: web::Json<LoginView>) -> impl Responder {
+pub async fn login(payload: web::Json<LoginView>) -> impl Responder {
     let login_view = payload.into_inner();
     match login_user(&login_view).await {
         Ok(jwt) => HttpResponse::Ok()

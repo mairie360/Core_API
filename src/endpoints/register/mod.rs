@@ -1,2 +1,2 @@
 pub mod register_request;
-mod register_view;
+pub mod register_view;
