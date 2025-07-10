@@ -1,5 +1,6 @@
 pub mod database;
-pub mod register;
+pub mod endpoints;
+pub mod jwt_manager;
 
 /**
  * Retrieves an environment variable by name.
@@ -17,8 +18,8 @@ pub fn get_critical_env_var(name: &str) -> String {
     match std::env::var(name) {
         Ok(val) => val,
         Err(_) => {
-            eprintln!("Error: Environment variable '{}' is not set.", name);
-            std::process::exit(1);
+            // eprintln!("Error: Environment variable '{}' is not set.", name);
+            panic!("Critical environment variable '{}' is not set", name);
         }
     }
 }

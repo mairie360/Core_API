@@ -31,7 +31,7 @@ pub async fn does_user_exist_by_email(
             Ok(Box::new(DoesUserExistByEmailQueryResultView::new(exists)))
         }
         Err(e) => {
-            println!("Error executing query: {}", e);
+            eprintln!("Error executing query: {}", e);
             Err(format!("Database query error: {}", e))
         }
     }

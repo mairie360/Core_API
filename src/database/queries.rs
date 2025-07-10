@@ -8,6 +8,7 @@ use std::fmt::Display;
 pub enum QUERY {
     DoesUserExistByEmail,
     RegisterUser,
+    LoginUser,
     UnknownQuery,
 }
 
@@ -16,6 +17,7 @@ impl Display for QUERY {
         match self {
             QUERY::DoesUserExistByEmail => write!(f, "DoesUserExistByEmail"),
             QUERY::RegisterUser => write!(f, "RegisterUser"),
+            QUERY::LoginUser => write!(f, "LoginUser"),
             QUERY::UnknownQuery => write!(f, "UnknownQuery"),
         }
     }

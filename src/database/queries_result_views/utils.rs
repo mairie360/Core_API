@@ -7,6 +7,7 @@ use std::fmt;
 pub enum QueryResult {
     Boolean(bool),
     Result(Result<(), String>),
+    U64(u64),
 }
 
 /**
@@ -47,6 +48,25 @@ pub fn get_result_from_query_result(result: QueryResult) -> Result<(), String> {
     }
 }
 
+/**
+ * This function takes a `QueryResult` and returns a `u64`.
+ * If the result is of type `QueryResult::U64`, it returns the contained value.
+ * If the result is not of type `QueryResult::U64`, it prints an error message and returns 0.
+ * * # Arguments
+ * * `result`: A `QueryResult` enum instance.
+ * # Returns
+ * * A `u64` extracted from the `QueryResult`.
+ */
+pub fn get_u64_from_query_result(result: QueryResult) -> u64 {
+    match result {
+        QueryResult::U64(i) => i,
+        _ => {
+            eprintln!("Expected QueryResult::U64");
+            0
+        }
+    }
+}
+
 impl fmt::Display for QueryResult {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -55,6 +75,7 @@ impl fmt::Display for QueryResult {
                 Ok(_) => write!(f, "Success"),
                 Err(e) => write!(f, "Error: {}", e),
             },
+            QueryResult::U64(i) => write!(f, "{}", i),
         }
     }
 }
