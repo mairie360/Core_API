@@ -1,6 +1,7 @@
 volumes:
   postgres-data:
   redis-data:
+  back_data:
 
 networks:
   backend:
@@ -86,12 +87,15 @@ services:
           path: package*.json
     networks:
       - backend
+    volumes:
+      - back_data:/usr/src/core
     environment:
       <<: *common-env
       POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/core
       PUBLIC_URL: http://core.development.mairie360.fr
       JWT_SECRET: b"secret"
       JWT_TIMEOUT: 3600
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,6 +103,7 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 10s
