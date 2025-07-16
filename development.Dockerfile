@@ -12,7 +12,8 @@ WORKDIR /usr/src/core
 # Copier le fichier de configuration de Rust et le code source
 COPY Cargo.toml ./
 COPY src ./src
-COPY check_jwt_macro ./check_jwt_macro
+COPY api_macro_lib ./api_macro_lib
+COPY api_lib ./api_lib
 
 # Créer un utilisateur non-root
 RUN useradd --system --home /usr/src/core --shell /usr/sbin/nologin core
