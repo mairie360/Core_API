@@ -1,4 +1,3 @@
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemFn};
@@ -20,6 +19,14 @@ pub fn check_jwt(_attr: TokenStream, item: TokenStream) -> TokenStream {
             };
 
             println!("JWT token: {}", jwt);
+            let user_id = match get_user_id_from_jwt(&jwt) {
+                Some(id) => id,
+                None => {
+                    eprintln!("Failed to decode JWT token.");
+                    return HttpResponse::Unauthorized().body("Unauthorized: Invalid JWT token.");
+                }
+            };
+            println!("User ID from JWT: {}", user_id);
 
             // Appel de la fonction originale
             async fn original_logic(req: HttpRequest, path_view: web::Path<AboutPathParamRequestView>) -> HttpResponse {

@@ -1,11 +1,11 @@
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
-
+use actix_web::{get, web, HttpRequest, HttpResponse};
 use super::about_request_view::{AboutPathParamRequestView, AboutRequestView};
 use api_macro_lib::check_jwt;
 // use super::about_response_view::AboutResponseView;
 // use crate::database::db_interface::get_db_interface;
 // use crate::database::query_views::LoginUserQueryView;
 use api_lib::jwt_manager::get_jwt_from_request::get_jwt_from_request;
+use api_lib::jwt_manager::get_user_id_from_jwt::get_user_id_from_jwt;
 
 #[derive(Debug, Clone, PartialEq)]
 enum LoginError {
