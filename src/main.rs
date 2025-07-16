@@ -5,6 +5,7 @@ use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::login::login_view::LoginView;
 use core_api::endpoints::register::register_request::register;
 use core_api::endpoints::register::register_view::RegisterView;
+use core_api::endpoints::user::about::about_request::user_about;
 use core_api::get_critical_env_var;
 use core_api::redis::redis_manager::{create_redis_manager, get_redis_manager};
 
@@ -108,6 +109,7 @@ async fn main() -> std::io::Result<()> {
             .service(login)
             // get requests
             .service(health)
+            .service(user_about)
             // API documentation
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", ApiDoc::openapi()))
     })
