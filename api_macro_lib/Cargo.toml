@@ -8,6 +8,7 @@ proc-macro = true
 
 [dependencies]
 actix-web = "4"
+api_lib = { path = "../api_lib" }
 futures-util = "0.3"
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }

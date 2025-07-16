@@ -238,6 +238,7 @@ name = "api_macro_lib"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "api_lib",
  "futures-util",
  "quote",
  "syn 2.0.104",

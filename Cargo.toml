@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4"
+api_lib = { path = "./api_lib" }
+api_macro_lib = { path = "./api_macro_lib" }
 futures-util = "0.3"
 jsonwebtoken = "9.3.1"
 redis = "0.32.3"
@@ -13,8 +15,6 @@ tokio = { version = "1.46.0", features = ["full"] }
 tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 utoipa = { version = "4", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "4", features = ["actix-web"] }
-api_macro_lib = { path = "./api_macro_lib" }
-api_lib = { path = "./api_lib" }
 
 [dev-dependencies]
 once_cell = "1.21.3"
