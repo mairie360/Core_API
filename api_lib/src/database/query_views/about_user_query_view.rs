@@ -23,7 +23,7 @@ impl AboutUserQueryView {
 impl DatabaseQueryView for AboutUserQueryView {
     fn get_request(&self) -> String {
         format!(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE id = '{}')",
+            "SELECT first_name, last_name, email, phone_number, status FROM users WHERE id = '{}'",
             self.id
         )
     }

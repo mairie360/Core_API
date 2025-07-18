@@ -10,6 +10,7 @@ pub fn check_jwt(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let output = quote! {
         use api_lib::jwt_manager::check_jwt_validity;
+        use api_lib::jwt_manager::get_jwt_from_request;
         use api_lib::jwt_manager::JWTCheckError;
 
         async fn #name(req: HttpRequest, path_view: web::Path<AboutPathParamRequestView>) -> HttpResponse {

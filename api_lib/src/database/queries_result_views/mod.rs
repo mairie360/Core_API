@@ -1,5 +1,6 @@
 mod utils;
 pub use utils::get_boolean_from_query_result;
+pub use utils::get_json_from_query_result;
 pub use utils::get_result_from_query_result;
 pub use utils::get_u64_from_query_result;
 pub use utils::QueryResult;

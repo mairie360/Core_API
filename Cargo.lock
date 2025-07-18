@@ -231,6 +231,7 @@ dependencies = [
  "actix-web",
  "jsonwebtoken",
  "serde",
+ "serde_json",
  "tokio",
  "tokio-postgres",
 ]
@@ -397,6 +398,7 @@ dependencies = [
  "once_cell",
  "redis",
  "serde",
+ "serde_json",
  "tokio",
  "tokio-postgres",
  "utoipa",

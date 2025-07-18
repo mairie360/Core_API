@@ -1,4 +1,5 @@
 use std::fmt;
+use serde_json;
 
 /**
  * This module provides utility functions to handle query results in a database context.
@@ -6,6 +7,7 @@ use std::fmt;
  */
 pub enum QueryResult {
     Boolean(bool),
+    JSON(serde_json::Value),
     Result(Result<(), String>),
     U64(u64),
 }
@@ -25,6 +27,16 @@ pub fn get_boolean_from_query_result(result: QueryResult) -> bool {
         _ => {
             eprintln!("Expected QueryResult::Boolean");
             false
+        }
+    }
+}
+
+pub fn get_json_from_query_result(result: QueryResult) -> serde_json::Value {
+    match result {
+        QueryResult::JSON(json) => json,
+        _ => {
+            eprintln!("Expected QueryResult::JSON");
+            serde_json::Value::Null
         }
     }
 }
@@ -71,6 +83,7 @@ impl fmt::Display for QueryResult {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             QueryResult::Boolean(b) => write!(f, "{}", b),
+            QueryResult::JSON(json) => write!(f, "{}", json),
             QueryResult::Result(res) => match res {
                 Ok(_) => write!(f, "Success"),
                 Err(e) => write!(f, "Error: {}", e),
