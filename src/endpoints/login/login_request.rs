@@ -4,7 +4,7 @@ use super::super::super::database::db_interface::get_db_interface;
 use super::login_view::LoginView;
 use crate::database::queries_result_views::get_u64_from_query_result;
 use crate::database::query_views::LoginUserQueryView;
-use api_lib::jwt_manager::generate_jwt::generate_jwt;
+use api_lib::jwt_manager::generate_jwt;
 
 /**
  * Enum representing possible errors during user login.

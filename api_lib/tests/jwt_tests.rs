@@ -1,6 +1,7 @@
-use api_lib::jwt_manager::generate_jwt::generate_jwt;
-use api_lib::jwt_manager::get_jwt_secret::get_jwt_secret;
-use api_lib::jwt_manager::get_user_id_from_jwt::get_user_id_from_jwt;
+use api_lib::jwt_manager::generate_jwt;
+use api_lib::jwt_manager::get_jwt_secret;
+use api_lib::jwt_manager::get_jwt_timeout;
+use api_lib::jwt_manager::get_user_id_from_jwt;
 use once_cell::sync::Lazy;
 use std::env;
 
@@ -9,7 +10,7 @@ use std::env;
  * It tests the functionality of generating JWTs, retrieving user IDs from JWTs,
  * and getting the JWT secret and timeout.
  */
-static USER_ID: &str = "1";
+static USER_ID: &str = "2";
 
 /**
  * Global setup for tests.
@@ -69,7 +70,7 @@ mod jwt_tests {
     #[test]
     fn test_get_jwt_timeout() {
         setup();
-        let timeout = api_lib::jwt_manager::get_jwt_timeout::get_jwt_timeout();
+        let timeout = get_jwt_timeout();
         assert!(
             timeout.is_ok(),
             "Failed to get JWT timeout: {:?}",
