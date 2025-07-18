@@ -4,6 +4,7 @@ use api_macro_lib::check_jwt;
 use api_lib::database::db_interface::get_db_interface;
 use api_lib::database::query_views::AboutUserQueryView;
 use api_lib::database::queries_result_views::get_json_from_query_result;
+use api_lib::database::utils::does_user_exist_by_id;
 use serde_json;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +37,10 @@ fn is_response_view_correct(json: &serde_json::Value) -> bool {
 }
 
 async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Value, AboutError> {
+    if !does_user_exist_by_id(about_view.user_id()).await {
+        eprintln!("User with ID {} does not exist.", about_view.user_id());
+        return Err(AboutError::InvalidCredentials);
+    }
     let view = AboutUserQueryView::new(about_view.user_id());
     let db_guard = get_db_interface().lock().unwrap();
     let db_interface = match &*db_guard {

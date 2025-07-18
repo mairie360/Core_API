@@ -1,6 +1,12 @@
 pub mod db_interface;
+
 mod postgresql;
+
 mod queries;
-pub mod queries_result_views;
-pub mod query_views;
 use queries::QUERY;
+
+pub mod queries_result_views;
+
+pub mod query_views;
+
+pub mod utils;
