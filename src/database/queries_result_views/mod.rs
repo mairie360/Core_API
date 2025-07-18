@@ -12,3 +12,6 @@ pub use register_user::RegisterUserQueryResultView;
 
 mod login_user;
 pub use login_user::LoginUserQueryResultView;
+
+mod does_user_exist_by_id;
+pub use does_user_exist_by_id::DoesUserExistByIdQueryResultView;

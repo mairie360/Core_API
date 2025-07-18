@@ -117,6 +117,7 @@ impl DatabaseInterfaceActions for PostgreInterface {
         Box::pin(async move {
             match query.get_query_type() {
                 DoesUserExistByEmail => does_user_exist_by_email(query, client).await,
+                DoesUserExistById => does_user_exist_by_id(query, client).await,
                 RegisterUser => register_user(query, client).await,
                 LoginUser => login_user(query, client).await,
                 UnknownQuery => Err(format!(
