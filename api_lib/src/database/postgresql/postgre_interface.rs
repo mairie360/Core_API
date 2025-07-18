@@ -114,8 +114,10 @@ impl DatabaseInterfaceActions for PostgreInterface {
         query: Box<dyn DatabaseQueryView>,
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn QueryResultView>, String>> + Send>> {
         let client = self.get_client();
+        println!("Executing query: {:?}", query.get_query_type());
         Box::pin(async move {
             match query.get_query_type() {
+                AboutUser => about_user(query, client).await,
                 DoesUserExistByEmail => does_user_exist_by_email(query, client).await,
                 DoesUserExistById => does_user_exist_by_id(query, client).await,
                 RegisterUser => register_user(query, client).await,

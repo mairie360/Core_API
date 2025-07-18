@@ -1,9 +1,9 @@
 use actix_web::{post, web, HttpResponse, Responder};
 
-use super::super::super::database::db_interface::get_db_interface;
 use super::login_view::LoginView;
-use crate::database::queries_result_views::get_u64_from_query_result;
-use crate::database::query_views::LoginUserQueryView;
+use api_lib::database::db_interface::get_db_interface;
+use api_lib::database::queries_result_views::get_u64_from_query_result;
+use api_lib::database::query_views::LoginUserQueryView;
 use api_lib::jwt_manager::generate_jwt;
 
 /**

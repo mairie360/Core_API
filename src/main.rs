@@ -1,6 +1,6 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 
-use core_api::database::db_interface::get_db_interface;
+use api_lib::database::db_interface::get_db_interface;
 use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::login::login_view::LoginView;
 use core_api::endpoints::register::register_request::register;

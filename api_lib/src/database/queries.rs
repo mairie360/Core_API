@@ -6,6 +6,7 @@ use std::fmt::Display;
  */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QUERY {
+    AboutUser,
     DoesUserExistByEmail,
     DoesUserExistById,
     RegisterUser,
@@ -16,6 +17,7 @@ pub enum QUERY {
 impl Display for QUERY {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            QUERY::AboutUser => write!(f, "AboutUser"),
             QUERY::DoesUserExistByEmail => write!(f, "DoesUserExistByEmail"),
             QUERY::DoesUserExistById => write!(f, "DoesUserExistById"),
             QUERY::RegisterUser => write!(f, "RegisterUser"),

@@ -231,6 +231,8 @@ dependencies = [
  "actix-web",
  "jsonwebtoken",
  "serde",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]

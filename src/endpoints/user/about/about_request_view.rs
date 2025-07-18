@@ -6,20 +6,15 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AboutRequestView {
     user_id: u64,
-    jwt: String,
 }
 
 impl AboutRequestView {
-    pub fn new(user_id: u64, jwt: String) -> Self {
-        AboutRequestView { user_id, jwt }
+    pub fn new(user_id: u64) -> Self {
+        AboutRequestView { user_id }
     }
 
     pub fn user_id(&self) -> u64 {
         self.user_id
-    }
-
-    pub fn jwt(&self) -> &str {
-        &self.jwt
     }
 }
 
@@ -27,8 +22,8 @@ impl Display for AboutRequestView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AboutRequestView {{ user_id: {}, jwt: {} }}",
-            self.user_id, self.jwt
+            "AboutRequestView {{ user_id: {}}}",
+            self.user_id
         )
     }
 }
