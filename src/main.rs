@@ -111,7 +111,10 @@ async fn main() -> std::io::Result<()> {
             .service(health)
             .service(user_about)
             // API documentation
-            .service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", ApiDoc::openapi()))
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-docs/openapi.json", ApiDoc::openapi()),
+            )
     })
     .bind(bind_address)?;
 

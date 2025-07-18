@@ -28,11 +28,7 @@ pub async fn about_user(
             );
 
             Ok(Box::new(AboutUserQueryResultView::new(
-                first_name,
-                last_name,
-                email,
-                phone,
-                status,
+                first_name, last_name, email, phone, status,
             )))
         }
         Err(e) => {

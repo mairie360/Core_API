@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AboutResponseView {
     first_name: String,
@@ -13,7 +12,13 @@ pub struct AboutResponseView {
 }
 
 impl AboutResponseView {
-    pub fn new(first_name: String, last_name: String, email: String, phone: String, status: String) -> Self {
+    pub fn new(
+        first_name: String,
+        last_name: String,
+        email: String,
+        phone: String,
+        status: String,
+    ) -> Self {
         AboutResponseView {
             first_name,
             last_name,

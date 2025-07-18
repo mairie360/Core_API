@@ -1,7 +1,7 @@
 use crate::database::utils::does_user_exist_by_id;
-use crate::jwt_manager::verify_jwt_timeout;
 use crate::jwt_manager::get_timeout_from_jwt;
 use crate::jwt_manager::get_user_id_from_jwt;
+use crate::jwt_manager::verify_jwt_timeout;
 
 pub enum JWTCheckError {
     DatabaseError,
@@ -45,11 +45,11 @@ pub async fn check_jwt_validity(jwt: &str) -> Result<(), JWTCheckError> {
         Ok(true) => {
             println!("JWT token is valid and not expired.");
             Ok(())
-        },
+        }
         Ok(false) => {
             eprintln!("JWT token is expired.");
             Err(JWTCheckError::ExpiredToken)
-        },
+        }
         Err(e) => {
             eprintln!("Error verifying JWT timeout: {}", e);
             Err(JWTCheckError::InvalidToken)

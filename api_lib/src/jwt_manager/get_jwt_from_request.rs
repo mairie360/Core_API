@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest};
+use actix_web::HttpRequest;
 
 pub fn get_jwt_from_request(req: &HttpRequest) -> Option<String> {
     req.headers()

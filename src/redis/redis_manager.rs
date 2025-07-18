@@ -1,6 +1,6 @@
 use crate::get_critical_env_var;
 use redis::{Client, Commands, Connection};
-use std::sync::{LazyLock};
+use std::sync::LazyLock;
 use tokio::sync::Mutex;
 
 static REDIS_INTERFACE: LazyLock<Mutex<Option<RedisManager>>> =
@@ -37,7 +37,10 @@ impl RedisManager {
         self.connection = Some(self.client.get_connection()?);
         match self.connection {
             Some(_) => Ok("Connected to Redis successfully".to_string()),
-            None => Err(redis::RedisError::from((redis::ErrorKind::IoError, "Failed to connect to Redis"))),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "Failed to connect to Redis",
+            ))),
         }
     }
 
@@ -46,7 +49,10 @@ impl RedisManager {
             conn.set(key, value)?;
             Ok(())
         } else {
-            Err(redis::RedisError::from((redis::ErrorKind::IoError, "No Redis connection established")))
+            Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            )))
         }
     }
 
@@ -54,7 +60,10 @@ impl RedisManager {
         if let Some(conn) = &mut self.connection {
             conn.get(key)
         } else {
-            Err(redis::RedisError::from((redis::ErrorKind::IoError, "No Redis connection established")))
+            Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            )))
         }
     }
 }

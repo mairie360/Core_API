@@ -13,24 +13,13 @@ pub struct AboutUserQueryResultView {
 }
 
 impl AboutUserQueryResultView {
-    pub fn new(
-        first_name: &str,
-        last_name: &str,
-        email: &str,
-        phone: &str,
-        status: &str,
-    ) -> Self {
+    pub fn new(first_name: &str, last_name: &str, email: &str, phone: &str, status: &str) -> Self {
         Self {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
             phone: phone.to_string(),
             status: status.to_string(),
-            // first_name: String::new(),
-            // last_name: String::new(),
-            // email: String::new(),
-            // phone: String::new(),
-            // status: String::new(),
         }
     }
 }

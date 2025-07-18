@@ -1,5 +1,5 @@
-use std::fmt;
 use serde_json;
+use std::fmt;
 
 /**
  * This module provides utility functions to handle query results in a database context.

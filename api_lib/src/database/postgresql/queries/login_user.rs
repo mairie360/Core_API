@@ -27,7 +27,7 @@ pub async fn login_user(
         Ok(row) => {
             let user_id = row.get::<&str, i32>("id") as u64;
             Ok(Box::new(LoginUserQueryResultView::new(user_id)))
-        },
+        }
         Err(e) => {
             eprintln!("Error executing query: {}", e);
             Ok(Box::new(LoginUserQueryResultView::new(0)))

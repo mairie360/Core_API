@@ -1,10 +1,10 @@
-use actix_web::{get, web, HttpRequest, HttpResponse};
 use super::about_request_view::{AboutPathParamRequestView, AboutRequestView};
-use api_macro_lib::check_jwt;
+use actix_web::{get, web, HttpRequest, HttpResponse};
 use api_lib::database::db_interface::get_db_interface;
-use api_lib::database::query_views::AboutUserQueryView;
 use api_lib::database::queries_result_views::get_json_from_query_result;
+use api_lib::database::query_views::AboutUserQueryView;
 use api_lib::database::utils::does_user_exist_by_id;
+use api_macro_lib::check_jwt;
 use serde_json;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,12 +26,10 @@ impl std::fmt::Display for AboutError {
 
 fn is_response_view_correct(json: &serde_json::Value) -> bool {
     match json {
-        serde_json::Value::Object(map) => {
-            map.values().all(|v| match v {
-                serde_json::Value::String(s) => !s.trim().is_empty(),
-                _ => false,
-            })
-        }
+        serde_json::Value::Object(map) => map.values().all(|v| match v {
+            serde_json::Value::String(s) => !s.trim().is_empty(),
+            _ => false,
+        }),
         _ => false,
     }
 }
@@ -80,7 +78,10 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
 )]
 #[get("/user/{user_id}/about")]
 #[check_jwt]
-pub async fn user_about(req: HttpRequest, path_view: web::Path<AboutPathParamRequestView>) -> impl Responder {
+pub async fn user_about(
+    req: HttpRequest,
+    path_view: web::Path<AboutPathParamRequestView>,
+) -> impl Responder {
     let about_view = path_view.into_inner();
     println!("About request view: {:}", about_view);
 
