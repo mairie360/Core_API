@@ -65,8 +65,8 @@ pub fn check_jwt(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     println!("JWT token is valid and not expired.");
                 },
                 Ok(false) => {
-                    eprintln!("JWT token is expired or invalid.");
-                    return HttpResponse::Unauthorized().body("Unauthorized: JWT token is expired or invalid.");
+                    eprintln!("JWT token is expired.");
+                    return HttpResponse::Unauthorized().body("Unauthorized: JWT token is expired.");
                 },
                 Err(e) => {
                     eprintln!("Error verifying JWT timeout: {}", e);
