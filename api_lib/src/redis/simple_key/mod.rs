@@ -10,6 +10,9 @@ pub use get_key::get_key;
 mod key_exist;
 pub use key_exist::key_exist;
 
+mod secure_add_key;
+pub use secure_add_key::secure_add_key;
+
 mod secure_delete_key;
 pub use secure_delete_key::secure_delete_key;
 

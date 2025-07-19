@@ -65,6 +65,20 @@ impl RedisManager {
         }
     }
 
+    pub async fn secure_add_key(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) -> Result<(), redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::secure_add_key(conn, key, value).await,
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
+        }
+    }
+
     pub async fn get_key(&mut self, key: &str) -> Result<String, redis::RedisError> {
         match &mut self.connection {
             Some(conn) => simple_key::get_key(conn, key).await,
