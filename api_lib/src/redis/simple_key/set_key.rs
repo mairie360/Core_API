@@ -1,6 +1,6 @@
 use redis::{Commands, Connection};
 
-pub fn set_key(conn: &mut Connection, key: &str, value: &str) -> Result<(), redis::RedisError> {
+pub async fn set_key(conn: &mut Connection, key: &str, value: &str) -> Result<(), redis::RedisError> {
     match conn.set::<&str, &str, String>(key, value) {
         Ok(response) => {
             if response == "OK" {
