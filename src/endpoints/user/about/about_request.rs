@@ -1,10 +1,16 @@
 use super::about_request_view::{AboutPathParamRequestView, AboutRequestView};
+
 use actix_web::{get, web, HttpRequest, HttpResponse};
+
 use api_lib::database::db_interface::get_db_interface;
 use api_lib::database::queries_result_views::get_json_from_query_result;
 use api_lib::database::query_views::AboutUserQueryView;
 use api_lib::database::utils::does_user_exist_by_id;
+
+use api_lib::redis::redis_manager::get_redis_manager;
+
 use api_macro_lib::check_jwt;
+
 use serde_json;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +62,16 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
             if !is_response_view_correct(&json) {
                 eprintln!("Response view is not correct: {:?}", json);
                 return Err(AboutError::InvalidCredentials);
+            }
+            let mut redis_manager = get_redis_manager().await;
+            if let Some(redis) = redis_manager.as_mut() {
+                let json_str = json.to_string();
+                let key_str =  format!("user:{}:about", about_view.user_id());
+                if let Err(e) = redis.secure_add_key(&key_str, &json_str).await {
+                    eprintln!("Failed to cache user about info in Redis: {}", e);
+                }
+            } else {
+                eprintln!("Redis manager is not available.");
             }
             Ok(json)
         }
