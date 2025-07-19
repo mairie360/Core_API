@@ -1,6 +1,7 @@
 use crate::get_critical_env_var;
-use redis::{Client, Commands, Connection};
+use redis::{Client, Connection};
 use std::sync::LazyLock;
+use super::simple_key;
 use tokio::sync::Mutex;
 
 static REDIS_INTERFACE: LazyLock<Mutex<Option<RedisManager>>> =
@@ -44,26 +45,73 @@ impl RedisManager {
         }
     }
 
-    pub fn add_key_value(&mut self, key: &str, value: &str) -> Result<(), redis::RedisError> {
-        if let Some(conn) = &mut self.connection {
-            conn.set(key, value)?;
-            Ok(())
-        } else {
-            Err(redis::RedisError::from((
+    pub fn set_key(&mut self, key: &str, value: &str) -> Result<(), redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::set_key(conn, key, value),
+            None => Err(redis::RedisError::from((
                 redis::ErrorKind::IoError,
                 "No Redis connection established",
-            )))
+            ))),
         }
     }
 
-    pub fn get_value(&mut self, key: &str) -> Result<String, redis::RedisError> {
-        if let Some(conn) = &mut self.connection {
-            conn.get(key)
-        } else {
-            Err(redis::RedisError::from((
+   pub fn add_key(&mut self, key: &str, value: &str) -> Result<(), redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::add_key(conn, key, value),
+            None => Err(redis::RedisError::from((
                 redis::ErrorKind::IoError,
                 "No Redis connection established",
-            )))
+            ))),
+        }
+    }
+
+    pub fn get_key(&mut self, key: &str) -> Result<String, redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::get_key(conn, key),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
+        }
+    }
+
+    pub fn secure_get_key(&mut self, key: &str) -> Result<String, redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::secure_get_key(conn, key),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
+        }
+    }
+
+    pub fn delete_key(&mut self, key: &str) -> Result<(), redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::delete_key(conn, key),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
+        }
+    }
+
+    pub fn secure_delete_key(&mut self, key: &str) -> Result<(), redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::secure_delete_key(conn, key),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
+        }
+    }
+
+    pub fn key_exist(&mut self, key: &str) -> Result<bool, redis::RedisError> {
+        match &mut self.connection {
+            Some(conn) => simple_key::key_exist(conn, key),
+            None => Err(redis::RedisError::from((
+                redis::ErrorKind::IoError,
+                "No Redis connection established",
+            ))),
         }
     }
 }
