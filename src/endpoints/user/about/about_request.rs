@@ -83,7 +83,6 @@ pub async fn user_about(
     path_view: web::Path<AboutPathParamRequestView>,
 ) -> impl Responder {
     let about_view = path_view.into_inner();
-    println!("About request view: {:}", about_view);
 
     match about_request(&AboutRequestView::new(about_view.user_id())).await {
         Ok(json) => HttpResponse::Ok().body(json.to_string()),

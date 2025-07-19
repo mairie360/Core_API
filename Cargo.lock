@@ -230,6 +230,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "jsonwebtoken",
+ "redis",
  "serde",
  "serde_json",
  "tokio",
@@ -394,13 +395,10 @@ dependencies = [
  "api_lib",
  "api_macro_lib",
  "futures-util",
- "jsonwebtoken",
  "once_cell",
- "redis",
  "serde",
  "serde_json",
  "tokio",
- "tokio-postgres",
  "utoipa",
  "utoipa-swagger-ui",
 ]

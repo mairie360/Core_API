@@ -1,4 +1,4 @@
-use api_lib::get_critical_env_var;
+use crate::get_critical_env_var;
 use redis::{Client, Connection};
 use std::sync::LazyLock;
 use super::simple_key;
