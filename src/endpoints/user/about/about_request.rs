@@ -40,10 +40,71 @@ fn is_response_view_correct(json: &serde_json::Value) -> bool {
     }
 }
 
+async fn get_chache_value(
+    user_id: u64,
+) -> Result<serde_json::Value, AboutError> {
+    let mut redis_manager = get_redis_manager().await;
+    match redis_manager.as_mut() {
+        Some(redis) => {
+            let json = redis
+                .secure_get_key(&format!("user:{}:about", user_id))
+                .await;
+            match json {
+                Ok(json_str) => {
+                    println!("Cached user about info: {}", json_str);
+                    serde_json::from_str::<serde_json::Value>(&json_str)
+                        .map_err(|_| AboutError::InvalidCredentials)
+                }
+                Err(e) => {
+                    eprintln!("Failed to retrieve cached user about info from Redis: {}", e);
+                    Err(AboutError::DatabaseError)
+                }
+            }
+        }
+        None => {
+            eprintln!("Redis manager is not available.");
+            Err(AboutError::DatabaseError)
+        }
+    }
+}
+
+async fn set_cache_value(
+    user_id: u64,
+    json: &serde_json::Value,
+) {
+    let mut redis_manager = get_redis_manager().await;
+    match redis_manager.as_mut() {
+        Some(redis) => {
+            let json_str = json.to_string();
+            let key_str = format!("user:{}:about", user_id);
+            if let Err(e) = redis.secure_add_key(&key_str, &json_str).await {
+                eprintln!("Failed to cache user about info in Redis: {}", e);
+            }
+        }
+        None => {
+            eprintln!("Redis manager is not available.");
+        }
+    }
+}
+
 async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Value, AboutError> {
     if !does_user_exist_by_id(about_view.user_id()).await {
         eprintln!("User with ID {} does not exist.", about_view.user_id());
         return Err(AboutError::InvalidCredentials);
+    }
+    let cached_value = get_chache_value(about_view.user_id()).await;
+    match cached_value {
+        Ok(json) => {
+            if is_response_view_correct(&json) {
+                return Ok(json);
+            } else {
+                eprintln!("Cached response view is not correct: {:?}", json);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error retrieving cached value: {}", e);
+            // Continue to fetch from the database
+        }
     }
     let view = AboutUserQueryView::new(about_view.user_id());
     let db_guard = get_db_interface().lock().unwrap();
@@ -63,16 +124,7 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
                 eprintln!("Response view is not correct: {:?}", json);
                 return Err(AboutError::InvalidCredentials);
             }
-            let mut redis_manager = get_redis_manager().await;
-            if let Some(redis) = redis_manager.as_mut() {
-                let json_str = json.to_string();
-                let key_str =  format!("user:{}:about", about_view.user_id());
-                if let Err(e) = redis.secure_add_key(&key_str, &json_str).await {
-                    eprintln!("Failed to cache user about info in Redis: {}", e);
-                }
-            } else {
-                eprintln!("Redis manager is not available.");
-            }
+            set_cache_value(about_view.user_id(), &json).await;
             Ok(json)
         }
         Err(e) => {
