@@ -41,9 +41,10 @@ pub fn check_jwt(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             };
 
-            println!("JWT token: {}", jwt);
             match check_jwt_validity(&jwt).await {
-                Ok(_) => println!("JWT token is valid."),
+                Ok(_) => {
+                    // JWT is valid, proceed with the original function logic
+                }
                 Err(JWTCheckError::DatabaseError) => {
                     return HttpResponse::InternalServerError().body("Internal server error: Database not initialized.");
                 }

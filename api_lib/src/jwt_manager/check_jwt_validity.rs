@@ -45,10 +45,11 @@ pub async fn check_jwt_validity(jwt: &str) -> Result<(), JWTCheckError> {
             return Err(JWTCheckError::InvalidToken);
         }
     };
-    println!("User ID from JWT: {}", user_id);
 
     match does_user_exist_by_id(user_id.parse().unwrap()).await {
-        true => println!("User exists with ID: {}", user_id),
+        true => {
+            // User exists, proceed with further checks
+        }
         false => {
             eprintln!("User does not exist with ID: {}", user_id);
             return Err(JWTCheckError::UnknowUser);
@@ -65,7 +66,6 @@ pub async fn check_jwt_validity(jwt: &str) -> Result<(), JWTCheckError> {
 
     match verify_jwt_timeout(timeout) {
         Ok(true) => {
-            println!("JWT token is valid and not expired.");
             Ok(())
         }
         Ok(false) => {

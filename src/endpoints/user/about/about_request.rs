@@ -67,7 +67,6 @@ async fn get_chache_value(
                 .await;
             match json {
                 Ok(json_str) => {
-                    println!("Cached user about info: {}", json_str);
                     serde_json::from_str::<serde_json::Value>(&json_str)
                         .map_err(|_| AboutError::InvalidCredentials)
                 }
