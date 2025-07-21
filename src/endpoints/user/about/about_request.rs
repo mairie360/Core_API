@@ -13,6 +13,10 @@ use api_macro_lib::check_jwt;
 
 use serde_json;
 
+/**
+ * This module handles the "about" request for a user.
+ * It retrieves user information based on the user ID provided in the request path.
+ */
 #[derive(Debug, Clone, PartialEq)]
 enum AboutError {
     InvalidCredentials,
@@ -30,6 +34,13 @@ impl std::fmt::Display for AboutError {
     }
 }
 
+/**
+ * Checks if the response view is correct.
+ *
+ * This function verifies that the JSON response contains
+ * all required fields and that they are not empty.
+ * It returns true if the response view is correct, otherwise false.
+ */
 fn is_response_view_correct(json: &serde_json::Value) -> bool {
     match json {
         serde_json::Value::Object(map) => map.values().all(|v| match v {
@@ -40,6 +51,11 @@ fn is_response_view_correct(json: &serde_json::Value) -> bool {
     }
 }
 
+/**
+ * Retrieves the cached value for the user's about information.
+ * If the value is not found or an error occurs,
+ * it returns an error.
+ */
 async fn get_chache_value(
     user_id: u64,
 ) -> Result<serde_json::Value, AboutError> {
@@ -68,6 +84,11 @@ async fn get_chache_value(
     }
 }
 
+/**
+ * Sets the cache value for the user's about information.
+ * It serializes the provided JSON value and stores it in Redis.
+ * If an error occurs during the caching process, it logs the error.
+ */
 async fn set_cache_value(
     user_id: u64,
     json: &serde_json::Value,
@@ -87,6 +108,13 @@ async fn set_cache_value(
     }
 }
 
+/**
+ * Handles the about request for a user.
+ * It first checks if the user exists, retrieves the cached value,
+ * and if not found or invalid, queries the database.
+ * If the database query is successful, it caches the result.
+ * If any error occurs, it returns an appropriate error.
+ */
 async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Value, AboutError> {
     if !does_user_exist_by_id(about_view.user_id()).await {
         eprintln!("User with ID {} does not exist.", about_view.user_id());
@@ -134,6 +162,13 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
     }
 }
 
+/**
+ * Handles the "about" request for a user.
+ * It retrieves user information based on the user ID provided in the request path.
+ * If the request is successful, it returns the user information as a JSON response.
+ * If the user ID is invalid, it returns a 401 Unauthorized response.
+ * If an internal server error occurs, it returns a 500 Internal Server Error response.
+ */
 #[utoipa::path(
     get,
     path = "/user/${user_id}/about",

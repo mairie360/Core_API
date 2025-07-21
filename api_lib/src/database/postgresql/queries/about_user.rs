@@ -4,6 +4,14 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
 
+/**
+ * This function executes a query to retrieve information about a user.
+ *
+ * It takes a query object that implements the `DatabaseQueryView` trait and a client wrapped in an `Arc<Mutex<Option<Client>>>`.
+ * The function locks the client, executes the query, and retrieves user details such as first name, last name, email, phone number, and status.
+ * If the query is successful, it returns a boxed `AboutUserQueryResultView` containing the user details.
+ * If there is an error during query execution, it returns an error message.
+ */
 pub async fn about_user(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,

@@ -2,12 +2,24 @@ use crate::database::db_interface::DatabaseQueryView;
 use crate::database::QUERY;
 use std::fmt::Display;
 
+/**
+ * Query view to check if a user exists by their ID.
+ */
 pub struct DoesUserExistByIdQueryView {
     id: u64,
     query: QUERY,
 }
 
 impl DoesUserExistByIdQueryView {
+    /**
+     * Creates a new instance of `DoesUserExistByIdQueryView`.
+     *
+     * # Arguments
+     * * `id` - The ID of the user to check for existence.
+     *
+     * # Returns
+     * A new instance of `DoesUserExistByIdQueryView`.
+     */
     pub fn new(id: u64) -> Self {
         Self {
             id,
@@ -15,6 +27,12 @@ impl DoesUserExistByIdQueryView {
         }
     }
 
+    /**
+     * Returns the ID of the user being checked.
+     *
+     * # Returns
+     * A reference to the user's ID.
+     */
     pub fn get_id(&self) -> &u64 {
         &self.id
     }

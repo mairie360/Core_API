@@ -2,6 +2,25 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemFn};
 
+/**
+ * This macro is used to check the validity of a JWT token in an HTTP request.
+ * It extracts the JWT from the request, checks its validity, and then executes the original function
+ * logic if the JWT is valid. If the JWT is invalid or not present, it returns an appropriate HTTP response.
+ *
+ * Usage:
+ * #[check_jwt]
+ * async fn your_function(req: HttpRequest, path_view: web::Path<AboutPathParamRequestView>) -> HttpResponse {
+ *     // Your function logic here
+ * }
+ *
+ * # Returns:
+ * - If the JWT is valid, it executes the original function logic.
+ * - If the JWT is not present, it returns a 401 Unauthorized response.
+ * - If the JWT is expired, it returns a 401 Unauthorized response.
+ * - If the JWT is invalid, it returns a 401 Unauthorized response.
+ * - If the JWT is associated with an unknown user, it returns a 404 Not Found response.
+ * - If there is a database error, it returns a 500 Internal Server Error response
+ */
 #[proc_macro_attribute]
 pub fn check_jwt(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);

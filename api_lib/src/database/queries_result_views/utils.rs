@@ -31,6 +31,16 @@ pub fn get_boolean_from_query_result(result: QueryResult) -> bool {
     }
 }
 
+/**
+ * This function takes a `QueryResult` and returns a `serde_json::Value`.
+ * If the result is of type `QueryResult::JSON`, it returns the contained JSON value
+ *
+ * # Arguments
+ * `result`: A `QueryResult` enum instance.
+ *
+ * # Returns
+ * A `serde_json::Value` extracted from the `QueryResult`.
+ */
 pub fn get_json_from_query_result(result: QueryResult) -> serde_json::Value {
     match result {
         QueryResult::JSON(json) => json,

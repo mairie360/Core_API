@@ -4,6 +4,17 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
 
+/**
+ * Checks if a user exists in the database by their ID.
+ *
+ * # Arguments
+ * * `query` - A boxed trait object implementing `DatabaseQueryView` that contains the SQL query.
+ * * `client` - An `Arc<Mutex<Option<Client>>>` that holds the database client.
+ *
+ * # Returns
+ * * `Result<Box<dyn QueryResultView>, String>` - A result containing a boxed trait object implementing `QueryResultView` if the user exists, or an error message if the query
+ * fails.
+ */
 pub async fn does_user_exist_by_id(
     query: Box<dyn DatabaseQueryView>,
     client: Arc<Mutex<Option<Client>>>,
