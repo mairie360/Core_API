@@ -18,7 +18,6 @@ COPY Cargo.lock .
 COPY src ./src
 COPY api_macro_lib ./api_macro_lib
 COPY api_lib ./api_lib
-COPY cargo-watch.toml .
 
 # Définir les variables d’environnement
 ENV RUST_BACKTRACE=1
@@ -28,5 +27,9 @@ ENV PATH=$CARGO_HOME/bin:$PATH
 # Exposer le port
 EXPOSE 3000
 
+# Copier le script d'entrée et le rendre exécutable
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Lancer cargo watch pour recompiler automatiquement en cas de modification
-CMD ["cargo", "watch", "-w", "src", "-w", "api_lib", "-w", "api_macro_lib", "-i", "target", "-i", "api_lib/target", "-i", "api_macro_lib/target", "-x", "run"]
+CMD ["/usr/local/bin/entrypoint.sh"]
