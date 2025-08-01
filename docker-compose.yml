@@ -1,6 +1,7 @@
 volumes:
   postgres-data:
   redis-data:
+  core-target:
 
 networks:
   backend:
@@ -73,7 +74,6 @@ services:
       retries: 5
 
   core:
-    <<: *service-template
     build:
       context: .
       dockerfile: development.Dockerfile
@@ -82,8 +82,22 @@ services:
         - action: sync
           path: ./src
           target: /usr/src/core/src
-        - action: rebuild
-          path: package*.json
+        - action: sync
+          path: ./api_lib
+          target: /usr/src/core/api_lib
+        - action: sync
+          path: ./api_macro_lib
+          target: /usr/src/core/api_macro_lib
+        - action: sync
+          path: ./Cargo.toml
+          target: /usr/src/core/Cargo.toml
+        - action: sync
+          path: ./Cargo.lock
+          target: /usr/src/core/Cargo.lock
+    ports:
+      - "3000:3000"
+    volumes:
+      - core-target:/usr/src/core/target
     networks:
       - backend
     environment:
@@ -97,14 +111,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "3000:3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://core:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 50s
+      start_period: 90s
 
   nginx:
     image: nginx:1.27.4-bookworm
