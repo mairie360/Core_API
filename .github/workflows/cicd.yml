@@ -1,0 +1,19 @@
+name: Database CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  call-database-cicd:
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@feat/mair-6-add-cd-for-back-apis
+    with:
+      package_name: coreAPI
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
