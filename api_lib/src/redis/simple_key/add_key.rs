@@ -14,7 +14,11 @@ use redis::{Commands, Connection};
  * * `Ok(())` if the key was successfully added.
  * * `Err(redis::RedisError)` if the key already exists or if there was an error during the operation.
  */
-pub async fn add_key(conn: &mut Connection, key: &str, value: &str) -> Result<(), redis::RedisError> {
+pub async fn add_key(
+    conn: &mut Connection,
+    key: &str,
+    value: &str,
+) -> Result<(), redis::RedisError> {
     match conn.set_nx::<&str, &str, bool>(key, value) {
         Ok(true) => Ok(()),
         Ok(false) => Err(redis::RedisError::from((

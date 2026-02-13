@@ -12,7 +12,11 @@ use redis::{Commands, Connection};
  * `Result<(), redis::RedisError>` - Returns `Ok(())` if the operation was successful,
  * otherwise returns an error.
  */
-pub async fn set_key(conn: &mut Connection, key: &str, value: &str) -> Result<(), redis::RedisError> {
+pub async fn set_key(
+    conn: &mut Connection,
+    key: &str,
+    value: &str,
+) -> Result<(), redis::RedisError> {
     match conn.set::<&str, &str, String>(key, value) {
         Ok(response) => {
             if response == "OK" {

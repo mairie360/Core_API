@@ -1,6 +1,6 @@
-use redis::Connection;
 use super::delete_key;
 use super::key_exist;
+use redis::Connection;
 
 /**
  * Securely deletes a key from Redis if it exists.

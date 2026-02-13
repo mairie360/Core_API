@@ -1,7 +1,7 @@
+use super::simple_key;
 use crate::get_critical_env_var;
 use redis::{Client, Connection};
 use std::sync::LazyLock;
-use super::simple_key;
 use tokio::sync::Mutex;
 
 static REDIS_INTERFACE: LazyLock<Mutex<Option<RedisManager>>> =
@@ -117,7 +117,7 @@ impl RedisManager {
      * If successful, it returns `Ok(())`.
      * If it fails, it returns a `RedisError` with an appropriate error message.
      */
-   pub async fn add_key(&mut self, key: &str, value: &str) -> Result<(), redis::RedisError> {
+    pub async fn add_key(&mut self, key: &str, value: &str) -> Result<(), redis::RedisError> {
         match &mut self.connection {
             Some(conn) => simple_key::add_key(conn, key, value).await,
             None => Err(redis::RedisError::from((
