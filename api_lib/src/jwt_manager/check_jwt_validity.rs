@@ -65,9 +65,7 @@ pub async fn check_jwt_validity(jwt: &str) -> Result<(), JWTCheckError> {
     };
 
     match verify_jwt_timeout(timeout) {
-        Ok(true) => {
-            Ok(())
-        }
+        Ok(true) => Ok(()),
         Ok(false) => {
             eprintln!("JWT token is expired.");
             Err(JWTCheckError::ExpiredToken)

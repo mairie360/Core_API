@@ -1,5 +1,5 @@
 # Target directory (compiled files)
-target/
+target
 
 # Build artifacts
 *.rlib
@@ -27,3 +27,8 @@ target/
 # Cargo package registry and git dependencies (optional)
 .cargo/
 .git/
+
+# Docker files
+.dockerignore
+Dockerfile
+development.Dockerfile

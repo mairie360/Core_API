@@ -56,9 +56,7 @@ fn is_response_view_correct(json: &serde_json::Value) -> bool {
  * If the value is not found or an error occurs,
  * it returns an error.
  */
-async fn get_chache_value(
-    user_id: u64,
-) -> Result<serde_json::Value, AboutError> {
+async fn get_chache_value(user_id: u64) -> Result<serde_json::Value, AboutError> {
     let mut redis_manager = get_redis_manager().await;
     match redis_manager.as_mut() {
         Some(redis) => {
@@ -66,12 +64,13 @@ async fn get_chache_value(
                 .secure_get_key(&format!("user:{}:about", user_id))
                 .await;
             match json {
-                Ok(json_str) => {
-                    serde_json::from_str::<serde_json::Value>(&json_str)
-                        .map_err(|_| AboutError::InvalidCredentials)
-                }
+                Ok(json_str) => serde_json::from_str::<serde_json::Value>(&json_str)
+                    .map_err(|_| AboutError::InvalidCredentials),
                 Err(e) => {
-                    eprintln!("Failed to retrieve cached user about info from Redis: {}", e);
+                    eprintln!(
+                        "Failed to retrieve cached user about info from Redis: {}",
+                        e
+                    );
                     Err(AboutError::DatabaseError)
                 }
             }
@@ -88,10 +87,7 @@ async fn get_chache_value(
  * It serializes the provided JSON value and stores it in Redis.
  * If an error occurs during the caching process, it logs the error.
  */
-async fn set_cache_value(
-    user_id: u64,
-    json: &serde_json::Value,
-) {
+async fn set_cache_value(user_id: u64, json: &serde_json::Value) {
     let mut redis_manager = get_redis_manager().await;
     match redis_manager.as_mut() {
         Some(redis) => {
