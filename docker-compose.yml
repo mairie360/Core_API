@@ -130,3 +130,5 @@ services:
     depends_on:
       core:
         condition: service_healthy
+    extra_hosts:
+          - "core.development.mairie360.fr:127.0.0.1"
