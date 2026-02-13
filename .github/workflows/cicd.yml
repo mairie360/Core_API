@@ -1,4 +1,4 @@
-name: Database CI/CD
+name: CoreAPI CI/CD
 
 on:
   workflow_dispatch:
