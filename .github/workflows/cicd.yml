@@ -11,10 +11,12 @@ permissions:
 jobs:
   APIs-cicd:
     uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@feat/mair-6-add-cd-for-back-apis
+    permissions:
+          contents: write
+          packages: write
+          id-token: write
     with:
       postman_collection: ${{ vars.POSTMAN_CORE_API_COLLECTION_ID }}
       postman_environment: ${{ vars.POSTMAN_CORE_API_ENV_ID }}
       package_name: core-api
-    secrets:
-      POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-      GH_PAT: ${{ secrets.GH_PAT }}
+    secrets: inherit
