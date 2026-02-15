@@ -109,7 +109,6 @@ services:
           path: ./api_lib
           target: /usr/src/core/api_lib
         - action: sync
-        - action: sync
           path: ./Cargo.toml
           target: /usr/src/core/Cargo.toml
         - action: sync
