@@ -7,14 +7,15 @@ use futures_util::future::LocalBoxFuture;
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-// On suppose que vos fonctions existent ici
 use api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError};
 
-// 1. La structure de définition du Middleware
+/**
+ * Middleware to check the validity of JWT tokens in incoming requests.
+ * If the token is valid, the request is passed to the next service in the chain.
+ * If the token is invalid or missing, an appropriate HTTP response is returned.
+ */
 pub struct JwtMiddleware;
 
-// 2. Implémentation de Transform (Factory)
-// Cela permet d'initialiser le middleware dans App::new()
 impl<S, B> Transform<S, ServiceRequest> for JwtMiddleware
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -27,6 +28,9 @@ where
     type Transform = JwtMiddlewareService<S>;
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
+    /**
+     * Creates a new instance of the middleware service, wrapping the provided service.
+     */
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(JwtMiddlewareService {
             service: Rc::new(service),
@@ -34,7 +38,11 @@ where
     }
 }
 
-// 3. Le Service qui contient la logique
+/**
+ * Service that implements the actual logic of checking JWT tokens for each incoming request.
+ * It uses the `get_jwt_from_request` function to extract the token and the `check_jwt_validity` function to validate it.
+ * Depending on the result, it either forwards the request to the next service or returns an appropriate HTTP response.
+ */
 pub struct JwtMiddlewareService<S> {
     service: Rc<S>,
 }
@@ -51,19 +59,18 @@ where
 
     forward_ready!(service);
 
+    /**
+     * Handles the incoming request by checking for a JWT token and validating it.
+     */
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
 
         Box::pin(async move {
-            // Extraction du JWT depuis les headers de la requête
-            // Note: Adaptez `get_jwt_from_headers` pour qu'il prenne &HeaderMap ou &HttpRequest
-            // Ici, on accède à req.request() pour avoir l'objet HttpRequest habituel
             let jwt_option = get_jwt_from_request(req.request());
 
             let jwt = match jwt_option {
                 Some(token) => token,
                 None => {
-                    // Pas de token -> 401 Unauthorized immédiat
                     let response = HttpResponse::Unauthorized()
                         .body("Unauthorized: No JWT token provided.")
                         .map_into_right_body();
@@ -71,16 +78,12 @@ where
                 }
             };
 
-            // Vérification de validité (votre logique existante)
             match check_jwt_validity(&jwt).await {
                 Ok(_) => {
-                    // C'est valide ! On passe la main au handler suivant
                     let res = svc.call(req).await?;
-                    // On map le body pour correspondre au type attendu (EitherBody)
                     Ok(res.map_into_left_body())
                 }
                 Err(error) => {
-                    // Gestion des erreurs identique à votre macro
                     let response =
                         match error {
                             JWTCheckError::DatabaseError => HttpResponse::InternalServerError()
