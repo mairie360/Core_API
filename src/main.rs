@@ -1,9 +1,10 @@
-use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, middleware, post, web, App, HttpResponse, HttpServer, Responder};
 
 use api_lib::database::db_interface::get_db_interface;
 use api_lib::get_critical_env_var;
 use api_lib::redis::redis_manager::{create_redis_manager, get_redis_manager};
 
+use core_api::auth_middleware::JwtMiddleware;
 use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::login::login_view::LoginView;
 use core_api::endpoints::register::register_request::register;
@@ -104,13 +105,18 @@ async fn main() -> std::io::Result<()> {
     let bind_address = format!("{}:{}", host, port);
     let server = HttpServer::new(|| {
         App::new()
+            .wrap(middleware::Logger::default())
             // post requests
             .service(hello)
             .service(register)
             .service(login)
             // get requests
             .service(health)
-            .service(user_about)
+            .service(
+                web::scope("")
+                    .wrap(JwtMiddleware)
+                    .service(user_about)
+            )
             // API documentation
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")

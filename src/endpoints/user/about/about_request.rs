@@ -1,6 +1,6 @@
 use super::about_request_view::{AboutPathParamRequestView, AboutRequestView};
 
-use actix_web::{get, web, HttpRequest, HttpResponse};
+use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 
 use api_lib::database::db_interface::get_db_interface;
 use api_lib::database::queries_result_views::get_json_from_query_result;
@@ -9,7 +9,7 @@ use api_lib::database::utils::does_user_exist_by_id;
 
 use api_lib::redis::redis_manager::get_redis_manager;
 
-use api_macro_lib::check_jwt;
+// use api_macro_lib::check_jwt;
 
 use serde_json;
 
@@ -175,7 +175,7 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
     tag = "Users"
 )]
 #[get("/user/{user_id}/about")]
-#[check_jwt]
+// #[check_jwt]
 pub async fn user_about(
     req: HttpRequest,
     path_view: web::Path<AboutPathParamRequestView>,
