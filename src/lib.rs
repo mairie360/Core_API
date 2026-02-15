@@ -1,2 +1,2 @@
-pub mod endpoints;
 pub mod auth_middleware;
+pub mod endpoints;

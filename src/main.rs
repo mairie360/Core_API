@@ -112,11 +112,7 @@ async fn main() -> std::io::Result<()> {
             .service(login)
             // get requests
             .service(health)
-            .service(
-                web::scope("")
-                    .wrap(JwtMiddleware)
-                    .service(user_about)
-            )
+            .service(web::scope("").wrap(JwtMiddleware).service(user_about))
             // API documentation
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")

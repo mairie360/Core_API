@@ -1,13 +1,14 @@
-use std::future::{ready, Ready};
 use actix_web::{
+    body::EitherBody,
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpResponse, body::EitherBody,
+    Error, HttpResponse,
 };
 use futures_util::future::LocalBoxFuture;
+use std::future::{ready, Ready};
 use std::rc::Rc;
 
 // On suppose que vos fonctions existent ici
-use api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError}; 
+use api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError};
 
 // 1. La structure de définition du Middleware
 pub struct JwtMiddleware;
@@ -80,18 +81,20 @@ where
                 }
                 Err(error) => {
                     // Gestion des erreurs identique à votre macro
-                    let response = match error {
-                        JWTCheckError::DatabaseError => HttpResponse::InternalServerError()
-                            .body("Internal server error: Database not initialized."),
-                        JWTCheckError::NoTokenProvided => HttpResponse::Unauthorized()
-                            .body("Unauthorized: No JWT token provided."),
-                        JWTCheckError::ExpiredToken => HttpResponse::Unauthorized()
-                            .body("Unauthorized: JWT token is expired."),
-                        JWTCheckError::InvalidToken => HttpResponse::Unauthorized()
-                            .body("Unauthorized: Invalid JWT token."),
-                        JWTCheckError::UnknowUser => HttpResponse::NotFound()
-                            .body("User not found."),
-                    };
+                    let response =
+                        match error {
+                            JWTCheckError::DatabaseError => HttpResponse::InternalServerError()
+                                .body("Internal server error: Database not initialized."),
+                            JWTCheckError::NoTokenProvided => HttpResponse::Unauthorized()
+                                .body("Unauthorized: No JWT token provided."),
+                            JWTCheckError::ExpiredToken => HttpResponse::Unauthorized()
+                                .body("Unauthorized: JWT token is expired."),
+                            JWTCheckError::InvalidToken => HttpResponse::Unauthorized()
+                                .body("Unauthorized: Invalid JWT token."),
+                            JWTCheckError::UnknowUser => {
+                                HttpResponse::NotFound().body("User not found.")
+                            }
+                        };
                     Ok(req.into_response(response.map_into_right_body()))
                 }
             }

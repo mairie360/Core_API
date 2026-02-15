@@ -173,9 +173,7 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
     tag = "Users"
 )]
 #[get("/user/{user_id}/about")]
-pub async fn user_about(
-    path_view: web::Path<AboutPathParamRequestView>,
-) -> impl Responder {
+pub async fn user_about(path_view: web::Path<AboutPathParamRequestView>) -> impl Responder {
     let about_view = path_view.into_inner();
 
     match about_request(&AboutRequestView::new(about_view.user_id())).await {
