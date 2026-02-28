@@ -14,7 +14,7 @@ x-common-env: &common-env
   DB_NAME: mairie_360_database
   DB_USER: postgres
   DB_HOST: postgres
-  DB_PASSWORD: password         # Assure-toi que c'est le même partout
+  DB_PASSWORD: password
   DB_PORT: 5432
 
 x-depends-on: &depends-on
