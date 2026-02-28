@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@feat/mair-6-add-cd-for-back-apis
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@main
     permissions:
           contents: write
           packages: write
