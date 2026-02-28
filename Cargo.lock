@@ -238,17 +238,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "api_macro_lib"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "api_lib",
- "futures-util",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
 name = "async-trait"
 version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -393,7 +382,6 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "api_lib",
- "api_macro_lib",
  "futures-util",
  "once_cell",
  "serde",
