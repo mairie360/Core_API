@@ -1,32 +1,24 @@
-# Étape de construction et d'exécution
-FROM rust:latest AS development
+# Étape 1 : Build (Utilisation de la toute dernière version 1.88)
+FROM rust:1.88-slim AS builder
 
-# Installer les dépendances nécessaires
-RUN apt update && apt install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Installation des dépendances système nécessaires
+RUN apt update && apt install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-# Définir le répertoire de travail
-WORKDIR /usr/src/core
+WORKDIR /usr/src/app
+COPY . .
 
-# Copier les fichiers de configuration et le code source
-COPY Cargo.toml ./
-COPY src ./src
+# Compilation
+RUN cargo build --release
 
-# Créer un utilisateur non-root
-RUN useradd --system --home /usr/src/core --shell /usr/sbin/nologin core
+# Étape 2 : Runtime
+FROM debian:bookworm-slim
+WORKDIR /app
 
-# Définir les permissions
-RUN chown -R core:core /usr/src/core
-USER core
+# Installation des certificats CA
+RUN apt update && apt install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 
-# Définir les variables d'environnement
-ENV RUST_BACKTRACE=1
-ENV HOSTNAME="0.0.0.0"
-ENV PORT=3000
+# Copie du binaire
+COPY --from=builder /usr/src/app/target/release/core-api /app/core-api
 
-# Exposer le port
-EXPOSE 3000
-
-# Commande pour exécuter le projet en mode release
-CMD ["cargo", "run", "--release"]
+# On lance le binaire
+CMD ["./core-api"]
