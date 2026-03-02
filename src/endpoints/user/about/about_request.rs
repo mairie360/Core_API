@@ -1,13 +1,17 @@
 use super::about_request_view::{AboutPathParamRequestView, AboutRequestView};
+use crate::database::queries::about_user_query;
+use crate::database::query_views::AboutUserQueryView;
 
 use actix_web::{get, web, HttpResponse, Responder};
 
-use api_lib::database::db_interface::get_db_interface;
-use api_lib::database::queries_result_views::get_json_from_query_result;
-use api_lib::database::query_views::AboutUserQueryView;
-use api_lib::database::utils::does_user_exist_by_id;
+use mairie360_api_lib::database::db_interface::QueryResultView;
+use mairie360_api_lib::database::queries::does_user_exist_by_id_query;
+use mairie360_api_lib::database::queries_result_views::utils::{
+    get_boolean_from_query_result, get_json_from_query_result,
+};
 
-use api_lib::redis::redis_manager::get_redis_manager;
+use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
+use mairie360_api_lib::redis::redis_manager::get_redis_manager;
 
 use serde_json;
 
@@ -109,7 +113,17 @@ async fn set_cache_value(user_id: u64, json: &serde_json::Value) {
  * If any error occurs, it returns an appropriate error.
  */
 async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Value, AboutError> {
-    if !does_user_exist_by_id(about_view.user_id()).await {
+    let user_exists =
+        match does_user_exist_by_id_query(DoesUserExistByIdQueryView::new(about_view.user_id()))
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Error checking user existence: {}", e);
+                return Err(AboutError::DatabaseError);
+            }
+        };
+    if !get_boolean_from_query_result(user_exists.get_result()) {
         eprintln!("User with ID {} does not exist.", about_view.user_id());
         return Err(AboutError::InvalidCredentials);
     }
@@ -124,20 +138,10 @@ async fn about_request(about_view: &AboutRequestView) -> Result<serde_json::Valu
         }
         Err(e) => {
             eprintln!("Error retrieving cached value: {}", e);
-            // Continue to fetch from the database
         }
     }
-    let view = AboutUserQueryView::new(about_view.user_id());
-    let db_guard = get_db_interface().lock().unwrap();
-    let db_interface = match &*db_guard {
-        Some(db) => db,
-        None => {
-            eprintln!("Database interface is not initialized.");
-            return Err(AboutError::DatabaseError);
-        }
-    };
-    let query_view = db_interface.execute_query(Box::new(view)).await;
-    match query_view {
+    let query_result_view = about_user_query(AboutUserQueryView::new(about_view.user_id())).await;
+    match query_result_view {
         Ok(view) => {
             let user_info = view.get_result();
             let json = get_json_from_query_result(user_info);

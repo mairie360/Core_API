@@ -16,7 +16,6 @@ WORKDIR /usr/src/core
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY src ./src
-COPY api_lib ./api_lib
 
 # Définir les variables d’environnement
 ENV RUST_BACKTRACE=1

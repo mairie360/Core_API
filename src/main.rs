@@ -1,15 +1,15 @@
 use actix_web::{get, middleware, post, web, App, HttpResponse, HttpServer, Responder};
 
-use api_lib::database::db_interface::get_db_interface;
-use api_lib::get_critical_env_var;
-use api_lib::redis::redis_manager::{create_redis_manager, get_redis_manager};
-
 use core_api::auth_middleware::JwtMiddleware;
 use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::login::login_view::LoginView;
 use core_api::endpoints::register::register_request::register;
 use core_api::endpoints::register::register_view::RegisterView;
 use core_api::endpoints::user::about::about_request::user_about;
+
+use mairie360_api_lib::database::db_interface::{get_db_interface, init_db_interface};
+use mairie360_api_lib::env_manager::get_critical_env_var;
+use mairie360_api_lib::redis::redis_manager::{create_redis_manager, get_redis_manager};
 
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -69,6 +69,7 @@ struct ApiDoc;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    init_db_interface().await;
     match get_db_interface().lock().unwrap().as_mut() {
         Some(db_interface) => match db_interface.connect().await {
             Ok(msg) => {

@@ -1,11 +1,14 @@
+use crate::database::queries::register_query;
+use crate::database::query_views::RegisterUserQueryView;
 use actix_web::{post, web, HttpResponse, Responder};
+use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
 
 use super::register_view::RegisterView;
-use api_lib::database::db_interface::get_db_interface;
-use api_lib::database::queries_result_views::{
+use mairie360_api_lib::database::db_interface::QueryResultView;
+use mairie360_api_lib::database::queries::does_user_exist_by_email_query;
+use mairie360_api_lib::database::queries_result_views::utils::{
     get_boolean_from_query_result, get_result_from_query_result,
 };
-use api_lib::database::query_views::{DoesUserExistByEmailQueryView, RegisterUserQueryView};
 
 /**
  * Custom error type for registration errors.
@@ -96,16 +99,9 @@ fn is_valid_phone_number(phone_number: Option<String>) -> bool {
  * - `false` if the user does not exist or if there is an error during the query.
  */
 async fn already_exists(register_view: &RegisterView) -> bool {
-    let view = DoesUserExistByEmailQueryView::new(register_view.email());
-    let db_guard = get_db_interface().lock().unwrap();
-    let db_interface = match &*db_guard {
-        Some(db) => db,
-        None => {
-            eprintln!("Database interface is not initialized.");
-            return true;
-        }
-    };
-    let query_view = db_interface.execute_query(Box::new(view)).await;
+    let query_view =
+        does_user_exist_by_email_query(DoesUserExistByEmailQueryView::new(register_view.email()))
+            .await;
     match query_view {
         Ok(result) => get_boolean_from_query_result(result.get_result()),
         Err(e) => {
@@ -164,15 +160,7 @@ async fn register_user(register_view: &RegisterView) -> Result<(), RegisterError
                 register_view.password(),
                 register_view.phone_number(),
             );
-            let db_guard = get_db_interface().lock().unwrap();
-            let db_interface = match &*db_guard {
-                Some(db) => db,
-                None => {
-                    eprintln!("Database interface is not initialized.");
-                    return Err(RegisterError::DatabaseError);
-                }
-            };
-            let query_view = db_interface.execute_query(Box::new(view)).await;
+            let query_view = register_query(view).await;
             match query_view {
                 Ok(result) => match get_result_from_query_result(result.get_result()) {
                     Ok(_) => Ok(()),

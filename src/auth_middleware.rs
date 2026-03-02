@@ -7,7 +7,7 @@ use futures_util::future::LocalBoxFuture;
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-use api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError};
+use mairie360_api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError};
 
 /**
  * Middleware to check the validity of JWT tokens in incoming requests.
@@ -94,7 +94,7 @@ where
                                 .body("Unauthorized: JWT token is expired."),
                             JWTCheckError::InvalidToken => HttpResponse::Unauthorized()
                                 .body("Unauthorized: Invalid JWT token."),
-                            JWTCheckError::UnknowUser => {
+                            JWTCheckError::UnknownUser => {
                                 HttpResponse::NotFound().body("User not found.")
                             }
                         };

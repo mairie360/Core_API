@@ -1,10 +1,13 @@
+use crate::database::queries::login_query;
+use crate::database::query_views::LoginUserQueryView;
 use actix_web::{post, web, HttpResponse, Responder};
+use mairie360_api_lib::database::db_interface::QueryResultView;
+use mairie360_api_lib::database::errors::DatabaseError;
+use mairie360_api_lib::database::queries::QueryError;
 
 use super::login_view::LoginView;
-use api_lib::database::db_interface::get_db_interface;
-use api_lib::database::queries_result_views::get_u64_from_query_result;
-use api_lib::database::query_views::LoginUserQueryView;
-use api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::database::queries_result_views::utils::get_u64_from_query_result;
+use mairie360_api_lib::jwt_manager::generate_jwt;
 
 /**
  * Enum representing possible errors during user login.
@@ -53,15 +56,7 @@ impl std::fmt::Display for LoginError {
  */
 async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
-    let db_guard = get_db_interface().lock().unwrap();
-    let db_interface = match &*db_guard {
-        Some(db) => db,
-        None => {
-            eprintln!("Database interface is not initialized.");
-            return Err(LoginError::DatabaseError);
-        }
-    };
-    let query_view = db_interface.execute_query(Box::new(view)).await;
+    let query_view = login_query(view).await;
     match query_view {
         Ok(result) => {
             let user_id = get_u64_from_query_result(result.get_result());
@@ -78,10 +73,20 @@ async fn login_user(login_view: &LoginView) -> Result<String, LoginError> {
                 }
             }
         }
-        Err(e) => {
-            eprintln!("Error executing query: {}", e);
-            Err(LoginError::DatabaseError)
-        }
+        Err(e) => match e {
+            DatabaseError::Query(QueryError::EmailNotFound(_)) => {
+                eprintln!("Login failed: User not found or invalid credentials.");
+                Err(LoginError::InvalidCredentials)
+            }
+            DatabaseError::Query(QueryError::InvalidPassword(_)) => {
+                eprintln!("Login failed: User not found or invalid credentials.");
+                Err(LoginError::InvalidCredentials)
+            }
+            _ => {
+                eprintln!("Error executing query: {}", e);
+                Err(LoginError::DatabaseError)
+            }
+        },
     }
 }
 
