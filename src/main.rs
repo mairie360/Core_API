@@ -4,7 +4,7 @@ use core_api::auth_middleware::JwtMiddleware;
 use core_api::endpoints::login::login_request::login;
 use core_api::endpoints::register::register_request::register;
 use core_api::endpoints::user::about::about_request::user_about;
-use core_api::swagger::{ApiDoc, hello, health};
+use core_api::swagger::{health, hello, ApiDoc};
 
 use mairie360_api_lib::database::db_interface::{get_db_interface, init_db_interface};
 use mairie360_api_lib::env_manager::get_critical_env_var;
