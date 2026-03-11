@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@main
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@mair-56-setup-open-api-gen
     permissions:
           contents: write
           packages: write
