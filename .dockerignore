@@ -32,3 +32,4 @@ target
 .dockerignore
 Dockerfile
 development.Dockerfile
+openapi.yaml
