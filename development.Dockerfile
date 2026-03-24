@@ -1,33 +1,21 @@
-# development.Dockerfile
 FROM rust:latest AS development
 
-# Installer les dépendances nécessaires
-RUN apt update && apt install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Installer cargo-watch pour le hot-reload
+RUN apt update && apt install -y curl && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-watch
 
-# Définir le répertoire de travail
+# Utilisons un chemin simple et unique
 WORKDIR /usr/src/core
 
-# Copier uniquement les fichiers nécessaires
-COPY Cargo.toml .
-COPY Cargo.lock .
+# --- CACHE DES DÉPENDANCES ---
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+# Cette couche sera mise en cache tant que Cargo.toml ne change pas
+RUN cargo build && rm -rf src 
+# -----------------------------
+
 COPY src ./src
-
-# Définir les variables d’environnement
-ENV RUST_BACKTRACE=1
-ENV CARGO_HOME=/usr/local/cargo
-ENV PATH=$CARGO_HOME/bin:$PATH
-
-# Exposer le port
-EXPOSE 3000
-
-# Copier le script d'entrée et le rendre exécutable
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Lancer cargo watch pour recompiler automatiquement en cas de modification
+EXPOSE 3000
 CMD ["/usr/local/bin/entrypoint.sh"]

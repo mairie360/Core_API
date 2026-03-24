@@ -1,26 +1,35 @@
-use crate::database::postgresql::queries::RegisterUserQuery;
-use crate::database::queries_result_views::RegisterUserQueryResultView;
 use crate::database::query_views::RegisterUserQueryView;
-use mairie360_api_lib::database::db_interface::get_db_interface;
+use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
+use sqlx::PgPool;
 
 pub async fn register_query(
     view: RegisterUserQueryView,
-) -> Result<RegisterUserQueryResultView, DatabaseError> {
-    let db_guard = get_db_interface().lock().unwrap();
-    let db_interface = match &*db_guard {
-        Some(db) => db,
+    pool: PgPool,
+) -> Result<bool, DatabaseError> {
+    println!("{}", view);
+    let result = match view.get_phone_number() {
+        Some(_) => {
+            sqlx::query_scalar::<_, bool>(&view.get_request())
+                .bind(view.get_first_name())
+                .bind(view.get_last_name())
+                .bind(view.get_email())
+                .bind(view.get_password())
+                .bind(view.get_phone_number())
+                .fetch_one(&pool)
+                .await?
+        }
+
         None => {
-            eprintln!("Database interface is not initialized.");
-            return Err(DatabaseError::NotInitialized);
+            sqlx::query_scalar::<_, bool>(&view.get_request())
+                .bind(view.get_first_name())
+                .bind(view.get_last_name())
+                .bind(view.get_email())
+                .bind(view.get_password())
+                .fetch_one(&pool)
+                .await?
         }
     };
-    let query = RegisterUserQuery::new(
-        view.get_first_name(),
-        view.get_last_name(),
-        view.get_email(),
-        view.get_password(),
-        view.get_phone_number(),
-    );
-    db_interface.execute_query(query).await
+
+    Ok(result)
 }

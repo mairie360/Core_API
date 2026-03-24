@@ -24,12 +24,6 @@ impl DatabaseQueryView for LoginUserQueryView {
     fn get_request(&self) -> String {
         "SELECT id, password FROM users WHERE email = $1".to_string()
     }
-    fn get_raw_request(&self) -> String {
-        format!(
-            "SELECT id, password FROM users WHERE email = '{}'",
-            self.email
-        )
-    }
 }
 
 impl Display for LoginUserQueryView {

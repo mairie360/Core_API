@@ -8,6 +8,7 @@ use std::future::{ready, Ready};
 use std::rc::Rc;
 
 use mairie360_api_lib::jwt_manager::{check_jwt_validity, get_jwt_from_request, JWTCheckError};
+use mairie360_api_lib::pool::AppState;
 
 /**
  * Middleware to check the validity of JWT tokens in incoming requests.
@@ -64,8 +65,34 @@ where
      */
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
+        let app_state = req.app_data::<actix_web::web::Data<AppState>>();
+
+        // On clone le pool pour la closure async move
+        let pool = app_state.map(|state| state.db_pool.clone());
+
+        let path = req.path();
+        if path == "/"
+            || path.starts_with("/swagger-ui")
+            || path.starts_with("/api-docs")
+            || path.contains("/auth")
+        {
+            return Box::pin(async move {
+                let res = svc.call(req).await?;
+                Ok(res.map_into_left_body())
+            });
+        }
 
         Box::pin(async move {
+            let pool = match pool {
+                Some(p) => p,
+                None => {
+                    // Erreur si le pool n'a pas été injecté dans l'App
+                    let res = HttpResponse::InternalServerError()
+                        .body("DB Pool missing")
+                        .map_into_right_body();
+                    return Ok(req.into_response(res));
+                }
+            };
             let jwt_option = get_jwt_from_request(req.request());
 
             let jwt = match jwt_option {
@@ -78,7 +105,7 @@ where
                 }
             };
 
-            match check_jwt_validity(&jwt).await {
+            match check_jwt_validity(&jwt, pool).await {
                 Ok(_) => {
                     let res = svc.call(req).await?;
                     Ok(res.map_into_left_body())

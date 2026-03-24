@@ -1,15 +1,15 @@
-use mairie360_api_lib::database::db_interface::QueryResultView;
-use mairie360_api_lib::database::queries_result_views::utils::QueryResult;
-
 /**
  * View for the result of a login user query.
  * This view is used to return the number of users logged in.
  * It implements the QueryResultView trait.
  * It contains a single field `user_id` which is the ID of the user that has logged in.
  */
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow, PartialEq, Eq)]
 pub struct LoginUserQueryResultView {
-    user_id: u64,
+    #[sqlx(rename = "id")]
+    user_id: i32,
+    #[sqlx(rename = "password")]
+    password: String,
 }
 
 impl LoginUserQueryResultView {
@@ -19,14 +19,17 @@ impl LoginUserQueryResultView {
      * # Arguments
      *
      * * `user_id` - The ID of the user that has logged in.
+     * * `password` - The password of the user that has logged in.
      */
-    pub fn new(user_id: u64) -> Self {
-        Self { user_id }
+    pub fn new(user_id: i32, password: String) -> Self {
+        Self { user_id, password }
     }
-}
 
-impl QueryResultView for LoginUserQueryResultView {
-    fn get_result(&self) -> QueryResult {
-        QueryResult::U64(self.user_id)
+    pub fn password(&self) -> &str {
+        &self.password
+    }
+
+    pub fn user_id(&self) -> i32 {
+        self.user_id
     }
 }

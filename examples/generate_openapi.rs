@@ -1,10 +1,14 @@
-use core_api::swagger::ApiDoc;
+use core_api::endpoints::swagger::ApiDoc;
 use utoipa::OpenApi;
 
 fn main() {
-    let openapi_yaml = ApiDoc::openapi()
-        .to_yaml()
-        .expect("Failed to generate YAML");
+    // 1. Obtenir la structure OpenApi
+    let doc = ApiDoc::openapi();
 
-    println!("{}", openapi_yaml);
+    // 2. Utiliser serde_yaml ou la méthode intégrée si la feature "yaml" est activée
+    // Si vous avez la feature "yaml" dans Cargo.toml :
+    match doc.to_yaml() {
+        Ok(yaml) => println!("{}", yaml),
+        Err(err) => eprintln!("Erreur lors de la génération du YAML : {}", err),
+    }
 }
