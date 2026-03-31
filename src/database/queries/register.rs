@@ -7,29 +7,14 @@ pub async fn register_query(
     view: RegisterUserQueryView,
     pool: PgPool,
 ) -> Result<bool, DatabaseError> {
-    println!("{}", view);
-    let result = match view.get_phone_number() {
-        Some(_) => {
-            sqlx::query_scalar::<_, bool>(&view.get_request())
-                .bind(view.get_first_name())
-                .bind(view.get_last_name())
-                .bind(view.get_email())
-                .bind(view.get_password())
-                .bind(view.get_phone_number())
-                .fetch_one(&pool)
-                .await?
-        }
-
-        None => {
-            sqlx::query_scalar::<_, bool>(&view.get_request())
-                .bind(view.get_first_name())
-                .bind(view.get_last_name())
-                .bind(view.get_email())
-                .bind(view.get_password())
-                .fetch_one(&pool)
-                .await?
-        }
-    };
+    let result = sqlx::query_scalar::<_, bool>(&view.get_request())
+        .bind(view.get_first_name())
+        .bind(view.get_last_name())
+        .bind(view.get_email())
+        .bind(view.get_password())
+        .bind(view.get_phone_number())
+        .fetch_one(&pool)
+        .await?;
 
     Ok(result)
 }

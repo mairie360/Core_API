@@ -5,16 +5,18 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4"
-mairie360_api_lib = "0.3.5"
+async-trait = "0.1.89"
+chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
+mairie360_api_lib = "0.4.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 tokio = { version = "1.46.0", features = ["full"] }
+tokio-postgres = "0.7.16"
 utoipa = { version = "5", features = ["actix_extras", "yaml"] }
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
-async-trait = "0.1.89"
-tokio-postgres = "0.7.16"
-sqlx = "0.8.6"
+uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"

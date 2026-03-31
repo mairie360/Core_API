@@ -42,7 +42,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-latest
+    image: ghcr.io/mairie360/database:dev-b816587
     restart: always
     container_name: mairie360-db-core-api
     environment:
@@ -52,7 +52,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     networks:
       - backend
     healthcheck:
@@ -62,7 +62,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-latest
+    image: ghcr.io/mairie360/liquibase-migrations:dev-b816587
     container_name: mairie360-liquibase-core-api
     depends_on:
       postgres:
@@ -72,7 +72,7 @@ services:
       LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/mairie_360_database
       LIQUIBASE_COMMAND_USERNAME: ${DB_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${DB_PASSWORD:-password}
-      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+      LIQUIBASE_SEARCH_PATH: /migrations
     command: >
       --changelog-file=changelog.xml
       update

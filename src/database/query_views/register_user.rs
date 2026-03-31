@@ -45,17 +45,9 @@ impl RegisterUserQueryView {
 
 impl DatabaseQueryView for RegisterUserQueryView {
     fn get_request(&self) -> String {
-        match self.phone_number {
-            // Avec numéro de téléphone : 5 arguments
-            Some(_) => "INSERT INTO users (first_name, last_name, email, password, phone_number) \
-                        VALUES ($1, $2, $3, $4, $5) RETURNING true as success"
-                .to_string(),
-
-            // Sans numéro de téléphone : 4 arguments
-            None => "INSERT INTO users (first_name, last_name, email, password) \
-                    VALUES ($1, $2, $3, $4) RETURNING true as success"
-                .to_string(),
-        }
+        // Une seule requête gère les deux cas. Postgres acceptera $5 comme NULL.
+        "INSERT INTO users (first_name, last_name, email, password, phone_number) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING true".to_string()
     }
 }
 
