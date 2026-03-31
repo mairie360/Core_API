@@ -18,3 +18,6 @@ pub use get_sessions_by_user::GetSessionsByUserQueryView;
 
 mod get_session_by_token;
 pub use get_session_by_token::GetSessionByTokenQueryView;
+
+mod revoke_previous_session;
+pub use revoke_previous_session::RevokePreviousSessionQueryView;

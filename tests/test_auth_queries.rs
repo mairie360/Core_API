@@ -4,7 +4,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
-    // Cette requête récupère le nom de la séquence associée à la colonne 'id' 
+    // Cette requête récupère le nom de la séquence associée à la colonne 'id'
     // de la table 'users' et la met à jour avec le MAX(id) actuel.
     let sync_query = r#"
         SELECT setval(
@@ -14,9 +14,7 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
         ) FROM users;
     "#;
 
-    sqlx::query(sync_query)
-        .execute(pool)
-        .await?;
+    sqlx::query(sync_query).execute(pool).await?;
 
     Ok(())
 }
@@ -33,7 +31,6 @@ async fn get_pool(url: String) -> PgPool {
 #[cfg(test)]
 mod queries_tests {
     use super::*;
-    
 
     #[cfg(test)]
     mod login {
@@ -111,7 +108,7 @@ mod queries_tests {
             sync_user_sequence(&pool).await.unwrap();
 
             let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
-            
+
             let register_result = register_query(
                 RegisterUserQueryView::new(
                     "John",
@@ -127,14 +124,14 @@ mod queries_tests {
 
             assert_eq!(register_result, true);
         }
-        
+
         #[tokio::test]
         #[serial]
         async fn test_register_user_duplicate_email() {
             let (_container, host) = get_shared_db().await;
             let pool = get_pool(host.to_string()).await;
             sync_user_sequence(&pool).await.unwrap();
-            
+
             let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
             let _ = register_query(
@@ -148,7 +145,7 @@ mod queries_tests {
                 pool.clone(),
             )
             .await;
-            
+
             let register_result = register_query(
                 RegisterUserQueryView::new(
                     "John",
@@ -208,7 +205,7 @@ mod sql_injection_tests {
         sync_user_sequence(&pool).await.unwrap();
 
         let malicious_name = "John'); DROP TABLE users; --";
-        
+
         let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
         let result = register_query(

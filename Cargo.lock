@@ -651,10 +651,12 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "futures-util",
  "mairie360_api_lib",
  "once_cell",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "serial_test",

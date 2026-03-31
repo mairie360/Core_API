@@ -15,14 +15,13 @@ async fn get_pool(url: String) -> PgPool {
 #[cfg(test)]
 mod queries_tests {
     use super::*;
-    use chrono::Utc;
     use core_api::database::queries::{
         create_session_query, get_session_by_token_query, get_sessions_by_user_query,
-        revoke_session_query,
+        revoke_previous_session_query, revoke_session_query,
     };
     use core_api::database::query_views::{
         CreateSessionQueryView, GetSessionByTokenQueryView, GetSessionsByUserQueryView,
-        RevokeSessionQueryView,
+        RevokePreviousSessionQueryView, RevokeSessionQueryView,
     };
     use mairie360_api_lib::database::errors::DatabaseError;
     use mairie360_api_lib::database::queries::is_session_token_valid_query;
@@ -39,10 +38,9 @@ mod queries_tests {
         let result: Result<(), DatabaseError> = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_create_session".to_string(),
-                "any_device".to_string(),
+                "test_create_session",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -74,10 +72,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_get_sessions_by_user".to_string(),
-                "any_device".to_string(),
+                "test_get_sessions_by_user",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -111,10 +108,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_get_sessions_by_user".to_string(),
-                "any_device".to_string(),
+                "test_get_sessions_by_user",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -148,10 +144,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_get_session_by_token".to_string(),
-                "any_device".to_string(),
+                "test_get_session_by_token",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -188,10 +183,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_get_session_by_unknow_token".to_string(),
-                "any_device".to_string(),
+                "test_get_session_by_unknow_token",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -228,10 +222,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_revoke_session_with_id".to_string(),
-                "any_device".to_string(),
+                "test_revoke_session_with_id",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -287,10 +280,9 @@ mod queries_tests {
         let _ = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                "test_revoke_session_with_token".to_string(),
-                "any_device".to_string(),
+                "test_revoke_session_with_token",
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool.clone(),
         )
@@ -356,12 +348,36 @@ mod queries_tests {
 
         assert!(sessions_2.len() >= sessions.len());
     }
+    
+    #[tokio::test]
+    #[serial]
+    async fn test_revoke_previous_session() {
+        let (_container, host) = get_shared_db().await;
+        let pool = get_pool(host.to_string()).await;
+
+        let sessions = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), pool.clone())
+            .await
+            .unwrap();
+
+        let result: Result<(), DatabaseError> = revoke_previous_session_query(
+            RevokePreviousSessionQueryView::new(1, std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)), ""),
+            pool.clone(),
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let sessions_2 = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), pool)
+            .await
+            .unwrap();
+
+        assert!(sessions_2.len() <= sessions.len());
+    }
 }
 
 #[cfg(test)]
 mod sql_injection_tests {
     use super::*;
-    use chrono::Utc;
     use core_api::database::queries::create_session_query;
     use core_api::database::query_views::CreateSessionQueryView;
 
@@ -386,10 +402,9 @@ mod sql_injection_tests {
         let result = create_session_query(
             CreateSessionQueryView::new(
                 1,
-                malicious_token.to_string(),
-                "any_device".to_string(),
+                malicious_token,
+                "any_device",
                 std::net::IpAddr::from([0, 0, 0, 0]),
-                Utc::now(),
             ),
             pool,
         )

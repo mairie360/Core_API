@@ -18,3 +18,6 @@ pub use get_sessions_by_user::get_sessions_by_user_query;
 
 mod get_session_by_token;
 pub use get_session_by_token::get_session_by_token_query;
+
+mod revoke_previous_session;
+pub use revoke_previous_session::revoke_previous_session_query;

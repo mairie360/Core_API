@@ -47,7 +47,8 @@ impl DatabaseQueryView for RegisterUserQueryView {
     fn get_request(&self) -> String {
         // Une seule requête gère les deux cas. Postgres acceptera $5 comme NULL.
         "INSERT INTO users (first_name, last_name, email, password, phone_number) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING true".to_string()
+         VALUES ($1, $2, $3, $4, $5) RETURNING true"
+            .to_string()
     }
 }
 

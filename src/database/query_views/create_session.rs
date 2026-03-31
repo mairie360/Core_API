@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use std::fmt::Display;
 
@@ -7,23 +6,20 @@ pub struct CreateSessionQueryView {
     token_hash: String,
     device_info: String,
     ip_address: std::net::IpAddr,
-    expires_at: DateTime<Utc>,
 }
 
 impl CreateSessionQueryView {
     pub fn new(
         user_id: u64,
-        token_hash: String,
-        device_info: String,
+        token_hash: &str,
+        device_info: &str,
         ip_address: std::net::IpAddr,
-        expires_at: DateTime<Utc>,
     ) -> Self {
         Self {
             user_id,
-            token_hash,
-            device_info,
+            token_hash: token_hash.to_string(),
+            device_info: device_info.to_string(),
             ip_address,
-            expires_at,
         }
     }
 
@@ -42,15 +38,11 @@ impl CreateSessionQueryView {
     pub fn get_ip_address(&self) -> &std::net::IpAddr {
         &self.ip_address
     }
-
-    pub fn get_expires_at(&self) -> &DateTime<Utc> {
-        &self.expires_at
-    }
 }
 
 impl DatabaseQueryView for CreateSessionQueryView {
     fn get_request(&self) -> String {
-        "INSERT INTO sessions (user_id, token_hash, device_info, ip_address, expires_at) VALUES ($1, $2, $3, $4, $5)".to_string()
+        "INSERT INTO sessions (user_id, token_hash, device_info, ip_address) VALUES ($1, $2, $3, $4)".to_string()
     }
 }
 
@@ -58,11 +50,10 @@ impl Display for CreateSessionQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "CreateSessionQueryView: user_id = {}, token_hash = [PROTECTED], device_info = {}, ip_address = {}, expires_at = {:?}",
+            "CreateSessionQueryView: user_id = {}, token_hash = [PROTECTED], device_info = {}, ip_address = {}",
             self.user_id,
             self.device_info,
             self.ip_address,
-            self.expires_at
         )
     }
 }

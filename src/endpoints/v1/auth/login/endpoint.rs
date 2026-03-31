@@ -1,8 +1,14 @@
 use crate::database::queries::login_query;
-use crate::database::query_views::LoginUserQueryView;
-use actix_web::{http::StatusCode, post, web, HttpResponse, Responder, ResponseError};
+use crate::database::query_views::{CreateSessionQueryView, LoginUserQueryView};
+use crate::endpoints::v1::auth::create_new_session;
+use actix_web::{
+    dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
+};
+use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::pool::AppState;
+use rand::{thread_rng, RngCore};
 
+use super::login_response_view::LoginResponseView;
 use super::login_view::LoginView;
 use mairie360_api_lib::jwt_manager::generate_jwt;
 
@@ -39,10 +45,22 @@ impl ResponseError for LoginError {
     }
 }
 
+fn generate_refresh_token() -> String {
+    // 32 octets (256 bits) est un standard de sécurité solide
+    let mut buffer = [0u8; 32];
+
+    // Remplissage avec des données aléatoires sécurisées
+    thread_rng().fill_bytes(&mut buffer);
+
+    // Encodage en Base64 pour avoir une String lisible
+    general_purpose::URL_SAFE_NO_PAD.encode(buffer)
+}
+
 async fn login_user(
     login_view: &LoginView,
     state: web::Data<AppState>,
-) -> Result<String, LoginError> {
+    ip_adress: std::net::IpAddr,
+) -> Result<(String, String), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
     let user_record = login_query(view, state.db_pool.clone())
@@ -52,14 +70,21 @@ async fn login_user(
             LoginError::DatabaseError
         })?;
 
-    println!("Login view: {}", login_view);
-    println!("User record: {:?}", user_record);
     match user_record {
         Some(user) if login_view.password() == user.password().trim() => {
-            generate_jwt(user.user_id().to_string().as_str()).map_err(|e| {
+            let refresh_token = generate_refresh_token();
+            let view = CreateSessionQueryView::new(
+                user.user_id() as u64,
+                &refresh_token,
+                &login_view.device_info(),
+                ip_adress,
+            );
+            create_new_session(state.clone(), user.user_id() as u64, view).await;
+            let jwt = generate_jwt(user.user_id().to_string().as_str()).map_err(|e| {
                 eprintln!("JWT Generation Error: {}", e);
                 LoginError::TokenGenerationError
-            })
+            })?;
+            Ok((jwt, refresh_token))
         }
         _ => {
             eprintln!(
@@ -76,7 +101,7 @@ async fn login_user(
     path = "",
     request_body = LoginView,
     responses(
-        (status = 200, description = "User login successfully!", body = String),
+        (status = 200, description = "User login successfully!", body = LoginResponseView),
         (status = 401, description = "Invalid credentials provided."),
         (status = 500, description = "Internal server error")
     ),
@@ -86,12 +111,20 @@ async fn login_user(
 pub async fn login(
     payload: web::Json<LoginView>,
     state: web::Data<AppState>,
+    conn: ConnectionInfo,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
+    let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
+    let ip_address = std::net::IpAddr::from(
+        ip_str
+            .parse::<std::net::IpAddr>()
+            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
+    );
+    println!("ip_address: {}", ip_address);
 
-    let jwt = login_user(&login_view, state).await?;
+    let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {}", jwt)))
-        .body("User login successfully!"))
+        .json(LoginResponseView::from(refresh_token)))
 }
