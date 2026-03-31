@@ -10,6 +10,12 @@ pub use login_user::LoginUserQueryView;
 mod create_session;
 pub use create_session::CreateSessionQueryView;
 
+mod revoke_session_by_token;
+pub use revoke_session_by_token::RevokeSessionByTokenQueryView;
+
+mod revoke_session_by_id;
+pub use revoke_session_by_id::RevokeSessionByIdQueryView;
+
 mod revoke_session;
 pub use revoke_session::RevokeSessionQueryView;
 
@@ -21,3 +27,6 @@ pub use get_session_by_token::GetSessionByTokenQueryView;
 
 mod revoke_previous_session;
 pub use revoke_previous_session::RevokePreviousSessionQueryView;
+
+mod get_active_session;
+pub use get_active_session::GetActiveSessionQueryView;

@@ -8,6 +8,7 @@ pub async fn revoke_previous_session_query(
     pool: PgPool,
 ) -> Result<(), DatabaseError> {
     sqlx::query(&view.get_request())
+        .bind(view.get_revoked_at())
         .bind(view.get_user_id() as i64)
         .bind(view.get_ip())
         .bind(view.get_device_info())

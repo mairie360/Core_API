@@ -16,12 +16,14 @@ async fn get_pool(url: String) -> PgPool {
 mod queries_tests {
     use super::*;
     use core_api::database::queries::{
-        create_session_query, get_session_by_token_query, get_sessions_by_user_query,
-        revoke_previous_session_query, revoke_session_query,
+        create_session_query, get_active_session_query, get_session_by_token_query,
+        get_sessions_by_user_query, revoke_previous_session_query, revoke_session_by_id_query,
+        revoke_session_by_token_query, revoke_session_query,
     };
     use core_api::database::query_views::{
-        CreateSessionQueryView, GetSessionByTokenQueryView, GetSessionsByUserQueryView,
-        RevokePreviousSessionQueryView, RevokeSessionQueryView,
+        CreateSessionQueryView, GetActiveSessionQueryView, GetSessionByTokenQueryView,
+        GetSessionsByUserQueryView, RevokePreviousSessionQueryView, RevokeSessionByIdQueryView,
+        RevokeSessionByTokenQueryView, RevokeSessionQueryView,
     };
     use mairie360_api_lib::database::errors::DatabaseError;
     use mairie360_api_lib::database::queries::is_session_token_valid_query;
@@ -237,11 +239,24 @@ mod queries_tests {
         .await
         .unwrap()
         .unwrap();
+        
+        let is_valid = is_session_token_valid_query(
+            IsSessionTokenValidQueryView::new(
+                1,
+                "test_revoke_session_with_id".to_string(),
+                std::net::IpAddr::from([0, 0, 0, 0]),
+            ),
+            pool.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert!(is_valid);
 
         let session_id = session.id().clone();
 
-        let result: Result<(), DatabaseError> = revoke_session_query(
-            RevokeSessionQueryView::new(1, None, Some(session_id)),
+        let result: Result<(), DatabaseError> = revoke_session_by_id_query(
+            RevokeSessionByIdQueryView::new(1, session_id),
             pool.clone(),
         )
         .await;
@@ -260,14 +275,6 @@ mod queries_tests {
         .unwrap();
 
         assert!(!is_valid);
-
-        let sessions_2 = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), pool)
-            .await
-            .unwrap();
-
-        for session in sessions_2 {
-            assert!(session.id() != &session_id);
-        }
     }
 
     #[tokio::test]
@@ -282,25 +289,27 @@ mod queries_tests {
                 1,
                 "test_revoke_session_with_token",
                 "any_device",
-                std::net::IpAddr::from([0, 0, 0, 0]),
+                std::net::IpAddr::from([0, 0, 0, 1]),
             ),
             pool.clone(),
         )
         .await;
-
-        let sessions = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), pool.clone())
-            .await
-            .unwrap();
-
-        let result: Result<(), DatabaseError> = revoke_session_query(
-            RevokeSessionQueryView::new(
+        
+        let is_valid = is_session_token_valid_query(
+            IsSessionTokenValidQueryView::new(
                 1,
-                Some("test_revoke_session_with_token".to_string()),
-                None,
+                "test_revoke_session_with_token".to_string(),
+                std::net::IpAddr::from([0, 0, 0, 1]),
             ),
             pool.clone(),
         )
-        .await;
+        .await
+        .unwrap();
+
+        assert!(is_valid);
+
+        let result: Result<(), DatabaseError> =
+            revoke_session_by_token_query(RevokeSessionByTokenQueryView::new(1, "test_revoke_session_with_token"), pool.clone()).await;
 
         assert!(result.is_ok());
 
@@ -308,7 +317,7 @@ mod queries_tests {
             IsSessionTokenValidQueryView::new(
                 1,
                 "test_revoke_session_with_token".to_string(),
-                std::net::IpAddr::from([0, 0, 0, 0]),
+                std::net::IpAddr::from([0, 0, 0, 1]),
             ),
             pool.clone(),
         )
@@ -316,12 +325,6 @@ mod queries_tests {
         .unwrap();
 
         assert!(!is_valid);
-
-        let sessions_2 = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), pool)
-            .await
-            .unwrap();
-
-        assert!(sessions_2.len() < sessions.len());
     }
 
     #[tokio::test]
@@ -335,7 +338,7 @@ mod queries_tests {
             .unwrap();
 
         let result: Result<(), DatabaseError> = revoke_session_query(
-            RevokeSessionQueryView::new(1, Some("a".to_string()), Some(Uuid::new_v4())),
+            RevokeSessionQueryView::new(1, Uuid::new_v4(), "a"),
             pool.clone(),
         )
         .await;
@@ -348,7 +351,7 @@ mod queries_tests {
 
         assert!(sessions_2.len() >= sessions.len());
     }
-    
+
     #[tokio::test]
     #[serial]
     async fn test_revoke_previous_session() {
@@ -360,7 +363,11 @@ mod queries_tests {
             .unwrap();
 
         let result: Result<(), DatabaseError> = revoke_previous_session_query(
-            RevokePreviousSessionQueryView::new(1, std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)), ""),
+            RevokePreviousSessionQueryView::new(
+                1,
+                std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                "",
+            ),
             pool.clone(),
         )
         .await;
