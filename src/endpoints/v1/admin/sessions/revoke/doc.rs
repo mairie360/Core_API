@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::admin::revoke::endpoint;
+use crate::endpoints::v1::admin::sessions::revoke::endpoint;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]

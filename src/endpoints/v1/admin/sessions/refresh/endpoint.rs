@@ -2,7 +2,7 @@ use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 
-use crate::endpoints::v1::sessions::admin::refresh::request_view::RefreshRequestView;
+use crate::endpoints::v1::admin::sessions::refresh::request_view::RefreshRequestView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AboutError {
@@ -43,7 +43,7 @@ impl ResponseError for AboutError {
         (status = 401, description = "Invalid session ID"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Sessions",
+    tag = "Admin",
     security(("jwt" = [])),
 )]
 #[post("/refresh")]

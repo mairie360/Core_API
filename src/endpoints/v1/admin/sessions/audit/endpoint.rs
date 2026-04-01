@@ -1,5 +1,5 @@
-use crate::endpoints::v1::sessions::admin::audit::request_view::AuditPathParamRequestView;
-use crate::endpoints::v1::sessions::admin::audit::response_view::AuditResponseView;
+use crate::endpoints::v1::admin::sessions::audit::request_view::AuditPathParamRequestView;
+use crate::endpoints::v1::admin::sessions::audit::response_view::AuditResponseView;
 
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -47,7 +47,7 @@ impl ResponseError for AboutError {
     params(
         ("user_id" = u64, Path, description = "The ID of the user"),
     ),
-    tag = "Sessions",
+    tag = "Admin",
     security(
         ("jwt" = [])
     )

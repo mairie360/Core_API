@@ -37,7 +37,7 @@ impl ResponseError for AboutError {
 
 #[utoipa::path(
     get,
-    path = "",
+    path = "history",
     responses(
         (status = 200, description = "User info retrieved successfully", body = HistoryResponseView),
         (status = 500, description = "Internal server error")

@@ -1,6 +1,6 @@
-use crate::endpoints::v1::sessions::admin::audit::doc::AuditDoc;
-use crate::endpoints::v1::sessions::admin::refresh::doc::RefreshDoc;
-use crate::endpoints::v1::sessions::admin::revoke::doc::RevokeDoc;
+use crate::endpoints::v1::admin::sessions::audit::doc::AuditDoc;
+use crate::endpoints::v1::admin::sessions::refresh::doc::RefreshDoc;
+use crate::endpoints::v1::admin::sessions::revoke::doc::RevokeDoc;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
@@ -9,4 +9,4 @@ use utoipa::OpenApi;
     (path = "/", api = RefreshDoc),
     (path = "/", api = RevokeDoc),
 ))]
-pub struct AdminDoc;
+pub struct SessionsDoc;

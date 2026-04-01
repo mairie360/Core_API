@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::admin::audit::endpoint;
+use crate::endpoints::v1::admin::sessions::audit::endpoint;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]

@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::refresh::endpoint;
+use crate::endpoints::v1::admin::sessions::refresh::endpoint;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]

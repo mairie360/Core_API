@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::admin::revoke::request_view::RevokeRequestView;
+use crate::endpoints::v1::admin::sessions::revoke::request_view::RevokeRequestView;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -44,7 +44,7 @@ impl ResponseError for AboutError {
         (status = 401, description = "Invalid session ID"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Sessions",
+    tag = "Admin",
     security(
         ("jwt" = [])
     )
