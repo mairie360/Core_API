@@ -1,5 +1,5 @@
-use crate::database::queries::login_query;
-use crate::database::query_views::{CreateSessionQueryView, LoginUserQueryView};
+use crate::database::queries::auth::login::{login_query, LoginUserQueryView};
+use crate::database::queries::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,

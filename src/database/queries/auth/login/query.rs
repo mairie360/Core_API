@@ -1,5 +1,5 @@
-use crate::database::queries_result_views::LoginUserQueryResultView;
-use crate::database::query_views::LoginUserQueryView;
+use crate::database::queries::auth::login::LoginUserQueryResultView;
+use crate::database::queries::auth::login::LoginUserQueryView;
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;

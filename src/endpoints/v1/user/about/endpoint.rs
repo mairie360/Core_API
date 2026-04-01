@@ -1,5 +1,4 @@
-use crate::database::queries::about_user_query;
-use crate::database::query_views::AboutUserQueryView;
+use crate::database::queries::users::about::{about_user_query, AboutUserQueryView};
 use crate::endpoints::v1::user::about::about_request_view::{
     AboutPathParamRequestView, AboutRequestView,
 };

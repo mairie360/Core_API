@@ -15,15 +15,26 @@ async fn get_pool(url: String) -> PgPool {
 #[cfg(test)]
 mod queries_tests {
     use super::*;
-    use core_api::database::queries::{
-        create_session_query, get_active_session_query, get_session_by_token_query,
-        get_sessions_by_user_query, revoke_previous_session_query, revoke_session_by_id_query,
-        revoke_session_by_token_query, revoke_session_query,
+    use core_api::database::queries::sessions::create_session::{
+        create_session_query, CreateSessionQueryView,
     };
-    use core_api::database::query_views::{
-        CreateSessionQueryView, GetActiveSessionQueryView, GetSessionByTokenQueryView,
-        GetSessionsByUserQueryView, RevokePreviousSessionQueryView, RevokeSessionByIdQueryView,
-        RevokeSessionByTokenQueryView, RevokeSessionQueryView,
+    use core_api::database::queries::sessions::get_session_by_token::{
+        get_session_by_token_query, GetSessionByTokenQueryView,
+    };
+    use core_api::database::queries::sessions::get_sessions_by_user::{
+        get_sessions_by_user_query, GetSessionsByUserQueryView,
+    };
+    use core_api::database::queries::sessions::revoke_previous_session::{
+        revoke_previous_session_query, RevokePreviousSessionQueryView,
+    };
+    use core_api::database::queries::sessions::revoke_session::{
+        revoke_session_query, RevokeSessionQueryView,
+    };
+    use core_api::database::queries::sessions::revoke_session_by_id::{
+        revoke_session_by_id_query, RevokeSessionByIdQueryView,
+    };
+    use core_api::database::queries::sessions::revoke_session_by_token::{
+        revoke_session_by_token_query, RevokeSessionByTokenQueryView,
     };
     use mairie360_api_lib::database::errors::DatabaseError;
     use mairie360_api_lib::database::queries::is_session_token_valid_query;
@@ -239,7 +250,7 @@ mod queries_tests {
         .await
         .unwrap()
         .unwrap();
-        
+
         let is_valid = is_session_token_valid_query(
             IsSessionTokenValidQueryView::new(
                 1,
@@ -294,7 +305,7 @@ mod queries_tests {
             pool.clone(),
         )
         .await;
-        
+
         let is_valid = is_session_token_valid_query(
             IsSessionTokenValidQueryView::new(
                 1,
@@ -308,8 +319,11 @@ mod queries_tests {
 
         assert!(is_valid);
 
-        let result: Result<(), DatabaseError> =
-            revoke_session_by_token_query(RevokeSessionByTokenQueryView::new(1, "test_revoke_session_with_token"), pool.clone()).await;
+        let result: Result<(), DatabaseError> = revoke_session_by_token_query(
+            RevokeSessionByTokenQueryView::new(1, "test_revoke_session_with_token"),
+            pool.clone(),
+        )
+        .await;
 
         assert!(result.is_ok());
 
@@ -385,8 +399,9 @@ mod queries_tests {
 #[cfg(test)]
 mod sql_injection_tests {
     use super::*;
-    use core_api::database::queries::create_session_query;
-    use core_api::database::query_views::CreateSessionQueryView;
+    use core_api::database::queries::sessions::create_session::{
+        create_session_query, CreateSessionQueryView,
+    };
 
     async fn get_pool(url: String) -> PgPool {
         PgPoolOptions::new()

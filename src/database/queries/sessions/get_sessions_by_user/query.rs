@@ -1,5 +1,5 @@
-use crate::database::queries_result_views::Session;
-use crate::database::query_views::GetSessionsByUserQueryView;
+use crate::database::queries::sessions::get_sessions_by_user::GetSessionsByUserQueryView;
+use crate::database::queries::sessions::Session;
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;

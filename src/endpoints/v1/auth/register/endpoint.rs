@@ -1,5 +1,5 @@
-use crate::database::queries::register_query;
-use crate::database::query_views::RegisterUserQueryView;
+use crate::database::queries::auth::register::register_query;
+use crate::database::queries::auth::register::RegisterUserQueryView;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
 use mairie360_api_lib::pool::AppState;

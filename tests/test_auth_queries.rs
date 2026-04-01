@@ -8,8 +8,8 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
     // de la table 'users' et la met à jour avec le MAX(id) actuel.
     let sync_query = r#"
         SELECT setval(
-            pg_get_serial_sequence('users', 'id'), 
-            COALESCE(MAX(id), 1), 
+            pg_get_serial_sequence('users', 'id'),
+            COALESCE(MAX(id), 1),
             max(id) IS NOT NULL
         ) FROM users;
     "#;
@@ -36,9 +36,9 @@ mod queries_tests {
     mod login {
         use super::*;
 
-        use core_api::database::queries::login_query;
-        use core_api::database::queries_result_views::LoginUserQueryResultView;
-        use core_api::database::query_views::LoginUserQueryView;
+        use core_api::database::queries::auth::login::{
+            login_query, LoginUserQueryResultView, LoginUserQueryView,
+        };
         use serial_test::serial;
 
         #[tokio::test]
@@ -96,8 +96,8 @@ mod queries_tests {
     #[cfg(test)]
     mod register {
         use super::*;
-        use core_api::database::queries::register_query;
-        use core_api::database::query_views::RegisterUserQueryView;
+        use core_api::database::queries::auth::register::register_query;
+        use core_api::database::queries::auth::register::RegisterUserQueryView;
         use serial_test::serial;
 
         #[tokio::test]
@@ -166,8 +166,8 @@ mod queries_tests {
 #[cfg(test)]
 mod sql_injection_tests {
     use super::*;
-    use core_api::database::queries::{login_query, register_query};
-    use core_api::database::query_views::{LoginUserQueryView, RegisterUserQueryView};
+    use core_api::database::queries::auth::login::{login_query, LoginUserQueryView};
+    use core_api::database::queries::auth::register::{register_query, RegisterUserQueryView};
     use mairie360_api_lib::database::queries::does_user_exist_by_id_query;
     use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
 

@@ -1,4 +1,4 @@
-use crate::database::query_views::RegisterUserQueryView;
+use crate::database::queries::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;

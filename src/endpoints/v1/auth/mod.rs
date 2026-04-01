@@ -5,9 +5,9 @@ pub mod register;
 use actix_web::web;
 use mairie360_api_lib::pool::AppState;
 
-use crate::database::{
-    queries::{create_session_query, revoke_previous_session_query},
-    query_views::{CreateSessionQueryView, RevokePreviousSessionQueryView},
+use crate::database::queries::sessions::{
+    create_session::{create_session_query, CreateSessionQueryView},
+    revoke_previous_session::{revoke_previous_session_query, RevokePreviousSessionQueryView},
 };
 
 pub fn config(cfg: &mut web::ServiceConfig) {
