@@ -1,0 +1,15 @@
+mod audit;
+pub mod doc;
+mod refresh;
+mod revoke;
+
+use actix_web::web;
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/admin")
+            .service(audit::endpoint::audit)
+            .service(refresh::endpoint::refresh)
+            .service(revoke::endpoint::revoke),
+    );
+}
