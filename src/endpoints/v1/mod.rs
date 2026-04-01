@@ -1,7 +1,7 @@
 pub mod auth;
 pub mod doc;
 pub mod sessions;
-pub mod user;
+pub mod users;
 
 use actix_web::web;
 
@@ -10,6 +10,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .configure(auth::config)
             .configure(sessions::config)
-            .configure(user::config),
+            .configure(users::config),
     );
 }
