@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
