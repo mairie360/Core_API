@@ -1,23 +1,13 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize)]
-pub struct RevokePathParamRequestView {
-    pub user_id: u64,
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct RevokeRequestView {
+    pub session_id: String,
 }
 
-impl RevokePathParamRequestView {
-    pub fn user_id(&self) -> u64 {
-        self.user_id
-    }
-}
-
-impl Display for RevokePathParamRequestView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "RevokePathParamRequestView {{ user_id: {} }}",
-            self.user_id
-        )
+impl RevokeRequestView {
+    pub fn session_id(&self) -> &str {
+        &self.session_id
     }
 }

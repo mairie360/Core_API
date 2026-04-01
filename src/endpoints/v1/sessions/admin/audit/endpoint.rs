@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::admin::audit::request_view::AuditRequestView;
+use crate::endpoints::v1::sessions::admin::audit::request_view::AuditPathParamRequestView;
 use crate::endpoints::v1::sessions::admin::audit::response_view::AuditResponseView;
 
 use actix_web::http::StatusCode;
@@ -38,7 +38,7 @@ impl ResponseError for AboutError {
 
 #[utoipa::path(
     get,
-    path = "/",
+    path = "{user_id}/audit",
     responses(
         (status = 200, description = "User info retrieved successfully", body = AuditResponseView),
         (status = 401, description = "Invalid user ID"),
@@ -52,9 +52,9 @@ impl ResponseError for AboutError {
         ("jwt" = [])
     )
 )]
-#[get("/audit")]
+#[get("/{user_id}/audit")]
 pub async fn audit(
-    path: web::Path<AuditRequestView>,
+    path: web::Path<AuditPathParamRequestView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, AboutError> {
     let view = path.into_inner();

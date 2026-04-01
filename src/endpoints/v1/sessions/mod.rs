@@ -4,6 +4,7 @@ mod get;
 mod history;
 mod refresh;
 mod revoke;
+pub mod view;
 
 use actix_web::web;
 

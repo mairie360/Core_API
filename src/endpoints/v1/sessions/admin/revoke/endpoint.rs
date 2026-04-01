@@ -1,4 +1,4 @@
-use crate::endpoints::v1::sessions::admin::revoke::request_view::RevokePathParamRequestView;
+use crate::endpoints::v1::sessions::admin::revoke::request_view::RevokeRequestView;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -37,24 +37,24 @@ impl ResponseError for AboutError {
 
 #[utoipa::path(
     post,
-    path = "{token_id}/revoke",
+    path = "revoke",
+    request_body = RevokeRequestView,
     responses(
         (status = 200, description = "Token revoked successfully"),
-        (status = 401, description = "Invalid token ID"),
+        (status = 401, description = "Invalid session ID"),
         (status = 500, description = "Internal server error")
-    ),
-    params(
-        ("token_id" = String, Path, description = "The ID of the token"),
     ),
     tag = "Sessions",
     security(
         ("jwt" = [])
     )
 )]
-#[post("/{token_id}/revoke")]
+#[post("/revoke")]
 pub async fn revoke(
-    path: web::Path<RevokePathParamRequestView>,
+    body: web::Json<RevokeRequestView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, AboutError> {
+    let view = body.into_inner();
+
     Ok(HttpResponse::Ok())
 }

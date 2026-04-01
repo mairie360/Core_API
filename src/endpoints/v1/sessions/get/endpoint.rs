@@ -1,4 +1,3 @@
-use crate::endpoints::v1::sessions::get::request_view::GetRequestView;
 use crate::endpoints::v1::sessions::get::response_view::GetResponseView;
 
 use actix_web::http::StatusCode;
@@ -41,11 +40,7 @@ impl ResponseError for AboutError {
     path = "",
     responses(
         (status = 200, description = "User info retrieved successfully", body = GetResponseView),
-        (status = 401, description = "Invalid user ID"),
         (status = 500, description = "Internal server error")
-    ),
-    params(
-        ("user_id" = u64, Path, description = "The ID of the user"),
     ),
     tag = "Sessions",
     security(
@@ -53,11 +48,6 @@ impl ResponseError for AboutError {
     )
 )]
 #[get("/")]
-pub async fn get(
-    path: web::Path<GetRequestView>,
-    state: web::Data<AppState>,
-) -> Result<impl Responder, AboutError> {
-    let view = path.into_inner();
-
+pub async fn get(state: web::Data<AppState>) -> Result<impl Responder, AboutError> {
     Ok(HttpResponse::Ok())
 }

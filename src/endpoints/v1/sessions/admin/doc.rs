@@ -5,7 +5,7 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/audit", api = AuditDoc),
+    (path = "/", api = AuditDoc),
     (path = "/", api = RefreshDoc),
     (path = "/", api = RevokeDoc),
 ))]

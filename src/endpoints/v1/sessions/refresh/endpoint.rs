@@ -2,7 +2,7 @@ use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 
-use crate::endpoints::v1::sessions::refresh::request_view::RefreshPathParamRequestView;
+use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AboutError {
@@ -36,23 +36,21 @@ impl ResponseError for AboutError {
 
 #[utoipa::path(
     post,
-    path = "{token_id}/refresh",
+    path = "refresh",
+    request_body = RefreshRequestView,
     responses(
         (status = 200, description = "Token refreshed successfully"),
-        (status = 401, description = "Invalid token ID"),
+        (status = 403, description = "Invalid token"),
         (status = 500, description = "Internal server error")
-    ),
-    params(
-        ("token_id" = String, Path, description = "The ID of the token"),
     ),
     tag = "Sessions",
 )]
-#[post("/{token_id}/refresh")]
+#[post("/refresh")]
 pub async fn refresh(
-    path: web::Path<RefreshPathParamRequestView>,
+    body: web::Json<RefreshRequestView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, AboutError> {
-    let view = path.into_inner();
+    let view = body.into_inner();
 
     Ok(HttpResponse::Ok())
 }
