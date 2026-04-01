@@ -13,10 +13,6 @@ impl HistoryResponseView {
     pub fn new(sessions: Vec<SessionSchema>) -> Self {
         HistoryResponseView { sessions }
     }
-
-    pub fn sessions(&self) -> &[SessionSchema] {
-        &self.sessions
-    }
 }
 
 impl Display for HistoryResponseView {

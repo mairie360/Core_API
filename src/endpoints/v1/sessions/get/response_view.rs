@@ -13,10 +13,6 @@ impl GetResponseView {
     pub fn new(sessions: Vec<SessionSchema>) -> Self {
         GetResponseView { sessions }
     }
-
-    pub fn sessions(&self) -> &[SessionSchema] {
-        &self.sessions
-    }
 }
 
 impl Display for GetResponseView {
