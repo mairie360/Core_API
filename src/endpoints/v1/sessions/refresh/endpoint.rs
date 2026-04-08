@@ -11,17 +11,19 @@ use std::net::IpAddr;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RefreshError {
-    InvalidToken,
+    BadRequest,
     DatabaseError,
+    InvalidToken,
 }
 
 impl std::fmt::Display for RefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RefreshError::InvalidToken => write!(f, "User not found."),
+            RefreshError::InvalidToken => write!(f, "Session not found"),
             RefreshError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
+            RefreshError::BadRequest => write!(f, "Invalid request"),
         }
     }
 }
@@ -29,8 +31,9 @@ impl std::fmt::Display for RefreshError {
 impl ResponseError for RefreshError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RefreshError::InvalidToken => StatusCode::UNAUTHORIZED, // On garde 401 selon tes specs
+            RefreshError::InvalidToken => StatusCode::UNAUTHORIZED,
             RefreshError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            RefreshError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -47,7 +50,7 @@ async fn refresh_request(
 ) -> Result<String, RefreshError> {
     let user_id = user.id;
 
-    let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token, ip_adress);
+    let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
     let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone()).await;
 
@@ -64,7 +67,8 @@ async fn refresh_request(
     request_body = RefreshRequestView,
     responses(
         (status = 200, description = "Token refreshed successfully"),
-        (status = 403, description = "Invalid token"),
+        (status = 400, description = "Bad request"),
+        (status = 401, description = "Unauthorized, invalid token or user not found"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Sessions",
@@ -76,7 +80,10 @@ pub async fn refresh(
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RefreshError> {
-    let view = body.into_inner();
+    let view = match body.into_inner().try_into() {
+        Ok(view) => view,
+        Err(_) => return Err(RefreshError::BadRequest),
+    };
 
     let ip_adress = request
         .connection_info()

@@ -4,17 +4,21 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RevokeRequestView {
-    pub token_id: String,
+    pub refresh_token: String,
 }
 
 impl RevokeRequestView {
-    pub fn token_id(&self) -> &str {
-        &self.token_id
+    pub fn refresh_token(&self) -> String {
+        self.refresh_token.clone()
     }
 }
 
 impl Display for RevokeRequestView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RevokeRequestView {{ token_id: {} }}", self.token_id)
+        write!(
+            f,
+            "RevokeRequestView {{ refresh_token: {} }}",
+            self.refresh_token
+        )
     }
 }

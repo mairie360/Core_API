@@ -4,7 +4,13 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RefreshRequestView {
-    pub refresh_token: String,
+    refresh_token: String,
+}
+
+impl RefreshRequestView {
+    pub fn refresh_token(&self) -> String {
+        self.refresh_token.clone()
+    }
 }
 
 impl Display for RefreshRequestView {
