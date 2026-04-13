@@ -17,7 +17,7 @@ impl GetActiveSessionsQueryView {
 
 impl DatabaseQueryView for GetActiveSessionsQueryView {
     fn get_request(&self) -> String {
-        "SELECT * FROM v_sessions WHERE user_id = $1".to_string()
+        "SELECT * FROM v_sessions WHERE user_id = $1 AND is_active = true".to_string()
     }
 }
 

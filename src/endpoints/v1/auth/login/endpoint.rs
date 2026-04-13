@@ -120,7 +120,6 @@ pub async fn login(
             .parse::<std::net::IpAddr>()
             .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
     );
-    println!("ip_address: {}", ip_address);
 
     let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 
