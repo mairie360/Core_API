@@ -26,3 +26,6 @@ collection.json
 #Env file
 .env
 openapi.*
+node_modules
+package*.json
+generated
