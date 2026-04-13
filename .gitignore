@@ -25,4 +25,4 @@ collection.json
 
 #Env file
 .env
-openapi.yaml
+openapi.*
