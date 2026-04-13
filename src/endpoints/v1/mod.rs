@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod doc;
+pub mod roles;
 pub mod sessions;
 pub mod user;
 
@@ -11,6 +12,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .configure(admin::config)
             .configure(auth::config)
+            .configure(roles::config)
             .configure(sessions::config)
             .configure(user::config),
     );
