@@ -25,4 +25,7 @@ collection.json
 
 #Env file
 .env
-openapi.yaml
+openapi.*
+node_modules
+package*.json
+generated

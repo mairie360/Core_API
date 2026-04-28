@@ -6,6 +6,7 @@ use utoipa::ToSchema;
 pub struct LoginView {
     email: String,
     password: String,
+    device_info: String,
 }
 
 impl LoginView {
@@ -16,14 +17,18 @@ impl LoginView {
     pub fn password(&self) -> String {
         self.password.clone()
     }
+
+    pub fn device_info(&self) -> String {
+        self.device_info.clone()
+    }
 }
 
 impl Display for LoginView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "LoginView {{ email: {}, password: {} }}",
-            self.email, self.password
+            "LoginView {{ email: {}, password: {}, device_info: {} }}",
+            self.email, self.password, self.device_info
         )
     }
 }
