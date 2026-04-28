@@ -1,13 +1,11 @@
+use crate::database::roles::get_roles::{get_roles_query, GetRolesQueryView};
 use crate::endpoints::v1::roles::get::view::GetResponseView;
-use crate::endpoints::AuthenticatedUser;
-
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetError {
-    NotFound,
     DatabaseError,
 }
 
@@ -17,9 +15,6 @@ impl std::fmt::Display for GetError {
             GetError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            GetError::NotFound => {
-                write!(f, "The requested resource was not found.")
-            }
         }
     }
 }
@@ -28,7 +23,6 @@ impl ResponseError for GetError {
     fn status_code(&self) -> StatusCode {
         match self {
             GetError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            GetError::NotFound => StatusCode::NOT_FOUND,
         }
     }
 
@@ -37,32 +31,31 @@ impl ResponseError for GetError {
     }
 }
 
-// async fn get_roles(id: u64, state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
-    
-// }
+async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
+    let view = GetRolesQueryView {};
+    let result = get_roles_query(view, state.db_pool.clone())
+        .await
+        .map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetError::DatabaseError
+        })?;
+    Ok(GetResponseView::from(result))
+}
 
 #[utoipa::path(
     get,
-    path = "/{id}",
+    path = "/",
     responses(
-        (status = 200, description = "Role deleted successfully", body = GetResponseView),
-        (status = 404, description = "Resource not found"),
+        (status = 200, description = "Roles retrieved successfully", body = GetResponseView),
         (status = 500, description = "Internal server error")
-    ),
-    params(
-        ("id" = i32, Path, description = "Role database id")
     ),
     tag = "Roles",
     security(
         ("jwt" = [])
     )
 )]
-#[get("/{id}")]
-pub async fn get(
-    id: web::Path<u64>,
-    state: web::Data<AppState>,
-) -> Result<impl Responder, GetError> {
-    let id = id.into_inner();
-
-    Ok(HttpResponse::Ok())
+#[get("/")]
+pub async fn get(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
+    let roles = get_roles(state).await?;
+    Ok(HttpResponse::Ok().json(roles))
 }

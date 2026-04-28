@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use crate::database::queries::sessions::revoke_session_by_token::{
+use crate::database::sessions::revoke_session_by_token::{
     revoke_session_by_token_query, RevokeSessionByTokenQueryView,
 };
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;

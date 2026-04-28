@@ -4,7 +4,7 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/register", api = RegisterDoc, tags = ["Auth"]),
-    (path = "/login", api = LoginDoc, tags = ["Auth"]),
+    (path = "/register", api = RegisterDoc, tags = ["Authentication"]),
+    (path = "/login", api = LoginDoc, tags = ["Authentication"]),
 ))]
 pub struct AuthDoc;

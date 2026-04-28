@@ -44,10 +44,10 @@ impl ResponseError for AboutError {
         (status = 401, description = "Invalid session ID"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Admin",
     security(
         ("jwt" = [])
-    )
+    ),
+    tags = ["Admin - Sessions"]
 )]
 #[post("/revoke")]
 pub async fn revoke(

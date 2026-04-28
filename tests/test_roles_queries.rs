@@ -56,18 +56,49 @@ async fn get_pool(url: String) -> PgPool {
 
 #[cfg(test)]
 mod queries_tests {
-    use core_api::database::queries::roles::can_delete_role::{
+    use core_api::database::roles::can_delete_role::{
         can_delete_role_query, CanDeleteRoleQueryView,
     };
-    use core_api::database::queries::roles::change_role::{change_role_query, ChangeRoleQueryView};
-    use core_api::database::queries::roles::create_role::{create_role_query, CreateRoleQueryView};
-    use core_api::database::queries::roles::delete_role::{delete_role_query, DeleteRoleQueryView};
-    use core_api::database::queries::roles::get_roles::{get_roles_query, GetRolesQueryView};
-    use core_api::database::queries::roles::patch_role::{patch_role_query, PatchRoleQueryView};
+    use core_api::database::roles::change_role::{change_role_query, ChangeRoleQueryView};
+    use core_api::database::roles::create_role::{create_role_query, CreateRoleQueryView};
+    use core_api::database::roles::delete_role::{delete_role_query, DeleteRoleQueryView};
+    use core_api::database::roles::does_role_exist::{
+        does_role_exist_query, DoesRoleExistQueryView,
+    };
+    use core_api::database::roles::get_roles::{get_roles_query, GetRolesQueryView};
+    use core_api::database::roles::patch_role::{patch_role_query, PatchRoleQueryView};
     use mairie360_api_lib::database::errors::DatabaseError;
     use mairie360_api_lib::database::queries::QueryError;
 
     use super::*;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_does_role_exist_true() {
+        setup_tests().await;
+        let (_container, host) = get_shared_db().await;
+        let pool = get_pool(host.to_string()).await;
+
+        let result = does_role_exist_query(DoesRoleExistQueryView::new(1), pool)
+            .await
+            .unwrap();
+
+        assert!(result);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_does_role_exist_false() {
+        setup_tests().await;
+        let (_container, host) = get_shared_db().await;
+        let pool = get_pool(host.to_string()).await;
+
+        let result = does_role_exist_query(DoesRoleExistQueryView::new(999), pool)
+            .await
+            .unwrap();
+
+        assert!(!result);
+    }
 
     #[tokio::test]
     #[serial]

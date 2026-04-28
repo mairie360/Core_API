@@ -1,7 +1,7 @@
-use crate::database::queries::sessions::get_active_sessions::{
+use crate::database::sessions::get_active_sessions::{
     get_active_sessions_query, GetActiveSessionsQueryView,
 };
-use crate::database::queries::sessions::Session;
+use crate::database::sessions::Session;
 use crate::endpoints::v1::sessions::get::response_view::GetResponseView;
 use crate::endpoints::AuthenticatedUser;
 

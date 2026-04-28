@@ -14,7 +14,7 @@ async fn get_pool(url: String) -> PgPool {
 
 #[cfg(test)]
 mod queries_tests {
-    use core_api::database::queries::users::about::{about_user_query, AboutUserQueryView};
+    use core_api::database::users::about::{about_user_query, AboutUserQueryView};
     use mairie360_api_lib::database::errors::DatabaseError;
     use mairie360_api_lib::database::queries::QueryError;
     use serde_json::json;

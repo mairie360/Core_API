@@ -1,39 +1,38 @@
-use crate::endpoints::v1::roles::view::RoleWriteView;
-use crate::endpoints::AuthenticatedUser;
+use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
-enum PatchError {
+enum AssignError {
     BadRequest,
     NotFound,
     DatabaseError,
 }
 
-impl std::fmt::Display for PatchError {
+impl std::fmt::Display for AssignError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchError::DatabaseError => {
+            AssignError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            PatchError::NotFound => {
+            AssignError::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
-            PatchError::BadRequest => {
+            AssignError::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
     }
 }
 
-impl ResponseError for PatchError {
+impl ResponseError for AssignError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            PatchError::NotFound => StatusCode::NOT_FOUND,
-            PatchError::BadRequest => StatusCode::BAD_REQUEST,
+            AssignError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            AssignError::NotFound => StatusCode::NOT_FOUND,
+            AssignError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -60,6 +59,6 @@ impl ResponseError for PatchError {
     )
 )]
 #[post("/")]
-pub async fn assign(state: web::Data<AppState>) -> Result<impl Responder, PatchError> {
+pub async fn assign(_state: web::Data<AppState>) -> Result<impl Responder, AssignError> {
     Ok(HttpResponse::Ok())
 }

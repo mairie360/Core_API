@@ -36,7 +36,7 @@ mod queries_tests {
     mod login {
         use super::*;
 
-        use core_api::database::queries::auth::login::{
+        use core_api::database::auth::login::{
             login_query, LoginUserQueryResultView, LoginUserQueryView,
         };
         use serial_test::serial;
@@ -96,8 +96,8 @@ mod queries_tests {
     #[cfg(test)]
     mod register {
         use super::*;
-        use core_api::database::queries::auth::register::register_query;
-        use core_api::database::queries::auth::register::RegisterUserQueryView;
+        use core_api::database::auth::register::register_query;
+        use core_api::database::auth::register::RegisterUserQueryView;
         use serial_test::serial;
 
         #[tokio::test]
@@ -166,8 +166,8 @@ mod queries_tests {
 #[cfg(test)]
 mod sql_injection_tests {
     use super::*;
-    use core_api::database::queries::auth::login::{login_query, LoginUserQueryView};
-    use core_api::database::queries::auth::register::{register_query, RegisterUserQueryView};
+    use core_api::database::auth::login::{login_query, LoginUserQueryView};
+    use core_api::database::auth::register::{register_query, RegisterUserQueryView};
     use mairie360_api_lib::database::queries::does_user_exist_by_id_query;
     use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
 
