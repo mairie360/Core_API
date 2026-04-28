@@ -1,7 +1,7 @@
-use crate::database::queries::sessions::get_sessions_by_user::{
+use crate::database::sessions::get_sessions_by_user::{
     get_sessions_by_user_query, GetSessionsByUserQueryView,
 };
-use crate::database::queries::sessions::Session;
+use crate::database::sessions::Session;
 use crate::endpoints::v1::sessions::history::response_view::HistoryResponseView;
 use crate::endpoints::AuthenticatedUser;
 

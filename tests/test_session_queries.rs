@@ -15,25 +15,25 @@ async fn get_pool(url: String) -> PgPool {
 #[cfg(test)]
 mod queries_tests {
     use super::*;
-    use core_api::database::queries::sessions::create_session::{
+    use core_api::database::sessions::create_session::{
         create_session_query, CreateSessionQueryView,
     };
-    use core_api::database::queries::sessions::get_session_by_token::{
+    use core_api::database::sessions::get_session_by_token::{
         get_session_by_token_query, GetSessionByTokenQueryView,
     };
-    use core_api::database::queries::sessions::get_sessions_by_user::{
+    use core_api::database::sessions::get_sessions_by_user::{
         get_sessions_by_user_query, GetSessionsByUserQueryView,
     };
-    use core_api::database::queries::sessions::revoke_previous_session::{
+    use core_api::database::sessions::revoke_previous_session::{
         revoke_previous_session_query, RevokePreviousSessionQueryView,
     };
-    use core_api::database::queries::sessions::revoke_session::{
+    use core_api::database::sessions::revoke_session::{
         revoke_session_query, RevokeSessionQueryView,
     };
-    use core_api::database::queries::sessions::revoke_session_by_id::{
+    use core_api::database::sessions::revoke_session_by_id::{
         revoke_session_by_id_query, RevokeSessionByIdQueryView,
     };
-    use core_api::database::queries::sessions::revoke_session_by_token::{
+    use core_api::database::sessions::revoke_session_by_token::{
         revoke_session_by_token_query, RevokeSessionByTokenQueryView,
     };
     use mairie360_api_lib::database::errors::DatabaseError;
@@ -399,7 +399,7 @@ mod queries_tests {
 #[cfg(test)]
 mod sql_injection_tests {
     use super::*;
-    use core_api::database::queries::sessions::create_session::{
+    use core_api::database::sessions::create_session::{
         create_session_query, CreateSessionQueryView,
     };
 

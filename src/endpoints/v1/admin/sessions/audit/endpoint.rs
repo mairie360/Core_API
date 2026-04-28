@@ -47,10 +47,10 @@ impl ResponseError for AboutError {
     params(
         ("user_id" = u64, Path, description = "The ID of the user"),
     ),
-    tag = "Admin",
     security(
         ("jwt" = [])
-    )
+    ),
+    tags = ["Admin - Sessions"]
 )]
 #[get("/{user_id}/audit")]
 pub async fn audit(

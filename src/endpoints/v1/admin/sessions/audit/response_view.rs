@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-use crate::database::queries::sessions::Session;
+use crate::database::sessions::Session;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 struct AuditSessionSchema {

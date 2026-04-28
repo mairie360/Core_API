@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::database::queries::sessions::Session;
+use crate::database::sessions::Session;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SessionSchema {

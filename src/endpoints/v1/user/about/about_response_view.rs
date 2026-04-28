@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-use crate::database::queries::users::about::AboutUserQueryResultView;
+use crate::database::users::about::AboutUserQueryResultView;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AboutResponseView {

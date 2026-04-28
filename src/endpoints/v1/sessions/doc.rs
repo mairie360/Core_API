@@ -6,9 +6,9 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/", api = GetDoc),
-    (path = "/", api = HistoryDoc),
-    (path = "/", api = RefreshDoc),
-    (path = "/", api = RevokeDoc),
+    (path = "/", api = GetDoc, tags = ["Sessions"]),
+    (path = "/", api = HistoryDoc, tags = ["Sessions"]),
+    (path = "/", api = RefreshDoc, tags = ["Sessions"]),
+    (path = "/", api = RevokeDoc, tags = ["Sessions"]),
 ))]
 pub struct SessionsDoc;

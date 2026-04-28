@@ -3,6 +3,6 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/", api = AboutDoc),
+    (path = "/", api = AboutDoc, tags = ["Users"]),
 ))]
 pub struct UserDoc;
