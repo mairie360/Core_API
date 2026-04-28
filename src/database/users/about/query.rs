@@ -1,10 +1,5 @@
-<<<<<<<< HEAD:src/database/users/about/query.rs
 use crate::database::users::about::AboutUserQueryResultView;
 use crate::database::users::about::AboutUserQueryView;
-========
-use crate::database::queries::users::about::AboutUserQueryResultView;
-use crate::database::queries::users::about::AboutUserQueryView;
->>>>>>>> main:src/database/queries/users/about/query.rs
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use mairie360_api_lib::database::queries::QueryError;

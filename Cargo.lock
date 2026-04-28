@@ -667,7 +667,7 @@ dependencies = [
  "futures-util",
  "mairie360_api_lib",
  "once_cell",
- "rand 0.9.2",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "serial_test",

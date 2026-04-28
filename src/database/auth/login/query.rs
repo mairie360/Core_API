@@ -1,10 +1,5 @@
-<<<<<<<< HEAD:src/database/auth/login/query.rs
 use crate::database::auth::login::LoginUserQueryResultView;
 use crate::database::auth::login::LoginUserQueryView;
-========
-use crate::database::queries::auth::login::LoginUserQueryResultView;
-use crate::database::queries::auth::login::LoginUserQueryView;
->>>>>>>> main:src/database/queries/auth/login/query.rs
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;
