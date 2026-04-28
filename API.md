@@ -9,12 +9,7 @@
 | `POST` | `/users` | Create a new user |
 | `GET` | `/users` | List all users |
 | `GET` | `/users/:user_id` | Get a single user |
-| `PATCH` | `/users/:user_id` | Update user info (email, password) |
-| `DELETE` | `/users/:user_id` | Delete user |
-| `POST` | `/users/:user_id/roles/:role_id` | Assign a role to a user |
-| `DELETE` | `/users/:user_id/roles/:role_id` | Remove a role from a user |
-| `GET` | `/users/:user_id/roles` | List all roles of a user |
-
+id
 ---
 
 ## 🔐 Sessions (Login / Logout)
@@ -31,13 +26,7 @@
 
 | Method | Path | Description |
 |:------|:----|:------------|
-| `POST` | `/roles` | Create a new role |
-| `GET` | `/roles` | List all roles |
-| `GET` | `/roles/:role_id` | Get role details |
-| `PATCH` | `/roles/:role_id` | Update role |
-| `DELETE` | `/roles/:role_id` | Delete role |
-| `POST` | `/roles/:roleId/permissions/:permissionId` | Assign a permission to a role |
-| `DELETE` | `/roles/:roleId/permissions/:permissionId` | Remove a permission from a role |
+
 | `GET` | `/roles/:roleId/permissions` | List all permissions of a role |
 
 ---

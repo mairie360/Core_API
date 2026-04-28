@@ -37,6 +37,10 @@ impl ResponseError for GetError {
     }
 }
 
+// async fn get_roles(id: u64, state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
+    
+// }
+
 #[utoipa::path(
     get,
     path = "/{id}",
@@ -46,7 +50,7 @@ impl ResponseError for GetError {
         (status = 500, description = "Internal server error")
     ),
     params(
-        ("id" = i32, Path, description = "Role database id") // <--- AJOUTE CECI
+        ("id" = i32, Path, description = "Role database id")
     ),
     tag = "Roles",
     security(
@@ -54,6 +58,11 @@ impl ResponseError for GetError {
     )
 )]
 #[get("/{id}")]
-pub async fn get(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
+pub async fn get(
+    id: web::Path<u64>,
+    state: web::Data<AppState>,
+) -> Result<impl Responder, GetError> {
+    let id = id.into_inner();
+
     Ok(HttpResponse::Ok())
 }

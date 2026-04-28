@@ -88,16 +88,7 @@ CREATE TABLE roles (
 ### `user_roles`
 
 ```sql
-CREATE TABLE user_roles (
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    role_id INT REFERENCES roles(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, role_id)
-);
-
-CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
-CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
-```
-
+id
 ---
 
 ### `resources`
@@ -136,13 +127,4 @@ CREATE INDEX idx_permissions_resource_id ON permissions(resource_id);
 
 ### `role_permissions`
 
-```sql
-CREATE TABLE role_permissions (
-    role_id INT REFERENCES roles(id) ON DELETE CASCADE,
-    permission_id INT REFERENCES permissions(id) ON DELETE CASCADE,
-    PRIMARY KEY (role_id, permission_id)
-);
 
-CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
-CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
-```
