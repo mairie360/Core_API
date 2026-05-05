@@ -6,7 +6,7 @@ use actix_web::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::pool::AppState;
-use rand::{thread_rng, RngCore};
+use rand::{rng, RngCore};
 
 use super::login_response_view::LoginResponseView;
 use super::login_view::LoginView;
@@ -50,7 +50,7 @@ fn generate_refresh_token() -> String {
     let mut buffer = [0u8; 32];
 
     // Remplissage avec des données aléatoires sécurisées
-    thread_rng().fill_bytes(&mut buffer);
+    rng().fill_bytes(&mut buffer);
 
     // Encodage en Base64 pour avoir une String lisible
     general_purpose::URL_SAFE_NO_PAD.encode(buffer)
