@@ -4,7 +4,7 @@ use crate::database::sessions::revoke_session_by_token::{
     revoke_session_by_token_query, RevokeSessionByTokenQueryView,
 };
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
-use crate::endpoints::AuthenticatedUser;
+use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};

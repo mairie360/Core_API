@@ -3,7 +3,7 @@ use crate::database::sessions::get_active_sessions::{
 };
 use crate::database::sessions::Session;
 use crate::endpoints::v1::sessions::get::response_view::GetResponseView;
-use crate::endpoints::AuthenticatedUser;
+use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};

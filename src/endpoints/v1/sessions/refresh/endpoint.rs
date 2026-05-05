@@ -6,7 +6,7 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::pool::AppState;
 
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
-use crate::endpoints::AuthenticatedUser;
+use mairie360_api_lib::security::AuthenticatedUser;
 use std::net::IpAddr;
 
 #[derive(Debug, Clone, PartialEq)]
