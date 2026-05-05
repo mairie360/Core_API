@@ -41,21 +41,29 @@ impl ResponseError for HistoryError {
 // --- Cache Logic ---
 
 async fn get_cache_value(user_id: u64, state: &web::Data<AppState>) -> Option<HistoryResponseView> {
-    let redis_manager = state.get_redis_conn().await;
-    let key = format!("user:{}:history", user_id);
-
-    if let Ok(json_str) = handle_secure_get(redis_manager, &key).await {
-        // La désérialisation vers la struct valide automatiquement le format
-        return serde_json::from_str::<HistoryResponseView>(&json_str).ok();
+    match state.get_redis_conn().await {
+        Some(redis_manager) => {
+            let key = format!("user:{}:history", user_id);
+            if let Ok(json_str) = handle_secure_get(redis_manager, &key).await {
+                // La désérialisation vers la struct valide automatiquement le format
+                serde_json::from_str::<HistoryResponseView>(&json_str).ok()
+            } else {
+                None
+            }
+        }
+        None => None,
     }
-    None
 }
 
 async fn set_cache_value(user_id: u64, data: &Vec<Session>, state: &web::Data<AppState>) {
-    let redis_manager = state.get_redis_conn().await;
-    if let Ok(json_str) = serde_json::to_string(data) {
-        let key = format!("user:{}:history", user_id);
-        let _ = handle_secure_post(redis_manager, &key, &json_str).await;
+    match state.get_redis_conn().await {
+        Some(redis_manager) => {
+            if let Ok(json_str) = serde_json::to_string(data) {
+                let key = format!("user:{}:history", user_id);
+                let _ = handle_secure_post(redis_manager, &key, &json_str).await;
+            }
+        }
+        None => {}
     }
 }
 
@@ -73,7 +81,7 @@ async fn get_user_info(
     // 2. Récupération depuis la base de données
     let query_result = get_sessions_by_user_query(
         GetSessionsByUserQueryView::new(user_id),
-        state.db_pool.clone(),
+        state.db_pool.clone().unwrap(),
     )
     .await
     .map_err(|_| HistoryError::DatabaseError)?;

@@ -63,7 +63,7 @@ async fn login_user(
 ) -> Result<(String, String), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
-    let user_record = login_query(view, state.db_pool.clone())
+    let user_record = login_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {
             eprintln!("Login DB Error: {}", e);

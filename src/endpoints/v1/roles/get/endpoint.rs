@@ -33,7 +33,7 @@ impl ResponseError for GetError {
 
 async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
     let view = GetRolesQueryView {};
-    let result = get_roles_query(view, state.db_pool.clone())
+    let result = get_roles_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {
             eprintln!("Login DB Error: {}", e);

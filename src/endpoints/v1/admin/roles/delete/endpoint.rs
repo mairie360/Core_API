@@ -56,14 +56,14 @@ async fn can_delete_role(id: u64, pool: PgPool) -> bool {
 }
 
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
-    if !does_role_exist(id, state.db_pool.clone()).await {
+    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
         return Err(DeleteError::NotFound);
     }
-    if !can_delete_role(id, state.db_pool.clone()).await {
+    if !can_delete_role(id, state.db_pool.clone().unwrap()).await {
         return Err(DeleteError::Forbidden);
     }
     let view = DeleteRoleQueryView::new(id);
-    let result = delete_role_query(view, state.db_pool.clone()).await;
+    let result = delete_role_query(view, state.db_pool.clone().unwrap()).await;
     result.map_err(|_| DeleteError::DatabaseError)
 }
 
