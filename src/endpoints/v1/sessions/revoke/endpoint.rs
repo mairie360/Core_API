@@ -4,7 +4,7 @@ use crate::database::sessions::revoke_session_by_token::{
     revoke_session_by_token_query, RevokeSessionByTokenQueryView,
 };
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
-use crate::endpoints::AuthenticatedUser;
+use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
@@ -60,7 +60,7 @@ async fn revoke_request(
 
     let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
-    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone()).await;
+    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone().unwrap()).await;
 
     let db_view = match is_valid {
         Ok(true) => RevokeSessionByTokenQueryView::new(user_id, &view.refresh_token()),
@@ -68,7 +68,7 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    match revoke_session_by_token_query(db_view, state.db_pool.clone()).await {
+    match revoke_session_by_token_query(db_view, state.db_pool.clone().unwrap()).await {
         Ok(_) => Ok(()),
         Err(_) => Err(RevokeError::DatabaseError),
     }

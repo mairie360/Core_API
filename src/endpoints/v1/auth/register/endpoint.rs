@@ -97,7 +97,7 @@ async fn register_user(
     register_view: &RegisterView,
     state: web::Data<AppState>,
 ) -> Result<(), RegisterError> {
-    can_be_registered(register_view, &state.db_pool).await?;
+    can_be_registered(register_view, &state.db_pool.clone().unwrap()).await?;
 
     let view = RegisterUserQueryView::new(
         register_view.first_name(),
@@ -107,7 +107,7 @@ async fn register_user(
         register_view.phone_number().map(|s| s),
     );
 
-    let success = register_query(view, state.db_pool.clone())
+    let success = register_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {
             eprintln!("Database error: {}", e);

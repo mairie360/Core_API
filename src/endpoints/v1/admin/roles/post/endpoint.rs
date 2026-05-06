@@ -39,7 +39,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         payload.can_be_deleted(),
     );
 
-    create_role_query(view, state.db_pool.clone())
+    create_role_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|_| PostError::DatabaseError)?;
 

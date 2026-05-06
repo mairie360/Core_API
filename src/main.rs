@@ -1,9 +1,9 @@
 use actix_web::{middleware, web, App, HttpServer};
 
-use core_api::auth_middleware::JwtMiddleware;
 use core_api::endpoints::config;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{health, hello};
+use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::pool::AppState;

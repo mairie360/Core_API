@@ -50,7 +50,7 @@ async fn patch_role(
     payload: PatchView,
     state: web::Data<AppState>,
 ) -> Result<(), PatchError> {
-    if !does_role_exist(id, state.db_pool.clone()).await {
+    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
         return Err(PatchError::NotFound);
     }
     let view = PatchRoleQueryView::new(
@@ -59,7 +59,7 @@ async fn patch_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    patch_role_query(view, state.db_pool.clone())
+    patch_role_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|_| PatchError::DatabaseError)?;
     Ok(())

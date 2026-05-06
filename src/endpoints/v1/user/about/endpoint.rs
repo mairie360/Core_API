@@ -48,21 +48,30 @@ impl ResponseError for AboutError {
 // --- Cache Logic ---
 
 async fn get_cache_value(user_id: u64, state: &web::Data<AppState>) -> Option<AboutResponseView> {
-    let redis_manager = state.get_redis_conn().await;
-    let key = format!("user:{}:about", user_id);
+    match state.get_redis_conn().await {
+        Some(redis_manager) => {
+            let key = format!("user:{}:about", user_id);
 
-    if let Ok(json_str) = handle_secure_get(redis_manager, &key).await {
-        // La désérialisation vers la struct valide automatiquement le format
-        return serde_json::from_str::<AboutResponseView>(&json_str).ok();
+            if let Ok(json_str) = handle_secure_get(redis_manager, &key).await {
+                // La désérialisation vers la struct valide automatiquement le format
+                serde_json::from_str::<AboutResponseView>(&json_str).ok()
+            } else {
+                None
+            }
+        }
+        None => None,
     }
-    None
 }
 
 async fn set_cache_value(user_id: u64, data: &AboutResponseView, state: &web::Data<AppState>) {
-    let redis_manager = state.get_redis_conn().await;
-    if let Ok(json_str) = serde_json::to_string(data) {
-        let key = format!("user:{}:about", user_id);
-        let _ = handle_secure_post(redis_manager, &key, &json_str).await;
+    match state.get_redis_conn().await {
+        Some(redis_manager) => {
+            if let Ok(json_str) = serde_json::to_string(data) {
+                let key = format!("user:{}:about", user_id);
+                let _ = handle_secure_post(redis_manager, &key, &json_str).await;
+            }
+        }
+        None => {}
     }
 }
 
@@ -74,7 +83,7 @@ async fn about_request(
 
     let exists = does_user_exist_by_id_query(
         DoesUserExistByIdQueryView::new(user_id),
-        state.db_pool.clone(),
+        state.db_pool.clone().unwrap(),
     )
     .await
     .map_err(|e| {
@@ -92,9 +101,12 @@ async fn about_request(
     }
 
     // 2. Query Database
-    let query_result = about_user_query(AboutUserQueryView::new(user_id), state.db_pool.clone())
-        .await
-        .map_err(|_| AboutError::DatabaseError)?;
+    let query_result = about_user_query(
+        AboutUserQueryView::new(user_id),
+        state.db_pool.clone().unwrap(),
+    )
+    .await
+    .map_err(|_| AboutError::DatabaseError)?;
 
     // On transforme le résultat brut en AboutResponseView
     // Si about_user_query renvoie déjà une structure compatible, on l'utilise
