@@ -5,14 +5,14 @@ pub enum AccessType {
     Delete,
     Error,
     Read,
-    Write,
+    Update,
 }
 
 impl AccessType {
     pub fn as_str(&self) -> &'static str {
         match self {
             AccessType::Read => "read",
-            AccessType::Write => "write",
+            AccessType::Update => "update",
             AccessType::Delete => "delete",
             AccessType::Error => "error",
         }
@@ -23,7 +23,7 @@ impl From<&str> for AccessType {
     fn from(s: &str) -> Self {
         match s {
             "read" => AccessType::Read,
-            "write" => AccessType::Write,
+            "update" => AccessType::Update,
             "delete" => AccessType::Delete,
             _ => AccessType::Error,
         }

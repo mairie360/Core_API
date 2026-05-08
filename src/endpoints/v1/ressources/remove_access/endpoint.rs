@@ -1,37 +1,33 @@
+use crate::database::ressources::remove_access::{remove_access_query, RemoveAccessQueryView};
 use crate::endpoints::v1::ressources::remove_access::view::RemoveAccessView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
-enum GetError {
+enum RemoveAccessError {
     BadRequest,
     DatabaseError,
-    Unauthorized,
 }
 
-impl std::fmt::Display for GetError {
+impl std::fmt::Display for RemoveAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetError::DatabaseError => {
+            RemoveAccessError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            GetError::BadRequest => {
+            RemoveAccessError::BadRequest => {
                 write!(f, "Bad request.")
-            }
-            GetError::Unauthorized => {
-                write!(f, "Unauthorized.")
             }
         }
     }
 }
 
-impl ResponseError for GetError {
+impl ResponseError for RemoveAccessError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            GetError::BadRequest => StatusCode::BAD_REQUEST,
-            GetError::Unauthorized => StatusCode::UNAUTHORIZED,
+            RemoveAccessError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            RemoveAccessError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -43,7 +39,15 @@ impl ResponseError for GetError {
 async fn remove_access_to_ressource(
     state: web::Data<AppState>,
     view: RemoveAccessView,
-) -> Result<(), GetError> {
+) -> Result<(), RemoveAccessError> {
+    let pool = match state.db_pool.clone() {
+        Some(pool) => pool,
+        None => return Err(RemoveAccessError::DatabaseError),
+    };
+    let request_view = RemoveAccessQueryView::new(view.access_id());
+    remove_access_query(request_view, pool)
+        .await
+        .map_err(|_| RemoveAccessError::BadRequest)?;
     Ok(())
 }
 
@@ -65,9 +69,7 @@ async fn remove_access_to_ressource(
 pub async fn remove_access(
     state: web::Data<AppState>,
     view: web::Json<RemoveAccessView>,
-) -> Result<impl Responder, GetError> {
-    match remove_access_to_ressource(state, view.into_inner()).await {
-        Ok(_) => Ok(HttpResponse::Ok()),
-        Err(e) => Err(e),
-    }
+) -> Result<impl Responder, RemoveAccessError> {
+    remove_access_to_ressource(state, view.into_inner()).await?;
+    Ok(HttpResponse::Ok().body("Access removed successfully"))
 }

@@ -1,8 +1,9 @@
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow, ToSchema)]
 pub struct Access {
     id: i32,
     user_id: Option<i32>,
@@ -53,6 +54,19 @@ impl Access {
 
     pub fn permission_id(&self) -> i32 {
         self.permission_id
+    }
+}
+
+impl Display for Access {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Access:")?;
+        writeln!(f, "  id: {}", self.id)?;
+        writeln!(f, "  user_id: {:?}", self.user_id)?;
+        writeln!(f, "  group_id: {:?}", self.group_id)?;
+        writeln!(f, "  resource_id: {}", self.resource_id)?;
+        writeln!(f, "  resource_instance_id: {}", self.resource_instance_id)?;
+        writeln!(f, "  permission_id: {}", self.permission_id)?;
+        Ok(())
     }
 }
 

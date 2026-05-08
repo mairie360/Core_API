@@ -1,7 +1,6 @@
 use crate::database::ressources::can_add_access::CanAddAccessQueryView;
 use crate::database::ressources::is_owner::{is_owner_query, IsOwnerQueryView};
 use crate::endpoints::v1::ressources::AccessType;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;
 
