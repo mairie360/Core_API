@@ -1,5 +1,5 @@
 use crate::common::get_pool;
-use crate::common::roles::{setup_tests, DELETE_ID};
+use crate::common::roles::{setup_tests, CAN_DELETE_ID};
 use core_api::database::roles::can_delete_role::{can_delete_role_query, CanDeleteRoleQueryView};
 use mairie360_api_lib::database::errors::DatabaseError;
 use mairie360_api_lib::database::queries::QueryError;
@@ -13,10 +13,12 @@ async fn test_can_delete_role_success() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let result =
-        can_delete_role_query(CanDeleteRoleQueryView::new(*DELETE_ID.get().unwrap()), pool)
-            .await
-            .unwrap();
+    let result = can_delete_role_query(
+        CanDeleteRoleQueryView::new(*CAN_DELETE_ID.get().unwrap()),
+        pool,
+    )
+    .await
+    .unwrap();
 
     assert!(result);
 }

@@ -5,6 +5,7 @@ use tokio::sync::OnceCell;
 
 pub static COUNT: OnceCell<u64> = OnceCell::const_new();
 pub static DELETE_ID: OnceCell<u64> = OnceCell::const_new();
+pub static CAN_DELETE_ID: OnceCell<u64> = OnceCell::const_new();
 pub static PATCH_ID: OnceCell<u64> = OnceCell::const_new();
 pub static PATCH_MUTEX: OnceCell<tokio::sync::Mutex<()>> = OnceCell::const_new();
 
@@ -26,6 +27,19 @@ pub async fn setup_tests() {
             .unwrap()
             .get::<i32, _>(0);
         DELETE_ID.set(delete_id as u64).unwrap();
+        let _ = sqlx::query(
+            "INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, $2, true)",
+        )
+        .bind("Can Delete")
+        .bind("Can Delete role")
+        .execute(&pool)
+        .await;
+        let can_delete_id = sqlx::query("SELECT id FROM roles WHERE name = 'Can Delete'")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+            .get::<i32, _>(0);
+        CAN_DELETE_ID.set(can_delete_id as u64).unwrap();
         let _ = sqlx::query(
             "INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, $2, true)",
         )

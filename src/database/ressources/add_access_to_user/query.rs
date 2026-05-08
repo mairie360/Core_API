@@ -12,7 +12,7 @@ pub async fn add_access_to_user_query(
         .bind(view.ressource_type_id() as i64)
         .bind(view.ressource_instance_id() as i64)
         .bind(view.access_type_id() as i64)
-        .fetch_one(&pool)
+        .execute(&pool)
         .await?;
 
     Ok(())

@@ -1,7 +1,12 @@
 use crate::common::get_pool;
-use core_api::database::ressources::{
-    add_access_to_user::{add_access_to_user_query, AddAccessToUserQueryView},
-    get_ressource_type_id::{get_ressource_type_id_query, GetRessourceTypeIdQueryView},
+use core_api::database::{
+    ressources::{
+        add_access_to_user::{add_access_to_user_query, AddAccessToUserQueryView},
+        get_ressource_type_id::{get_ressource_type_id_query, GetRessourceTypeIdQueryView},
+    },
+    rights::get_permission_id::{
+        get_permission_id_query, GetPermissionIdQueryView, PermissionAction,
+    },
 };
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
@@ -15,8 +20,11 @@ async fn success() {
     let id = get_ressource_type_id_query(view, pool.clone())
         .await
         .unwrap();
-    let view = AddAccessToUserQueryView::new(2, id, 1, 23);
-    assert!(add_access_to_user_query(view, pool).await.is_ok());
+    let view = GetPermissionIdQueryView::new(id, PermissionAction::Read);
+    let result = get_permission_id_query(view, pool.clone()).await.unwrap();
+    let view = AddAccessToUserQueryView::new(2, id, 1, result);
+    let result = add_access_to_user_query(view, pool).await;
+    assert!(result.is_ok(), "{:?}", result);
 }
 
 #[tokio::test]
