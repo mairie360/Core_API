@@ -2,8 +2,8 @@ use crate::common::get_pool;
 use core_api::database::{
     ressources::{
         add_access_to_user::{add_access_to_user_query, AddAccessToUserQueryView},
+        get_access_by_ressource::{get_access_by_ressource, GetAccessByRessourceQueryView},
         get_ressource_type_id::{get_ressource_type_id_query, GetRessourceTypeIdQueryView},
-        remove_access::{remove_access_query, RemoveAccessQueryView},
     },
     rights::get_permission_id::{
         get_permission_id_query, GetPermissionIdQueryView, PermissionAction,
@@ -23,19 +23,19 @@ async fn success() {
         .unwrap();
     let view = GetPermissionIdQueryView::new(id, PermissionAction::Read);
     let result = get_permission_id_query(view, pool.clone()).await.unwrap();
-    let view = AddAccessToUserQueryView::new(3, id, 1, result);
+    let view = AddAccessToUserQueryView::new(4, id, 1, result);
     let _ = add_access_to_user_query(view, pool.clone()).await;
-    let view = RemoveAccessQueryView::new(2);
-    let result = remove_access_query(view, pool).await;
-    assert!(result.is_ok(), "{:?}", result);
+    let view = GetAccessByRessourceQueryView::new(1);
+    let result = get_access_by_ressource(view, pool).await.unwrap();
+    assert!(!result.is_empty(), "{:?}", result);
 }
 
 #[tokio::test]
 #[serial]
-async fn bad_id() {
+async fn unknow_ressource() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    let view = RemoveAccessQueryView::new(3);
-    let result = remove_access_query(view, pool).await;
-    assert!(result.is_ok(), "{:?}", result);
+    let view = GetAccessByRessourceQueryView::new(2);
+    let result = get_access_by_ressource(view, pool).await.unwrap();
+    assert!(result.is_empty(), "{:?}", result);
 }

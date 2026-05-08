@@ -9,7 +9,7 @@ pub async fn remove_access_query(
 ) -> Result<(), DatabaseError> {
     sqlx::query(&view.get_request())
         .bind(view.id() as i64)
-        .fetch_one(&pool)
+        .execute(&pool)
         .await?;
 
     Ok(())
