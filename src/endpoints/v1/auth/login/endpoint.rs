@@ -1,3 +1,5 @@
+use super::login_response_view::LoginResponseView;
+use super::login_view::LoginView;
 use crate::database::auth::login::{login_query, LoginUserQueryView};
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
@@ -5,12 +7,9 @@ use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
 use base64::{engine::general_purpose, Engine as _};
-use mairie360_api_lib::pool::AppState;
-use rand::{rng, RngCore};
-
-use super::login_response_view::LoginResponseView;
-use super::login_view::LoginView;
 use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::pool::AppState;
+use rand::fill;
 
 #[derive(Debug, Clone, PartialEq)]
 enum LoginError {
@@ -50,7 +49,7 @@ fn generate_refresh_token() -> String {
     let mut buffer = [0u8; 32];
 
     // Remplissage avec des données aléatoires sécurisées
-    rng().fill_bytes(&mut buffer);
+    fill(&mut buffer);
 
     // Encodage en Base64 pour avoir une String lisible
     general_purpose::URL_SAFE_NO_PAD.encode(buffer)

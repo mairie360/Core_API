@@ -21,7 +21,11 @@ async fn add_user_to_group_success() {
 
     let view = AddUserToGroupQueryView::new(result as u64, 2);
     let result = add_user_to_group_query(view, pool).await;
-    assert!(result.is_ok(), "add_user_to_group_success failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "add_user_to_group_success failed: {:?}",
+        result
+    );
 }
 
 #[tokio::test]

@@ -9,10 +9,7 @@ pub struct DeleteUserFromGroupQueryView {
 
 impl DeleteUserFromGroupQueryView {
     pub fn new(group_id: u64, user_id: u64) -> Self {
-        Self {
-            group_id,
-            user_id,
-        }
+        Self { group_id, user_id }
     }
 
     pub fn group_id(&self) -> u64 {
