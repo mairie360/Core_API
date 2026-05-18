@@ -50,7 +50,7 @@ async fn put_role(
     payload: RoleWriteView,
     state: web::Data<AppState>,
 ) -> Result<(), PutError> {
-    if !does_role_exist(id, state.db_pool.clone()).await {
+    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
         return Err(PutError::NotFound);
     }
     let view = ChangeRoleQueryView::new(
@@ -59,7 +59,7 @@ async fn put_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    change_role_query(view, state.db_pool.clone())
+    change_role_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|_| PutError::DatabaseError)?;
     Ok(())

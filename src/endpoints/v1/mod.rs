@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod doc;
+pub mod ressources;
 pub mod roles;
 pub mod sessions;
 pub mod user;

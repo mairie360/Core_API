@@ -25,7 +25,7 @@ pub async fn revoke_previous_session(
     device_info: &str,
 ) {
     let view = RevokePreviousSessionQueryView::new(user_id, ip_adress.clone(), device_info);
-    revoke_previous_session_query(view, state.db_pool.clone())
+    revoke_previous_session_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {
             eprintln!("Revoke Previous Session DB Error: {}", e);
@@ -45,7 +45,7 @@ pub async fn create_new_session(
         view.get_device_info(),
     )
     .await;
-    create_session_query(view, state.db_pool.clone())
+    create_session_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {
             eprintln!("Create Session DB Error: {}", e);

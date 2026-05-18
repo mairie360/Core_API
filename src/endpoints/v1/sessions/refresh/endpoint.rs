@@ -6,7 +6,7 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::pool::AppState;
 
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
-use crate::endpoints::AuthenticatedUser;
+use mairie360_api_lib::security::AuthenticatedUser;
 use std::net::IpAddr;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,7 +52,7 @@ async fn refresh_request(
 
     let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
-    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone()).await;
+    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone().unwrap()).await;
 
     match is_valid {
         Ok(true) => generate_jwt(&user_id.to_string()).map_err(|_| RefreshError::DatabaseError),
