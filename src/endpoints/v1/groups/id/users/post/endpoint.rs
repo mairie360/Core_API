@@ -1,3 +1,6 @@
+use crate::database::groups::add_user_to_group::{
+    add_user_to_group_query, AddUserToGroupQueryView,
+};
 use crate::endpoints::v1::groups::id::users::post::view::PostUserGroupView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -44,6 +47,11 @@ async fn add_user_to_group(
         Some(pool) => pool,
         None => return Err(PostUserGroupError::DatabaseError),
     };
+
+    let db_view = AddUserToGroupQueryView::new(view.user_id(), view.group_id());
+    add_user_to_group_query(db_view, pool)
+        .await
+        .map_err(|_| PostUserGroupError::BadRequest)?;
 
     Ok(())
 }

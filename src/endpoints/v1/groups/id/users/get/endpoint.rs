@@ -1,3 +1,4 @@
+use crate::database::groups::get_group_users::{get_group_users_query, GetGroupUsersQueryView};
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -45,7 +46,12 @@ async fn get_group_users(
         None => return Err(GetUsersGroupError::DatabaseError),
     };
 
-    Ok(GetGroupUsersResultView::new(vec![]))
+    let view = GetGroupUsersQueryView::new(group_id as u64);
+    let result = get_group_users_query(view, pool)
+        .await
+        .map_err(|_| GetUsersGroupError::BadRequest)?;
+
+    Ok(result.into())
 }
 
 #[utoipa::path(

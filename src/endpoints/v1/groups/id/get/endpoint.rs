@@ -1,3 +1,4 @@
+use crate::database::groups::get_group::{get_group_query, GetGroupQuerView};
 use crate::endpoints::v1::groups::id::get::view::GetGroupResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -37,16 +38,20 @@ impl ResponseError for GetGroupError {
 }
 
 async fn get_group(
-    user: AuthenticatedUser,
     state: web::Data<AppState>,
     id: u64,
-) -> Result<(), GetGroupError> {
+) -> Result<GetGroupResultView, GetGroupError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(GetGroupError::DatabaseError),
     };
 
-    Ok(())
+    let db_view = GetGroupQuerView::new(id);
+    let result = get_group_query(db_view, pool)
+        .await
+        .map_err(|_| GetGroupError::BadRequest)?;
+
+    Ok(GetGroupResultView::new(result))
 }
 
 #[utoipa::path(
@@ -65,10 +70,10 @@ async fn get_group(
 )]
 #[get("/")]
 pub async fn get(
-    user: AuthenticatedUser,
+    _: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
 ) -> Result<impl Responder, GetGroupError> {
-    let result = get_group(user, state, id.into_inner()).await?;
-    Ok(HttpResponse::Ok().body(result))
+    let result = get_group(state, id.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
 }

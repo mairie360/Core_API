@@ -7,18 +7,22 @@ pub struct PostGroupView {
 }
 
 impl PostGroupView {
-    pub fn new(name: &str, description: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            description: description.to_string(),
-        }
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }
 
     pub fn description(&self) -> &str {
         &self.description
+    }
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
+pub struct PostGroupResultView {
+    id: u64,
+}
+
+impl PostGroupResultView {
+    pub fn new(id: u64) -> Self {
+        Self { id }
     }
 }

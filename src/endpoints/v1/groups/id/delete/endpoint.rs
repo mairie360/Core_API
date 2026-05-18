@@ -3,6 +3,8 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::groups::delete_group::{delete_group_query, DeleteGroupQueryView};
+
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteGroupError {
     BadRequest,
@@ -35,15 +37,16 @@ impl ResponseError for DeleteGroupError {
     }
 }
 
-async fn delete_group(
-    user: AuthenticatedUser,
-    state: web::Data<AppState>,
-    id: u64,
-) -> Result<(), DeleteGroupError> {
+async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteGroupError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(DeleteGroupError::DatabaseError),
     };
+
+    let db_view = DeleteGroupQueryView::new(id);
+    delete_group_query(db_view, pool)
+        .await
+        .map_err(|_| DeleteGroupError::BadRequest)?;
 
     Ok(())
 }
@@ -64,10 +67,10 @@ async fn delete_group(
 )]
 #[delete("/")]
 pub async fn delete(
-    user: AuthenticatedUser,
+    _: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
 ) -> Result<impl Responder, DeleteGroupError> {
-    delete_group(user, state, id.into_inner()).await?;
+    delete_group(state, id.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }

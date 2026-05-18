@@ -1,4 +1,5 @@
-use crate::endpoints::v1::groups::post::view::PostGroupView;
+use crate::database::groups::create_group::{create_group_query, CreateGroupQueryView};
+use crate::endpoints::v1::groups::post::view::{PostGroupResultView, PostGroupView};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
@@ -40,13 +41,18 @@ async fn create_group(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
     view: PostGroupView,
-) -> Result<(), PostGroupError> {
+) -> Result<PostGroupResultView, PostGroupError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(PostGroupError::DatabaseError),
     };
 
-    Ok(())
+    let db_view = CreateGroupQueryView::new(user.id, &view.name(), &view.description());
+    let id = create_group_query(db_view, pool)
+        .await
+        .map_err(|_| PostGroupError::BadRequest)?;
+
+    Ok(PostGroupResultView::new(id as u64))
 }
 
 #[utoipa::path(
@@ -70,6 +76,6 @@ pub async fn post(
     state: web::Data<AppState>,
     view: web::Json<PostGroupView>,
 ) -> Result<impl Responder, PostGroupError> {
-    create_group(user, state, view.into_inner()).await?;
-    Ok(HttpResponse::Ok().body("Group created successfully"))
+    let result = create_group(user, state, view.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
 }

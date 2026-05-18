@@ -1,3 +1,4 @@
+use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
 use crate::endpoints::v1::groups::get::view::GetGroupsResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -39,13 +40,17 @@ impl ResponseError for GetGroupsError {
 async fn get_groups(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
-) -> Result<(), GetGroupsError> {
+) -> Result<GetGroupsResultView, GetGroupsError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(GetGroupsError::DatabaseError),
     };
 
-    Ok(())
+    let groups = get_user_groups(GetUserGroupsQuerView::new(user.id), pool)
+        .await
+        .map_err(|_| GetGroupsError::BadRequest)?;
+
+    Ok(groups.into())
 }
 
 #[utoipa::path(
@@ -68,5 +73,5 @@ pub async fn get(
     state: web::Data<AppState>,
 ) -> Result<impl Responder, GetGroupsError> {
     let result = get_groups(user, state).await?;
-    Ok(HttpResponse::Ok().body(result))
+    Ok(HttpResponse::Ok().json(result))
 }

@@ -17,6 +17,7 @@ pub struct GroupsDoc;
     components(schemas(
         super::get::view::GetGroupsResultView,
         super::post::view::PostGroupView,
+        super::post::view::PostGroupResultView,
     ))
 )]
 struct Doc;

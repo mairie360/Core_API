@@ -3,6 +3,10 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
+use crate::database::groups::delete_user_from_group::{
+    delete_user_from_group_query, DeleteUserFromGroupQueryView,
+};
+
 #[derive(Debug, Clone, PartialEq)]
 enum AddAccessError {
     BadRequest,
@@ -44,6 +48,11 @@ async fn delete_user_from_group(
         Some(pool) => pool,
         None => return Err(AddAccessError::DatabaseError),
     };
+
+    let db_view = DeleteUserFromGroupQueryView::new(group_id, user_id);
+    delete_user_from_group_query(db_view, pool)
+        .await
+        .map_err(|_| AddAccessError::BadRequest)?;
 
     Ok(())
 }

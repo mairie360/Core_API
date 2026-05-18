@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use utoipa::ToSchema;
 
 pub struct GetGroupQuerView {
     group_id: u64,
@@ -28,7 +29,9 @@ impl Display for GetGroupQuerView {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize, serde::Serialize, ToSchema,
+)]
 pub struct Group {
     id: i32,
     owner_id: i32,
