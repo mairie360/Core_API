@@ -1,3 +1,4 @@
+use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
 use crate::database::groups::get_group_users::{get_group_users_query, GetGroupUsersQueryView};
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
@@ -45,6 +46,14 @@ async fn get_group_users(
         Some(pool) => pool,
         None => return Err(GetUsersGroupError::DatabaseError),
     };
+
+    let check_view = DoesGroupExistQuerView::new(group_id as u64);
+    let result = does_group_exist_query(check_view, pool.clone())
+        .await
+        .map_err(|_| GetUsersGroupError::BadRequest)?;
+    if !result {
+        return Err(GetUsersGroupError::BadRequest);
+    }
 
     let view = GetGroupUsersQueryView::new(group_id as u64);
     let result = get_group_users_query(view, pool)

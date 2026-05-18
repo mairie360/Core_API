@@ -6,31 +6,33 @@ use mairie360_api_lib::security::AuthenticatedUser;
 use crate::database::groups::delete_user_from_group::{
     delete_user_from_group_query, DeleteUserFromGroupQueryView,
 };
+use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
+use crate::database::groups::is_user_member::{is_user_member_query, IsUserMemberQueryView};
 
 #[derive(Debug, Clone, PartialEq)]
-enum AddAccessError {
+enum DeleteUserFromGroupError {
     BadRequest,
     DatabaseError,
 }
 
-impl std::fmt::Display for AddAccessError {
+impl std::fmt::Display for DeleteUserFromGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddAccessError::DatabaseError => {
+            DeleteUserFromGroupError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            AddAccessError::BadRequest => {
+            DeleteUserFromGroupError::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
     }
 }
 
-impl ResponseError for AddAccessError {
+impl ResponseError for DeleteUserFromGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AddAccessError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            AddAccessError::BadRequest => StatusCode::BAD_REQUEST,
+            DeleteUserFromGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            DeleteUserFromGroupError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -43,16 +45,32 @@ async fn delete_user_from_group(
     state: web::Data<AppState>,
     group_id: u64,
     user_id: u64,
-) -> Result<(), AddAccessError> {
+) -> Result<(), DeleteUserFromGroupError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
-        None => return Err(AddAccessError::DatabaseError),
+        None => return Err(DeleteUserFromGroupError::DatabaseError),
     };
+
+    let check_view = DoesGroupExistQuerView::new(group_id as u64);
+    let result = does_group_exist_query(check_view, pool.clone())
+        .await
+        .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
+    if !result {
+        return Err(DeleteUserFromGroupError::BadRequest);
+    }
+
+    let user_check_view = IsUserMemberQueryView::new(group_id, user_id);
+    let result = is_user_member_query(user_check_view, pool.clone())
+        .await
+        .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
+    if !result {
+        return Err(DeleteUserFromGroupError::BadRequest);
+    }
 
     let db_view = DeleteUserFromGroupQueryView::new(group_id, user_id);
     delete_user_from_group_query(db_view, pool)
         .await
-        .map_err(|_| AddAccessError::BadRequest)?;
+        .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
 
     Ok(())
 }
@@ -76,7 +94,7 @@ pub async fn delete(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     path: web::Path<(u64, u64)>,
-) -> Result<impl Responder, AddAccessError> {
+) -> Result<impl Responder, DeleteUserFromGroupError> {
     let (group_id, user_id) = path.into_inner();
     delete_user_from_group(state, group_id, user_id).await?;
     Ok(HttpResponse::NoContent().finish())
