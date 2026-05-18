@@ -9,8 +9,9 @@ use mairie360_api_lib::security::AuthenticatedUser;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PostUserGroupError {
-    BadRequest,
+    // BadRequest,
     DatabaseError,
+    UnknowUser,
 }
 
 impl std::fmt::Display for PostUserGroupError {
@@ -19,8 +20,11 @@ impl std::fmt::Display for PostUserGroupError {
             PostUserGroupError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            PostUserGroupError::BadRequest => {
-                write!(f, "Bad request.")
+            // PostUserGroupError::BadRequest => {
+            //     write!(f, "Bad request.")
+            // }
+            PostUserGroupError::UnknowUser => {
+                write!(f, "Unknow user.")
             }
         }
     }
@@ -29,8 +33,9 @@ impl std::fmt::Display for PostUserGroupError {
 impl ResponseError for PostUserGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
+            // PostUserGroupError::BadRequest => StatusCode::BAD_REQUEST,
             PostUserGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            PostUserGroupError::BadRequest => StatusCode::BAD_REQUEST,
+            PostUserGroupError::UnknowUser => StatusCode::NOT_FOUND,
         }
     }
 
@@ -51,7 +56,7 @@ async fn add_user_to_group(
     let db_view = AddUserToGroupQueryView::new(view.user_id(), view.group_id());
     add_user_to_group_query(db_view, pool)
         .await
-        .map_err(|_| PostUserGroupError::BadRequest)?;
+        .map_err(|_| PostUserGroupError::UnknowUser)?;
 
     Ok(())
 }
@@ -64,6 +69,7 @@ async fn add_user_to_group(
         (status = 200, description = "User added to group successfully"),
         (status = 400, description = "Bad request"),
         (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Unknow user."),
         (status = 500, description = "Internal server error")
     ),
     tag = "Groups",

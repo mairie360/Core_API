@@ -4,7 +4,6 @@ use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
 
 use crate::database::groups::delete_group::{delete_group_query, DeleteGroupQueryView};
-use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteGroupError {
@@ -44,14 +43,6 @@ async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteG
         None => return Err(DeleteGroupError::DatabaseError),
     };
 
-    let group_check_view = DoesGroupExistQuerView::new(id as u64);
-    let result = does_group_exist_query(group_check_view, pool.clone())
-        .await
-        .map_err(|_| DeleteGroupError::BadRequest)?;
-    if !result {
-        return Err(DeleteGroupError::BadRequest);
-    }
-
     let db_view = DeleteGroupQueryView::new(id);
     delete_group_query(db_view, pool)
         .await
@@ -67,6 +58,8 @@ async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteG
         (status = 204, description = "Group deleted successfully"),
         (status = 400, description = "Bad request"),
         (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "Not found"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Groups",

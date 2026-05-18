@@ -1,3 +1,4 @@
+use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
 use crate::database::groups::get_group::{get_group_query, GetGroupQuerView};
 use crate::endpoints::v1::groups::id::get::view::GetGroupResultView;
 use actix_web::http::StatusCode;
@@ -9,6 +10,7 @@ use mairie360_api_lib::security::AuthenticatedUser;
 enum GetGroupError {
     BadRequest,
     DatabaseError,
+    UnknowGroup,
 }
 
 impl std::fmt::Display for GetGroupError {
@@ -20,6 +22,9 @@ impl std::fmt::Display for GetGroupError {
             GetGroupError::BadRequest => {
                 write!(f, "Bad request.")
             }
+            GetGroupError::UnknowGroup => {
+                write!(f, "Unknow group.")
+            }
         }
     }
 }
@@ -29,6 +34,7 @@ impl ResponseError for GetGroupError {
         match self {
             GetGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             GetGroupError::BadRequest => StatusCode::BAD_REQUEST,
+            GetGroupError::UnknowGroup => StatusCode::NOT_FOUND,
         }
     }
 
@@ -46,6 +52,14 @@ async fn get_group(
         None => return Err(GetGroupError::DatabaseError),
     };
 
+    let group_check_view = DoesGroupExistQuerView::new(id);
+    let result = does_group_exist_query(group_check_view, pool.clone())
+        .await
+        .map_err(|_| GetGroupError::UnknowGroup)?;
+    if !result {
+        return Err(GetGroupError::UnknowGroup);
+    }
+
     let db_view = GetGroupQuerView::new(id);
     let result = get_group_query(db_view, pool)
         .await
@@ -61,6 +75,7 @@ async fn get_group(
         (status = 200, body = GetGroupResultView),
         (status = 400, description = "Bad request"),
         (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found"),
         (status = 500, description = "Internal server error")
     ),
     tag = "Groups",
