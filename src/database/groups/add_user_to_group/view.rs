@@ -23,7 +23,8 @@ impl AddUserToGroupQueryView {
 
 impl DatabaseQueryView for AddUserToGroupQueryView {
     fn get_request(&self) -> String {
-        "INSERT INTO group_users (group_id, user_id) VALUES ($1, $2)".to_string()
+        "INSERT INTO group_users (group_id, user_id) VALUES ($1, $2)"
+            .to_string()
     }
 }
 

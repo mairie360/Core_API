@@ -1,6 +1,7 @@
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use std::fmt::Display;
 
+#[derive(Debug, Clone)]
 pub struct CreateGroupQueryView {
     owner_id: u64,
     name: String,

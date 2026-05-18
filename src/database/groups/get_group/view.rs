@@ -2,11 +2,11 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 
-pub struct GetGroupsQuerView {
+pub struct GetGroupQuerView {
     group_id: u64,
 }
 
-impl GetGroupsQuerView {
+impl GetGroupQuerView {
     pub fn new(group_id: u64) -> Self {
         Self { group_id }
     }
@@ -16,13 +16,13 @@ impl GetGroupsQuerView {
     }
 }
 
-impl DatabaseQueryView for GetGroupsQuerView {
+impl DatabaseQueryView for GetGroupQuerView {
     fn get_request(&self) -> String {
         "SELECT * FROM groups WHERE id = $1".to_string()
     }
 }
 
-impl Display for GetGroupsQuerView {
+impl Display for GetGroupQuerView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "GetGroups: group_id = {}", self.group_id)
     }
@@ -33,17 +33,21 @@ pub struct Group {
     id: i32,
     owner_id: i32,
     name: String,
-    description: String,
+    description: Option<String>,
 }
 
 impl Group {
-    pub fn new(id: i32, name: &str, owner_id: i32, description: &str) -> Self {
+    pub fn new(id: i32, name: &str, owner_id: i32, description: Option<&str>) -> Self {
         Self {
             id,
             name: name.to_string(),
             owner_id,
-            description: description.to_string(),
+            description: description.map(|d| d.to_string()),
         }
+    }
+
+    pub fn id(&self) -> i32 {
+        self.id
     }
 }
 
@@ -51,7 +55,7 @@ impl Display for Group {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Group: id = {}, name = {}, owner_id = {}, description = {}",
+            "Group: id = {}, name = {}, owner_id = {}, description = {:?}",
             self.id, self.name, self.owner_id, self.description,
         )
     }
