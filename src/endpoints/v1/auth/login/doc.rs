@@ -4,6 +4,6 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(endpoint::login),
-    components(schemas(super::login_view::LoginView))
+    components(schemas(super::view::LoginView, super::view::LoginResponseView))
 )]
 pub struct LoginDoc;
