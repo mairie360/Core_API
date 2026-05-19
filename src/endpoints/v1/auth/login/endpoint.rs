@@ -63,7 +63,7 @@ fn generate_refresh_token() -> String {
     let mut buffer = [0u8; 32];
 
     // Remplissage avec des données aléatoires sécurisées
-    rng().fill_bytes(&mut buffer);
+    fill(&mut buffer);
 
     // Encodage en Base64 pour avoir une String lisible
     general_purpose::URL_SAFE_NO_PAD.encode(buffer)
