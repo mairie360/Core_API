@@ -10,7 +10,7 @@ use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::pool::redis::simple_key::secured::{handle_secure_get, handle_secure_post};
 use mairie360_api_lib::pool::AppState;
-use rand::{rng, Rng};
+use rand::fill;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]

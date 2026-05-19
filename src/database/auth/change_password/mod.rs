@@ -1,5 +1,5 @@
 mod query;
-pub use query::login_query;
+pub use query::change_password_query;
 
 mod view;
-pub use view::{LoginUserQueryResultView, LoginUserQueryView};
+pub use view::ChangePasswordQueryView;

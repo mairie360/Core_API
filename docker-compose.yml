@@ -100,6 +100,7 @@ services:
     build:
       context: .
       dockerfile: development.Dockerfile
+    restart: always
     develop:
       watch:
         - action: sync
@@ -125,6 +126,11 @@ services:
       PUBLIC_URL: http://core.development.mairie360.fr
       JWT_SECRET: b"secret"
       JWT_TIMEOUT: 3600
+      SMTP_HOST: "mailpit" # Nom du service docker
+      SMTP_PORT: "1025" # Port SMTP de mailpit
+      SMTP_USERNAME: "" # Pas besoin d'authentification en local
+      SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      EMAIL_FROM: "noreply.mairie360@dev.local"
     depends_on:
       liquibase:
         condition: service_completed_successfully
@@ -137,6 +143,19 @@ services:
       retries: 5
       start_period: 90s
 
+  mailpit:
+    image: axllent/mailpit:v1.15
+    container_name: mairie360-mailpit
+    restart: always
+    ports:
+      - "8025:8025" # Interface Web pour voir les mails (http://localhost:8025)
+      - "1025:1025" # Le port SMTP pour ton code Rust
+    networks:
+      - backend
+    depends_on:
+      core:
+        condition: service_healthy
+
   nginx:
     image: nginx:1.29.1-bookworm
     restart: always
@@ -147,5 +166,5 @@ services:
     networks:
       - backend
     depends_on:
-      core:
+      mailpit:
         condition: service_healthy

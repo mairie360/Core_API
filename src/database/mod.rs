@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod get_user_id;
 pub mod groups;
 pub mod ressources;
 pub mod rights;
