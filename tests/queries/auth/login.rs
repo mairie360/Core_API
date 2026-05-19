@@ -17,7 +17,7 @@ async fn test_login_user_success() {
 
     assert_eq!(
         result.unwrap(),
-        LoginUserQueryResultView::new(1, "password123".to_string())
+        LoginUserQueryResultView::new(1, "password123".to_string(), true)
     );
 }
 
