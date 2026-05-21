@@ -190,7 +190,7 @@ async fn forgot_password_trigger(
         (status = 404, description = "User not found"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Auth",
+    tag = "Authentication",
     security(
         ("jwt" = [])
     )
