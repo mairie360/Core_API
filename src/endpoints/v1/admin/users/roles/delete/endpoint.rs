@@ -53,6 +53,6 @@ impl ResponseError for DeleteError {
     )
 )]
 #[delete("/{roleId}")]
-pub async fn remove(state: web::Data<AppState>) -> Result<impl Responder, DeleteError> {
+pub async fn delete(state: web::Data<AppState>) -> Result<impl Responder, DeleteError> {
     Ok(HttpResponse::Ok())
 }

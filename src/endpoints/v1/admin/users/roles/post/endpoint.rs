@@ -59,6 +59,6 @@ impl ResponseError for AssignError {
     )
 )]
 #[post("/")]
-pub async fn assign(_state: web::Data<AppState>) -> Result<impl Responder, AssignError> {
+pub async fn post(_state: web::Data<AppState>) -> Result<impl Responder, AssignError> {
     Ok(HttpResponse::Ok())
 }

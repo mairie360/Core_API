@@ -1,13 +1,13 @@
-mod assign;
+mod delete;
 pub mod doc;
-mod remove;
+mod post;
 
 use actix_web::web;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/roles")
-            .service(assign::endpoint::assign)
-            .service(remove::endpoint::remove),
+            .service(delete::endpoint::delete)
+            .service(post::endpoint::post),
     );
 }
