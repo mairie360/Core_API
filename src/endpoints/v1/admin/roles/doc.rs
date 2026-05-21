@@ -13,6 +13,8 @@ use crate::endpoints::v1::admin::roles::put::endpoint::__path_put;
         super::view::RoleWriteView,
         super::get::view::GetResponseView,
         super::patch::view::PatchView
+        //add post view
+        // add put view
     ))
 )]
 pub struct RolesDoc;
