@@ -34,35 +34,3 @@ impl Display for ChangePasswordQueryView {
         write!(f, "ChangePasswordQueryView: password = [PROTECTED]")
     }
 }
-
-#[derive(Debug, sqlx::FromRow, PartialEq, Eq)]
-pub struct LoginUserQueryResultView {
-    #[sqlx(rename = "id")]
-    user_id: i32,
-    #[sqlx(rename = "password")]
-    password: String,
-    #[sqlx(rename = "first_connect")]
-    first_connect: bool,
-}
-
-impl LoginUserQueryResultView {
-    pub fn new(user_id: i32, password: String, first_connect: bool) -> Self {
-        Self {
-            user_id,
-            password,
-            first_connect,
-        }
-    }
-
-    pub fn password(&self) -> &str {
-        &self.password
-    }
-
-    pub fn user_id(&self) -> i32 {
-        self.user_id
-    }
-
-    pub fn first_connect(&self) -> bool {
-        self.first_connect
-    }
-}
