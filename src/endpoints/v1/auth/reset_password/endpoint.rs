@@ -142,7 +142,7 @@ async fn reset_password_trigger(
         (status = 401, description = "Unauthorized, invalid token"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Auth",
+    tag = "Authentication",
 )]
 #[post("/reset_password")]
 pub async fn reset_password(
