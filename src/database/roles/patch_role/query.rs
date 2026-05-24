@@ -5,7 +5,6 @@ use sqlx::PgPool;
 use crate::database::roles::patch_role::PatchRoleQueryView;
 
 pub async fn patch_role_query(view: PatchRoleQueryView, pool: PgPool) -> Result<(), DatabaseError> {
-    eprintln!("patch_role_query: view={:?}", view);
     sqlx::query(&view.get_request())
         .bind(view.name())
         .bind(view.description())
