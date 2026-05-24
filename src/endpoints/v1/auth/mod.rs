@@ -1,6 +1,9 @@
 pub mod doc;
+pub mod force_change_password;
+pub mod forgot_password;
 pub mod login;
 pub mod register;
+pub mod reset_password;
 
 use actix_web::web;
 use mairie360_api_lib::pool::AppState;
@@ -13,8 +16,11 @@ use crate::database::sessions::{
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
+            .service(force_change_password::endpoint::force_change_password)
+            .service(forgot_password::endpoint::forgot_password)
             .service(login::endpoint::login)
-            .service(register::endpoint::register),
+            .service(register::endpoint::register)
+            .service(reset_password::endpoint::reset_password),
     );
 }
 

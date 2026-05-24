@@ -5,4 +5,4 @@ set -e
 cd /usr/src/core
 
 # Lancer cargo watch
-exec cargo watch -w src -i target -x run
+exec cargo watch --poll -w src -i target -x run
