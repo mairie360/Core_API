@@ -3,29 +3,24 @@ use std::fmt::Display;
 use utoipa::ToSchema;
 
 #[derive(Deserialize, ToSchema)]
-pub struct CreateUserView {
-    first_name: String,
-    last_name: String,
-    email: String,
-    password: String,
+pub struct PatchUserView {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    email: Option<String>,
     phone_number: Option<String>,
 }
 
-impl CreateUserView {
-    pub fn first_name(&self) -> &str {
-        &self.first_name
+impl PatchUserView {
+    pub fn first_name(&self) -> Option<&str> {
+        self.first_name.as_deref()
     }
 
-    pub fn last_name(&self) -> &str {
-        &self.last_name
+    pub fn last_name(&self) -> Option<&str> {
+        self.last_name.as_deref()
     }
 
-    pub fn email(&self) -> &str {
-        &self.email
-    }
-
-    pub fn password(&self) -> &str {
-        &self.password
+    pub fn email(&self) -> Option<&str> {
+        self.email.as_deref()
     }
 
     pub fn phone_number(&self) -> Option<&str> {
@@ -33,12 +28,15 @@ impl CreateUserView {
     }
 }
 
-impl Display for CreateUserView {
+impl Display for PatchUserView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "CreateUserView {{ first_name: {}, last_name: {}, email: {}, password: {}, phone_number: {:?} }}",
-            self.first_name, self.last_name, self.email, self.password, self.phone_number
+            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {:?} }}",
+            self.first_name.as_deref().unwrap_or(""),
+            self.last_name.as_deref().unwrap_or(""),
+            self.email.as_deref().unwrap_or(""),
+            self.phone_number.as_deref().unwrap_or("")
         )
     }
 }

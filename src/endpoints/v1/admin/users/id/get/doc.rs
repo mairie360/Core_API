@@ -1,9 +1,9 @@
-use crate::endpoints::v1::admin::users::post::endpoint;
+use crate::endpoints::v1::admin::users::id::get::endpoint;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(endpoint::post),
-    components(schemas(super::view::CreateUserView))
+    paths(endpoint::get),
+    components(schemas(super::view::GetUserResultView))
 )]
-pub struct CreateUserDoc;
+pub struct GetUserDoc;

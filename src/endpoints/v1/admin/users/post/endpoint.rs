@@ -125,7 +125,7 @@ async fn register_user(
     path = "",
     request_body = CreateUserView,
     responses(
-        (status = 201, description = "User registered successfully"),
+        (status = 201, description = "User created successfully"),
         (status = 400, description = "Invalid data provided"),
         (status = 409, description = "User already exists"),
         (status = 500, description = "Database error occurred")
@@ -141,5 +141,5 @@ pub async fn post(
 
     register_user(&register_view, state).await?;
 
-    Ok(HttpResponse::Created().body("User registered successfully!"))
+    Ok(HttpResponse::Created().body("User created successfully!"))
 }

@@ -1,18 +1,16 @@
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::pool::AppState;
 
+use crate::database::users::delete_user::{delete_user_query, DeleteUserQueryView};
+
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserError {
-    InvalidData,
-    UserAlreadyExists,
     DatabaseError,
 }
 
 impl std::fmt::Display for DeleteUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteUserError::InvalidData => write!(f, "Invalid data provided"),
-            DeleteUserError::UserAlreadyExists => write!(f, "User already exists"),
             DeleteUserError::DatabaseError => write!(f, "Database error occurred"),
         }
     }
@@ -21,8 +19,6 @@ impl std::fmt::Display for DeleteUserError {
 impl ResponseError for DeleteUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteUserError::InvalidData => StatusCode::BAD_REQUEST,
-            DeleteUserError::UserAlreadyExists => StatusCode::CONFLICT,
             DeleteUserError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -38,6 +34,11 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
         None => return Err(DeleteUserError::DatabaseError),
     };
 
+    let view = DeleteUserQueryView::new(user_id);
+    delete_user_query(view, pool)
+        .await
+        .map_err(|_| DeleteUserError::DatabaseError)?;
+
     Ok(())
 }
 
@@ -46,8 +47,7 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
     path = "",
     responses(
         (status = 204, description = "User deleted successfully"),
-        (status = 400, description = "Invalid data provided"),
-        (status = 409, description = "User already exists"),
+        (status = 400, description = "Bad request"),
         (status = 500, description = "Database error occurred")
     ),
     tag = "Admin - Users"
