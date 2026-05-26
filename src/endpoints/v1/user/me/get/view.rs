@@ -1,11 +1,10 @@
+use crate::database::users::get_user_by_id::GetUserByIdQueryResultView;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-use crate::database::users::about::AboutUserQueryResultView;
-
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct AboutResponseView {
+pub struct GetMeResponseView {
     first_name: String,
     last_name: String,
     email: String,
@@ -13,7 +12,7 @@ pub struct AboutResponseView {
     status: String,
 }
 
-impl AboutResponseView {
+impl GetMeResponseView {
     pub fn new(
         first_name: String,
         last_name: String,
@@ -21,7 +20,7 @@ impl AboutResponseView {
         phone: String,
         status: String,
     ) -> Self {
-        AboutResponseView {
+        GetMeResponseView {
             first_name,
             last_name,
             email,
@@ -51,11 +50,11 @@ impl AboutResponseView {
     }
 }
 
-impl Display for AboutResponseView {
+impl Display for GetMeResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AboutResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {}, status: {} }}",
+            "GetMeResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {}, status: {} }}",
             self.first_name,
             self.last_name,
             self.email,
@@ -65,9 +64,9 @@ impl Display for AboutResponseView {
     }
 }
 
-impl From<AboutUserQueryResultView> for AboutResponseView {
-    fn from(query_result: AboutUserQueryResultView) -> Self {
-        AboutResponseView {
+impl From<GetUserByIdQueryResultView> for GetMeResponseView {
+    fn from(query_result: GetUserByIdQueryResultView) -> Self {
+        GetMeResponseView {
             first_name: query_result.first_name().to_string(),
             last_name: query_result.last_name().to_string(),
             email: query_result.email().to_string(),
