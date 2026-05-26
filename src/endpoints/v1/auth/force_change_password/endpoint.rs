@@ -111,7 +111,7 @@ async fn force_change_password_trigger(
         (status = 403, description = "Unknown user token"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Authentication"
+    tag = "Auth"
 )]
 #[post("/force_change_password")]
 pub async fn force_change_password(
