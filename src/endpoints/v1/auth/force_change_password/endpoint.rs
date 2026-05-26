@@ -47,6 +47,7 @@ impl ResponseError for ForceChanhePasswordError {
 }
 
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
+    println!("{}", format!("{}/first_connection_id", token));
     match handle_secure_get(
         state.get_redis_conn().await.unwrap(),
         &format!("{}/first_connection_id", token),
@@ -110,7 +111,7 @@ async fn force_change_password_trigger(
         (status = 403, description = "Unknown user token"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Authentication"
+    tag = "Auth"
 )]
 #[post("/force_change_password")]
 pub async fn force_change_password(

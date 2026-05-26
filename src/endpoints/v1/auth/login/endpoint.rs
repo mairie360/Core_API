@@ -99,6 +99,8 @@ async fn generate_first_connection_token(
         _ => {}
     };
     let token = Uuid::new_v4().to_string();
+    println!("{}", format!("{}/first_connection_id", token));
+    println!("{}", &format!("{}/first_connection_token", user_id));
     handle_secure_post(
         state.get_redis_conn().await.unwrap(),
         &format!("{}/first_connection_token", user_id),

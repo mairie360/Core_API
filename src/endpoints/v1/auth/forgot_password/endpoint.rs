@@ -64,6 +64,7 @@ impl ResponseError for ResetPasswordError {
 }
 
 async fn check_user(pool: PgPool, email: &str) -> Result<(), ResetPasswordError> {
+    println!("email: {}", email);
     let view = DoesUserExistByEmailQueryView::new(email.to_string());
     let result = does_user_exist_by_email_query(view, pool.clone()).await;
     match result {
@@ -189,7 +190,7 @@ async fn forgot_password_trigger(
         (status = 404, description = "User not found"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Authentication",
+    tag = "Auth",
     security(
         ("jwt" = [])
     )
