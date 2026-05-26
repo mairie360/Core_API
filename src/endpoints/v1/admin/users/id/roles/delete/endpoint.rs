@@ -58,13 +58,13 @@ async fn delete_user(
     delete,
     path = "/{roleId}",
     responses(
-        (status = 200, description = "Role deleted successfully"),
+        (status = 204, description = "Role deleted successfully"),
         (status = 404, description = "Resource not found"),
         (status = 500, description = "Internal server error")
     ),
     params(
-        ("roleId" = i32, Path, description = "User database id"),
-        ("userId" = String, Path, description = "ID de l'utilisateur")
+        ("roleId" = i32, Path, description = "ID du rôle"),
+        ("userId" = i32, Path, description = "ID de l'utilisateur")
     ),
     security(
         ("jwt" = [])
@@ -75,7 +75,7 @@ pub async fn delete(
     state: web::Data<AppState>,
     params: web::Path<(u64, u64)>,
 ) -> Result<impl Responder, RemoveUserRoleError> {
-    let (role_id, user_id) = params.into_inner();
+    let (user_id, role_id) = params.into_inner();
     delete_user(state, user_id, role_id).await?;
-    Ok(HttpResponse::Ok())
+    Ok(HttpResponse::NoContent())
 }

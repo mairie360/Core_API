@@ -1,5 +1,5 @@
 use crate::{
-    database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQueryView},
+    database::admin::get_user::{query::get_user_query, view::AdminGetUserQueryView},
     endpoints::v1::admin::users::id::get::view::GetUserResultView,
 };
 use actix_web::{error::ResponseError, get, http::StatusCode, web, HttpResponse, Responder};
@@ -41,9 +41,9 @@ async fn get_user(
         Some(pool) => pool,
         None => return Err(GetUserError::DatabaseError),
     };
-    let view = GetUserByIdQueryView::new(user_id);
+    let view = AdminGetUserQueryView::new(user_id);
 
-    let result = get_user_by_id_query(view, pool).await.map_err(|e| {
+    let result = get_user_query(view, pool).await.map_err(|e| {
         eprintln!("{:?}", e);
         GetUserError::UnknownUser
     })?;

@@ -8,6 +8,7 @@ pub mod sessions;
 pub mod user;
 
 use actix_web::web;
+use mairie360_api_lib::security::AdminMiddleware;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -17,6 +18,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .configure(roles::config)
             .configure(sessions::config)
             .configure(user::config)
+            .wrap(AdminMiddleware)
             .configure(admin::config),
     );
 }

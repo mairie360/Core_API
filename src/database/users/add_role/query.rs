@@ -5,8 +5,8 @@ use sqlx::PgPool;
 
 pub async fn add_role_query(view: AddRolesQueryView, pool: PgPool) -> Result<(), DatabaseError> {
     sqlx::query(&view.get_request())
-        .bind(view.role_id() as i32)
         .bind(view.user_id() as i32)
+        .bind(view.role_id() as i32)
         .execute(&pool)
         .await?;
 

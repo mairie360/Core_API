@@ -17,8 +17,7 @@ impl GetUserRolesdQueryView {
 
 impl DatabaseQueryView for GetUserRolesdQueryView {
     fn get_request(&self) -> String {
-        "SELECT role_id FROM user_roles WHERE user_id = $1"
-            .to_string()
+        "SELECT role_id FROM user_roles WHERE user_id = $1".to_string()
     }
 }
 

@@ -5,12 +5,14 @@ use crate::database::users::delete_user::{delete_user_query, DeleteUserQueryView
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserError {
+    AlreadyDeleted,
     DatabaseError,
 }
 
 impl std::fmt::Display for DeleteUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DeleteUserError::AlreadyDeleted => write!(f, "User is already deleted"),
             DeleteUserError::DatabaseError => write!(f, "Database error occurred"),
         }
     }
@@ -19,6 +21,7 @@ impl std::fmt::Display for DeleteUserError {
 impl ResponseError for DeleteUserError {
     fn status_code(&self) -> StatusCode {
         match self {
+            DeleteUserError::AlreadyDeleted => StatusCode::OK,
             DeleteUserError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -35,9 +38,10 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
     };
 
     let view = DeleteUserQueryView::new(user_id);
-    delete_user_query(view, pool)
-        .await
-        .map_err(|_| DeleteUserError::DatabaseError)?;
+    delete_user_query(view, pool).await.map_err(|e| {
+        eprintln!("Error: {}", e);
+        DeleteUserError::AlreadyDeleted
+    })?;
 
     Ok(())
 }
@@ -46,6 +50,7 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
     delete,
     path = "",
     responses(
+        (status = 200, description = "User is already deleted"),
         (status = 204, description = "User deleted successfully"),
         (status = 400, description = "Bad request"),
         (status = 500, description = "Database error occurred")
@@ -59,5 +64,5 @@ pub async fn delete(
 ) -> Result<impl Responder, DeleteUserError> {
     delete_user(state, path.into_inner()).await?;
 
-    Ok(HttpResponse::NoContent().body("User deleted successfully!"))
+    Ok(HttpResponse::NoContent())
 }

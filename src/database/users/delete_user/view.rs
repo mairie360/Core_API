@@ -17,7 +17,7 @@ impl DeleteUserQueryView {
 
 impl DatabaseQueryView for DeleteUserQueryView {
     fn get_request(&self) -> String {
-        "DELETE FROM users WHERE id = $1".to_string()
+        "SELECT delete_user($1)".to_string()
     }
 }
 

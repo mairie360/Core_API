@@ -1,8 +1,8 @@
+use crate::database::sessions::Session;
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
-use crate::database::{roles::get_roles_by_id::Role, sessions::Session};
+use utoipa::ToSchema;
 
 pub struct AdminGetUserQueryView {
     user_id: u64,
@@ -30,15 +30,37 @@ impl Display for AdminGetUserQueryView {
     }
 }
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
 pub struct RoleQueryResult {
     id: i32,
     name: String,
+    description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+impl RoleQueryResult {
+    pub fn new(id: i32, name: &str, description: Option<&str>) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            description: description.map(|d| d.to_string()),
+        }
+    }
+
+    pub fn id(&self) -> i32 {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+}
+
+#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow, Clone)]
 pub struct User {
-    id: i32,
     first_name: String,
     last_name: String,
     email: String,
@@ -51,8 +73,8 @@ impl Display for User {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "User: id: {}, first_name: {}, last_name: {}, email: {}, phone_number: {}, status: {}, is_archived: {}",
-            self.id, self.first_name, self.last_name, self.email, self.phone_number, self.status, self.is_archived
+            "User: first_name: {}, last_name: {}, email: {}, phone_number: {}, status: {}, is_archived: {}",
+            self.first_name, self.last_name, self.email, self.phone_number, self.status, self.is_archived
         )
     }
 }
@@ -60,12 +82,12 @@ impl Display for User {
 #[derive(Debug, PartialEq, Eq)]
 pub struct AdminGetUserQueryResultView {
     user: User,
-    roles: Vec<Role>,
+    roles: Vec<RoleQueryResult>,
     sessions: Vec<Session>,
 }
 
 impl AdminGetUserQueryResultView {
-    pub fn new(user: User, roles: Vec<Role>, sessions: Vec<Session>) -> Self {
+    pub fn new(user: User, roles: Vec<RoleQueryResult>, sessions: Vec<Session>) -> Self {
         Self {
             user,
             roles,
@@ -77,7 +99,7 @@ impl AdminGetUserQueryResultView {
         &self.user
     }
 
-    pub fn roles(&self) -> &Vec<Role> {
+    pub fn roles(&self) -> &Vec<RoleQueryResult> {
         &self.roles
     }
 
