@@ -4,4 +4,5 @@ pub mod create_role;
 pub mod delete_role;
 pub mod does_role_exist;
 pub mod get_roles;
+pub mod get_roles_by_id;
 pub mod patch_role;

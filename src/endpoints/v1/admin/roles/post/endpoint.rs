@@ -8,6 +8,7 @@ use mairie360_api_lib::pool::AppState;
 #[derive(Debug, Clone, PartialEq)]
 enum PostError {
     DatabaseError,
+    Duplicate,
 }
 
 impl std::fmt::Display for PostError {
@@ -15,6 +16,9 @@ impl std::fmt::Display for PostError {
         match self {
             PostError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
+            }
+            PostError::Duplicate => {
+                write!(f, "A role with this name already exists.")
             }
         }
     }
@@ -24,6 +28,7 @@ impl ResponseError for PostError {
     fn status_code(&self) -> StatusCode {
         match self {
             PostError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            PostError::Duplicate => StatusCode::CONFLICT,
         }
     }
 
@@ -33,15 +38,20 @@ impl ResponseError for PostError {
 }
 
 async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Result<(), PostError> {
+    let pool = match state.db_pool.clone() {
+        Some(pool) => pool,
+        None => return Err(PostError::DatabaseError),
+    };
+
     let view = CreateRoleQueryView::new(
         payload.name(),
         payload.description(),
         payload.can_be_deleted(),
     );
 
-    create_role_query(view, state.db_pool.clone().unwrap())
+    create_role_query(view, pool)
         .await
-        .map_err(|_| PostError::DatabaseError)?;
+        .map_err(|_| PostError::Duplicate)?;
 
     Ok(())
 }
@@ -51,8 +61,9 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
     path = "/",
     request_body = RoleWriteView,
     responses(
-        (status = 200, description = "Role deleted successfully"),
+        (status = 200, description = "Role created successfully"),
         (status = 400, description = "Bad request"),
+        (status = 409, description = "Duplicate role name"),
         (status = 500, description = "Internal server error")
     ),
     security(

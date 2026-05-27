@@ -71,7 +71,7 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
     delete,
     path = "/{id}",
     responses(
-        (status = 200, description = "Role deleted successfully"),
+        (status = 204, description = "Role deleted successfully"),
         (status = 403, description = "Role cannot be deleted"),
         (status = 404, description = "Resource not found"),
         (status = 500, description = "Internal server error")
@@ -89,5 +89,5 @@ pub async fn delete(
     state: web::Data<AppState>,
 ) -> Result<impl Responder, DeleteError> {
     delete_role(id.into_inner(), state).await?;
-    Ok(HttpResponse::Ok())
+    Ok(HttpResponse::NoContent())
 }

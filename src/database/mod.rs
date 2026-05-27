@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod auth;
 pub mod get_user_id;
 pub mod groups;

@@ -19,6 +19,5 @@ pub async fn can_add_access_query(
     {
         return Ok(true);
     }
-    eprintln!("TODO");
     Ok(false)
 }
