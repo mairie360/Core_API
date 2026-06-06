@@ -61,6 +61,9 @@ async fn patch_user(
 #[utoipa::path(
     patch,
     path = "",
+    params(
+        ("userId" = u64, Path, description = "Event ID")
+    ),
     responses(
         (status = 200, description = "User patched successfully"),
         (status = 400, description = "Invalid data provided"),

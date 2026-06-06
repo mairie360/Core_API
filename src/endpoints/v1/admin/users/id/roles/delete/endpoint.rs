@@ -56,15 +56,15 @@ async fn delete_user(
 
 #[utoipa::path(
     delete,
+    params(
+        ("roleId" = i32, Path, description = "ID du rôle"),
+        ("userId" = i32, Path, description = "ID de l'utilisateur")
+    ),
     path = "/{roleId}",
     responses(
         (status = 204, description = "Role deleted successfully"),
         (status = 404, description = "Resource not found"),
         (status = 500, description = "Internal server error")
-    ),
-    params(
-        ("roleId" = i32, Path, description = "ID du rôle"),
-        ("userId" = i32, Path, description = "ID de l'utilisateur")
     ),
     security(
         ("jwt" = [])

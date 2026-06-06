@@ -71,6 +71,9 @@ async fn get_group(
 #[utoipa::path(
     get,
     path = "",
+    params(
+        ("group_id" = u64, Path, description = "ID du groupe")
+    ),
     responses(
         (status = 200, body = GetGroupResultView),
         (status = 400, description = "Bad request"),

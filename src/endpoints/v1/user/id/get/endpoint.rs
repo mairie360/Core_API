@@ -56,6 +56,9 @@ async fn get_user(
 #[utoipa::path(
     get,
     path = "/",
+    params(
+        ("id" = u64, Path, description = "ID de l'utilisateur")
+    ),
     responses(
         (status = 200, description = "User retrieved successfully", body = GetUserResponseView),
         (status = 500, description = "Internal server error")

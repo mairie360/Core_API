@@ -54,6 +54,9 @@ async fn get_user(
 #[utoipa::path(
     get,
     path = "",
+    params(
+        ("userId" = u64, Path, description = "Event ID")
+    ),
     responses(
         (status = 200, description = "User retrieved successfully"),
         (status = 400, description = "Bad request"),

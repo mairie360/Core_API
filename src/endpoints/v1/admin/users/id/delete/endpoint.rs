@@ -49,6 +49,9 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
 #[utoipa::path(
     delete,
     path = "",
+    params(
+        ("userId" = u64, Path, description = "Event ID")
+    ),
     responses(
         (status = 200, description = "User is already deleted"),
         (status = 204, description = "User deleted successfully"),

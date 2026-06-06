@@ -55,8 +55,11 @@ async fn add_role_to_user(
 
 #[utoipa::path(
     post,
-    path = "/",
     request_body = AddRoleToUserView,
+    path = "/",
+    params(
+        ("userId" = u64, Path, description = "Event ID")
+    ),
     responses(
         (status = 200, description = "User role updated successfully"),
         (status = 400, description = "Bad request"),

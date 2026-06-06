@@ -64,6 +64,9 @@ async fn add_user_to_group(
 #[utoipa::path(
     post,
     path = "",
+    params(
+        ("group_id" = u64, Path, description = "ID du groupe")
+    ),
     request_body = PostUserGroupView,
     responses(
         (status = 200, description = "User added to group successfully"),

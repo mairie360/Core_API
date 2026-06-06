@@ -54,6 +54,9 @@ async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteG
 #[utoipa::path(
     delete,
     path = "",
+    params(
+        ("group_id" = u64, Path, description = "ID du groupe")
+    ),
     responses(
         (status = 204, description = "Group deleted successfully"),
         (status = 400, description = "Bad request"),

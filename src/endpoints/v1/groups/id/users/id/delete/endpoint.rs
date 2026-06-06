@@ -74,6 +74,10 @@ async fn delete_user_from_group(
 #[utoipa::path(
     delete,
     path = "/",
+    params(
+        ("group_id" = u64, Path, description = "ID du groupe"),
+        ("user_id" = u64, Path, description = "ID de l'utilisateur")
+    ),
     responses(
         (status = 204, description = "User deleted from group successfully"),
         (status = 400, description = "Bad request"),
