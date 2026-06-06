@@ -73,7 +73,7 @@ async fn patch_user(
     tag = "Admin - Users"
 )]
 #[patch("/")]
-pub async fn patch(
+pub async fn admin_patch_user(
     state: web::Data<AppState>,
     path: web::Path<u64>,
     view: web::Json<PatchUserView>,

@@ -33,7 +33,7 @@ impl ResponseError for PatchMeError {
     }
 }
 
-async fn patch_me(
+async fn trigger_patch_me(
     state: web::Data<AppState>,
     view: PatchMeView,
     user_id: u64,
@@ -70,11 +70,11 @@ async fn patch_me(
     )
 )]
 #[patch("/")]
-pub async fn patch(
+pub async fn patch_me(
     state: web::Data<AppState>,
     view: web::Json<PatchMeView>,
     auth_user: AuthenticatedUser,
 ) -> Result<impl Responder, PatchMeError> {
-    patch_me(state, view.into_inner(), auth_user.id).await?;
+    trigger_patch_me(state, view.into_inner(), auth_user.id).await?;
     Ok(HttpResponse::Ok())
 }

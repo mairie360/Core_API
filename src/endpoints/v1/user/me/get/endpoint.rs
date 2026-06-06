@@ -32,7 +32,10 @@ impl ResponseError for GetMeError {
     }
 }
 
-async fn get_me(state: web::Data<AppState>, user_id: u64) -> Result<GetMeResponseView, GetMeError> {
+async fn trigger_get_me(
+    state: web::Data<AppState>,
+    user_id: u64,
+) -> Result<GetMeResponseView, GetMeError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(GetMeError::DatabaseError),
@@ -60,10 +63,10 @@ async fn get_me(state: web::Data<AppState>, user_id: u64) -> Result<GetMeRespons
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_me(
     state: web::Data<AppState>,
     auth_user: AuthenticatedUser,
 ) -> Result<impl Responder, GetMeError> {
-    let me = get_me(state, auth_user.id).await?;
+    let me = trigger_get_me(state, auth_user.id).await?;
     Ok(HttpResponse::Ok().json(me))
 }

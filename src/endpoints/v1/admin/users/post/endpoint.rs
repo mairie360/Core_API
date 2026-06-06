@@ -133,7 +133,7 @@ async fn register_user(
     tag = "Admin - Users"
 )]
 #[post("/")]
-pub async fn post(
+pub async fn admin_post_user(
     payload: web::Json<CreateUserView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, CreateUserError> {

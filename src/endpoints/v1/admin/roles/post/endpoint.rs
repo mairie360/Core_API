@@ -68,10 +68,11 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Roles"
 )]
 #[post("/")]
-pub async fn post(
+pub async fn admin_post_role(
     payload: web::Json<RoleWriteView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, PostError> {

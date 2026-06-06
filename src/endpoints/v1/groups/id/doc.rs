@@ -1,5 +1,5 @@
-use super::delete::endpoint::__path_delete;
-use super::get::endpoint::__path_get;
+use super::delete::endpoint::__path_delete_group;
+use super::get::endpoint::__path_get_group;
 use super::users::doc::GroupsUsersDoc;
 use utoipa::OpenApi;
 
@@ -12,7 +12,7 @@ pub struct GroupsIdDoc;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, delete),
+    paths(get_group, delete_group),
     components(schemas(super::get::view::GetGroupResultView,))
 )]
 struct Doc;

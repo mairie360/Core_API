@@ -1,6 +1,6 @@
-use super::get::endpoint::__path_get;
+use super::get::endpoint::__path_get_groups;
 use super::id::doc::GroupsIdDoc;
-use super::post::endpoint::__path_post;
+use super::post::endpoint::__path_post_group;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
@@ -13,7 +13,7 @@ pub struct GroupsDoc;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(get, post),
+    paths(get_groups, post_group),
     components(schemas(
         super::get::view::GetGroupsResultView,
         super::post::view::PostGroupView,

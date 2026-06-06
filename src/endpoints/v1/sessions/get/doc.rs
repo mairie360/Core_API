@@ -3,7 +3,7 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(endpoint::get),
+    paths(endpoint::get_active_sessions),
     components(schemas(super::response_view::GetResponseView),)
 )]
 pub struct GetDoc;

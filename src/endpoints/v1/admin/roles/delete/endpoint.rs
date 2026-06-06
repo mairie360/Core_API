@@ -81,10 +81,11 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Roles"
 )]
 #[delete("/{id}")]
-pub async fn delete(
+pub async fn admin_delete_role(
     id: web::Path<u64>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, DeleteError> {

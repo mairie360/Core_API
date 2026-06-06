@@ -44,7 +44,7 @@ impl ResponseError for PostUserGroupError {
     }
 }
 
-async fn add_user_to_group(
+async fn trigger_add_user_to_group(
     state: web::Data<AppState>,
     view: PostUserGroupView,
 ) -> Result<(), PostUserGroupError> {
@@ -81,11 +81,11 @@ async fn add_user_to_group(
     )
 )]
 #[post("/")]
-pub async fn post(
+pub async fn add_user_to_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     view: web::Json<PostUserGroupView>,
 ) -> Result<impl Responder, PostUserGroupError> {
-    add_user_to_group(state, view.into_inner()).await?;
+    trigger_add_user_to_group(state, view.into_inner()).await?;
     Ok(HttpResponse::Ok().body("User added to group successfully"))
 }

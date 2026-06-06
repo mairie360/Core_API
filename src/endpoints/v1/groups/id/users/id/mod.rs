@@ -14,7 +14,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     id_param_pattern: Some("group_id"),
                 })
                 .wrap(from_fn(access_guard_middleware))
-                .service(delete::endpoint::delete), // On réutilise le service existant avec sa macro
+                .service(delete::endpoint::remove_user_from_group), // On réutilise le service existant avec sa macro
         ),
     );
 }

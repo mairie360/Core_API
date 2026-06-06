@@ -66,7 +66,7 @@ async fn get_user(
     tag = "Admin - Users"
 )]
 #[get("/")]
-pub async fn get(
+pub async fn admin_get_user(
     state: web::Data<AppState>,
     path: web::Path<u64>,
 ) -> Result<impl Responder, GetUserError> {

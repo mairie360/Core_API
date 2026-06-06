@@ -1,6 +1,6 @@
-use super::delete::endpoint::__path_delete;
+use super::delete::endpoint::__path_remove_user_from_group;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
-#[openapi(paths(delete), components(schemas()))]
+#[openapi(paths(remove_user_from_group), components(schemas()))]
 pub struct GroupsUsersIdDoc;

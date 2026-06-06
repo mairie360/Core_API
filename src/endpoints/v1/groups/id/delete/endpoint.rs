@@ -37,7 +37,7 @@ impl ResponseError for DeleteGroupError {
     }
 }
 
-async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteGroupError> {
+async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteGroupError> {
     let pool = match state.db_pool.clone() {
         Some(pool) => pool,
         None => return Err(DeleteGroupError::DatabaseError),
@@ -71,11 +71,11 @@ async fn delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteG
     )
 )]
 #[delete("/")]
-pub async fn delete(
+pub async fn delete_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
 ) -> Result<impl Responder, DeleteGroupError> {
-    delete_group(state, id.into_inner()).await?;
+    trigger_delete_group(state, id.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }

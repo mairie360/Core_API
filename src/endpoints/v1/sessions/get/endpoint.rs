@@ -107,7 +107,7 @@ async fn get_user_info(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_active_sessions(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, GetError> {

@@ -80,10 +80,11 @@ async fn patch_role(
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Roles"
 )]
 #[patch("/{id}")]
-pub async fn patch(
+pub async fn admin_patch_role(
     id: web::Path<u64>,
     payload: web::Json<PatchView>,
     state: web::Data<AppState>,

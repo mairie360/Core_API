@@ -9,8 +9,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/{userId}")
             .configure(roles::config)
-            .service(delete::endpoint::delete)
-            .service(patch::endpoint::patch)
-            .service(get::endpoint::get),
+            .service(delete::endpoint::admin_delete_user)
+            .service(patch::endpoint::admin_patch_user)
+            .service(get::endpoint::admin_get_user),
     );
 }

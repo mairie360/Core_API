@@ -43,7 +43,7 @@ impl ResponseError for GetGroupError {
     }
 }
 
-async fn get_group(
+async fn trigger_get_group(
     state: web::Data<AppState>,
     id: u64,
 ) -> Result<GetGroupResultView, GetGroupError> {
@@ -87,11 +87,11 @@ async fn get_group(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
 ) -> Result<impl Responder, GetGroupError> {
-    let result = get_group(state, id.into_inner()).await?;
+    let result = trigger_get_group(state, id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

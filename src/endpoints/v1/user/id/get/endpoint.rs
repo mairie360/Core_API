@@ -36,7 +36,7 @@ impl ResponseError for GetUserError {
     }
 }
 
-async fn get_user(
+async fn trigger_get_user(
     state: web::Data<AppState>,
     id: u64,
 ) -> Result<GetUserResponseView, GetUserError> {
@@ -69,10 +69,10 @@ async fn get_user(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_user(
     state: web::Data<AppState>,
     id: web::Path<String>,
 ) -> Result<impl Responder, GetUserError> {
-    let user = get_user(state, id.parse::<u64>().unwrap_or(0)).await?;
+    let user = trigger_get_user(state, id.parse::<u64>().unwrap_or(0)).await?;
     Ok(HttpResponse::Ok().json(user))
 }

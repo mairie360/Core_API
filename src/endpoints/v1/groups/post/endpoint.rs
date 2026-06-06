@@ -71,7 +71,7 @@ async fn create_group(
     )
 )]
 #[post("/")]
-pub async fn post(
+pub async fn post_group(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
     view: web::Json<PostGroupView>,

@@ -51,10 +51,11 @@ async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetErr
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Roles"
 )]
 #[get("/")]
-pub async fn get(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
+pub async fn admin_get_role(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
     let roles = get_roles(state).await?;
     Ok(HttpResponse::Ok().json(roles))
 }

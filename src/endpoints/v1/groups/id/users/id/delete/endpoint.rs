@@ -91,7 +91,7 @@ async fn delete_user_from_group(
     )
 )]
 #[delete("/")]
-pub async fn delete(
+pub async fn remove_user_from_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     path: web::Path<(u64, u64)>,

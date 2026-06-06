@@ -61,7 +61,7 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
     tag = "Admin - Users"
 )]
 #[delete("/")]
-pub async fn delete(
+pub async fn admin_delete_user(
     state: web::Data<AppState>,
     path: web::Path<u64>,
 ) -> Result<impl Responder, DeleteUserError> {

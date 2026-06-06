@@ -171,7 +171,7 @@ async fn login_user(
         (status = 412, description = "User needs to change password because first login"),
         (status = 500, description = "Internal server error")
     ),
-    tag = "Authentication"
+    tag = "Auth"
 )]
 #[post("/login")]
 pub async fn login(

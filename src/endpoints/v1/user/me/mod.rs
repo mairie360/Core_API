@@ -7,7 +7,7 @@ pub mod patch;
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/me")
-            .service(get::endpoint::get)
-            .service(patch::endpoint::patch),
+            .service(get::endpoint::get_me)
+            .service(patch::endpoint::patch_me),
     );
 }

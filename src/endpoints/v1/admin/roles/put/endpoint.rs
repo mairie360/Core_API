@@ -80,10 +80,11 @@ async fn put_role(
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Roles"
 )]
 #[put("/{id}")]
-pub async fn put(
+pub async fn admin_put_role(
     id: web::Path<u64>,
     payload: web::Json<RoleWriteView>,
     state: web::Data<AppState>,

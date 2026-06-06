@@ -71,7 +71,7 @@ async fn add_role_to_user(
     )
 )]
 #[post("/")]
-pub async fn post(
+pub async fn admin_add_role_to_user(
     state: web::Data<AppState>,
     view: web::Json<AddRoleToUserView>,
 ) -> Result<impl Responder, AddRoleToUserError> {

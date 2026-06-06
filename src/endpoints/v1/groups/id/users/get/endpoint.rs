@@ -43,7 +43,7 @@ impl ResponseError for GetUsersGroupError {
     }
 }
 
-async fn get_group_users(
+async fn trigger_get_group_users(
     state: web::Data<AppState>,
     group_id: i32,
 ) -> Result<GetGroupUsersResultView, GetUsersGroupError> {
@@ -87,11 +87,11 @@ async fn get_group_users(
     )
 )]
 #[get("/")]
-pub async fn get(
+pub async fn get_group_users(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     group_id: web::Path<i32>,
 ) -> Result<impl Responder, GetUsersGroupError> {
-    let result = get_group_users(state, group_id.into_inner()).await?;
+    let result = trigger_get_group_users(state, group_id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

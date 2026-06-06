@@ -2,5 +2,5 @@ use crate::endpoints::v1::admin::users::id::delete::endpoint;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
-#[openapi(paths(endpoint::delete))]
+#[openapi(paths(endpoint::admin_delete_user))]
 pub struct DeleteUserDoc;

@@ -71,7 +71,7 @@ async fn delete_user(
     )
 )]
 #[delete("/{roleId}")]
-pub async fn delete(
+pub async fn admin_delete_user_role(
     state: web::Data<AppState>,
     params: web::Path<(u64, u64)>,
 ) -> Result<impl Responder, RemoveUserRoleError> {

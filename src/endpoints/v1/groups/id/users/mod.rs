@@ -11,7 +11,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/users")
             .configure(id::config)
-            .service(get::endpoint::get)
+            .service(get::endpoint::get_group_users)
             .service(
                 web::scope("")
                     .app_data(AccessCheckConfig {
@@ -20,7 +20,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                         id_param_pattern: Some("group_id"),
                     })
                     .wrap(from_fn(access_guard_middleware))
-                    .service(post::endpoint::post), // On réutilise le service existant avec sa macro
+                    .service(post::endpoint::add_user_to_group), // On réutilise le service existant avec sa macro
             ),
     );
 }

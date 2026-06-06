@@ -31,7 +31,7 @@ impl ResponseError for GetError {
     }
 }
 
-async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
+async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
     let view = GetRolesQueryView {};
     let result = get_roles_query(view, state.db_pool.clone().unwrap())
         .await
@@ -55,7 +55,7 @@ async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetErr
     )
 )]
 #[get("/")]
-pub async fn get(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
-    let roles = get_roles(state).await?;
+pub async fn get_roles(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
+    let roles = trigger_get_roles(state).await?;
     Ok(HttpResponse::Ok().json(roles))
 }
