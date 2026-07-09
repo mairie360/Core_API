@@ -4,7 +4,7 @@ module.exports = {
     output: {
       mode: 'tags-split', // C'EST LA CLÉ : un fichier par Tag (Roles, Sessions, etc.)
       target: 'generated/endpoints',
-      schemas: 'generated/model', // Met tous les types/interfaces ici
+      schemas: 'generated/models', // Met tous les types/interfaces ici
       client: 'axios', // ou 'fetch', 'axios' selon ton besoin
       mock: false,
     },
