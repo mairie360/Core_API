@@ -42,7 +42,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-3bea6eb
+    image: ghcr.io/mairie360/database:1.0.0
     restart: always
     container_name: mairie360-db-core-api
     environment:
@@ -62,7 +62,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-3bea6eb
+    image: ghcr.io/mairie360/liquibase-migrations:1.0.0
     container_name: mairie360-liquibase-core-api
     depends_on:
       postgres:
