@@ -14,7 +14,7 @@ mairie360_api_lib = "1.0.0"
 rand = "0.10"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-sqlx = { version = "0.8.0", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
+sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 tokio = { version = "1.50.1", features = ["full"] }
 tokio-postgres = "0.7.17"
 utoipa = { version = "5", features = ["actix_extras", "yaml"] }
