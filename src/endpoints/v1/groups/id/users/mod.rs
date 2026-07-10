@@ -11,7 +11,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/users")
             .configure(id::config)
-            .service(get::endpoint::get_group_users)
+            .service(get::endpoint::get_group_members)
             .service(
                 web::scope("")
                     .app_data(AccessCheckConfig {

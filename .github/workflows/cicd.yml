@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@main
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@1.7.1
     permissions:
           contents: write
           packages: write
@@ -19,5 +19,5 @@ jobs:
       postman_collection: ${{ vars.POSTMAN_CORE_API_COLLECTION_ID }}
       postman_environment: ${{ vars.POSTMAN_CORE_API_ENV_ID }}
       package_name: core-api
-      cicd_version: main
+      cicd_version: 1.7.1
     secrets: inherit

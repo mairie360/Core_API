@@ -1,11 +1,11 @@
-use super::get::endpoint::__path_get_group_users;
+use super::get::endpoint::__path_get_group_members;
 use super::id::doc::GroupsUsersIdDoc;
 use super::post::endpoint::__path_add_user_to_group;
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(add_user_to_group, get_group_users),
+    paths(add_user_to_group, get_group_members),
     components(schemas(
         super::get::view::GetGroupUsersResultView,
         super::post::view::PostUserGroupView

@@ -18,7 +18,7 @@ impl GetGroupUsersQueryView {
 
 impl DatabaseQueryView for GetGroupUsersQueryView {
     fn get_request(&self) -> String {
-        "SELECT user_id FROM group_users WHERE group_id = $1".to_string()
+        "SELECT user_id FROM group_members WHERE group_id = $1".to_string()
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
-use crate::database::groups::get_group_users::{get_group_users_query, GetGroupUsersQueryView};
+use crate::database::groups::get_group_members::{get_group_members_query, GetGroupUsersQueryView};
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -43,7 +43,7 @@ impl ResponseError for GetUsersGroupError {
     }
 }
 
-async fn trigger_get_group_users(
+async fn trigger_get_group_members(
     state: web::Data<AppState>,
     group_id: i32,
 ) -> Result<GetGroupUsersResultView, GetUsersGroupError> {
@@ -61,7 +61,7 @@ async fn trigger_get_group_users(
     }
 
     let view = GetGroupUsersQueryView::new(group_id as u64);
-    let result = get_group_users_query(view, pool)
+    let result = get_group_members_query(view, pool)
         .await
         .map_err(|_| GetUsersGroupError::BadRequest)?;
 
@@ -87,11 +87,11 @@ async fn trigger_get_group_users(
     )
 )]
 #[get("/")]
-pub async fn get_group_users(
+pub async fn get_group_members(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     group_id: web::Path<i32>,
 ) -> Result<impl Responder, GetUsersGroupError> {
-    let result = trigger_get_group_users(state, group_id.into_inner()).await?;
+    let result = trigger_get_group_members(state, group_id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

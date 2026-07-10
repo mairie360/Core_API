@@ -23,7 +23,7 @@ impl DeleteUserFromGroupQueryView {
 
 impl DatabaseQueryView for DeleteUserFromGroupQueryView {
     fn get_request(&self) -> String {
-        "DELETE FROM group_users WHERE group_id = $1 AND user_id = $2".to_string()
+        "DELETE FROM group_members WHERE group_id = $1 AND user_id = $2".to_string()
     }
 }
 
