@@ -144,7 +144,7 @@ services:
       start_period: 90s
 
   mailpit:
-    image: axllent/mailpit:v1.15
+    image: axllent/mailpit:v1.30
     container_name: mairie360-mailpit
     restart: always
     ports:
