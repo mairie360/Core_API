@@ -23,7 +23,8 @@ impl IsUserMemberQueryView {
 
 impl DatabaseQueryView for IsUserMemberQueryView {
     fn get_request(&self) -> String {
-        "SELECT EXISTS (SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2)".to_string()
+        "SELECT EXISTS (SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2)"
+            .to_string()
     }
 }
 
