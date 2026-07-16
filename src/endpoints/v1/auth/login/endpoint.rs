@@ -167,8 +167,8 @@ async fn login_user(
     request_body = LoginView,
     responses(
         (status = 200, description = "User login successfully!", body = LoginResponseView),
-        (status = 401, description = "Invalid credentials provided.", body = LoginFirstConnectionResponseView),
-        (status = 412, description = "User needs to change password because first login"),
+        (status = 401, description = "Invalid credentials provided."),
+        (status = 412, description = "User needs to change password because first login", body = LoginFirstConnectionResponseView),
         (status = 500, description = "Internal server error")
     ),
     tag = "Auth"

@@ -7,10 +7,10 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/force-change-password", api = ForceChangePasswordDoc, tags = ["Auth"]),
-    (path = "/forgot-password", api = ForgotPasswordDoc, tags = ["Auth"]),
+    (path = "/force_change_password", api = ForceChangePasswordDoc, tags = ["Auth"]),
+    (path = "/forgot_password", api = ForgotPasswordDoc, tags = ["Auth"]),
     (path = "/register", api = RegisterDoc, tags = ["Auth"]),
     (path = "/login", api = LoginDoc, tags = ["Auth"]),
-    (path = "/reset-password", api = ResetPasswordDoc, tags = ["Auth"]),
+    (path = "/reset_password", api = ResetPasswordDoc, tags = ["Auth"]),
 ))]
 pub struct AuthDoc;
