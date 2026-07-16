@@ -8,7 +8,7 @@ pub struct GetMeResponseView {
     first_name: String,
     last_name: String,
     email: String,
-    phone: String,
+    phone: Option<String>,
     status: String,
 }
 
@@ -17,7 +17,7 @@ impl GetMeResponseView {
         first_name: String,
         last_name: String,
         email: String,
-        phone: String,
+        phone: Option<String>,
         status: String,
     ) -> Self {
         GetMeResponseView {
@@ -41,8 +41,8 @@ impl GetMeResponseView {
         &self.email
     }
 
-    pub fn phone(&self) -> &str {
-        &self.phone
+    pub fn phone(&self) -> Option<&str> {
+        self.phone.as_deref()
     }
 
     pub fn status(&self) -> &str {
@@ -54,7 +54,7 @@ impl Display for GetMeResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GetMeResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {}, status: {} }}",
+            "GetMeResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {:?}, status: {} }}",
             self.first_name,
             self.last_name,
             self.email,
@@ -70,7 +70,7 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
             first_name: query_result.first_name().to_string(),
             last_name: query_result.last_name().to_string(),
             email: query_result.email().to_string(),
-            phone: query_result.phone_number().to_string(),
+            phone: query_result.phone_number().map(|p| p.to_string()),
             status: query_result.status().to_string(),
         }
     }

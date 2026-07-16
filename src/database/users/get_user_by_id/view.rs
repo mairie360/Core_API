@@ -34,7 +34,7 @@ pub struct GetUserByIdQueryResultView {
     first_name: String,
     last_name: String,
     email: String,
-    phone_number: String,
+    phone_number: Option<String>,
     status: String,
     is_archived: bool,
 }
@@ -44,7 +44,7 @@ impl GetUserByIdQueryResultView {
         first_name: &str,
         last_name: &str,
         email: &str,
-        phone_number: &str,
+        phone_number: Option<&str>,
         status: &str,
         is_archived: bool,
     ) -> Self {
@@ -52,7 +52,7 @@ impl GetUserByIdQueryResultView {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
-            phone_number: phone_number.to_string(),
+            phone_number: phone_number.map(|p| p.to_string()),
             status: status.to_string(),
             is_archived,
         }
@@ -74,8 +74,8 @@ impl GetUserByIdQueryResultView {
         &self.email
     }
 
-    pub fn phone_number(&self) -> &str {
-        &self.phone_number
+    pub fn phone_number(&self) -> Option<&str> {
+        self.phone_number.as_deref()
     }
 
     pub fn status(&self) -> &str {
