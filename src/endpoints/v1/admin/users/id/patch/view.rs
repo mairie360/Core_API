@@ -8,6 +8,7 @@ pub struct PatchUserView {
     last_name: Option<String>,
     email: Option<String>,
     phone_number: Option<String>,
+    password: Option<String>,
 }
 
 impl PatchUserView {
@@ -26,17 +27,22 @@ impl PatchUserView {
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }
+
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
+    }
 }
 
 impl Display for PatchUserView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {:?} }}",
+            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {:?}, password: {:?} }}",
             self.first_name.as_deref().unwrap_or(""),
             self.last_name.as_deref().unwrap_or(""),
             self.email.as_deref().unwrap_or(""),
-            self.phone_number.as_deref().unwrap_or("")
+            self.phone_number.as_deref().unwrap_or(""),
+            self.password.as_deref().unwrap_or("")
         )
     }
 }

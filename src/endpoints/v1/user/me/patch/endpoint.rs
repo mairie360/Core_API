@@ -49,6 +49,7 @@ async fn trigger_patch_me(
         view.last_name(),
         view.email(),
         view.phone(),
+        None,
     );
     patch_user_query(db_view, &pool).await.map_err(|e| {
         eprintln!("Error: {:?}", e);

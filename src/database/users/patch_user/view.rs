@@ -7,6 +7,7 @@ pub struct PatchUserQueryView {
     last_name: Option<String>,
     email: Option<String>,
     phone_number: Option<String>,
+    password: Option<String>,
 }
 
 impl PatchUserQueryView {
@@ -16,6 +17,7 @@ impl PatchUserQueryView {
         last_name: Option<&str>,
         email: Option<&str>,
         phone_number: Option<&str>,
+        password: Option<&str>,
     ) -> Self {
         Self {
             id,
@@ -23,6 +25,7 @@ impl PatchUserQueryView {
             last_name: last_name.map(|s| s.to_string()),
             email: email.map(|s| s.to_string()),
             phone_number: phone_number.map(|s| s.to_string()),
+            password: password.map(|s| s.to_string()),
         }
     }
 
@@ -42,6 +45,9 @@ impl PatchUserQueryView {
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
+    }
 }
 
 impl DatabaseQueryView for PatchUserQueryView {
@@ -59,6 +65,9 @@ impl DatabaseQueryView for PatchUserQueryView {
         if let Some(phone_number) = &self.phone_number {
             request.push_str(&format!("phone_number = '{}', ", phone_number));
         }
+        if let Some(password) = &self.password {
+            request.push_str(&format!("password = '{}', ", password));
+        }
         request.push_str(&format!("WHERE id = {}", self.id));
         request.push_str(" RETURNING true");
         request
@@ -68,8 +77,8 @@ impl DatabaseQueryView for PatchUserQueryView {
 impl Display for PatchUserQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.phone_number {
-            Some(_) => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}, phone_number = {:?}", self.id(), self.first_name(), self.last_name(), self.email(), self.phone_number()),
-            None => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}", self.id(), self.first_name(), self.last_name(), self.email()),
+            Some(_) => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}, phone_number = {:?}, password = {:?}", self.id(), self.first_name(), self.last_name(), self.email(), self.phone_number(), self.password()),
+            None => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}, password = {:?}", self.id(), self.first_name(), self.last_name(), self.email(), self.password()),
         }
     }
 }

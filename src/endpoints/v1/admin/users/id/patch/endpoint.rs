@@ -50,6 +50,7 @@ async fn patch_user(
         view.last_name().as_deref(),
         view.email().as_deref(),
         view.phone_number().as_deref(),
+        view.password().as_deref(),
     );
     patch_user_query(view, &pool)
         .await
