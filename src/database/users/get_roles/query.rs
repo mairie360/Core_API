@@ -1,10 +1,10 @@
-use crate::database::users::get_roles::GetUserRolesdQueryView;
+use crate::database::users::get_roles::GetUserRolesQueryView;
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;
 
 pub async fn get_user_roles_query(
-    view: GetUserRolesdQueryView,
+    view: GetUserRolesQueryView,
     pool: PgPool,
 ) -> Result<Vec<i32>, DatabaseError> {
     let result = sqlx::query_scalar::<_, i32>(&view.get_request())

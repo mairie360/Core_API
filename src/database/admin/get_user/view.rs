@@ -1,4 +1,4 @@
-use crate::database::sessions::Session;
+use crate::database::{groups::get_group::Group, sessions::Session};
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -83,14 +83,21 @@ impl Display for User {
 pub struct AdminGetUserQueryResultView {
     user: User,
     roles: Vec<RoleQueryResult>,
+    groups: Vec<Group>,
     sessions: Vec<Session>,
 }
 
 impl AdminGetUserQueryResultView {
-    pub fn new(user: User, roles: Vec<RoleQueryResult>, sessions: Vec<Session>) -> Self {
+    pub fn new(
+        user: User,
+        roles: Vec<RoleQueryResult>,
+        groups: Vec<Group>,
+        sessions: Vec<Session>,
+    ) -> Self {
         Self {
             user,
             roles,
+            groups,
             sessions,
         }
     }
@@ -103,6 +110,10 @@ impl AdminGetUserQueryResultView {
         &self.roles
     }
 
+    pub fn groups(&self) -> Vec<Group> {
+        self.groups.clone()
+    }
+
     pub fn sessions(&self) -> &Vec<Session> {
         &self.sessions
     }
@@ -112,8 +123,8 @@ impl Display for AdminGetUserQueryResultView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "AdminGetUserQueryResultView: user: {:?}, roles: {:?}, sessions: {:?}",
-            self.user, self.roles, self.sessions
+            "AdminGetUserQueryResultView: user: {:?}, roles: {:?}, groups: {:?}, sessions: {:?}",
+            self.user, self.roles, self.groups, self.sessions
         )
     }
 }

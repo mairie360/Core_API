@@ -1,4 +1,6 @@
-use crate::database::users::get_user_by_id::GetUserByIdQueryResultView;
+use crate::database::{
+    groups::get_group::Group, users::get_user_by_id::GetUserByIdQueryResultView,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -10,22 +12,28 @@ pub struct GetMeResponseView {
     email: String,
     phone: Option<String>,
     status: String,
+    role: String,
+    groups: Vec<Group>,
 }
 
 impl GetMeResponseView {
     pub fn new(
-        first_name: String,
-        last_name: String,
-        email: String,
-        phone: Option<String>,
-        status: String,
+        first_name: &str,
+        last_name: &str,
+        email: &str,
+        phone: Option<&str>,
+        status: &str,
+        role: &str,
+        groups: Vec<Group>,
     ) -> Self {
         GetMeResponseView {
-            first_name,
-            last_name,
-            email,
-            phone,
-            status,
+            first_name: first_name.to_string(),
+            last_name: last_name.to_string(),
+            email: email.to_string(),
+            phone: phone.map(|p| p.to_string()),
+            status: status.to_string(),
+            role: role.to_string(),
+            groups,
         }
     }
 
@@ -48,18 +56,28 @@ impl GetMeResponseView {
     pub fn status(&self) -> &str {
         &self.status
     }
+
+    pub fn role(&self) -> &str {
+        &self.role
+    }
+
+    pub fn groups(&self) -> &[Group] {
+        &self.groups
+    }
 }
 
 impl Display for GetMeResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GetMeResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {:?}, status: {} }}",
+            "GetMeResponseView {{ first_name: {}, last_name: {}, email: {}, phone: {:?}, status: {}, role: {}, groups: {} }}",
             self.first_name,
             self.last_name,
             self.email,
             self.phone,
-            self.status
+            self.status,
+            self.role,
+            self.groups.len(),
         )
     }
 }
@@ -72,6 +90,8 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
             email: query_result.email().to_string(),
             phone: query_result.phone_number().map(|p| p.to_string()),
             status: query_result.status().to_string(),
+            role: "".to_string(),
+            groups: Vec::new(),
         }
     }
 }

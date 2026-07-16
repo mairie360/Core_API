@@ -1,11 +1,11 @@
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use std::fmt::Display;
 
-pub struct GetUserRolesdQueryView {
+pub struct GetUserRolesQueryView {
     id: u64,
 }
 
-impl GetUserRolesdQueryView {
+impl GetUserRolesQueryView {
     pub fn new(id: u64) -> Self {
         Self { id }
     }
@@ -15,14 +15,14 @@ impl GetUserRolesdQueryView {
     }
 }
 
-impl DatabaseQueryView for GetUserRolesdQueryView {
+impl DatabaseQueryView for GetUserRolesQueryView {
     fn get_request(&self) -> String {
         "SELECT role_id FROM user_roles WHERE user_id = $1".to_string()
     }
 }
 
-impl Display for GetUserRolesdQueryView {
+impl Display for GetUserRolesQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetUserRolesdQueryView: id = {}", self.id)
+        write!(f, "GetUserRolesQueryView: id = {}", self.id)
     }
 }

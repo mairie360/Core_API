@@ -1,12 +1,13 @@
 use crate::database::admin::get_user::view::{
     AdminGetUserQueryResultView, AdminGetUserQueryView, RoleQueryResult, User,
 };
+use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
 use crate::database::roles::get_roles_by_id::{get_roles_by_id_query, GetRolesByIdQueryView, Role};
 use crate::database::sessions::get_sessions_by_user::{
     get_sessions_by_user_query, GetSessionsByUserQueryView,
 };
 use crate::database::sessions::Session;
-use crate::database::users::get_roles::{get_user_roles_query, GetUserRolesdQueryView};
+use crate::database::users::get_roles::{get_user_roles_query, GetUserRolesQueryView};
 use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use mairie360_api_lib::database::errors::DatabaseError;
 use sqlx::PgPool;
@@ -20,7 +21,7 @@ pub async fn get_user_query(
         .fetch_one(&pool)
         .await?;
 
-    let roles_id_view = GetUserRolesdQueryView::new(view.user_id());
+    let roles_id_view = GetUserRolesQueryView::new(view.user_id());
     let roles_id: &Vec<i32> = &get_user_roles_query(roles_id_view, pool.clone()).await?;
     let roles = get_roles_by_id_query(GetRolesByIdQueryView::new(roles_id.clone()), pool.clone());
 
@@ -37,7 +38,9 @@ pub async fn get_user_query(
         ));
     }
     let sessions: Vec<Session> = sessions.await?;
-    let result = AdminGetUserQueryResultView::new(user, roles, sessions);
+    let view = GetUserGroupsQuerView::new(view.user_id());
+    let groups = get_user_groups(view, pool.clone()).await?;
+    let result = AdminGetUserQueryResultView::new(user, roles, groups, sessions);
 
     Ok(result)
 }

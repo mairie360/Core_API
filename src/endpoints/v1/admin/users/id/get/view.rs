@@ -1,5 +1,6 @@
 use crate::database::{
     admin::get_user::view::{AdminGetUserQueryResultView, RoleQueryResult, User},
+    groups::get_group::Group,
     sessions::Session,
 };
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,7 @@ impl From<&RoleQueryResult> for RoleResultView {
 pub struct GetUserResultView {
     user: User,
     roles: Vec<RoleResultView>,
+    groups: Vec<Group>,
     sessions: Vec<SessionResultView>,
 }
 
@@ -57,9 +59,10 @@ impl Display for GetUserResultView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GetUserResultView {{ user: {}, roles: {}, sessions: {} }}",
+            "GetUserResultView {{ user: {}, roles: {}, groups: {}, sessions: {} }}",
             self.user,
             self.roles.len(),
+            self.groups.len(),
             self.sessions.len()
         )
     }
@@ -70,6 +73,7 @@ impl From<AdminGetUserQueryResultView> for GetUserResultView {
         Self {
             user: value.user().clone(),
             roles: value.roles().into_iter().map(|r| r.into()).collect(),
+            groups: value.groups().into_iter().map(|g| g.into()).collect(),
             sessions: value.sessions().into_iter().map(|s| s.into()).collect(),
         }
     }

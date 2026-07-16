@@ -1,3 +1,6 @@
+use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
+use crate::database::roles::get_roles_by_id::{get_roles_by_id_query, GetRolesByIdQueryView};
+use crate::database::users::get_roles::{get_user_roles_query, GetUserRolesQueryView};
 use crate::database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQueryView};
 use crate::endpoints::v1::user::id::get::view::GetUserResponseView;
 use actix_web::http::StatusCode;
@@ -46,11 +49,40 @@ async fn trigger_get_user(
     };
 
     let view = GetUserByIdQueryView::new(id);
-    let result = get_user_by_id_query(view, pool)
+    let result = get_user_by_id_query(view, pool.clone())
         .await
-        .map_err(|_| GetUserError::UnknownUser)?;
+        .map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetUserError::UnknownUser
+        })?;
+    let view = GetUserGroupsQuerView::new(id);
+    let groups = get_user_groups(view, pool.clone()).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetUserError::DatabaseError
+    })?;
+    let role = GetUserRolesQueryView::new(id);
+    let role_id = get_user_roles_query(role, pool.clone())
+        .await
+        .map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetUserError::DatabaseError
+        })?;
+    let view = GetRolesByIdQueryView::new(role_id);
+    let role = get_roles_by_id_query(view, pool).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetUserError::DatabaseError
+    })?;
 
-    Ok(result.into())
+    Ok(GetUserResponseView::new(
+        result.first_name(),
+        result.last_name(),
+        result.email(),
+        result.phone_number(),
+        result.status(),
+        result.is_archived(),
+        role[0].name(),
+        groups,
+    ))
 }
 
 #[utoipa::path(
