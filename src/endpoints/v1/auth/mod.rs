@@ -30,7 +30,7 @@ pub async fn revoke_previous_session(
     ip_adress: &std::net::IpAddr,
     device_info: &str,
 ) {
-    let view = RevokePreviousSessionQueryView::new(user_id, ip_adress.clone(), device_info);
+    let view = RevokePreviousSessionQueryView::new(user_id, *ip_adress, device_info);
     revoke_previous_session_query(view, state.db_pool.clone().unwrap())
         .await
         .map_err(|e| {

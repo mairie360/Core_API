@@ -11,7 +11,6 @@ use std::net::IpAddr;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RefreshError {
-    BadRequest,
     DatabaseError,
     InvalidToken,
 }
@@ -23,7 +22,6 @@ impl std::fmt::Display for RefreshError {
             RefreshError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            RefreshError::BadRequest => write!(f, "Invalid request"),
         }
     }
 }
@@ -33,7 +31,6 @@ impl ResponseError for RefreshError {
         match self {
             RefreshError::InvalidToken => StatusCode::UNAUTHORIZED,
             RefreshError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            RefreshError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -56,8 +53,8 @@ async fn refresh_request(
 
     match is_valid {
         Ok(true) => generate_jwt(&user_id.to_string()).map_err(|_| RefreshError::DatabaseError),
-        Ok(false) => return Err(RefreshError::InvalidToken),
-        Err(_) => return Err(RefreshError::DatabaseError),
+        Ok(false) => Err(RefreshError::InvalidToken),
+        Err(_) => Err(RefreshError::DatabaseError),
     }
 }
 
@@ -80,10 +77,7 @@ pub async fn refresh(
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RefreshError> {
-    let view = match body.into_inner().try_into() {
-        Ok(view) => view,
-        Err(_) => return Err(RefreshError::BadRequest),
-    };
+    let view = body.into_inner();
 
     let ip_adress = request
         .connection_info()

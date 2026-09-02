@@ -58,7 +58,7 @@ async fn get_user_id(state: web::Data<AppState>, email: &str) -> Result<u64, Res
         Some(pool) => pool,
         None => return Err(ResetPasswordError::DatabaseError),
     };
-    let view = GetUserIdQueryView::new(&email);
+    let view = GetUserIdQueryView::new(email);
     match get_user_id_query(view, pool.clone()).await {
         Ok(user_id) => Ok(user_id as u64),
         Err(_) => Err(ResetPasswordError::DatabaseError),
@@ -151,11 +151,9 @@ pub async fn reset_password(
     conn: ConnectionInfo,
 ) -> Result<impl Responder, ResetPasswordError> {
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
-    let ip_address = std::net::IpAddr::from(
-        ip_str
+    let ip_address = ip_str
             .parse::<std::net::IpAddr>()
-            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-    );
+            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
     let (jwt, refresh_token) = reset_password_trigger(state, body.into_inner(), ip_address).await?;
 
     Ok(HttpResponse::Ok()

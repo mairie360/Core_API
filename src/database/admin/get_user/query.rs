@@ -33,7 +33,7 @@ pub async fn get_user_query(
     for i in 0..roles_result.len() {
         roles.push(RoleQueryResult::new(
             roles_id[i],
-            &roles_result[i].name(),
+            roles_result[i].name(),
             roles_result[i].description(),
         ));
     }

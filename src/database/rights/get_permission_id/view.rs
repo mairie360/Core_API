@@ -15,7 +15,7 @@ pub enum PermissionAction {
 }
 
 impl PermissionAction {
-    fn to_string(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             PermissionAction::Create => "create",
             PermissionAction::Read => "read",
@@ -26,6 +26,12 @@ impl PermissionAction {
             PermissionAction::DeleteAll => "delete_all",
             PermissionAction::Error => "error",
         }
+    }
+}
+
+impl Display for PermissionAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -41,12 +47,6 @@ impl From<String> for PermissionAction {
             "delete_all" => PermissionAction::DeleteAll,
             _ => PermissionAction::Error,
         }
-    }
-}
-
-impl Display for PermissionAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
     }
 }
 

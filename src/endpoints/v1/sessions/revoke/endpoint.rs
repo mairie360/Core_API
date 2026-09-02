@@ -16,7 +16,6 @@ use mairie360_api_lib::pool::AppState;
 #[derive(Debug, Clone, PartialEq)]
 enum RevokeError {
     InvalidToken,
-    BadRequest,
     DatabaseError,
 }
 
@@ -29,9 +28,6 @@ impl std::fmt::Display for RevokeError {
             RevokeError::InvalidToken => {
                 write!(f, "Session not found.")
             }
-            RevokeError::BadRequest => {
-                write!(f, "Bad request.")
-            }
         }
     }
 }
@@ -41,7 +37,6 @@ impl ResponseError for RevokeError {
         match self {
             RevokeError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             RevokeError::InvalidToken => StatusCode::UNAUTHORIZED,
-            RevokeError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -80,7 +75,6 @@ async fn revoke_request(
     request_body = RevokeRequestView,
     responses(
         (status = 200, description = "Token revoked successfully"),
-        (status = 400, description = "Bad request"),
         (status = 401, description = "Unauthorized, invalid token or user not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -96,10 +90,7 @@ pub async fn revoke(
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RevokeError> {
-    let view = match body.into_inner().try_into() {
-        Ok(view) => view,
-        Err(_) => return Err(RevokeError::BadRequest),
-    };
+    let view = body.into_inner();
 
     let ip_adress = request
         .connection_info()

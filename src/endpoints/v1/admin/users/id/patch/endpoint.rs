@@ -46,11 +46,11 @@ async fn patch_user(
 
     let view = PatchUserQueryView::new(
         user_id,
-        view.first_name().as_deref(),
-        view.last_name().as_deref(),
-        view.email().as_deref(),
-        view.phone_number().as_deref(),
-        view.password().as_deref(),
+        view.first_name(),
+        view.last_name(),
+        view.email(),
+        view.phone_number(),
+        view.password(),
     );
     patch_user_query(view, &pool)
         .await

@@ -47,7 +47,7 @@ async fn create_group(
         None => return Err(PostGroupError::DatabaseError),
     };
 
-    let db_view = CreateGroupQueryView::new(user.id, &view.name(), &view.description());
+    let db_view = CreateGroupQueryView::new(user.id, view.name(), view.description());
     let id = create_group_query(db_view, pool)
         .await
         .map_err(|_| PostGroupError::BadRequest)?;

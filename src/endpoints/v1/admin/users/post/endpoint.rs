@@ -59,7 +59,7 @@ fn is_valid_password(password: &str) -> bool {
 fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
     //Need to be more complex and based on requirements
     match phone_number {
-        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_digit(10)),
+        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()),
         None => true,
     }
 }
@@ -103,7 +103,7 @@ async fn register_user(
         register_view.last_name(),
         register_view.email(),
         register_view.password(),
-        register_view.phone_number().map(|s| s),
+        register_view.phone_number(),
     );
 
     let success = register_query(view, state.db_pool.clone().unwrap())

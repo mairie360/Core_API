@@ -31,7 +31,7 @@ impl std::fmt::Display for LoginError {
             }
             LoginError::TokenGenerationError => write!(f, "Failed to generate JWT token."),
             LoginError::FirstConnectError(token) => {
-                write!(f, "{}", token.to_string())
+                write!(f, "{}", token)
             }
             LoginError::RedisError => write!(f, "Internal Redis error."),
         }
@@ -89,18 +89,17 @@ async fn generate_first_connection_token(
     user_id: u64,
     state: web::Data<AppState>,
 ) -> Result<String, LoginError> {
-    match handle_secure_get(
+    if let Ok(token) = handle_secure_get(
         state.get_redis_conn().await.unwrap(),
         &format!("{}/first_connection_token", user_id),
     )
     .await
     {
-        Ok(token) => return Ok(token),
-        _ => {}
+        return Ok(token);
     };
     let token = Uuid::new_v4().to_string();
-    println!("{}", format!("{}/first_connection_id", token));
-    println!("{}", &format!("{}/first_connection_token", user_id));
+    println!("{}/first_connection_id", user_id);
+    println!("{}/first_connection_token", token);
     handle_secure_post(
         state.get_redis_conn().await.unwrap(),
         &format!("{}/first_connection_token", user_id),
@@ -181,11 +180,9 @@ pub async fn login(
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
-    let ip_address = std::net::IpAddr::from(
-        ip_str
-            .parse::<std::net::IpAddr>()
-            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-    );
+    let ip_address = ip_str
+        .parse::<std::net::IpAddr>()
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
 
     let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 

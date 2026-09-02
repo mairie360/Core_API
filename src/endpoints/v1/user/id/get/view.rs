@@ -18,6 +18,7 @@ pub struct GetUserResponseView {
 }
 
 impl GetUserResponseView {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         first_name: &str,
         last_name: &str,

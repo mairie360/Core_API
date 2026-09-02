@@ -56,14 +56,11 @@ async fn get_cache_value(user_id: u64, state: &web::Data<AppState>) -> Option<Hi
 }
 
 async fn set_cache_value(user_id: u64, data: &Vec<Session>, state: &web::Data<AppState>) {
-    match state.get_redis_conn().await {
-        Some(redis_manager) => {
-            if let Ok(json_str) = serde_json::to_string(data) {
-                let key = format!("user:{}:history", user_id);
-                let _ = handle_secure_post(redis_manager, &key, &json_str).await;
-            }
+    if let Some(redis_manager) = state.get_redis_conn().await {
+        if let Ok(json_str) = serde_json::to_string(data) {
+            let key = format!("user:{}:history", user_id);
+            let _ = handle_secure_post(redis_manager, &key, &json_str).await;
         }
-        None => {}
     }
 }
 

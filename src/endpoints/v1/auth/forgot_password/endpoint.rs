@@ -144,7 +144,7 @@ async fn trigger(state: web::Data<AppState>, email: &str) -> Result<(), ResetPas
     handle_secure_post(
         state.get_redis_conn().await.unwrap(),
         &format!("{}/forgot_password_email", token),
-        &format!("{}", email),
+        email,
     )
     .await
     .map_err(|e| {
