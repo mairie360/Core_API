@@ -1,0 +1,1 @@
+docker compose -f docker-compose-security.yml up -d --build && docker compose -f docker-compose-security.yml wait security-scan; EXIT_CODE=$?; docker compose -f docker-compose-security.yml logs security-scan; docker compose -f docker-compose-security.yml down; echo "Code de sortie final : $EXIT_CODE"
