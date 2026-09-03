@@ -18,11 +18,11 @@ async fn test_change_role_success() {
         "test_change_role_success_description".to_string() + random::<u64>().to_string().as_str();
 
     let view = CreateRoleQueryView::new(&name, &description, Some(true));
-    let result = create_role_query(view, pool.clone()).await;
+    let result = create_role_query(view, &pool).await;
 
     assert!(result.is_ok());
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
 
@@ -44,11 +44,11 @@ async fn test_change_role_success() {
         &change_description,
         Some(true),
     );
-    let result = change_role_query(view, pool.clone()).await;
+    let result = change_role_query(view, &pool).await;
 
     assert!(result.is_ok());
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
 
@@ -71,7 +71,7 @@ async fn test_change_role_bad_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = ChangeRoleQueryView::new(999, "Admin", "Administrateur", Some(false));
-    let result = change_role_query(view, pool.clone()).await;
+    let result = change_role_query(view, &pool).await;
 
     assert!(result.is_err());
 }

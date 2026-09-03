@@ -14,20 +14,16 @@ async fn get_group_members_success() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetUserGroupsQuerView::new(*GROUP_OWNER_ID.get().unwrap() as u64);
-    let result: Vec<Group> = get_user_groups(view, pool.clone()).await.unwrap();
+    let result: Vec<Group> = get_user_groups(view, &pool).await.unwrap();
 
     let view = GetGroupUsersQueryView::new(result[0].id() as u64);
-    let result = get_group_members_query(view, pool).await;
+    let result = get_group_members_query(view, &pool).await;
 
-    assert!(
-        result.clone().is_ok(),
-        "Result should be Ok, got {:?}",
-        result.clone()
-    );
+    assert!(result.is_ok(), "Result should be Ok, got {:?}", result);
     let result = result.unwrap();
 
     assert!(
-        !result.clone().is_empty(),
+        !result.is_empty(),
         "Result should not be empty, got {:?}",
         result
     );
@@ -55,17 +51,13 @@ async fn get_group_members_bad_group_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetGroupUsersQueryView::new(999);
-    let result = get_group_members_query(view, pool).await;
+    let result = get_group_members_query(view, &pool).await;
 
-    assert!(
-        result.clone().is_ok(),
-        "Result should be Ok, got {:?}",
-        result.clone()
-    );
+    assert!(result.is_ok(), "Result should be Ok, got {:?}", result);
     let result = result.unwrap();
 
     assert!(
-        result.clone().is_empty(),
+        result.is_empty(),
         "Result should be empty, got {:?}",
         result
     );

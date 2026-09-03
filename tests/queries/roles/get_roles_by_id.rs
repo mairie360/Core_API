@@ -11,7 +11,7 @@ async fn test_get_roles_by_id() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let roles = get_roles_by_id_query(GetRolesByIdQueryView::new(vec![1, 2]), pool).await;
+    let roles = get_roles_by_id_query(GetRolesByIdQueryView::new(vec![1, 2]), &pool).await;
 
     assert!(
         roles.is_ok(),
@@ -29,7 +29,7 @@ async fn test_get_roles_by_id_bad_id() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let roles = get_roles_by_id_query(GetRolesByIdQueryView::new(vec![998, 999]), pool).await;
+    let roles = get_roles_by_id_query(GetRolesByIdQueryView::new(vec![998, 999]), &pool).await;
 
     assert!(
         roles.is_ok(),
@@ -37,5 +37,5 @@ async fn test_get_roles_by_id_bad_id() {
         roles
     );
     let roles = roles.unwrap();
-    assert!(roles.len() == 0, "expected 0 roles, got: {}", roles.len());
+    assert!(roles.is_empty(), "expected 0 roles, got: {}", roles.len());
 }

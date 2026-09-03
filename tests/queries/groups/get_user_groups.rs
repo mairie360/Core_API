@@ -11,9 +11,9 @@ async fn get_user_groups_success() {
 
     let view = GetUserGroupsQuerView::new(*GROUP_OWNER_ID.get().unwrap() as u64);
 
-    let result = get_user_groups(view, pool).await;
-    assert!(result.clone().is_ok(), "{:?}", result.clone());
-    assert!(!result.clone().unwrap().is_empty(), "{:?}", result);
+    let result = get_user_groups(view, &pool).await;
+    assert!(result.is_ok(), "{:?}", result);
+    assert!(!result.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -23,9 +23,9 @@ async fn get_user_groups_without_groups() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetUserGroupsQuerView::new(3);
-    let result = get_user_groups(view, pool).await;
-    assert!(result.clone().is_ok(), "{:?}", result.clone());
-    assert!(result.clone().unwrap().is_empty(), "{:?}", result);
+    let result = get_user_groups(view, &pool).await;
+    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -35,9 +35,9 @@ async fn get_groups_bad_user_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetUserGroupsQuerView::new(999);
-    let result = get_user_groups(view, pool).await;
-    assert!(result.clone().is_ok(), "{:?}", result.clone());
-    assert!(result.clone().unwrap().is_empty(), "{:?}", result);
+    let result = get_user_groups(view, &pool).await;
+    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.unwrap().is_empty());
 }
 
 // #[tokio::test]
@@ -47,6 +47,6 @@ async fn get_groups_bad_user_id() {
 //     let pool = get_pool(host.to_string()).await;
 
 //     let view = GetUserGroupsQuerView::new(999);
-//     let result = get_user_groups(view, pool).await;
+//     let result = get_user_groups(view, &pool).await;
 //     assert!(result.is_err(), "{:?}", result);
 // }

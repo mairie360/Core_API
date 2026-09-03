@@ -18,6 +18,6 @@ impl PatchView {
     }
 
     pub fn can_be_deleted(&self) -> Option<Option<bool>> {
-        self.can_be_deleted.clone()
+        self.can_be_deleted
     }
 }

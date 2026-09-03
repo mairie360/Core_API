@@ -3,8 +3,8 @@ use crate::database::roles::delete_role::{delete_role_query, DeleteRoleQueryView
 use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteError {
@@ -43,27 +43,28 @@ impl ResponseError for DeleteError {
     }
 }
 
-async fn does_role_exist(id: u64, pool: PgPool) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, pool).await;
+    let result = does_role_exist_query(view, smart_db).await;
     result.unwrap()
 }
 
-async fn can_delete_role(id: u64, pool: PgPool) -> bool {
+async fn can_delete_role(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = CanDeleteRoleQueryView::new(id);
-    let result = can_delete_role_query(view, pool).await;
+    let result = can_delete_role_query(view, smart_db).await;
     result.unwrap()
 }
 
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
-    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
+    let smart_db = state.get_smart_db();
+    if !does_role_exist(id, smart_db).await {
         return Err(DeleteError::NotFound);
     }
-    if !can_delete_role(id, state.db_pool.clone().unwrap()).await {
+    if !can_delete_role(id, smart_db).await {
         return Err(DeleteError::Forbidden);
     }
     let view = DeleteRoleQueryView::new(id);
-    let result = delete_role_query(view, state.db_pool.clone().unwrap()).await;
+    let result = delete_role_query(view, smart_db).await;
     result.map_err(|_| DeleteError::DatabaseError)
 }
 

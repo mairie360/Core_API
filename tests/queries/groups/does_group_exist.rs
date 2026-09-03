@@ -17,9 +17,9 @@ async fn does_group_exist_true() {
         "does_group_exist_true_name",
         "does_group_exist_true_description",
     );
-    let result = create_group_query(view, pool.clone()).await.unwrap();
+    let result = create_group_query(view, &pool).await.unwrap();
     let view = DoesGroupExistQuerView::new(result as u64);
-    let result = does_group_exist_query(view, pool).await;
+    let result = does_group_exist_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "group should exist, {result:?}",
@@ -40,7 +40,7 @@ async fn does_group_exist_false() {
     let pool = get_pool(host.to_string()).await;
 
     let view = DoesGroupExistQuerView::new(999);
-    let result = does_group_exist_query(view, pool).await;
+    let result = does_group_exist_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "result should be ok, {result:?}",

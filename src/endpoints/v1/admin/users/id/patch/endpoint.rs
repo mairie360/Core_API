@@ -1,5 +1,5 @@
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 use crate::{
     database::users::patch_user::{patch_user_query, PatchUserQueryView},
@@ -8,14 +8,12 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchUserError {
-    DatabaseError,
     UnknownUser,
 }
 
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchUserError::DatabaseError => write!(f, "Database error occurred"),
             PatchUserError::UnknownUser => write!(f, "Unknown user"),
         }
     }
@@ -24,7 +22,6 @@ impl std::fmt::Display for PatchUserError {
 impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchUserError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             PatchUserError::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
@@ -39,20 +36,15 @@ async fn patch_user(
     user_id: u64,
     view: PatchUserView,
 ) -> Result<(), PatchUserError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PatchUserError::DatabaseError),
-    };
-
     let view = PatchUserQueryView::new(
         user_id,
-        view.first_name().as_deref(),
-        view.last_name().as_deref(),
-        view.email().as_deref(),
-        view.phone_number().as_deref(),
-        view.password().as_deref(),
+        view.first_name(),
+        view.last_name(),
+        view.email(),
+        view.phone_number(),
+        view.password(),
     );
-    patch_user_query(view, &pool)
+    patch_user_query(view, state.get_smart_db())
         .await
         .map_err(|_| PatchUserError::UnknownUser)?;
 

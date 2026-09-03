@@ -1,16 +1,21 @@
 use crate::database::{groups::get_group::Group, sessions::Session};
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+#[derive(serde::Deserialize)]
 pub struct AdminGetUserQueryView {
     user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl AdminGetUserQueryView {
     pub fn new(user_id: u64) -> Self {
-        Self { user_id }
+        Self {
+            user_id,
+            params: vec![QueryParam::I32(user_id as i32)],
+        }
     }
 
     pub fn user_id(&self) -> u64 {
@@ -18,9 +23,13 @@ impl AdminGetUserQueryView {
     }
 }
 
-impl DatabaseQueryView for AdminGetUserQueryView {
-    fn get_request(&self) -> String {
-        "SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1".to_string()
+impl ApiRequestDto for AdminGetUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
@@ -30,7 +39,7 @@ impl Display for AdminGetUserQueryView {
     }
 }
 
-#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RoleQueryResult {
     id: i32,
     name: String,
@@ -59,7 +68,7 @@ impl RoleQueryResult {
     }
 }
 
-#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow, Clone)]
+#[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, Clone)]
 pub struct User {
     first_name: String,
     last_name: String,

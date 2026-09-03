@@ -4,8 +4,7 @@ use core_api::database::sessions::{
     get_session_by_token::{get_session_by_token_query, GetSessionByTokenQueryView},
 };
 use mairie360_api_lib::{
-    database::{queries::is_session_token_valid_query, query_views::IsSessionTokenValidQueryView},
-    test_setup::queries_setup::get_shared_db,
+    database::query_views::IsSessionTokenValidQueryView, test_setup::queries_setup::get_shared_db,
 };
 use serial_test::serial;
 
@@ -23,24 +22,22 @@ async fn test_get_session_by_token() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
-    let _ = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let _: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_get_session_by_token".to_string(),
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     let result = get_session_by_token_query(
         GetSessionByTokenQueryView::new("test_get_session_by_token".to_string()),
-        pool,
+        &pool,
     )
     .await
     .unwrap();
@@ -62,24 +59,22 @@ async fn test_get_session_by_unknow_token() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
-    let _ = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let _: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_get_session_by_unknow_token".to_string(),
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     let result = get_session_by_token_query(
         GetSessionByTokenQueryView::new("unknow_token".to_string()),
-        pool,
+        &pool,
     )
     .await
     .unwrap();

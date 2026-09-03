@@ -9,14 +9,12 @@ use mairie360_api_lib::security::AuthenticatedUser;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 
-use mairie360_api_lib::database::queries::is_session_token_valid_query;
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RevokeError {
     InvalidToken,
-    BadRequest,
     DatabaseError,
 }
 
@@ -29,9 +27,6 @@ impl std::fmt::Display for RevokeError {
             RevokeError::InvalidToken => {
                 write!(f, "Session not found.")
             }
-            RevokeError::BadRequest => {
-                write!(f, "Bad request.")
-            }
         }
     }
 }
@@ -41,7 +36,6 @@ impl ResponseError for RevokeError {
         match self {
             RevokeError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             RevokeError::InvalidToken => StatusCode::UNAUTHORIZED,
-            RevokeError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -60,7 +54,7 @@ async fn revoke_request(
 
     let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
-    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone().unwrap()).await;
+    let is_valid: Result<bool, _> = state.get_smart_db().fetch_scalar(&db_view).await;
 
     let db_view = match is_valid {
         Ok(true) => RevokeSessionByTokenQueryView::new(user_id, &view.refresh_token()),
@@ -68,7 +62,7 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    match revoke_session_by_token_query(db_view, state.db_pool.clone().unwrap()).await {
+    match revoke_session_by_token_query(db_view, state.get_smart_db()).await {
         Ok(_) => Ok(()),
         Err(_) => Err(RevokeError::DatabaseError),
     }
@@ -96,10 +90,7 @@ pub async fn revoke(
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RevokeError> {
-    let view = match body.into_inner().try_into() {
-        Ok(view) => view,
-        Err(_) => return Err(RevokeError::BadRequest),
-    };
+    let view = body.into_inner();
 
     let ip_adress = request
         .connection_info()

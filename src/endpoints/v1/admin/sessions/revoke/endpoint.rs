@@ -3,7 +3,7 @@ use crate::endpoints::v1::admin::sessions::revoke::request_view::RevokeRequestVi
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AboutError {

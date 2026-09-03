@@ -2,10 +2,9 @@ use crate::database::auth::register::register_query;
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
-use mairie360_api_lib::database::queries::does_user_exist_by_email_query;
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum CreateUserError {
@@ -59,25 +58,25 @@ fn is_valid_password(password: &str) -> bool {
 fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
     //Need to be more complex and based on requirements
     match phone_number {
-        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_digit(10)),
+        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()),
         None => true,
     }
 }
 
 async fn can_be_registered(
     register_view: &CreateUserView,
-    pool: &PgPool,
+    smart_db: &SmartDatabase,
 ) -> Result<(), CreateUserError> {
     if !is_valid_email(register_view.email()) {
         return Err(CreateUserError::InvalidData);
     }
 
-    let exists = does_user_exist_by_email_query(
-        DoesUserExistByEmailQueryView::new(register_view.email().to_string()),
-        pool.clone(),
-    )
-    .await
-    .map_err(|_| CreateUserError::DatabaseError)?;
+    let exists: bool = smart_db
+        .fetch_scalar(&DoesUserExistByEmailQueryView::new(
+            register_view.email().to_string(),
+        ))
+        .await
+        .map_err(|_| CreateUserError::DatabaseError)?;
 
     if exists {
         return Err(CreateUserError::UserAlreadyExists);
@@ -96,17 +95,17 @@ async fn register_user(
     register_view: &CreateUserView,
     state: web::Data<AppState>,
 ) -> Result<(), CreateUserError> {
-    can_be_registered(register_view, &state.db_pool.clone().unwrap()).await?;
+    can_be_registered(register_view, state.get_smart_db()).await?;
 
     let view = RegisterUserQueryView::new(
         register_view.first_name(),
         register_view.last_name(),
         register_view.email(),
         register_view.password(),
-        register_view.phone_number().map(|s| s),
+        register_view.phone_number(),
     );
 
-    let success = register_query(view, state.db_pool.clone().unwrap())
+    let success = register_query(view, state.get_smart_db())
         .await
         .map_err(|e| {
             eprintln!("Database error: {}", e);

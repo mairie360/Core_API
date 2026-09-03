@@ -16,7 +16,7 @@ async fn success() {
         "groups",
         AccessType::Read,
     );
-    assert!(can_add_access_query(view, pool).await.unwrap());
+    assert!(can_add_access_query(view, &pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn failure_bad_owner_id() {
         "groups",
         AccessType::Read,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!can_add_access_query(view, &pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -46,7 +46,7 @@ async fn failure_bad_ressource_id() {
         "groups",
         AccessType::Read,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!can_add_access_query(view, &pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -61,5 +61,5 @@ async fn failure_access_type_error() {
         "groups",
         AccessType::Error,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!can_add_access_query(view, &pool).await.unwrap());
 }

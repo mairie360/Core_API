@@ -17,10 +17,10 @@ async fn add_user_to_group_success() {
         "add_user_to_group_name_success",
         "add_user_to_group_description_success",
     );
-    let result = create_group_query(view, pool.clone()).await.unwrap();
+    let result = create_group_query(view, &pool).await.unwrap();
 
     let view = AddUserToGroupQueryView::new(result as u64, 2);
-    let result = add_user_to_group_query(view, pool).await;
+    let result = add_user_to_group_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "add_user_to_group_success failed: {:?}",
@@ -39,12 +39,12 @@ async fn add_user_to_group_duplicate_user() {
         "add_user_to_group_duplicate_user_name",
         "add_user_to_group_duplicate_user_description",
     );
-    let id = create_group_query(view, pool.clone()).await.unwrap();
+    let id = create_group_query(view, &pool).await.unwrap();
 
     let view = AddUserToGroupQueryView::new(id as u64, 2);
-    let _ = add_user_to_group_query(view, pool.clone()).await;
+    let _ = add_user_to_group_query(view, &pool).await;
     let view = AddUserToGroupQueryView::new(id as u64, 2);
-    let result = add_user_to_group_query(view, pool.clone()).await;
+    let result = add_user_to_group_query(view, &pool).await;
     assert!(result.is_err());
 }
 
@@ -59,10 +59,10 @@ async fn add_user_to_group_unknow_user() {
         "add_user_to_group_unknow_user_name",
         "add_user_to_group_unknow_user_description",
     );
-    let result = create_group_query(view, pool.clone()).await.unwrap();
+    let result = create_group_query(view, &pool).await.unwrap();
 
     let view = AddUserToGroupQueryView::new(result as u64, 999);
-    let result = add_user_to_group_query(view, pool).await;
+    let result = add_user_to_group_query(view, &pool).await;
     assert!(result.is_err());
 }
 
@@ -73,7 +73,7 @@ async fn add_user_to_group_unknow_group() {
     let pool = get_pool(host.to_string()).await;
 
     let view = AddUserToGroupQueryView::new(999, 2);
-    let result = add_user_to_group_query(view, pool).await;
+    let result = add_user_to_group_query(view, &pool).await;
     assert!(result.is_err());
 }
 
@@ -84,6 +84,6 @@ async fn add_user_to_group_unknow_user_and_group() {
     let pool = get_pool(host.to_string()).await;
 
     let view = AddUserToGroupQueryView::new(999, 999);
-    let result = add_user_to_group_query(view, pool).await;
+    let result = add_user_to_group_query(view, &pool).await;
     assert!(result.is_err());
 }

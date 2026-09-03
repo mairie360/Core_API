@@ -10,7 +10,7 @@ async fn test_login_user_success() {
     let pool = get_pool(host.to_string()).await;
     let result = login_query(
         LoginUserQueryView::new("alice@example.com".to_string(), "password123".to_string()),
-        pool,
+        &pool,
     )
     .await
     .unwrap();
@@ -29,7 +29,7 @@ async fn test_login_user_wrong_password() {
 
     let result = login_query(
         LoginUserQueryView::new("alice@example.com".to_string(), "wrong_pass".to_string()),
-        pool,
+        &pool,
     )
     .await;
 
@@ -47,9 +47,9 @@ async fn test_login_user_unknown_email() {
             "stranger@danger.com".to_string(),
             "any_password".to_string(),
         ),
-        pool,
+        &pool,
     )
     .await;
 
-    assert_eq!(result, Ok(None));
+    assert_eq!(result.unwrap(), None);
 }

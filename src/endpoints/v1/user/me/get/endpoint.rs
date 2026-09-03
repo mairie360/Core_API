@@ -5,8 +5,8 @@ use crate::database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQu
 use crate::endpoints::v1::user::me::get::view::GetMeResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetMeError {
@@ -39,31 +39,24 @@ async fn trigger_get_me(
     state: web::Data<AppState>,
     user_id: u64,
 ) -> Result<GetMeResponseView, GetMeError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetMeError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
     let view = GetUserByIdQueryView::new(user_id);
-    let result = get_user_by_id_query(view, pool.clone())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetMeError::DatabaseError
-        })?;
+    let result = get_user_by_id_query(view, smart_db).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetMeError::DatabaseError
+    })?;
     let view = GetUserGroupsQuerView::new(user_id);
-    let groups = get_user_groups(view, pool.clone()).await.map_err(|e| {
+    let groups = get_user_groups(view, smart_db).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetMeError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(user_id);
-    let role_id = get_user_roles_query(role, pool.clone())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetMeError::DatabaseError
-        })?;
+    let role_id = get_user_roles_query(role, smart_db).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetMeError::DatabaseError
+    })?;
     let view = GetRolesByIdQueryView::new(role_id);
-    let role = get_roles_by_id_query(view, pool).await.map_err(|e| {
+    let role = get_roles_by_id_query(view, smart_db).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetMeError::DatabaseError
     })?;

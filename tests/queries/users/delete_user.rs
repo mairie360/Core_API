@@ -13,7 +13,7 @@ async fn test_delete_user_success() {
 
     let view = DeleteUserQueryView::new(2);
 
-    let result = delete_user_query(view, pool).await;
+    let result = delete_user_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -31,7 +31,7 @@ async fn test_delete_user_bad_user_id() {
 
     let view = DeleteUserQueryView::new(999);
 
-    let result = delete_user_query(view, pool).await;
+    let result = delete_user_query(view, &pool).await;
 
     assert!(
         result.is_ok(),

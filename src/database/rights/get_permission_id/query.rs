@@ -1,17 +1,12 @@
 use crate::database::rights::get_permission_id::view::GetPermissionIdQueryView;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn get_permission_id_query(
     view: GetPermissionIdQueryView,
-    pool: PgPool,
-) -> Result<u64, DatabaseError> {
-    let result: i32 = sqlx::query_scalar(&view.get_request())
-        .bind(view.resource_id() as i32)
-        .bind(view.action().to_string())
-        .fetch_one(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<u64, ApiLibError> {
+    let result: i32 = smart_db.fetch_scalar(&view).await?;
 
     Ok(result as u64)
 }

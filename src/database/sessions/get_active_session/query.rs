@@ -1,19 +1,16 @@
 use crate::database::sessions::get_active_session::GetActiveSessionQueryView;
 use crate::database::sessions::Session;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn get_active_session_query(
     view: GetActiveSessionQueryView,
-    pool: PgPool,
-) -> Result<Option<Session>, DatabaseError> {
-    let result: Option<Session> = sqlx::query_as::<_, Session>(&view.get_request())
-        .bind(view.get_user_id() as i64)
-        .bind(view.get_ip())
-        .bind(view.get_device_info())
-        .fetch_optional(&pool)
-        .await?;
-
-    Ok(result)
+    smart_db: &SmartDatabase,
+) -> Result<Option<Session>, ApiLibError> {
+    match smart_db.fetch_one(&view).await {
+        Ok(result) => Ok(Some(result)),
+        Err(ApiLibError::Database(DbError::NotFound)) => Ok(None),
+        Err(err) => Err(err),
+    }
 }

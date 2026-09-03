@@ -1,7 +1,6 @@
-use crate::common::get_pool;
+use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::login::{login_query, LoginUserQueryView};
 use core_api::database::auth::register::{register_query, RegisterUserQueryView};
-use mairie360_api_lib::database::queries::does_user_exist_by_id_query;
 use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
@@ -33,11 +32,11 @@ async fn test_injection_login_email() {
 
     let result = login_query(
         LoginUserQueryView::new(malicious_email.to_string(), "any_password".to_string()),
-        pool,
+        &pool,
     )
     .await;
 
-    assert_eq!(result, Ok(None));
+    assert_eq!(result.unwrap(), None);
 }
 
 #[tokio::test]
@@ -45,7 +44,8 @@ async fn test_injection_login_email() {
 async fn test_injection_register_fields() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    sync_user_sequence(&pool).await.unwrap();
+    let raw_pool = get_raw_pool(host.to_string()).await;
+    sync_user_sequence(&raw_pool).await.unwrap();
 
     let malicious_name = "John'); DROP TABLE users; --";
 
@@ -53,16 +53,17 @@ async fn test_injection_register_fields() {
 
     let result = register_query(
         RegisterUserQueryView::new(malicious_name, "Doe", &unique_email, "pass", None),
-        pool.clone(),
+        &pool,
     )
     .await
     .unwrap();
 
-    assert_eq!(result, true);
+    assert!(result);
 
-    let check_result = does_user_exist_by_id_query(DoesUserExistByIdQueryView::new(1), pool)
+    let check_result: bool = pool
+        .fetch_scalar(&DoesUserExistByIdQueryView::new(1))
         .await
         .unwrap();
 
-    assert_eq!(check_result, true);
+    assert!(check_result);
 }

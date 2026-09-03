@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct GetRolesByIdQueryView {
     id: Vec<i32>,
 }
@@ -17,10 +18,36 @@ impl GetRolesByIdQueryView {
     }
 }
 
-impl DatabaseQueryView for GetRolesByIdQueryView {
-    fn get_request(&self) -> String {
-        "SELECT name, description, created_at, updated_at, can_be_deleted FROM roles WHERE id = ANY($1)"
-            .to_string()
+impl ApiRequestDto for GetRolesByIdQueryView {
+    fn query_sql(&self) -> &'static str {
+        // La liste d'IDs varie à chaque appel : `ANY($1)` n'est pas exprimable avec les variantes
+        // actuelles de `QueryParam` (pas de type "tableau"), donc on construit le tableau Postgres
+        // directement dans le texte (IDs entiers uniquement, donc pas d'injection possible) et on
+        // "leak" pour obtenir un &'static str, comme l'exige `ApiRequestDto`.
+        let ids = if self.id.is_empty() {
+            "ARRAY[]::int[]".to_string()
+        } else {
+            format!(
+                "ARRAY[{}]",
+                self.id
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        };
+
+        Box::leak(
+            format!(
+                "SELECT row_to_json(t) FROM (SELECT name, description, created_at, updated_at, can_be_deleted FROM roles WHERE id = ANY({})) t",
+                ids
+            )
+            .into_boxed_str(),
+        )
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &[]
     }
 }
 
@@ -30,7 +57,7 @@ impl Display for GetRolesByIdQueryView {
     }
 }
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Role {
     name: String,
     description: Option<String>,

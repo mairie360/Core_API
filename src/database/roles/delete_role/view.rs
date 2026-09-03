@@ -1,13 +1,18 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct DeleteRoleQueryView {
     id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl DeleteRoleQueryView {
     pub fn new(id: u64) -> Self {
-        Self { id }
+        Self {
+            id,
+            params: vec![QueryParam::I64(id as i64)],
+        }
     }
 
     pub fn id(&self) -> u64 {
@@ -15,9 +20,13 @@ impl DeleteRoleQueryView {
     }
 }
 
-impl DatabaseQueryView for DeleteRoleQueryView {
-    fn get_request(&self) -> String {
-        "DELETE FROM roles WHERE id = $1".to_string()
+impl ApiRequestDto for DeleteRoleQueryView {
+    fn query_sql(&self) -> &'static str {
+        "DELETE FROM roles WHERE id = $1"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

@@ -13,7 +13,7 @@ async fn test_get_role_success() {
 
     let view = GetUserRolesQueryView::new(1);
 
-    let result = get_user_roles_query(view, pool).await;
+    let result = get_user_roles_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -22,7 +22,7 @@ async fn test_get_role_success() {
     );
     let roles = result.unwrap();
     assert!(
-        roles.len() >= 1,
+        !roles.is_empty(),
         "get_user_roles_query should return at least one role, {:#?}",
         roles
     );
@@ -37,7 +37,7 @@ async fn test_get_role_bad_user_id() {
 
     let view = GetUserRolesQueryView::new(999);
 
-    let result = get_user_roles_query(view, pool).await;
+    let result = get_user_roles_query(view, &pool).await;
 
     assert!(
         result.is_ok(),

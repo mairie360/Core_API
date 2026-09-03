@@ -18,12 +18,12 @@ async fn is_user_member_true() {
         "is_user_member_true_name",
         "is_user_member_true_description",
     );
-    let result = create_group_query(view, pool.clone()).await.unwrap();
+    let result = create_group_query(view, &pool).await.unwrap();
 
     let view = AddUserToGroupQueryView::new(result as u64, 2);
-    let _ = add_user_to_group_query(view, pool.clone()).await;
+    let _ = add_user_to_group_query(view, &pool).await;
     let view = IsUserMemberQueryView::new(result as u64, 2);
-    let result = is_user_member_query(view, pool).await;
+    let result = is_user_member_query(view, &pool).await;
     assert!(result.is_ok(), "is_user_member_true failed: {:?}", result);
     assert!(
         result.unwrap(),
@@ -42,10 +42,10 @@ async fn is_user_member_false() {
         "is_user_member_false_name",
         "is_user_member_false_description",
     );
-    let id = create_group_query(view, pool.clone()).await.unwrap();
+    let id = create_group_query(view, &pool).await.unwrap();
 
     let view = IsUserMemberQueryView::new(id as u64, 3);
-    let result = is_user_member_query(view, pool.clone()).await;
+    let result = is_user_member_query(view, &pool).await;
     assert!(result.is_ok(), "is_user_member_false failed: {:?}", result);
     assert!(
         !result.unwrap(),
@@ -64,10 +64,10 @@ async fn is_user_member_unknow_user() {
         "is_user_member_unknow_user_name",
         "is_user_member_unknow_user_description",
     );
-    let result = create_group_query(view, pool.clone()).await.unwrap();
+    let result = create_group_query(view, &pool).await.unwrap();
 
     let view = IsUserMemberQueryView::new(result as u64, 999);
-    let result = is_user_member_query(view, pool.clone()).await;
+    let result = is_user_member_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "is_user_member_unknow_user failed: {:?}",
@@ -86,7 +86,7 @@ async fn is_user_member_unknow_group() {
     let pool = get_pool(host.to_string()).await;
 
     let view = IsUserMemberQueryView::new(999, 2);
-    let result = is_user_member_query(view, pool.clone()).await;
+    let result = is_user_member_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "is_user_member_unknow_group failed: {:?}",
@@ -105,7 +105,7 @@ async fn is_user_member_unknow_user_and_group() {
     let pool = get_pool(host.to_string()).await;
 
     let view = IsUserMemberQueryView::new(999, 999);
-    let result = is_user_member_query(view, pool).await;
+    let result = is_user_member_query(view, &pool).await;
     assert!(
         result.is_ok(),
         "is_user_member_unknow_user_and_group failed: {:?}",

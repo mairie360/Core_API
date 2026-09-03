@@ -4,10 +4,7 @@ use core_api::database::sessions::{
     revoke_session_by_id::{revoke_session_by_id_query, RevokeSessionByIdQueryView},
 };
 use mairie360_api_lib::{
-    database::{
-        errors::DatabaseError, queries::is_session_token_valid_query,
-        query_views::IsSessionTokenValidQueryView,
-    },
+    database::query_views::IsSessionTokenValidQueryView, error::ApiLibError,
     test_setup::queries_setup::get_shared_db,
 };
 use serial_test::serial;
@@ -28,49 +25,44 @@ async fn test_revoke_session_with_id() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
     let session = get_session_by_token_query(
         GetSessionByTokenQueryView::new("test_revoke_session_with_id".to_string()),
-        pool.clone(),
+        &pool,
     )
     .await
     .unwrap()
     .unwrap();
 
-    let is_valid = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_revoke_session_with_id".to_string(),
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(is_valid);
 
-    let session_id = session.id().clone();
+    let session_id = *session.id();
 
-    let result: Result<(), DatabaseError> =
-        revoke_session_by_id_query(RevokeSessionByIdQueryView::new(1, session_id), pool.clone())
-            .await;
+    let result: Result<(), ApiLibError> =
+        revoke_session_by_id_query(RevokeSessionByIdQueryView::new(1, session_id), &pool).await;
 
     assert!(result.is_ok());
 
-    let is_valid = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_revoke_session_with_id".to_string(),
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(!is_valid);
 }

@@ -20,16 +20,16 @@ async fn test_get_sessions() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
     let view = GetSessionsQueryView::new(vec![1, 2]);
-    let result = get_sessions_query(view, pool.clone()).await;
+    let result = get_sessions_query(view, &pool).await;
     assert!(result.is_ok(), "Failed to get sessions: {:?}", result);
     let result = result.unwrap();
     assert!(
-        result.len() >= 1,
+        !result.is_empty(),
         "Expected 1 session, got {}",
         result.len()
     );

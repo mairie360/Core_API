@@ -4,8 +4,8 @@ use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
 use actix_web::{put, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PutError {
@@ -39,9 +39,9 @@ impl ResponseError for PutError {
     }
 }
 
-async fn does_role_exist(id: u64, pool: PgPool) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, pool).await;
+    let result = does_role_exist_query(view, smart_db).await;
     result.unwrap()
 }
 
@@ -50,7 +50,8 @@ async fn put_role(
     payload: RoleWriteView,
     state: web::Data<AppState>,
 ) -> Result<(), PutError> {
-    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
+    let smart_db = state.get_smart_db();
+    if !does_role_exist(id, smart_db).await {
         return Err(PutError::NotFound);
     }
     let view = ChangeRoleQueryView::new(
@@ -59,7 +60,7 @@ async fn put_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    change_role_query(view, state.db_pool.clone().unwrap())
+    change_role_query(view, smart_db)
         .await
         .map_err(|_| PutError::DatabaseError)?;
     Ok(())

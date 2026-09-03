@@ -13,7 +13,7 @@ async fn test_remove_role_success() {
 
     let view = RemoveRolesQueryView::new(1, 2);
 
-    let result = remove_role_query(view, pool).await;
+    let result = remove_role_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -31,7 +31,7 @@ async fn test_remove_role_bad_role_id() {
 
     let view = RemoveRolesQueryView::new(999, 1);
 
-    let result = remove_role_query(view, pool).await;
+    let result = remove_role_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -49,7 +49,7 @@ async fn test_remove_role_bad_user_id() {
 
     let view = RemoveRolesQueryView::new(1, 999);
 
-    let result = remove_role_query(view, pool).await;
+    let result = remove_role_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -67,7 +67,7 @@ async fn test_remove_role_bad_user_id_and_role_id() {
 
     let view = RemoveRolesQueryView::new(999, 999);
 
-    let result = remove_role_query(view, pool).await;
+    let result = remove_role_query(view, &pool).await;
 
     assert!(
         result.is_ok(),

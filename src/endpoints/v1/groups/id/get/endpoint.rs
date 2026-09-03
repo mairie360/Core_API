@@ -3,22 +3,18 @@ use crate::database::groups::get_group::{get_group_query, GetGroupQuerView};
 use crate::endpoints::v1::groups::id::get::view::GetGroupResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetGroupError {
     BadRequest,
-    DatabaseError,
     UnknowGroup,
 }
 
 impl std::fmt::Display for GetGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetGroupError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             GetGroupError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -32,7 +28,6 @@ impl std::fmt::Display for GetGroupError {
 impl ResponseError for GetGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             GetGroupError::BadRequest => StatusCode::BAD_REQUEST,
             GetGroupError::UnknowGroup => StatusCode::NOT_FOUND,
         }
@@ -47,13 +42,10 @@ async fn trigger_get_group(
     state: web::Data<AppState>,
     id: u64,
 ) -> Result<GetGroupResultView, GetGroupError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetGroupError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let group_check_view = DoesGroupExistQuerView::new(id);
-    let result = does_group_exist_query(group_check_view, pool.clone())
+    let result = does_group_exist_query(group_check_view, smart_db)
         .await
         .map_err(|_| GetGroupError::UnknowGroup)?;
     if !result {
@@ -61,7 +53,7 @@ async fn trigger_get_group(
     }
 
     let db_view = GetGroupQuerView::new(id);
-    let result = get_group_query(db_view, pool)
+    let result = get_group_query(db_view, smart_db)
         .await
         .map_err(|_| GetGroupError::BadRequest)?;
 

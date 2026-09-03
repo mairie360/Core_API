@@ -1,9 +1,11 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct UnsetFirstConnectionQueryView {
     user_id: u64,
     password: String,
+    params: Vec<QueryParam>,
 }
 
 impl UnsetFirstConnectionQueryView {
@@ -11,6 +13,10 @@ impl UnsetFirstConnectionQueryView {
         Self {
             user_id,
             password: password.to_string(),
+            params: vec![
+                QueryParam::Text(password.to_string()),
+                QueryParam::I32(user_id as i32),
+            ],
         }
     }
 
@@ -23,9 +29,13 @@ impl UnsetFirstConnectionQueryView {
     }
 }
 
-impl DatabaseQueryView for UnsetFirstConnectionQueryView {
-    fn get_request(&self) -> String {
-        "UPDATE users SET first_connect = false AND password = $1 WHERE id = $2".to_string()
+impl ApiRequestDto for UnsetFirstConnectionQueryView {
+    fn query_sql(&self) -> &'static str {
+        "UPDATE users SET first_connect = false AND password = $1 WHERE id = $2"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

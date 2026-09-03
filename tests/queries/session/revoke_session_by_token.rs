@@ -3,10 +3,7 @@ use core_api::database::sessions::{
     revoke_session_by_token::{revoke_session_by_token_query, RevokeSessionByTokenQueryView},
 };
 use mairie360_api_lib::{
-    database::{
-        errors::DatabaseError, queries::is_session_token_valid_query,
-        query_views::IsSessionTokenValidQueryView,
-    },
+    database::query_views::IsSessionTokenValidQueryView, error::ApiLibError,
     test_setup::queries_setup::get_shared_db,
 };
 use serial_test::serial;
@@ -27,41 +24,37 @@ async fn test_revoke_session_with_token() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 1]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
-    let is_valid = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_revoke_session_with_token".to_string(),
             std::net::IpAddr::from([0, 0, 0, 1]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(is_valid);
 
-    let result: Result<(), DatabaseError> = revoke_session_by_token_query(
+    let result: Result<(), ApiLibError> = revoke_session_by_token_query(
         RevokeSessionByTokenQueryView::new(1, "test_revoke_session_with_token"),
-        pool.clone(),
+        &pool,
     )
     .await;
 
     assert!(result.is_ok());
 
-    let is_valid = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_revoke_session_with_token".to_string(),
             std::net::IpAddr::from([0, 0, 0, 1]),
-        ),
-        pool.clone(),
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(!is_valid);
 }

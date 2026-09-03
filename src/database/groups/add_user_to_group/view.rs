@@ -1,15 +1,24 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+#[derive(serde::Deserialize)]
 pub struct AddUserToGroupQueryView {
     group_id: u64,
     user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl AddUserToGroupQueryView {
     pub fn new(group_id: u64, user_id: u64) -> Self {
-        Self { group_id, user_id }
+        Self {
+            group_id,
+            user_id,
+            params: vec![
+                QueryParam::I32(group_id as i32),
+                QueryParam::I32(user_id as i32),
+            ],
+        }
     }
 
     pub fn group_id(&self) -> u64 {
@@ -21,9 +30,13 @@ impl AddUserToGroupQueryView {
     }
 }
 
-impl DatabaseQueryView for AddUserToGroupQueryView {
-    fn get_request(&self) -> String {
-        "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)".to_string()
+impl ApiRequestDto for AddUserToGroupQueryView {
+    fn query_sql(&self) -> &'static str {
+        "INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

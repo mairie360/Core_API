@@ -13,7 +13,7 @@ async fn test_add_role_success() {
 
     let view = AddRolesQueryView::new(1, 2);
 
-    let result = add_role_query(view, pool).await;
+    let result = add_role_query(view, &pool).await;
 
     assert!(
         result.is_ok(),
@@ -31,7 +31,7 @@ async fn test_add_role_bad_role_id() {
 
     let view = AddRolesQueryView::new(999, 1);
 
-    let result = add_role_query(view, pool).await;
+    let result = add_role_query(view, &pool).await;
 
     assert!(
         result.is_err(),
@@ -49,7 +49,7 @@ async fn test_add_role_bad_user_id() {
 
     let view = AddRolesQueryView::new(1, 999);
 
-    let result = add_role_query(view, pool).await;
+    let result = add_role_query(view, &pool).await;
 
     assert!(
         result.is_err(),
@@ -67,7 +67,7 @@ async fn test_add_role_bad_user_id_and_role_id() {
 
     let view = AddRolesQueryView::new(999, 999);
 
-    let result = add_role_query(view, pool).await;
+    let result = add_role_query(view, &pool).await;
 
     assert!(
         result.is_err(),

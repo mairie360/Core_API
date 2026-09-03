@@ -1,17 +1,13 @@
 use crate::database::sessions::get_sessions_by_user::GetSessionsByUserQueryView;
 use crate::database::sessions::Session;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn get_sessions_by_user_query(
     view: GetSessionsByUserQueryView,
-    pool: PgPool,
-) -> Result<Vec<Session>, DatabaseError> {
-    let result: Vec<Session> = sqlx::query_as::<_, Session>(&view.get_request())
-        .bind(view.get_user_id() as i64)
-        .fetch_all(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<Vec<Session>, ApiLibError> {
+    let result: Vec<Session> = smart_db.fetch_all(&view).await?;
 
     Ok(result)
 }

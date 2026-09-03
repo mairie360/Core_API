@@ -1,12 +1,14 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct RegisterUserQueryView {
     first_name: String,
     last_name: String,
     email: String,
     password: String,
     phone_number: Option<String>,
+    params: Vec<QueryParam>,
 }
 
 impl RegisterUserQueryView {
@@ -23,6 +25,21 @@ impl RegisterUserQueryView {
             email: email.to_string(),
             password: password.to_string(),
             phone_number: phone_number.map(|s| s.to_string()),
+            params: match phone_number {
+                Some(phone_number) => vec![
+                    QueryParam::Text(first_name.to_string()),
+                    QueryParam::Text(last_name.to_string()),
+                    QueryParam::Text(email.to_string()),
+                    QueryParam::Text(password.to_string()),
+                    QueryParam::Text(phone_number.to_string()),
+                ],
+                None => vec![
+                    QueryParam::Text(first_name.to_string()),
+                    QueryParam::Text(last_name.to_string()),
+                    QueryParam::Text(email.to_string()),
+                    QueryParam::Text(password.to_string()),
+                ],
+            },
         }
     }
 
@@ -43,12 +60,22 @@ impl RegisterUserQueryView {
     }
 }
 
-impl DatabaseQueryView for RegisterUserQueryView {
-    fn get_request(&self) -> String {
-        // Une seule requête gère les deux cas. Postgres acceptera $5 comme NULL.
-        "INSERT INTO users (first_name, last_name, email, password, phone_number) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING true"
-            .to_string()
+impl ApiRequestDto for RegisterUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        match self.phone_number {
+            Some(_) => {
+                "INSERT INTO users (first_name, last_name, email, password, phone_number) \
+                 VALUES ($1, $2, $3, $4, $5) RETURNING true"
+            }
+            None => {
+                "INSERT INTO users (first_name, last_name, email, password) \
+                 VALUES ($1, $2, $3, $4) RETURNING true"
+            }
+        }
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

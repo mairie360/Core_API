@@ -1,4 +1,4 @@
-use crate::common::get_pool;
+use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::register::register_query;
 use core_api::database::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -26,7 +26,8 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
 async fn test_register_user_success() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    sync_user_sequence(&pool).await.unwrap();
+    let raw_pool = get_raw_pool(host.to_string()).await;
+    sync_user_sequence(&raw_pool).await.unwrap();
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
@@ -38,12 +39,12 @@ async fn test_register_user_success() {
             "secure_password",
             Some("0601020304"),
         ),
-        pool,
+        &pool,
     )
     .await
     .unwrap();
 
-    assert_eq!(register_result, true);
+    assert!(register_result);
 }
 
 #[tokio::test]
@@ -51,7 +52,8 @@ async fn test_register_user_success() {
 async fn test_register_user_duplicate_email() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    sync_user_sequence(&pool).await.unwrap();
+    let raw_pool = get_raw_pool(host.to_string()).await;
+    sync_user_sequence(&raw_pool).await.unwrap();
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
@@ -63,7 +65,7 @@ async fn test_register_user_duplicate_email() {
             "secure_password",
             Some("0601020304"),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
@@ -75,7 +77,7 @@ async fn test_register_user_duplicate_email() {
             "secure_password",
             Some("0601020304"),
         ),
-        pool,
+        &pool,
     )
     .await;
 

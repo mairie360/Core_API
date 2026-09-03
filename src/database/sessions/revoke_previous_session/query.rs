@@ -1,19 +1,12 @@
 use crate::database::sessions::revoke_previous_session::RevokePreviousSessionQueryView;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn revoke_previous_session_query(
     view: RevokePreviousSessionQueryView,
-    pool: PgPool,
-) -> Result<(), DatabaseError> {
-    sqlx::query(&view.get_request())
-        .bind(view.get_revoked_at())
-        .bind(view.get_user_id() as i64)
-        .bind(view.get_ip())
-        .bind(view.get_device_info())
-        .execute(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<(), ApiLibError> {
+    smart_db.execute(view).await?;
 
     Ok(())
 }

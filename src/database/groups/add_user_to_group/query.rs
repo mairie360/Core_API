@@ -1,17 +1,12 @@
 use crate::database::groups::add_user_to_group::AddUserToGroupQueryView;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn add_user_to_group_query(
     view: AddUserToGroupQueryView,
-    pool: PgPool,
-) -> Result<(), DatabaseError> {
-    sqlx::query(&view.get_request())
-        .bind(view.group_id() as i32)
-        .bind(view.user_id() as i32)
-        .execute(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<(), ApiLibError> {
+    smart_db.execute(view).await?;
 
     Ok(())
 }

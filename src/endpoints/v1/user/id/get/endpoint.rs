@@ -5,7 +5,7 @@ use crate::database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQu
 use crate::endpoints::v1::user::id::get::view::GetUserResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetUserError {
@@ -43,32 +43,25 @@ async fn trigger_get_user(
     state: web::Data<AppState>,
     id: u64,
 ) -> Result<GetUserResponseView, GetUserError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetUserError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let view = GetUserByIdQueryView::new(id);
-    let result = get_user_by_id_query(view, pool.clone())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetUserError::UnknownUser
-        })?;
+    let result = get_user_by_id_query(view, smart_db).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetUserError::UnknownUser
+    })?;
     let view = GetUserGroupsQuerView::new(id);
-    let groups = get_user_groups(view, pool.clone()).await.map_err(|e| {
+    let groups = get_user_groups(view, smart_db).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetUserError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(id);
-    let role_id = get_user_roles_query(role, pool.clone())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetUserError::DatabaseError
-        })?;
+    let role_id = get_user_roles_query(role, smart_db).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetUserError::DatabaseError
+    })?;
     let view = GetRolesByIdQueryView::new(role_id);
-    let role = get_roles_by_id_query(view, pool).await.map_err(|e| {
+    let role = get_roles_by_id_query(view, smart_db).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetUserError::DatabaseError
     })?;

@@ -22,9 +22,9 @@ async fn test_patch_role_name() {
         None,
     );
     let _guard = PATCH_MUTEX.get().unwrap().lock().await;
-    let result = patch_role_query(view, pool.clone()).await;
+    let result = patch_role_query(view, &pool).await;
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
 
@@ -49,9 +49,9 @@ async fn test_patch_role_description() {
         None,
     );
     let _guard = PATCH_MUTEX.get().unwrap().lock().await;
-    let result = patch_role_query(view, pool.clone()).await;
+    let result = patch_role_query(view, &pool).await;
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
 
@@ -71,16 +71,16 @@ async fn test_patch_role_can_be_deleted_to_false() {
 
     let view = PatchRoleQueryView::new(*PATCH_ID.get().unwrap(), None, None, Some(Some(false)));
     let _guard = PATCH_MUTEX.get().unwrap().lock().await;
-    let result = patch_role_query(view, pool.clone()).await;
+    let result = patch_role_query(view, &pool).await;
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
 
     assert!(result.is_ok());
     for role in roles {
         if role.id() == *PATCH_ID.get().unwrap() as i32 {
-            assert_eq!(role.can_be_deleted(), false);
+            assert!(!role.can_be_deleted());
         }
     }
 }

@@ -3,20 +3,16 @@ use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PostError {
-    DatabaseError,
     Duplicate,
 }
 
 impl std::fmt::Display for PostError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             PostError::Duplicate => {
                 write!(f, "A role with this name already exists.")
             }
@@ -27,7 +23,6 @@ impl std::fmt::Display for PostError {
 impl ResponseError for PostError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PostError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             PostError::Duplicate => StatusCode::CONFLICT,
         }
     }
@@ -38,18 +33,13 @@ impl ResponseError for PostError {
 }
 
 async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Result<(), PostError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PostError::DatabaseError),
-    };
-
     let view = CreateRoleQueryView::new(
         payload.name(),
         payload.description(),
         payload.can_be_deleted(),
     );
 
-    create_role_query(view, pool)
+    create_role_query(view, state.get_smart_db())
         .await
         .map_err(|_| PostError::Duplicate)?;
 

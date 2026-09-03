@@ -10,7 +10,7 @@ async fn test_does_role_exist_true() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let result = does_role_exist_query(DoesRoleExistQueryView::new(1), pool)
+    let result = does_role_exist_query(DoesRoleExistQueryView::new(1), &pool)
         .await
         .unwrap();
 
@@ -24,7 +24,7 @@ async fn test_does_role_exist_false() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let result = does_role_exist_query(DoesRoleExistQueryView::new(999), pool)
+    let result = does_role_exist_query(DoesRoleExistQueryView::new(999), &pool)
         .await
         .unwrap();
 

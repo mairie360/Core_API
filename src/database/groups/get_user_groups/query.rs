@@ -1,17 +1,13 @@
 use crate::database::groups::get_group::Group;
 use crate::database::groups::get_user_groups::view::GetUserGroupsQuerView;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn get_user_groups(
     view: GetUserGroupsQuerView,
-    pool: PgPool,
-) -> Result<Vec<Group>, DatabaseError> {
-    let result: Vec<Group> = sqlx::query_as(&view.get_request())
-        .bind(view.user_id() as i32)
-        .fetch_all(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<Vec<Group>, ApiLibError> {
+    let result: Vec<Group> = smart_db.fetch_all(&view).await?;
 
     Ok(result)
 }

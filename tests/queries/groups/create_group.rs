@@ -14,7 +14,7 @@ async fn create_group_success() {
         "create_group_name_success",
         "create_group_description_success",
     );
-    let result = create_group_query(view, pool).await;
+    let result = create_group_query(view, &pool).await;
     assert!(result.is_ok());
 }
 
@@ -29,9 +29,9 @@ async fn create_group_duplicate_name() {
         "create_group_name_duplicate",
         "create_group_description_duplicate",
     );
-    let result = create_group_query(view.clone(), pool.clone()).await;
+    let result = create_group_query(view.clone(), &pool).await;
     assert!(result.is_ok());
 
-    let result = create_group_query(view, pool).await;
+    let result = create_group_query(view, &pool).await;
     assert!(result.is_err());
 }

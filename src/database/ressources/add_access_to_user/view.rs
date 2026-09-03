@@ -1,11 +1,13 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct AddAccessToUserQueryView {
     user_id: u64,
     ressource_type_id: u64,
     ressource_instance_id: u64,
     access_type_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl AddAccessToUserQueryView {
@@ -20,6 +22,12 @@ impl AddAccessToUserQueryView {
             ressource_type_id,
             ressource_instance_id,
             access_type_id,
+            params: vec![
+                QueryParam::I64(user_id as i64),
+                QueryParam::I64(ressource_type_id as i64),
+                QueryParam::I64(ressource_instance_id as i64),
+                QueryParam::I64(access_type_id as i64),
+            ],
         }
     }
 
@@ -40,9 +48,13 @@ impl AddAccessToUserQueryView {
     }
 }
 
-impl DatabaseQueryView for AddAccessToUserQueryView {
-    fn get_request(&self) -> String {
-        "INSERT INTO access_control (user_id, resource_id, resource_instance_id, permission_id) VALUES ($1, $2, $3, $4)".to_string()
+impl ApiRequestDto for AddAccessToUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        "INSERT INTO access_control (user_id, resource_id, resource_instance_id, permission_id) VALUES ($1, $2, $3, $4)"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

@@ -12,7 +12,7 @@ async fn get_group_success() {
 
     let view =
         CreateGroupQueryView::new(1, "get_group_success_name", "get_group_success_description");
-    let id = create_group_query(view, pool.clone()).await.unwrap();
+    let id = create_group_query(view, &pool).await.unwrap();
     let group = Group::new(
         id,
         "get_group_success_name",
@@ -20,7 +20,7 @@ async fn get_group_success() {
         Some("get_group_success_description"),
     );
     let view = GetGroupQuerView::new(id as u64);
-    let result = get_group_query(view, pool.clone()).await;
+    let result = get_group_query(view, &pool).await;
     assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
     let result = result.unwrap();
     assert_eq!(
@@ -37,6 +37,6 @@ async fn get_group_bad_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetGroupQuerView::new(0);
-    let result = get_group_query(view, pool.clone()).await;
+    let result = get_group_query(view, &pool).await;
     assert!(result.is_err(), "result should be Err, got: {:?}", result);
 }

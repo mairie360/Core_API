@@ -11,7 +11,7 @@ async fn test_create_role_success() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let nb_roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let nb_roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap()
         .len();
@@ -20,11 +20,11 @@ async fn test_create_role_success() {
     let description =
         "create_role_success_description".to_string() + random::<u64>().to_string().as_str();
     let view = CreateRoleQueryView::new(&name, &description, Some(false));
-    let result = create_role_query(view, pool.clone()).await;
+    let result = create_role_query(view, &pool).await;
 
     assert!(result.is_ok());
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool.clone())
+    let roles = get_roles_query(GetRolesQueryView::default(), &pool)
         .await
         .unwrap();
     assert!(roles.len() >= nb_roles);

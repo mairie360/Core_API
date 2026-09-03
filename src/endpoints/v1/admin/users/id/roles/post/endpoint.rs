@@ -2,20 +2,16 @@ use crate::database::users::add_role::{add_role_query, AddRolesQueryView};
 use crate::endpoints::v1::admin::users::id::roles::post::view::AddRoleToUserView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AddRoleToUserError {
     NotFound,
-    DatabaseError,
 }
 
 impl std::fmt::Display for AddRoleToUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddRoleToUserError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             AddRoleToUserError::NotFound => {
                 write!(f, "User or role not found.")
             }
@@ -26,7 +22,6 @@ impl std::fmt::Display for AddRoleToUserError {
 impl ResponseError for AddRoleToUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AddRoleToUserError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             AddRoleToUserError::NotFound => StatusCode::NOT_FOUND,
         }
     }
@@ -40,13 +35,8 @@ async fn add_role_to_user(
     state: web::Data<AppState>,
     view: AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(AddRoleToUserError::DatabaseError),
-    };
-
     let view = AddRolesQueryView::new(view.role_id(), view.user_id());
-    add_role_query(view, pool)
+    add_role_query(view, state.get_smart_db())
         .await
         .map_err(|_| AddRoleToUserError::NotFound)?;
 

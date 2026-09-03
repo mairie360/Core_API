@@ -1,16 +1,12 @@
 use crate::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
-use mairie360_api_lib::database::errors::DatabaseError;
-use sqlx::PgPool;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
 pub async fn get_roles_by_id_query(
     view: GetRolesByIdQueryView,
-    pool: PgPool,
-) -> Result<Vec<Role>, DatabaseError> {
-    let result: Vec<Role> = sqlx::query_as::<_, Role>(&view.get_request())
-        .bind(view.id())
-        .fetch_all(&pool)
-        .await?;
+    smart_db: &SmartDatabase,
+) -> Result<Vec<Role>, ApiLibError> {
+    let result: Vec<Role> = smart_db.fetch_all(&view).await?;
 
     Ok(result)
 }

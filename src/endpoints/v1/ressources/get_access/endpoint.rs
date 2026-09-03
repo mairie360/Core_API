@@ -4,20 +4,16 @@ use crate::database::ressources::get_access_by_ressource::{
 use crate::endpoints::v1::ressources::GetAccessResultView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetError {
     BadRequest,
-    DatabaseError,
 }
 
 impl std::fmt::Display for GetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             GetError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -28,7 +24,6 @@ impl std::fmt::Display for GetError {
 impl ResponseError for GetError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             GetError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
@@ -42,13 +37,8 @@ async fn get_access_from_ressource(
     state: web::Data<AppState>,
     ressource_id: u64,
 ) -> Result<GetAccessResultView, GetError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetError::DatabaseError),
-    };
-
     let view = GetAccessByRessourceQueryView::new(ressource_id);
-    let result = get_access_by_ressource(view, pool)
+    let result = get_access_by_ressource(view, state.get_smart_db())
         .await
         .map_err(|_| GetError::BadRequest)?;
 

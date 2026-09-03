@@ -72,9 +72,9 @@ impl From<AdminGetUserQueryResultView> for GetUserResultView {
     fn from(value: AdminGetUserQueryResultView) -> Self {
         Self {
             user: value.user().clone(),
-            roles: value.roles().into_iter().map(|r| r.into()).collect(),
-            groups: value.groups().into_iter().map(|g| g.into()).collect(),
-            sessions: value.sessions().into_iter().map(|s| s.into()).collect(),
+            roles: value.roles().iter().map(|r| r.into()).collect(),
+            groups: value.groups().into_iter().collect(),
+            sessions: value.sessions().iter().map(|s| s.into()).collect(),
         }
     }
 }

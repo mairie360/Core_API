@@ -1,10 +1,7 @@
 use crate::common::get_pool;
 use core_api::database::sessions::create_session::{create_session_query, CreateSessionQueryView};
 use mairie360_api_lib::{
-    database::{
-        errors::DatabaseError, queries::is_session_token_valid_query,
-        query_views::IsSessionTokenValidQueryView,
-    },
+    database::query_views::IsSessionTokenValidQueryView, error::ApiLibError,
     test_setup::queries_setup::get_shared_db,
 };
 use serial_test::serial;
@@ -16,29 +13,27 @@ async fn test_create_session() {
     let pool = get_pool(host.to_string()).await;
 
     // Create a session
-    let result: Result<(), DatabaseError> = create_session_query(
+    let result: Result<(), ApiLibError> = create_session_query(
         CreateSessionQueryView::new(
             1,
             "test_create_session",
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool.clone(),
+        &pool,
     )
     .await;
 
     assert!(result.is_ok());
 
-    let is_valid = is_session_token_valid_query(
-        IsSessionTokenValidQueryView::new(
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
             1,
             "test_create_session".to_string(),
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        pool,
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(is_valid);
 }
@@ -59,9 +54,9 @@ async fn test_injection_create_session() {
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ),
-        pool,
+        &pool,
     )
     .await;
 
-    assert_eq!(result, Ok(()));
+    assert!(result.is_ok());
 }

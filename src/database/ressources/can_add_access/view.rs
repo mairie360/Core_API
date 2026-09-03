@@ -1,5 +1,4 @@
 use crate::endpoints::v1::ressources::AccessType;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
 use std::fmt::Display;
 
 pub struct CanAddAccessQueryView {
@@ -45,16 +44,6 @@ impl CanAddAccessQueryView {
 
     pub fn access_type(&self) -> AccessType {
         self.access_type
-    }
-}
-
-impl DatabaseQueryView for CanAddAccessQueryView {
-    fn get_request(&self) -> String {
-        format!(
-            "SELECT EXISTS(SELECT 1 FROM {} WHERE id = $1 AND owner_id = $2)",
-            self.ressource_type
-        )
-        .to_string()
     }
 }
 
