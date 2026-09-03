@@ -2347,9 +2347,9 @@ dependencies = [
 
 [[package]]
 name = "mairie360_api_lib"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6c8e80d465a80cfb725933a7fa3dd05f466855d70ae977bb9d5d8c6f36b055"
+checksum = "5f5e2cbf5b2cb75f11a5489fbd4239f9ba5719e101ccc32cba8e2b857aa1701c"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -4389,7 +4389,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -5078,7 +5078,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
