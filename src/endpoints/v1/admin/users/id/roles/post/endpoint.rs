@@ -1,4 +1,4 @@
-use crate::database::users::add_role::{add_role_query, AddRolesQueryView};
+use crate::database::users::add_role::AddRolesQueryView;
 use crate::endpoints::v1::admin::users::id::roles::post::view::AddRoleToUserView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -36,7 +36,9 @@ async fn add_role_to_user(
     view: AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
     let view = AddRolesQueryView::new(view.role_id(), view.user_id());
-    add_role_query(view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|_| AddRoleToUserError::NotFound)?;
 

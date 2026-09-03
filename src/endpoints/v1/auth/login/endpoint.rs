@@ -1,5 +1,5 @@
 use super::view::{LoginResponseView, LoginView};
-use crate::database::auth::login::{login_query, LoginUserQueryView};
+use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
@@ -7,6 +7,8 @@ use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
 use base64::{engine::general_purpose, Engine as _};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::state::AppState;
 use rand::fill;
@@ -129,10 +131,18 @@ async fn login_user(
 ) -> Result<(String, String), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
-    let user_record = login_query(view, state.get_smart_db()).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
-        LoginError::DatabaseError
-    })?;
+    let user_record = match state
+        .get_smart_db()
+        .fetch_one::<crate::database::auth::login::LoginUserQueryResultView, _>(&view)
+        .await
+    {
+        Ok(result) => Some(result),
+        Err(ApiLibError::Database(DbError::NotFound)) => None,
+        Err(e) => {
+            eprintln!("Login DB Error: {}", e);
+            return Err(LoginError::DatabaseError);
+        }
+    };
 
     match user_record {
         Some(user) if user.first_connect() => Err(LoginError::FirstConnectError(

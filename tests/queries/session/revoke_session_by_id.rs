@@ -1,7 +1,6 @@
 use core_api::database::sessions::{
-    create_session::{create_session_query, CreateSessionQueryView},
-    get_session_by_token::{get_session_by_token_query, GetSessionByTokenQueryView},
-    revoke_session_by_id::{revoke_session_by_id_query, RevokeSessionByIdQueryView},
+    create_session::CreateSessionQueryView, get_session_by_token::GetSessionByTokenQueryView,
+    revoke_session_by_id::RevokeSessionByIdQueryView, Session,
 };
 use mairie360_api_lib::{
     database::query_views::IsSessionTokenValidQueryView, error::ApiLibError,
@@ -18,24 +17,21 @@ async fn test_revoke_session_with_id() {
     let pool = get_pool(host.to_string()).await;
 
     // Create a session
-    let _ = create_session_query(
-        CreateSessionQueryView::new(
+    let _ = pool
+        .execute(CreateSessionQueryView::new(
             1,
             "test_revoke_session_with_id",
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        &pool,
-    )
-    .await;
+        ))
+        .await;
 
-    let session = get_session_by_token_query(
-        GetSessionByTokenQueryView::new("test_revoke_session_with_id".to_string()),
-        &pool,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let session: Session = pool
+        .fetch_one(&GetSessionByTokenQueryView::new(
+            "test_revoke_session_with_id".to_string(),
+        ))
+        .await
+        .unwrap();
 
     let is_valid: bool = pool
         .fetch_scalar(&IsSessionTokenValidQueryView::new(
@@ -50,8 +46,12 @@ async fn test_revoke_session_with_id() {
 
     let session_id = *session.id();
 
-    let result: Result<(), ApiLibError> =
-        revoke_session_by_id_query(RevokeSessionByIdQueryView::new(1, session_id), &pool).await;
+    let view = RevokeSessionByIdQueryView::new(1, session_id);
+    println!("{}", view);
+    assert_eq!(view.get_user_id(), 1);
+    assert_eq!(*view.get_id(), session_id);
+    let _ = view.get_revoked_at();
+    let result: Result<(), ApiLibError> = pool.execute(view).await;
 
     assert!(result.is_ok());
 

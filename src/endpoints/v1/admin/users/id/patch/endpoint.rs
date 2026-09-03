@@ -2,7 +2,7 @@ use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse
 use mairie360_api_lib::state::AppState;
 
 use crate::{
-    database::users::patch_user::{patch_user_query, PatchUserQueryView},
+    database::users::patch_user::PatchUserQueryView,
     endpoints::v1::admin::users::id::patch::view::PatchUserView,
 };
 
@@ -44,9 +44,13 @@ async fn patch_user(
         view.phone_number(),
         view.password(),
     );
-    patch_user_query(view, state.get_smart_db())
-        .await
-        .map_err(|_| PatchUserError::UnknownUser)?;
+    if !view.is_noop() {
+        state
+            .get_smart_db()
+            .execute(view)
+            .await
+            .map_err(|_| PatchUserError::UnknownUser)?;
+    }
 
     Ok(())
 }

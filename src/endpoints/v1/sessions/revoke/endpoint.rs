@@ -1,8 +1,6 @@
 use std::net::IpAddr;
 
-use crate::database::sessions::revoke_session_by_token::{
-    revoke_session_by_token_query, RevokeSessionByTokenQueryView,
-};
+use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
@@ -62,7 +60,7 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    match revoke_session_by_token_query(db_view, state.get_smart_db()).await {
+    match state.get_smart_db().execute(db_view).await {
         Ok(_) => Ok(()),
         Err(_) => Err(RevokeError::DatabaseError),
     }

@@ -2,7 +2,7 @@ use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::state::AppState;
 
-use crate::database::users::remove_role::{remove_role_query, RemoveRolesQueryView};
+use crate::database::users::remove_role::RemoveRolesQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RemoveUserRoleError {
@@ -37,7 +37,9 @@ async fn delete_user(
     role_id: u64,
 ) -> Result<(), RemoveUserRoleError> {
     let view = RemoveRolesQueryView::new(role_id, user_id);
-    remove_role_query(view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|_| RemoveUserRoleError::NotFound)?;
 

@@ -1,12 +1,6 @@
-use crate::database::ressources::add_access_to_user::{
-    add_access_to_user_query, AddAccessToUserQueryView,
-};
-use crate::database::ressources::get_ressource_type_id::{
-    get_ressource_type_id_query, GetRessourceTypeIdQueryView,
-};
-use crate::database::rights::get_permission_id::{
-    get_permission_id_query, GetPermissionIdQueryView, PermissionAction,
-};
+use crate::database::ressources::add_access_to_user::AddAccessToUserQueryView;
+use crate::database::ressources::get_ressource_type_id::GetRessourceTypeIdQueryView;
+use crate::database::rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction};
 use crate::endpoints::v1::ressources::add_access::view::AddAccessView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -45,22 +39,22 @@ async fn get_request_view(
     smart_db: &SmartDatabase,
     request_view: AddAccessView,
 ) -> Result<AddAccessToUserQueryView, AddAccessError> {
-    let ressource_type_id = get_ressource_type_id_query(
-        GetRessourceTypeIdQueryView::new(request_view.ressource_type()),
-        smart_db,
-    )
-    .await
-    .map_err(|_| AddAccessError::BadRequest)?;
+    let ressource_type_id: i32 = smart_db
+        .fetch_scalar(&GetRessourceTypeIdQueryView::new(
+            request_view.ressource_type(),
+        ))
+        .await
+        .map_err(|_| AddAccessError::BadRequest)?;
+    let ressource_type_id = ressource_type_id as u64;
 
-    let access_type_id = get_permission_id_query(
-        GetPermissionIdQueryView::new(
+    let access_type_id: i32 = smart_db
+        .fetch_scalar(&GetPermissionIdQueryView::new(
             ressource_type_id,
             PermissionAction::from(request_view.access_type().as_str().to_string()),
-        ),
-        smart_db,
-    )
-    .await
-    .map_err(|_| AddAccessError::BadRequest)?;
+        ))
+        .await
+        .map_err(|_| AddAccessError::BadRequest)?;
+    let access_type_id = access_type_id as u64;
 
     Ok(AddAccessToUserQueryView::new(
         request_view.user_id(),
@@ -80,7 +74,8 @@ async fn add_access_to_ressource(
         .await
         .map_err(|_| AddAccessError::BadRequest)?;
 
-    add_access_to_user_query(view, smart_db)
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| AddAccessError::BadRequest)?;
 

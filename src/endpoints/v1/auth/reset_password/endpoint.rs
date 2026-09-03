@@ -1,5 +1,5 @@
-use crate::database::auth::change_password::{change_password_query, ChangePasswordQueryView};
-use crate::database::get_user_id::{get_user_id_query, GetUserIdQueryView};
+use crate::database::auth::change_password::ChangePasswordQueryView;
+use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
@@ -54,7 +54,7 @@ impl ResponseError for ResetPasswordError {
 
 async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, ResetPasswordError> {
     let view = GetUserIdQueryView::new(email);
-    match get_user_id_query(view, smart_db).await {
+    match smart_db.fetch_scalar::<i32, _>(&view).await {
         Ok(user_id) => Ok(user_id as u64),
         Err(_) => Err(ResetPasswordError::DatabaseError),
     }
@@ -66,7 +66,8 @@ async fn reset_pwd(
     user_id: u64,
 ) -> Result<(), ResetPasswordError> {
     let view = ChangePasswordQueryView::new(new_password, user_id);
-    change_password_query(view, smart_db)
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| ResetPasswordError::DatabaseError)?;
     Ok(())

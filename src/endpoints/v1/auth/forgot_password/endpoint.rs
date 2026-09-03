@@ -1,5 +1,5 @@
-use crate::database::auth::is_first_time::{is_first_time_query, IsFirstTimeQueryView};
-use crate::database::get_user_id::{get_user_id_query, GetUserIdQueryView};
+use crate::database::auth::is_first_time::IsFirstTimeQueryView;
+use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
@@ -71,13 +71,13 @@ async fn check_user(smart_db: &SmartDatabase, email: &str) -> Result<(), ResetPa
     };
 
     let view = GetUserIdQueryView::new(email);
-    let user_id = match get_user_id_query(view, smart_db).await {
+    let user_id = match smart_db.fetch_scalar::<i32, _>(&view).await {
         Ok(user_id) => user_id,
         Err(_) => return Err(ResetPasswordError::DatabaseError),
     };
 
     let view = IsFirstTimeQueryView::new(user_id as u64);
-    let result = is_first_time_query(view, smart_db).await.unwrap();
+    let result = smart_db.fetch_scalar(&view).await.unwrap();
     if result {
         Ok(())
     } else {

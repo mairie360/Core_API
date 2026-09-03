@@ -1,4 +1,3 @@
-use crate::database::auth::register::register_query;
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
@@ -105,7 +104,9 @@ async fn register_user(
         register_view.phone_number(),
     );
 
-    let success = register_query(view, state.get_smart_db())
+    let success: bool = state
+        .get_smart_db()
+        .fetch_scalar(&view)
         .await
         .map_err(|e| {
             eprintln!("Database error: {}", e);

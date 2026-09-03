@@ -1,5 +1,5 @@
-use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
-use crate::database::groups::get_group_members::{get_group_members_query, GetGroupUsersQueryView};
+use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
+use crate::database::groups::get_group_members::GetGroupUsersQueryView;
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -45,7 +45,8 @@ async fn trigger_get_group_members(
     let smart_db = state.get_smart_db();
 
     let check_view = DoesGroupExistQuerView::new(group_id as u64);
-    let result = does_group_exist_query(check_view, smart_db)
+    let result: bool = smart_db
+        .fetch_scalar(&check_view)
         .await
         .map_err(|_| GetUsersGroupError::UnknowGroup)?;
     if !result {
@@ -53,7 +54,8 @@ async fn trigger_get_group_members(
     }
 
     let view = GetGroupUsersQueryView::new(group_id as u64);
-    let result = get_group_members_query(view, smart_db)
+    let result: Vec<i32> = smart_db
+        .fetch_all(&view)
         .await
         .map_err(|_| GetUsersGroupError::BadRequest)?;
 

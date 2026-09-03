@@ -1,5 +1,5 @@
-use crate::database::roles::change_role::{change_role_query, ChangeRoleQueryView};
-use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
+use crate::database::roles::change_role::ChangeRoleQueryView;
+use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
@@ -41,8 +41,7 @@ impl ResponseError for PutError {
 
 async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, smart_db).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn put_role(
@@ -51,6 +50,8 @@ async fn put_role(
     state: web::Data<AppState>,
 ) -> Result<(), PutError> {
     let smart_db = state.get_smart_db();
+    // L'existence du rôle vient d'être vérifiée juste au-dessus : pas besoin de la
+    // revérifier une deuxième fois avant d'exécuter la mise à jour.
     if !does_role_exist(id, smart_db).await {
         return Err(PutError::NotFound);
     }
@@ -60,7 +61,8 @@ async fn put_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    change_role_query(view, smart_db)
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| PutError::DatabaseError)?;
     Ok(())

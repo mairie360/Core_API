@@ -1,6 +1,6 @@
 use core_api::database::sessions::{
-    create_session::{create_session_query, CreateSessionQueryView},
-    get_sessions_by_user::{get_sessions_by_user_query, GetSessionsByUserQueryView},
+    create_session::CreateSessionQueryView, get_sessions_by_user::GetSessionsByUserQueryView,
+    Session,
 };
 use mairie360_api_lib::{
     database::query_views::IsSessionTokenValidQueryView, test_setup::queries_setup::get_shared_db,
@@ -16,16 +16,14 @@ async fn test_get_sessions_by_user() {
     let pool = get_pool(host.to_string()).await;
 
     // Create a session
-    let _ = create_session_query(
-        CreateSessionQueryView::new(
+    let _ = pool
+        .execute(CreateSessionQueryView::new(
             1,
             "test_get_sessions_by_user",
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        &pool,
-    )
-    .await;
+        ))
+        .await;
 
     let _: bool = pool
         .fetch_scalar(&IsSessionTokenValidQueryView::new(
@@ -36,9 +34,10 @@ async fn test_get_sessions_by_user() {
         .await
         .unwrap();
 
-    let result = get_sessions_by_user_query(GetSessionsByUserQueryView::new(1), &pool)
-        .await
-        .unwrap();
+    let view = GetSessionsByUserQueryView::new(1);
+    println!("{}", view);
+    assert_eq!(view.get_user_id(), 1);
+    let result: Vec<Session> = pool.fetch_all(&view).await.unwrap();
 
     assert!(!result.is_empty());
 }
@@ -50,16 +49,14 @@ async fn test_get_sessions_by_unknow_user() {
     let pool = get_pool(host.to_string()).await;
 
     // Create a session
-    let _ = create_session_query(
-        CreateSessionQueryView::new(
+    let _ = pool
+        .execute(CreateSessionQueryView::new(
             1,
             "test_get_sessions_by_user",
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
-        ),
-        &pool,
-    )
-    .await;
+        ))
+        .await;
 
     let _: bool = pool
         .fetch_scalar(&IsSessionTokenValidQueryView::new(
@@ -70,7 +67,8 @@ async fn test_get_sessions_by_unknow_user() {
         .await
         .unwrap();
 
-    let result = get_sessions_by_user_query(GetSessionsByUserQueryView::new(2), &pool)
+    let result: Vec<Session> = pool
+        .fetch_all(&GetSessionsByUserQueryView::new(2))
         .await
         .unwrap();
 

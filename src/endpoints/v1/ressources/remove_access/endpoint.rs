@@ -1,4 +1,4 @@
-use crate::database::ressources::remove_access::{remove_access_query, RemoveAccessQueryView};
+use crate::database::ressources::remove_access::RemoveAccessQueryView;
 use crate::endpoints::v1::ressources::remove_access::view::RemoveAccessView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -36,7 +36,9 @@ async fn remove_access_to_ressource(
     view: RemoveAccessView,
 ) -> Result<(), RemoveAccessError> {
     let request_view = RemoveAccessQueryView::new(view.access_id());
-    remove_access_query(request_view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(request_view)
         .await
         .map_err(|_| RemoveAccessError::BadRequest)?;
     Ok(())

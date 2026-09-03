@@ -1,4 +1,4 @@
-use crate::database::roles::get_roles::{get_roles_query, GetRolesQueryView};
+use crate::database::roles::get_roles::GetRolesQueryView;
 use crate::endpoints::v1::roles::get::view::GetResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -33,12 +33,10 @@ impl ResponseError for GetError {
 
 async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
     let view = GetRolesQueryView::default();
-    let result = get_roles_query(view, state.get_smart_db())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetError::DatabaseError
-        })?;
+    let result = state.get_smart_db().fetch_all(&view).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetError::DatabaseError
+    })?;
     Ok(GetResponseView::from(result))
 }
 

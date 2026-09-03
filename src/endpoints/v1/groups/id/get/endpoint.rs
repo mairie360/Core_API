@@ -1,5 +1,5 @@
-use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
-use crate::database::groups::get_group::{get_group_query, GetGroupQuerView};
+use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
+use crate::database::groups::get_group::GetGroupQuerView;
 use crate::endpoints::v1::groups::id::get::view::GetGroupResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -45,7 +45,8 @@ async fn trigger_get_group(
     let smart_db = state.get_smart_db();
 
     let group_check_view = DoesGroupExistQuerView::new(id);
-    let result = does_group_exist_query(group_check_view, smart_db)
+    let result: bool = smart_db
+        .fetch_scalar(&group_check_view)
         .await
         .map_err(|_| GetGroupError::UnknowGroup)?;
     if !result {
@@ -53,7 +54,8 @@ async fn trigger_get_group(
     }
 
     let db_view = GetGroupQuerView::new(id);
-    let result = get_group_query(db_view, smart_db)
+    let result = smart_db
+        .fetch_one(&db_view)
         .await
         .map_err(|_| GetGroupError::BadRequest)?;
 

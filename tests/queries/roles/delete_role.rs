@@ -1,6 +1,6 @@
 use crate::common::roles::setup_tests;
 use crate::common::{get_pool, roles::DELETE_ID};
-use core_api::database::roles::delete_role::{delete_role_query, DeleteRoleQueryView};
+use core_api::database::roles::delete_role::DeleteRoleQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -12,7 +12,9 @@ async fn test_delete_role() {
     let pool = get_pool(host.to_string()).await;
 
     let view = DeleteRoleQueryView::new(*DELETE_ID.get().unwrap());
-    let result = delete_role_query(view, &pool).await;
+    println!("{}", view);
+    assert_eq!(view.id(), *DELETE_ID.get().unwrap());
+    let result = pool.execute(view).await;
 
     assert!(result.is_ok());
 }
@@ -25,7 +27,7 @@ async fn test_delete_role_bad_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = DeleteRoleQueryView::new(999);
-    let result = delete_role_query(view, &pool).await;
+    let result = pool.execute(view).await;
 
     assert!(result.is_ok());
 }

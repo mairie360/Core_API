@@ -1,6 +1,4 @@
-use crate::database::sessions::get_active_sessions::{
-    get_active_sessions_query, GetActiveSessionsQueryView,
-};
+use crate::database::sessions::get_active_sessions::GetActiveSessionsQueryView;
 use crate::endpoints::v1::sessions::get::response_view::GetResponseView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
@@ -43,12 +41,11 @@ async fn get_user_info(
 
     // Le cache Redis est désormais géré par `SmartDatabase` (cache-aside), via
     // `GetActiveSessionsQueryView::cache_key`.
-    let query_result = get_active_sessions_query(
-        GetActiveSessionsQueryView::new(user_id),
-        state.get_smart_db(),
-    )
-    .await
-    .map_err(|_| GetError::DatabaseError)?;
+    let query_result: Vec<crate::database::sessions::Session> = state
+        .get_smart_db()
+        .fetch_all(&GetActiveSessionsQueryView::new(user_id))
+        .await
+        .map_err(|_| GetError::DatabaseError)?;
 
     Ok(GetResponseView::new(
         query_result.into_iter().map(|s| s.into()).collect(),

@@ -1,6 +1,6 @@
-use crate::database::roles::can_delete_role::{can_delete_role_query, CanDeleteRoleQueryView};
-use crate::database::roles::delete_role::{delete_role_query, DeleteRoleQueryView};
-use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
+use crate::database::roles::can_delete_role::CanDeleteRoleQueryView;
+use crate::database::roles::delete_role::DeleteRoleQueryView;
+use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -45,14 +45,12 @@ impl ResponseError for DeleteError {
 
 async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, smart_db).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn can_delete_role(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = CanDeleteRoleQueryView::new(id);
-    let result = can_delete_role_query(view, smart_db).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
@@ -64,8 +62,10 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
         return Err(DeleteError::Forbidden);
     }
     let view = DeleteRoleQueryView::new(id);
-    let result = delete_role_query(view, smart_db).await;
-    result.map_err(|_| DeleteError::DatabaseError)
+    smart_db
+        .execute(view)
+        .await
+        .map_err(|_| DeleteError::DatabaseError)
 }
 
 #[utoipa::path(

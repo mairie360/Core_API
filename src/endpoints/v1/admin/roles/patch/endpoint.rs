@@ -1,5 +1,5 @@
-use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
-use crate::database::roles::patch_role::{patch_role_query, PatchRoleQueryView};
+use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::database::roles::patch_role::PatchRoleQueryView;
 use crate::endpoints::v1::admin::roles::patch::view::PatchView;
 
 use actix_web::http::StatusCode;
@@ -41,8 +41,7 @@ impl ResponseError for PatchError {
 
 async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, smart_db).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn patch_role(
@@ -60,9 +59,12 @@ async fn patch_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    patch_role_query(view, smart_db)
-        .await
-        .map_err(|_| PatchError::DatabaseError)?;
+    if !view.is_noop() {
+        smart_db
+            .execute(view)
+            .await
+            .map_err(|_| PatchError::DatabaseError)?;
+    }
     Ok(())
 }
 

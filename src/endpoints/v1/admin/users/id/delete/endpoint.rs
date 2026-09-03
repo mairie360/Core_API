@@ -1,7 +1,7 @@
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::state::AppState;
 
-use crate::database::users::delete_user::{delete_user_query, DeleteUserQueryView};
+use crate::database::users::delete_user::DeleteUserQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserError {
@@ -30,12 +30,10 @@ impl ResponseError for DeleteUserError {
 
 async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), DeleteUserError> {
     let view = DeleteUserQueryView::new(user_id);
-    delete_user_query(view, state.get_smart_db())
-        .await
-        .map_err(|e| {
-            eprintln!("Error: {}", e);
-            DeleteUserError::AlreadyDeleted
-        })?;
+    state.get_smart_db().execute(view).await.map_err(|e| {
+        eprintln!("Error: {}", e);
+        DeleteUserError::AlreadyDeleted
+    })?;
 
     Ok(())
 }

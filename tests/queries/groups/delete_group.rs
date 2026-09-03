@@ -1,6 +1,6 @@
 use crate::common::get_pool;
-use core_api::database::groups::create_group::{create_group_query, CreateGroupQueryView};
-use core_api::database::groups::delete_group::{delete_group_query, DeleteGroupQueryView};
+use core_api::database::groups::create_group::CreateGroupQueryView;
+use core_api::database::groups::delete_group::DeleteGroupQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -15,9 +15,10 @@ async fn delete_group_success() {
         "delete_group_success_name",
         "delete_group_success_description",
     );
-    let id = create_group_query(view, &pool).await.unwrap();
+    let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = DeleteGroupQueryView::new(id as u64);
-    let result = delete_group_query(view, &pool).await;
+    println!("{}", view);
+    let result = pool.execute(view).await;
     assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
 }
 
@@ -27,6 +28,6 @@ async fn delete_group_bad_group_id() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
     let view = DeleteGroupQueryView::new(999);
-    let result = delete_group_query(view, &pool).await;
+    let result = pool.execute(view).await;
     assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
 }

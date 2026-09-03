@@ -1,4 +1,4 @@
-use crate::database::groups::create_group::{create_group_query, CreateGroupQueryView};
+use crate::database::groups::create_group::CreateGroupQueryView;
 use crate::endpoints::v1::groups::post::view::{PostGroupResultView, PostGroupView};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -38,7 +38,9 @@ async fn create_group(
     view: PostGroupView,
 ) -> Result<PostGroupResultView, PostGroupError> {
     let db_view = CreateGroupQueryView::new(user.id, view.name(), view.description());
-    let id = create_group_query(db_view, state.get_smart_db())
+    let id: i32 = state
+        .get_smart_db()
+        .fetch_scalar(&db_view)
         .await
         .map_err(|_| PostGroupError::BadRequest)?;
 

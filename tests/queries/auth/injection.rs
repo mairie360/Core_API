@@ -1,7 +1,9 @@
 use crate::common::{get_pool, get_raw_pool};
-use core_api::database::auth::login::{login_query, LoginUserQueryView};
-use core_api::database::auth::register::{register_query, RegisterUserQueryView};
+use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryView};
+use core_api::database::auth::register::RegisterUserQueryView;
+use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 use sqlx::PgPool;
@@ -30,13 +32,17 @@ async fn test_injection_login_email() {
 
     let malicious_email = "' OR 1=1 --";
 
-    let result = login_query(
-        LoginUserQueryView::new(malicious_email.to_string(), "any_password".to_string()),
-        &pool,
-    )
-    .await;
+    let result: Result<LoginUserQueryResultView, _> = pool
+        .fetch_one(&LoginUserQueryView::new(
+            malicious_email.to_string(),
+            "any_password".to_string(),
+        ))
+        .await;
 
-    assert_eq!(result.unwrap(), None);
+    assert!(matches!(
+        result,
+        Err(ApiLibError::Database(DbError::NotFound))
+    ));
 }
 
 #[tokio::test]
@@ -51,12 +57,16 @@ async fn test_injection_register_fields() {
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
-    let result = register_query(
-        RegisterUserQueryView::new(malicious_name, "Doe", &unique_email, "pass", None),
-        &pool,
-    )
-    .await
-    .unwrap();
+    let result: bool = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
+            malicious_name,
+            "Doe",
+            &unique_email,
+            "pass",
+            None,
+        ))
+        .await
+        .unwrap();
 
     assert!(result);
 

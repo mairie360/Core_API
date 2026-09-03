@@ -3,7 +3,7 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-use crate::database::groups::delete_group::{delete_group_query, DeleteGroupQueryView};
+use crate::database::groups::delete_group::DeleteGroupQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteGroupError {
@@ -34,7 +34,9 @@ impl ResponseError for DeleteGroupError {
 
 async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteGroupError> {
     let db_view = DeleteGroupQueryView::new(id);
-    delete_group_query(db_view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(db_view)
         .await
         .map_err(|_| DeleteGroupError::BadRequest)?;
 

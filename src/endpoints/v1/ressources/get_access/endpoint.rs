@@ -1,6 +1,4 @@
-use crate::database::ressources::get_access_by_ressource::{
-    get_access_by_ressource, GetAccessByRessourceQueryView,
-};
+use crate::database::ressources::get_access_by_ressource::GetAccessByRessourceQueryView;
 use crate::endpoints::v1::ressources::GetAccessResultView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -38,7 +36,9 @@ async fn get_access_from_ressource(
     ressource_id: u64,
 ) -> Result<GetAccessResultView, GetError> {
     let view = GetAccessByRessourceQueryView::new(ressource_id);
-    let result = get_access_by_ressource(view, state.get_smart_db())
+    let result = state
+        .get_smart_db()
+        .fetch_all(&view)
         .await
         .map_err(|_| GetError::BadRequest)?;
 

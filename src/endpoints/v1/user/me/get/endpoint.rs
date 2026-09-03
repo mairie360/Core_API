@@ -1,7 +1,7 @@
-use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
-use crate::database::roles::get_roles_by_id::{get_roles_by_id_query, GetRolesByIdQueryView};
-use crate::database::users::get_roles::{get_user_roles_query, GetUserRolesQueryView};
-use crate::database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQueryView};
+use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
+use crate::database::roles::get_roles_by_id::GetRolesByIdQueryView;
+use crate::database::users::get_roles::GetUserRolesQueryView;
+use crate::database::users::get_user_by_id::GetUserByIdQueryView;
 use crate::endpoints::v1::user::me::get::view::GetMeResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -41,25 +41,27 @@ async fn trigger_get_me(
 ) -> Result<GetMeResponseView, GetMeError> {
     let smart_db = state.get_smart_db();
     let view = GetUserByIdQueryView::new(user_id);
-    let result = get_user_by_id_query(view, smart_db).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
-        GetMeError::DatabaseError
-    })?;
+    let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
+        smart_db.fetch_one(&view).await.map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetMeError::DatabaseError
+        })?;
     let view = GetUserGroupsQuerView::new(user_id);
-    let groups = get_user_groups(view, smart_db).await.map_err(|e| {
+    let groups = smart_db.fetch_all(&view).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetMeError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(user_id);
-    let role_id = get_user_roles_query(role, smart_db).await.map_err(|e| {
+    let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetMeError::DatabaseError
     })?;
     let view = GetRolesByIdQueryView::new(role_id);
-    let role = get_roles_by_id_query(view, smart_db).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
-        GetMeError::DatabaseError
-    })?;
+    let role: Vec<crate::database::roles::get_roles_by_id::Role> =
+        smart_db.fetch_all(&view).await.map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetMeError::DatabaseError
+        })?;
 
     Ok(GetMeResponseView::new(
         result.first_name(),

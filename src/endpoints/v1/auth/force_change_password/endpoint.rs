@@ -1,7 +1,5 @@
-use crate::database::auth::is_first_time::{is_first_time_query, IsFirstTimeQueryView};
-use crate::database::auth::unset_first_connection::{
-    unset_first_connection_query, UnsetFirstConnectionQueryView,
-};
+use crate::database::auth::is_first_time::IsFirstTimeQueryView;
+use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -58,7 +56,8 @@ async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
 }
 
 async fn is_first_time(smart_db: &SmartDatabase, user_id: u64) -> bool {
-    is_first_time_query(IsFirstTimeQueryView::new(user_id), smart_db)
+    smart_db
+        .fetch_scalar(&IsFirstTimeQueryView::new(user_id))
         .await
         .unwrap_or(false)
 }
@@ -68,12 +67,10 @@ async fn change_password(
     user_id: u64,
     new_password: &str,
 ) -> Result<(), ForceChanhePasswordError> {
-    unset_first_connection_query(
-        UnsetFirstConnectionQueryView::new(user_id, new_password),
-        smart_db,
-    )
-    .await
-    .map_err(|_| ForceChanhePasswordError::DatabaseError)
+    smart_db
+        .execute(UnsetFirstConnectionQueryView::new(user_id, new_password))
+        .await
+        .map_err(|_| ForceChanhePasswordError::DatabaseError)
 }
 
 async fn force_change_password_trigger(

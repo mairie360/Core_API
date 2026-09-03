@@ -3,10 +3,8 @@ use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-use crate::database::groups::delete_user_from_group::{
-    delete_user_from_group_query, DeleteUserFromGroupQueryView,
-};
-use crate::database::groups::is_user_member::{is_user_member_query, IsUserMemberQueryView};
+use crate::database::groups::delete_user_from_group::DeleteUserFromGroupQueryView;
+use crate::database::groups::is_user_member::IsUserMemberQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserFromGroupError {
@@ -48,7 +46,8 @@ async fn delete_user_from_group(
     let smart_db = state.get_smart_db();
 
     let user_check_view = IsUserMemberQueryView::new(group_id, user_id);
-    let result = is_user_member_query(user_check_view, smart_db)
+    let result: bool = smart_db
+        .fetch_scalar(&user_check_view)
         .await
         .map_err(|_| DeleteUserFromGroupError::UnknowUser)?;
     if !result {
@@ -56,7 +55,8 @@ async fn delete_user_from_group(
     }
 
     let db_view = DeleteUserFromGroupQueryView::new(group_id, user_id);
-    delete_user_from_group_query(db_view, smart_db)
+    smart_db
+        .execute(db_view)
         .await
         .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
 

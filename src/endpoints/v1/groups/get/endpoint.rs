@@ -1,4 +1,4 @@
-use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
+use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
 use crate::endpoints::v1::groups::get::view::GetGroupsResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -36,7 +36,9 @@ async fn trigger_get_groups(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
 ) -> Result<GetGroupsResultView, GetGroupsError> {
-    let groups = get_user_groups(GetUserGroupsQuerView::new(user.id), state.get_smart_db())
+    let groups = state
+        .get_smart_db()
+        .fetch_all(&GetUserGroupsQuerView::new(user.id))
         .await
         .map_err(|_| GetGroupsError::BadRequest)?;
 

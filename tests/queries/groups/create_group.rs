@@ -1,5 +1,5 @@
 use crate::common::get_pool;
-use core_api::database::groups::create_group::{create_group_query, CreateGroupQueryView};
+use core_api::database::groups::create_group::CreateGroupQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -14,7 +14,8 @@ async fn create_group_success() {
         "create_group_name_success",
         "create_group_description_success",
     );
-    let result = create_group_query(view, &pool).await;
+    println!("{}", view);
+    let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_ok());
 }
 
@@ -29,9 +30,9 @@ async fn create_group_duplicate_name() {
         "create_group_name_duplicate",
         "create_group_description_duplicate",
     );
-    let result = create_group_query(view.clone(), &pool).await;
+    let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_ok());
 
-    let result = create_group_query(view, &pool).await;
+    let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_err());
 }

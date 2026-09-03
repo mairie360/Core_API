@@ -1,5 +1,4 @@
 use crate::common::{get_pool, get_raw_pool};
-use core_api::database::auth::register::register_query;
 use core_api::database::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
@@ -31,18 +30,16 @@ async fn test_register_user_success() {
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
-    let register_result = register_query(
-        RegisterUserQueryView::new(
+    let register_result: bool = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        &pool,
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
     assert!(register_result);
 }
@@ -57,29 +54,25 @@ async fn test_register_user_duplicate_email() {
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
-    let _ = register_query(
-        RegisterUserQueryView::new(
+    let _: Result<bool, _> = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        &pool,
-    )
-    .await;
+        ))
+        .await;
 
-    let register_result = register_query(
-        RegisterUserQueryView::new(
+    let register_result: Result<bool, _> = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        &pool,
-    )
-    .await;
+        ))
+        .await;
 
     assert!(register_result.is_err());
 }

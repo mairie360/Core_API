@@ -1,7 +1,6 @@
 use crate::common::get_pool;
 use core_api::database::groups::{
-    create_group::{create_group_query, CreateGroupQueryView},
-    does_group_exist::{does_group_exist_query, DoesGroupExistQuerView},
+    create_group::CreateGroupQueryView, does_group_exist::DoesGroupExistQuerView,
 };
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
@@ -17,15 +16,16 @@ async fn does_group_exist_true() {
         "does_group_exist_true_name",
         "does_group_exist_true_description",
     );
-    let result = create_group_query(view, &pool).await.unwrap();
+    let result: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = DoesGroupExistQuerView::new(result as u64);
-    let result = does_group_exist_query(view, &pool).await;
+    println!("{}", view);
+    let result = pool.fetch_scalar(&view).await;
     assert!(
         result.is_ok(),
         "group should exist, {result:?}",
         result = result
     );
-    let bool_value = result.unwrap();
+    let bool_value: bool = result.unwrap();
     assert!(
         bool_value,
         "result should be true, {bool_value:?}",
@@ -40,13 +40,13 @@ async fn does_group_exist_false() {
     let pool = get_pool(host.to_string()).await;
 
     let view = DoesGroupExistQuerView::new(999);
-    let result = does_group_exist_query(view, &pool).await;
+    let result = pool.fetch_scalar(&view).await;
     assert!(
         result.is_ok(),
         "result should be ok, {result:?}",
         result = result
     );
-    let bool_value = result.unwrap();
+    let bool_value: bool = result.unwrap();
     assert!(
         !bool_value,
         "result should be false, {result:?}",

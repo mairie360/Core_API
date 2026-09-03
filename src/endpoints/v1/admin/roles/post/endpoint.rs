@@ -1,4 +1,4 @@
-use crate::database::roles::create_role::{create_role_query, CreateRoleQueryView};
+use crate::database::roles::create_role::CreateRoleQueryView;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
@@ -39,7 +39,9 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         payload.can_be_deleted(),
     );
 
-    create_role_query(view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|_| PostError::Duplicate)?;
 

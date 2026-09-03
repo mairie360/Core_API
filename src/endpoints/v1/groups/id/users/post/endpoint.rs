@@ -1,6 +1,4 @@
-use crate::database::groups::add_user_to_group::{
-    add_user_to_group_query, AddUserToGroupQueryView,
-};
+use crate::database::groups::add_user_to_group::AddUserToGroupQueryView;
 use crate::endpoints::v1::groups::id::users::post::view::PostUserGroupView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -44,7 +42,9 @@ async fn trigger_add_user_to_group(
     view: PostUserGroupView,
 ) -> Result<(), PostUserGroupError> {
     let db_view = AddUserToGroupQueryView::new(view.user_id(), view.group_id());
-    add_user_to_group_query(db_view, state.get_smart_db())
+    state
+        .get_smart_db()
+        .execute(db_view)
         .await
         .map_err(|_| PostUserGroupError::UnknowUser)?;
 
