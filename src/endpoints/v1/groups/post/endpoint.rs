@@ -1,22 +1,18 @@
-use crate::database::groups::create_group::{create_group_query, CreateGroupQueryView};
+use crate::database::groups::create_group::CreateGroupQueryView;
 use crate::endpoints::v1::groups::post::view::{PostGroupResultView, PostGroupView};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PostGroupError {
     BadRequest,
-    DatabaseError,
 }
 
 impl std::fmt::Display for PostGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostGroupError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             PostGroupError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -27,7 +23,6 @@ impl std::fmt::Display for PostGroupError {
 impl ResponseError for PostGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PostGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             PostGroupError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
@@ -42,13 +37,10 @@ async fn create_group(
     state: web::Data<AppState>,
     view: PostGroupView,
 ) -> Result<PostGroupResultView, PostGroupError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PostGroupError::DatabaseError),
-    };
-
     let db_view = CreateGroupQueryView::new(user.id, view.name(), view.description());
-    let id = create_group_query(db_view, pool)
+    let id: i32 = state
+        .get_smart_db()
+        .fetch_scalar(&db_view)
         .await
         .map_err(|_| PostGroupError::BadRequest)?;
 

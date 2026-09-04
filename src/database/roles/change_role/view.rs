@@ -1,11 +1,13 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct ChangeRoleQueryView {
     id: u64,
     name: String,
     description: String,
     can_be_deleted: Option<bool>,
+    params: Vec<QueryParam>,
 }
 
 impl ChangeRoleQueryView {
@@ -15,6 +17,19 @@ impl ChangeRoleQueryView {
             name: name.to_string(),
             description: description.to_string(),
             can_be_deleted,
+            params: match can_be_deleted {
+                Some(can_be_deleted) => vec![
+                    QueryParam::Text(name.to_string()),
+                    QueryParam::Text(description.to_string()),
+                    QueryParam::Bool(can_be_deleted),
+                    QueryParam::I64(id as i64),
+                ],
+                None => vec![
+                    QueryParam::Text(name.to_string()),
+                    QueryParam::Text(description.to_string()),
+                    QueryParam::I64(id as i64),
+                ],
+            },
         }
     }
 
@@ -35,15 +50,27 @@ impl ChangeRoleQueryView {
     }
 }
 
-impl DatabaseQueryView for ChangeRoleQueryView {
-    fn get_request(&self) -> String {
-        "UPDATE roles
-         SET name = COALESCE($1, name),
-             description = COALESCE($2, description),
-             can_be_deleted = COALESCE($3, can_be_deleted)
-         WHERE id = $4
-         RETURNING *"
-            .to_string()
+impl ApiRequestDto for ChangeRoleQueryView {
+    fn query_sql(&self) -> &'static str {
+        match self.can_be_deleted {
+            Some(_) => {
+                "UPDATE roles
+                 SET name = COALESCE($1, name),
+                     description = COALESCE($2, description),
+                     can_be_deleted = COALESCE($3, can_be_deleted)
+                 WHERE id = $4"
+            }
+            None => {
+                "UPDATE roles
+                 SET name = COALESCE($1, name),
+                     description = COALESCE($2, description)
+                 WHERE id = $3"
+            }
+        }
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

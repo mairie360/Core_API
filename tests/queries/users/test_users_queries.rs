@@ -27,7 +27,7 @@
 //         let (_container, host) = get_shared_db().await;
 //         let pool = get_pool(host.to_string()).await;
 
-//         let result = about_user_query(AboutUserQueryView::new(1), pool)
+//         let result = about_user_query(AboutUserQueryView::new(1), &pool)
 //             .await
 //             .unwrap();
 
@@ -48,7 +48,7 @@
 //         let (_container, host) = get_shared_db().await;
 //         let pool = get_pool(host.to_string()).await;
 
-//         let result = about_user_query(AboutUserQueryView::new(999), pool).await;
+//         let result = about_user_query(AboutUserQueryView::new(999), &pool).await;
 
 //         assert!(result.is_err());
 //         let err = result.err().unwrap();

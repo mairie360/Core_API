@@ -1,5 +1,4 @@
-use crate::common::get_pool;
-use core_api::database::auth::register::register_query;
+use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
@@ -26,24 +25,23 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
 async fn test_register_user_success() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    sync_user_sequence(&pool).await.unwrap();
+    let raw_pool = get_raw_pool(host.to_string()).await;
+    sync_user_sequence(&raw_pool).await.unwrap();
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
-    let register_result = register_query(
-        RegisterUserQueryView::new(
+    let register_result: bool = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        pool,
-    )
-    .await
-    .unwrap();
+        ))
+        .await
+        .unwrap();
 
-    assert_eq!(register_result, true);
+    assert!(register_result);
 }
 
 #[tokio::test]
@@ -51,33 +49,30 @@ async fn test_register_user_success() {
 async fn test_register_user_duplicate_email() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
-    sync_user_sequence(&pool).await.unwrap();
+    let raw_pool = get_raw_pool(host.to_string()).await;
+    sync_user_sequence(&raw_pool).await.unwrap();
 
     let unique_email = format!("test_{}@test.com", uuid::Uuid::new_v4());
 
-    let _ = register_query(
-        RegisterUserQueryView::new(
+    let _: Result<bool, _> = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        pool.clone(),
-    )
-    .await;
+        ))
+        .await;
 
-    let register_result = register_query(
-        RegisterUserQueryView::new(
+    let register_result: Result<bool, _> = pool
+        .fetch_scalar(&RegisterUserQueryView::new(
             "John",
             "Doe",
             &unique_email,
             "secure_password",
             Some("0601020304"),
-        ),
-        pool,
-    )
-    .await;
+        ))
+        .await;
 
     assert!(register_result.is_err());
 }

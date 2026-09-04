@@ -1,17 +1,14 @@
 use std::net::IpAddr;
 
-use crate::database::sessions::revoke_session_by_token::{
-    revoke_session_by_token_query, RevokeSessionByTokenQueryView,
-};
+use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 
-use mairie360_api_lib::database::queries::is_session_token_valid_query;
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RevokeError {
@@ -55,7 +52,7 @@ async fn revoke_request(
 
     let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
-    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone().unwrap()).await;
+    let is_valid: Result<bool, _> = state.get_smart_db().fetch_scalar(&db_view).await;
 
     let db_view = match is_valid {
         Ok(true) => RevokeSessionByTokenQueryView::new(user_id, &view.refresh_token()),
@@ -63,7 +60,7 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    match revoke_session_by_token_query(db_view, state.db_pool.clone().unwrap()).await {
+    match state.get_smart_db().execute(db_view).await {
         Ok(_) => Ok(()),
         Err(_) => Err(RevokeError::DatabaseError),
     }

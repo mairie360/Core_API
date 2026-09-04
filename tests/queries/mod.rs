@@ -1,4 +1,6 @@
+mod admin;
 mod auth;
+mod get_user_id;
 mod groups;
 mod ressources;
 mod rights;

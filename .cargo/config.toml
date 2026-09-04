@@ -12,4 +12,8 @@ check_code = "clippy --all-targets --all-features -- -D warnings"
 # This alias generate the OpenAPI documentation
 open_api = "run --example generate_openapi"
 
+<<<<<<< HEAD
 cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|database/.*/view\\.rs", "--fail-under-lines", "60"]
+=======
+cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|main\\.rs|lib\\.rs", "--fail-under-lines", "60"]
+>>>>>>> main

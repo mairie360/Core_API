@@ -1,18 +1,24 @@
 use chrono::{DateTime, Utc};
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-pub struct GetRolesQueryView {}
+#[derive(Default, serde::Deserialize)]
+pub struct GetRolesQueryView {
+    params: Vec<QueryParam>,
+}
 
-impl DatabaseQueryView for GetRolesQueryView {
-    fn get_request(&self) -> String {
-        "SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles"
-            .to_string()
+impl ApiRequestDto for GetRolesQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RoleQueryResult {
     id: i32,
     name: String,

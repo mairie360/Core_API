@@ -1,13 +1,18 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct DoesGroupExistQuerView {
     group_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl DoesGroupExistQuerView {
     pub fn new(group_id: u64) -> Self {
-        Self { group_id }
+        Self {
+            group_id,
+            params: vec![QueryParam::I32(group_id as i32)],
+        }
     }
 
     pub fn group_id(&self) -> u64 {
@@ -15,9 +20,13 @@ impl DoesGroupExistQuerView {
     }
 }
 
-impl DatabaseQueryView for DoesGroupExistQuerView {
-    fn get_request(&self) -> String {
-        "SELECT EXISTS(SELECT 1 FROM groups WHERE id = $1)".to_string()
+impl ApiRequestDto for DoesGroupExistQuerView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT EXISTS(SELECT 1 FROM groups WHERE id = $1)"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

@@ -1,9 +1,8 @@
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::queries::is_session_token_valid_query;
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -49,10 +48,11 @@ async fn refresh_request(
 
     let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
 
-    let is_valid = is_session_token_valid_query(db_view, state.db_pool.clone().unwrap()).await;
+    let is_valid: Result<bool, _> = state.get_smart_db().fetch_scalar(&db_view).await;
 
     match is_valid {
-        Ok(true) => generate_jwt(&user_id.to_string()).map_err(|_| RefreshError::DatabaseError),
+        // TODO: cf. login/endpoint.rs::generate_session — rôle non encore exploité par la lib.
+        Ok(true) => generate_jwt(&user_id.to_string(), "").map_err(|_| RefreshError::DatabaseError),
         Ok(false) => Err(RefreshError::InvalidToken),
         Err(_) => Err(RefreshError::DatabaseError),
     }

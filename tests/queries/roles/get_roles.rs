@@ -1,4 +1,4 @@
-use core_api::database::roles::get_roles::{get_roles_query, GetRolesQueryView};
+use core_api::database::roles::get_roles::{GetRolesQueryView, RoleQueryResult};
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -11,7 +11,10 @@ async fn test_get_roles() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.to_string()).await;
 
-    let roles = get_roles_query(GetRolesQueryView {}, pool).await.unwrap();
+    let roles: Vec<RoleQueryResult> = pool.fetch_all(&GetRolesQueryView::default()).await.unwrap();
 
-    assert!(roles.len() >= 1);
+    assert!(!roles.is_empty());
+    let role = &roles[0];
+    println!("{}", role);
+    let _ = role.created_at();
 }

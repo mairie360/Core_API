@@ -1,5 +1,7 @@
+use crate::database::ressources::is_owner::IsOwnerQueryView;
 use crate::endpoints::v1::ressources::AccessType;
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::SmartDatabase;
 use std::fmt::Display;
 
 pub struct CanAddAccessQueryView {
@@ -46,15 +48,19 @@ impl CanAddAccessQueryView {
     pub fn access_type(&self) -> AccessType {
         self.access_type
     }
-}
 
-impl DatabaseQueryView for CanAddAccessQueryView {
-    fn get_request(&self) -> String {
-        format!(
-            "SELECT EXISTS(SELECT 1 FROM {} WHERE id = $1 AND owner_id = $2)",
-            self.ressource_type
-        )
-        .to_string()
+    pub async fn check(&self, smart_db: &SmartDatabase) -> Result<bool, ApiLibError> {
+        if self.access_type() == AccessType::Error {
+            return Ok(false);
+        }
+        let is_owner: bool = smart_db
+            .fetch_scalar(&IsOwnerQueryView::new(
+                self.owner_id(),
+                self.ressource_id(),
+                self.ressource_type(),
+            ))
+            .await?;
+        Ok(is_owner)
     }
 }
 

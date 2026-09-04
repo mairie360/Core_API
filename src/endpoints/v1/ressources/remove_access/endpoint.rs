@@ -1,21 +1,17 @@
-use crate::database::ressources::remove_access::{remove_access_query, RemoveAccessQueryView};
+use crate::database::ressources::remove_access::RemoveAccessQueryView;
 use crate::endpoints::v1::ressources::remove_access::view::RemoveAccessView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RemoveAccessError {
     BadRequest,
-    DatabaseError,
 }
 
 impl std::fmt::Display for RemoveAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RemoveAccessError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             RemoveAccessError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -26,7 +22,6 @@ impl std::fmt::Display for RemoveAccessError {
 impl ResponseError for RemoveAccessError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RemoveAccessError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             RemoveAccessError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
@@ -40,12 +35,10 @@ async fn remove_access_to_ressource(
     state: web::Data<AppState>,
     view: RemoveAccessView,
 ) -> Result<(), RemoveAccessError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(RemoveAccessError::DatabaseError),
-    };
     let request_view = RemoveAccessQueryView::new(view.access_id());
-    remove_access_query(request_view, pool)
+    state
+        .get_smart_db()
+        .execute(request_view)
         .await
         .map_err(|_| RemoveAccessError::BadRequest)?;
     Ok(())

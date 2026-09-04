@@ -1,26 +1,20 @@
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::groups::delete_user_from_group::{
-    delete_user_from_group_query, DeleteUserFromGroupQueryView,
-};
-use crate::database::groups::is_user_member::{is_user_member_query, IsUserMemberQueryView};
+use crate::database::groups::delete_user_from_group::DeleteUserFromGroupQueryView;
+use crate::database::groups::is_user_member::IsUserMemberQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserFromGroupError {
     BadRequest,
-    DatabaseError,
     UnknowUser,
 }
 
 impl std::fmt::Display for DeleteUserFromGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteUserFromGroupError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             DeleteUserFromGroupError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -34,7 +28,6 @@ impl std::fmt::Display for DeleteUserFromGroupError {
 impl ResponseError for DeleteUserFromGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteUserFromGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             DeleteUserFromGroupError::BadRequest => StatusCode::BAD_REQUEST,
             DeleteUserFromGroupError::UnknowUser => StatusCode::NOT_FOUND,
         }
@@ -50,13 +43,11 @@ async fn delete_user_from_group(
     group_id: u64,
     user_id: u64,
 ) -> Result<(), DeleteUserFromGroupError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(DeleteUserFromGroupError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let user_check_view = IsUserMemberQueryView::new(group_id, user_id);
-    let result = is_user_member_query(user_check_view, pool.clone())
+    let result: bool = smart_db
+        .fetch_scalar(&user_check_view)
         .await
         .map_err(|_| DeleteUserFromGroupError::UnknowUser)?;
     if !result {
@@ -64,7 +55,8 @@ async fn delete_user_from_group(
     }
 
     let db_view = DeleteUserFromGroupQueryView::new(group_id, user_id);
-    delete_user_from_group_query(db_view, pool)
+    smart_db
+        .execute(db_view)
         .await
         .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
 

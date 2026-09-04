@@ -1,5 +1,5 @@
 use crate::common::get_pool;
-use core_api::database::ressources::can_add_access::{can_add_access_query, CanAddAccessQueryView};
+use core_api::database::ressources::can_add_access::CanAddAccessQueryView;
 use core_api::endpoints::v1::ressources::AccessType;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, GROUP_OWNER_ID};
 use serial_test::serial;
@@ -16,7 +16,7 @@ async fn success() {
         "groups",
         AccessType::Read,
     );
-    assert!(can_add_access_query(view, pool).await.unwrap());
+    assert!(view.check(&pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn failure_bad_owner_id() {
         "groups",
         AccessType::Read,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!view.check(&pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -46,7 +46,7 @@ async fn failure_bad_ressource_id() {
         "groups",
         AccessType::Read,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!view.check(&pool).await.unwrap());
 }
 
 #[tokio::test]
@@ -61,5 +61,5 @@ async fn failure_access_type_error() {
         "groups",
         AccessType::Error,
     );
-    assert!(!can_add_access_query(view, pool).await.unwrap());
+    assert!(!view.check(&pool).await.unwrap());
 }

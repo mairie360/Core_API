@@ -1,24 +1,20 @@
-use crate::database::groups::does_group_exist::{does_group_exist_query, DoesGroupExistQuerView};
-use crate::database::groups::get_group_members::{get_group_members_query, GetGroupUsersQueryView};
+use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
+use crate::database::groups::get_group_members::GetGroupUsersQueryView;
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetUsersGroupError {
     BadRequest,
-    DatabaseError,
     UnknowGroup,
 }
 
 impl std::fmt::Display for GetUsersGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetUsersGroupError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database")
-            }
             GetUsersGroupError::BadRequest => {
                 write!(f, "Bad request")
             }
@@ -32,7 +28,6 @@ impl std::fmt::Display for GetUsersGroupError {
 impl ResponseError for GetUsersGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetUsersGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             GetUsersGroupError::BadRequest => StatusCode::BAD_REQUEST,
             GetUsersGroupError::UnknowGroup => StatusCode::NOT_FOUND,
         }
@@ -47,13 +42,11 @@ async fn trigger_get_group_members(
     state: web::Data<AppState>,
     group_id: i32,
 ) -> Result<GetGroupUsersResultView, GetUsersGroupError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetUsersGroupError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let check_view = DoesGroupExistQuerView::new(group_id as u64);
-    let result = does_group_exist_query(check_view, pool.clone())
+    let result: bool = smart_db
+        .fetch_scalar(&check_view)
         .await
         .map_err(|_| GetUsersGroupError::UnknowGroup)?;
     if !result {
@@ -61,7 +54,8 @@ async fn trigger_get_group_members(
     }
 
     let view = GetGroupUsersQueryView::new(group_id as u64);
-    let result = get_group_members_query(view, pool)
+    let result: Vec<i32> = smart_db
+        .fetch_all(&view)
         .await
         .map_err(|_| GetUsersGroupError::BadRequest)?;
 

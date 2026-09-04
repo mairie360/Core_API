@@ -1,9 +1,9 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow, ToSchema)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, ToSchema)]
 pub struct Access {
     id: i32,
     user_id: Option<i32>,
@@ -70,13 +70,18 @@ impl Display for Access {
     }
 }
 
+#[derive(serde::Deserialize)]
 pub struct GetAccessByRessourceQueryView {
     resource_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetAccessByRessourceQueryView {
     pub fn new(resource_id: u64) -> Self {
-        Self { resource_id }
+        Self {
+            resource_id,
+            params: vec![QueryParam::I32(resource_id as i32)],
+        }
     }
 
     pub fn resource_id(&self) -> u64 {
@@ -84,9 +89,13 @@ impl GetAccessByRessourceQueryView {
     }
 }
 
-impl DatabaseQueryView for GetAccessByRessourceQueryView {
-    fn get_request(&self) -> String {
-        "SELECT * FROM access_control WHERE resource_instance_id = $1".to_string()
+impl ApiRequestDto for GetAccessByRessourceQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT * FROM access_control WHERE resource_instance_id = $1) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

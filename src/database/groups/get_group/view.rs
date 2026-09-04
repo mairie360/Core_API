@@ -1,15 +1,20 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use utoipa::ToSchema;
 
+#[derive(serde::Deserialize)]
 pub struct GetGroupQuerView {
     group_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetGroupQuerView {
     pub fn new(group_id: u64) -> Self {
-        Self { group_id }
+        Self {
+            group_id,
+            params: vec![QueryParam::I32(group_id as i32)],
+        }
     }
 
     pub fn group_id(&self) -> u64 {
@@ -17,9 +22,13 @@ impl GetGroupQuerView {
     }
 }
 
-impl DatabaseQueryView for GetGroupQuerView {
-    fn get_request(&self) -> String {
-        "SELECT * FROM groups WHERE id = $1".to_string()
+impl ApiRequestDto for GetGroupQuerView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT * FROM groups WHERE id = $1) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
@@ -29,9 +38,7 @@ impl Display for GetGroupQuerView {
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, sqlx::FromRow, serde::Deserialize, serde::Serialize, ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Group {
     id: i32,
     owner_id: i32,

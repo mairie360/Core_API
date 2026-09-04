@@ -1,13 +1,18 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct IsFirstTimeQueryView {
     user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl IsFirstTimeQueryView {
     pub fn new(user_id: u64) -> Self {
-        Self { user_id }
+        Self {
+            user_id,
+            params: vec![QueryParam::I32(user_id as i32)],
+        }
     }
 
     pub fn user_id(&self) -> u64 {
@@ -15,9 +20,13 @@ impl IsFirstTimeQueryView {
     }
 }
 
-impl DatabaseQueryView for IsFirstTimeQueryView {
-    fn get_request(&self) -> String {
-        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1) AS first_connect".to_string()
+impl ApiRequestDto for IsFirstTimeQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1) AS first_connect"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

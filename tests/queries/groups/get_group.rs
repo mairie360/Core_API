@@ -1,6 +1,6 @@
 use crate::common::get_pool;
-use core_api::database::groups::create_group::{create_group_query, CreateGroupQueryView};
-use core_api::database::groups::get_group::{get_group_query, GetGroupQuerView, Group};
+use core_api::database::groups::create_group::CreateGroupQueryView;
+use core_api::database::groups::get_group::{GetGroupQuerView, Group};
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -12,7 +12,7 @@ async fn get_group_success() {
 
     let view =
         CreateGroupQueryView::new(1, "get_group_success_name", "get_group_success_description");
-    let id = create_group_query(view, pool.clone()).await.unwrap();
+    let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let group = Group::new(
         id,
         "get_group_success_name",
@@ -20,9 +20,10 @@ async fn get_group_success() {
         Some("get_group_success_description"),
     );
     let view = GetGroupQuerView::new(id as u64);
-    let result = get_group_query(view, pool.clone()).await;
+    println!("{}", view);
+    let result = pool.fetch_one(&view).await;
     assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
-    let result = result.unwrap();
+    let result: Group = result.unwrap();
     assert_eq!(
         result, group,
         "result: {:#?}\nexpected: {:#?}",
@@ -37,6 +38,6 @@ async fn get_group_bad_id() {
     let pool = get_pool(host.to_string()).await;
 
     let view = GetGroupQuerView::new(0);
-    let result = get_group_query(view, pool.clone()).await;
+    let result: Result<Group, _> = pool.fetch_one(&view).await;
     assert!(result.is_err(), "result should be Err, got: {:?}", result);
 }

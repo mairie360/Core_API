@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Session {
     id: Uuid,
     user_id: i32,

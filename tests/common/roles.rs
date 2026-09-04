@@ -1,4 +1,4 @@
-use crate::common::get_pool;
+use crate::common::get_raw_pool;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use sqlx::Row;
 use tokio::sync::OnceCell;
@@ -12,7 +12,7 @@ pub static PATCH_MUTEX: OnceCell<tokio::sync::Mutex<()>> = OnceCell::const_new()
 pub async fn setup_tests() {
     if COUNT.get().is_none() {
         let (_container, host) = get_shared_db().await;
-        let pool = get_pool(host.to_string()).await;
+        let pool = get_raw_pool(host.to_string()).await;
         COUNT.set(0).unwrap();
         let _ = sqlx::query(
             "INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, $2, true)",

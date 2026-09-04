@@ -1,13 +1,10 @@
-use crate::database::auth::is_first_time::{is_first_time_query, IsFirstTimeQueryView};
-use crate::database::auth::unset_first_connection::{
-    unset_first_connection_query, UnsetFirstConnectionQueryView,
-};
+use crate::database::auth::is_first_time::IsFirstTimeQueryView;
+use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::redis::simple_key::secured::handle_secure_get;
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ForceChanhePasswordError {
@@ -48,55 +45,50 @@ impl ResponseError for ForceChanhePasswordError {
 
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
     println!("{}/first_connection_id", token);
-    match handle_secure_get(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/first_connection_id", token),
-    )
-    .await
+    match state
+        .get_redis()
+        .secure_get::<String>(&format!("{}/first_connection_id", token))
+        .await
     {
-        Ok(id) => Some(id.parse().unwrap()),
-        Err(_) => None,
+        Ok(Some(id)) => id.parse().ok(),
+        _ => None,
     }
 }
 
-async fn is_first_time(pool: PgPool, user_id: u64) -> bool {
-    is_first_time_query(IsFirstTimeQueryView::new(user_id), pool)
+async fn is_first_time(smart_db: &SmartDatabase, user_id: u64) -> bool {
+    smart_db
+        .fetch_scalar(&IsFirstTimeQueryView::new(user_id))
         .await
         .unwrap_or(false)
 }
 
 async fn change_password(
-    pool: PgPool,
+    smart_db: &SmartDatabase,
     user_id: u64,
     new_password: &str,
 ) -> Result<(), ForceChanhePasswordError> {
-    unset_first_connection_query(
-        UnsetFirstConnectionQueryView::new(user_id, new_password),
-        pool,
-    )
-    .await
-    .map_err(|_| ForceChanhePasswordError::DatabaseError)
+    smart_db
+        .execute(UnsetFirstConnectionQueryView::new(user_id, new_password))
+        .await
+        .map_err(|_| ForceChanhePasswordError::DatabaseError)
 }
 
 async fn force_change_password_trigger(
     state: web::Data<AppState>,
     view: ForceChangePasswordView,
 ) -> Result<(), ForceChanhePasswordError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(ForceChanhePasswordError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let user_id = match get_user_id(&state, view.token()).await {
         Some(user_id) => user_id,
         None => return Err(ForceChanhePasswordError::Forbidden),
     };
 
-    if !is_first_time(pool.clone(), user_id).await {
+    if !is_first_time(smart_db, user_id).await {
         return Err(ForceChanhePasswordError::Unauthorized);
     }
 
-    change_password(pool.clone(), user_id, view.new_password()).await?;
+    change_password(smart_db, user_id, view.new_password()).await?;
 
     Ok(())
 }

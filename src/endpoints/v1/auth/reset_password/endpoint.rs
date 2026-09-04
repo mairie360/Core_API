@@ -1,5 +1,5 @@
-use crate::database::auth::change_password::{change_password_query, ChangePasswordQueryView};
-use crate::database::get_user_id::{get_user_id_query, GetUserIdQueryView};
+use crate::database::auth::change_password::ChangePasswordQueryView;
+use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
@@ -7,9 +7,8 @@ use crate::endpoints::v1::auth::reset_password::view::{
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::redis::simple_key::secured::handle_secure_get;
-use mairie360_api_lib::pool::redis::simple_key::unsecured::handle_delete_data;
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
@@ -53,25 +52,22 @@ impl ResponseError for ResetPasswordError {
     }
 }
 
-async fn get_user_id(state: web::Data<AppState>, email: &str) -> Result<u64, ResetPasswordError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(ResetPasswordError::DatabaseError),
-    };
+async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, ResetPasswordError> {
     let view = GetUserIdQueryView::new(email);
-    match get_user_id_query(view, pool.clone()).await {
+    match smart_db.fetch_scalar::<i32, _>(&view).await {
         Ok(user_id) => Ok(user_id as u64),
         Err(_) => Err(ResetPasswordError::DatabaseError),
     }
 }
 
 async fn reset_pwd(
-    pool: &sqlx::pool::Pool<sqlx::Postgres>,
+    smart_db: &SmartDatabase,
     new_password: &str,
     user_id: u64,
 ) -> Result<(), ResetPasswordError> {
     let view = ChangePasswordQueryView::new(new_password, user_id);
-    change_password_query(view, pool.clone())
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| ResetPasswordError::DatabaseError)?;
     Ok(())
@@ -82,23 +78,18 @@ async fn reset_password_trigger(
     view: ResetPasswordView,
     ip_adress: std::net::IpAddr,
 ) -> Result<(String, String), ResetPasswordError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => {
-            eprintln!("Database pool is not available");
-            return Err(ResetPasswordError::DatabaseError);
-        }
-    };
+    let smart_db = state.get_smart_db();
+    let redis = state.get_redis();
 
     let key = format!("{}/forgot_password_email", view.token());
-    let email = match handle_secure_get(state.get_redis_conn().await.unwrap(), &key).await {
-        Ok(email) => email,
-        Err(e) => {
-            eprintln!("Failed to get email from Redis: {:?}", e);
+    let email: String = match redis.secure_get::<String>(&key).await {
+        Ok(Some(email)) => email,
+        other => {
+            eprintln!("Failed to get email from Redis: {:?}", other);
             return Err(ResetPasswordError::UnknownToken);
         }
     };
-    let user_id = match get_user_id(state.clone(), &email).await {
+    let user_id = match get_user_id(smart_db, &email).await {
         Ok(user_id) => user_id,
         Err(e) => {
             eprintln!("Failed to get user ID: {:?}", e);
@@ -107,22 +98,16 @@ async fn reset_password_trigger(
     };
 
     let reversed_key = format!("{}/forgot_password_token", email);
-    match handle_delete_data(state.get_redis_conn().await.unwrap(), &reversed_key).await {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Failed to delete reversed key: {:?}", e);
-            return Err(ResetPasswordError::RedisError);
-        }
+    if let Err(e) = redis.delete(&reversed_key).await {
+        eprintln!("Failed to delete reversed key: {:?}", e);
+        return Err(ResetPasswordError::RedisError);
     }
-    match handle_delete_data(state.get_redis_conn().await.unwrap(), &key).await {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Failed to delete key: {:?}", e);
-            return Err(ResetPasswordError::RedisError);
-        }
+    if let Err(e) = redis.delete(&key).await {
+        eprintln!("Failed to delete key: {:?}", e);
+        return Err(ResetPasswordError::RedisError);
     }
 
-    reset_pwd(&pool, view.new_password(), user_id).await?;
+    reset_pwd(smart_db, view.new_password(), user_id).await?;
 
     match generate_session(user_id, &view.device_info(), ip_adress, state).await {
         Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),
@@ -152,8 +137,8 @@ pub async fn reset_password(
 ) -> Result<impl Responder, ResetPasswordError> {
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
     let ip_address = ip_str
-            .parse::<std::net::IpAddr>()
-            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
+        .parse::<std::net::IpAddr>()
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
     let (jwt, refresh_token) = reset_password_trigger(state, body.into_inner(), ip_address).await?;
 
     Ok(HttpResponse::Ok()

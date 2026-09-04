@@ -1,31 +1,21 @@
-use crate::database::ressources::add_access_to_user::{
-    add_access_to_user_query, AddAccessToUserQueryView,
-};
-use crate::database::ressources::get_ressource_type_id::{
-    get_ressource_type_id_query, GetRessourceTypeIdQueryView,
-};
-use crate::database::rights::get_permission_id::{
-    get_permission_id_query, GetPermissionIdQueryView, PermissionAction,
-};
+use crate::database::ressources::add_access_to_user::AddAccessToUserQueryView;
+use crate::database::ressources::get_ressource_type_id::GetRessourceTypeIdQueryView;
+use crate::database::rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction};
 use crate::endpoints::v1::ressources::add_access::view::AddAccessView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum AddAccessError {
     BadRequest,
-    DatabaseError,
 }
 
 impl std::fmt::Display for AddAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddAccessError::DatabaseError => {
-                write!(f, "An error occurred while accessing the database.")
-            }
             AddAccessError::BadRequest => {
                 write!(f, "Bad request.")
             }
@@ -36,7 +26,6 @@ impl std::fmt::Display for AddAccessError {
 impl ResponseError for AddAccessError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AddAccessError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             AddAccessError::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
@@ -47,25 +36,25 @@ impl ResponseError for AddAccessError {
 }
 
 async fn get_request_view(
-    pool: PgPool,
+    smart_db: &SmartDatabase,
     request_view: AddAccessView,
 ) -> Result<AddAccessToUserQueryView, AddAccessError> {
-    let ressource_type_id = get_ressource_type_id_query(
-        GetRessourceTypeIdQueryView::new(request_view.ressource_type()),
-        pool.clone(),
-    )
-    .await
-    .map_err(|_| AddAccessError::BadRequest)?;
+    let ressource_type_id: i32 = smart_db
+        .fetch_scalar(&GetRessourceTypeIdQueryView::new(
+            request_view.ressource_type(),
+        ))
+        .await
+        .map_err(|_| AddAccessError::BadRequest)?;
+    let ressource_type_id = ressource_type_id as u64;
 
-    let access_type_id = get_permission_id_query(
-        GetPermissionIdQueryView::new(
+    let access_type_id: i32 = smart_db
+        .fetch_scalar(&GetPermissionIdQueryView::new(
             ressource_type_id,
             PermissionAction::from(request_view.access_type().as_str().to_string()),
-        ),
-        pool.clone(),
-    )
-    .await
-    .map_err(|_| AddAccessError::BadRequest)?;
+        ))
+        .await
+        .map_err(|_| AddAccessError::BadRequest)?;
+    let access_type_id = access_type_id as u64;
 
     Ok(AddAccessToUserQueryView::new(
         request_view.user_id(),
@@ -79,16 +68,14 @@ async fn add_access_to_ressource(
     state: web::Data<AppState>,
     view: AddAccessView,
 ) -> Result<(), AddAccessError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(AddAccessError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
-    let view = get_request_view(pool.clone(), view)
+    let view = get_request_view(smart_db, view)
         .await
         .map_err(|_| AddAccessError::BadRequest)?;
 
-    add_access_to_user_query(view, pool)
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| AddAccessError::BadRequest)?;
 

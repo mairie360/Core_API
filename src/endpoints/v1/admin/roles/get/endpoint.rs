@@ -1,8 +1,8 @@
-use crate::database::roles::get_roles::{get_roles_query, GetRolesQueryView};
+use crate::database::roles::get_roles::GetRolesQueryView;
 use crate::endpoints::v1::admin::roles::get::view::GetResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetError {
@@ -32,13 +32,11 @@ impl ResponseError for GetError {
 }
 
 async fn get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
-    let view = GetRolesQueryView {};
-    let result = get_roles_query(view, state.db_pool.clone().unwrap())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetError::DatabaseError
-        })?;
+    let view = GetRolesQueryView::default();
+    let result = state.get_smart_db().fetch_all(&view).await.map_err(|e| {
+        eprintln!("Login DB Error: {}", e);
+        GetError::DatabaseError
+    })?;
     Ok(GetResponseView::from(result))
 }
 
