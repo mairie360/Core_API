@@ -30,12 +30,6 @@ impl PermissionAction {
     }
 }
 
-impl Display for PermissionAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
 impl From<String> for PermissionAction {
     fn from(s: String) -> Self {
         match s.as_str() {
