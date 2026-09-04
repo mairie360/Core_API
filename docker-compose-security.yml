@@ -180,6 +180,6 @@ services:
     # ZAP scanne l'API en utilisant le fichier OpenAPI généré par votre API Rust
     command: >
       zap-api-scan.py
-      -t http://core:3000/openapi-spec.json
+      -t http://core:3000/api-docs/openapi.json
       -f openapi
       -I
