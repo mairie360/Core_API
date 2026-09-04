@@ -1,0 +1,185 @@
+volumes:
+  postgres-data:
+  redis-data:
+  core-target:
+
+networks:
+  backend:
+
+x-common-env: &common-env
+  HOST: "0.0.0.0"
+  PORT: 3000
+  REDIS_URL: redis://redis:6379
+  DB_TYPE: postgres
+  DB_NAME: mairie_360_database
+  DB_USER: postgres
+  DB_HOST: postgres
+  DB_PASSWORD: password
+  DB_PORT: 5432
+
+x-depends-on: &depends-on
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
+x-healthcheck: &healthcheck
+  test: ["CMD", "curl", "-f", "http://localhost:3000"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+
+x-service: &service-template
+  image: ghcr.io/mairie360/service_name:latest
+  pull_policy: always
+  restart: always
+  expose:
+    - "3000"
+  networks:
+    - backend
+  healthcheck:
+    <<: *healthcheck
+
+services:
+  postgres:
+    image: ghcr.io/mairie360/database:dev-a50c7b2
+    restart: always
+    container_name: mairie360-db-core-api
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: mairie_360_database
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  liquibase:
+    image: ghcr.io/mairie360/liquibase-migrations:dev-a50c7b2
+    container_name: mairie360-liquibase-core-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/mairie_360_database
+      LIQUIBASE_COMMAND_USERNAME: ${DB_USER:-postgres}
+      LIQUIBASE_COMMAND_PASSWORD: ${DB_PASSWORD:-password}
+      LIQUIBASE_SEARCH_PATH: /migrations
+    command: >
+      --changelog-file=changelog.xml
+      update
+    networks:
+      - backend
+
+  redis:
+    image: redis:8.4.0-bookworm
+    container_name: mairie360-redis-core-api
+    restart: always
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  core:
+    container_name: core-api-developpement
+    build:
+      context: .
+      dockerfile: development.Dockerfile
+    restart: always
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /usr/src/core/src
+        - action: sync
+          path: ./Cargo.toml
+          target: /usr/src/core/Cargo.toml
+        - action: sync
+          path: ./Cargo.lock
+          target: /usr/src/core/Cargo.lock
+    ports:
+      - "3000:3000"
+    volumes:
+      - core-target:/usr/src/core/target
+    networks:
+      - backend
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      <<: *common-env
+      PUBLIC_URL: http://core.development.mairie360.fr
+      JWT_SECRET: b"secret"
+      JWT_TIMEOUT: 3600
+      SMTP_HOST: "mailpit" # Nom du service docker
+      SMTP_PORT: "1025" # Port SMTP de mailpit
+      SMTP_USERNAME: "" # Pas besoin d'authentification en local
+      SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      EMAIL_FROM: "noreply.mairie360@dev.local"
+    depends_on:
+      liquibase:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://core:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  mailpit:
+    image: axllent/mailpit:v1.31
+    container_name: mairie360-mailpit
+    restart: always
+    ports:
+      - "8025:8025" # Interface Web pour voir les mails (http://localhost:8025)
+      - "1025:1025" # Le port SMTP pour ton code Rust
+    networks:
+      - backend
+    depends_on:
+      core:
+        condition: service_healthy
+
+  # nginx:
+  #   image: nginx:1.29.1-bookworm
+  #   restart: always
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   ports:
+  #     - "80:80"
+  #   networks:
+  #     - backend
+  #   depends_on:
+  #     mailpit:
+  #       condition: service_healthy
+
+  security-scan:
+    image: zaproxy/zap-stable
+    networks:
+      - backend
+    depends_on:
+      # nginx:
+      core:
+        condition: service_healthy
+    # ZAP scanne l'API en utilisant le fichier OpenAPI généré par votre API Rust
+    command: >
+      zap-api-scan.py
+      -t http://core:3000/api-docs/openapi.json
+      -f openapi
+      -I

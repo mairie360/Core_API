@@ -72,7 +72,6 @@ async fn revoke_request(
     request_body = RevokeRequestView,
     responses(
         (status = 200, description = "Token revoked successfully"),
-        (status = 400, description = "Bad request"),
         (status = 401, description = "Unauthorized, invalid token or user not found"),
         (status = 500, description = "Internal server error")
     ),
