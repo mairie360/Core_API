@@ -1,9 +1,9 @@
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
 use mairie360_api_lib::security::AuthenticatedUser;
+use mairie360_api_lib::state::AppState;
 
-use crate::database::users::patch_user::{patch_user_query, PatchUserQueryView};
+use crate::database::users::patch_user::PatchUserQueryView;
 use crate::endpoints::v1::user::me::patch::view::PatchMeView;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,11 +38,6 @@ async fn trigger_patch_me(
     view: PatchMeView,
     user_id: u64,
 ) -> Result<(), PatchMeError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(PatchMeError::DatabaseError),
-    };
-
     let db_view = PatchUserQueryView::new(
         user_id,
         view.first_name(),
@@ -51,10 +46,12 @@ async fn trigger_patch_me(
         view.phone(),
         None,
     );
-    patch_user_query(db_view, &pool).await.map_err(|e| {
-        eprintln!("Error: {:?}", e);
-        PatchMeError::DatabaseError
-    })?;
+    if !db_view.is_noop() {
+        state.get_smart_db().execute(db_view).await.map_err(|e| {
+            eprintln!("Error: {:?}", e);
+            PatchMeError::DatabaseError
+        })?;
+    }
     Ok(())
 }
 

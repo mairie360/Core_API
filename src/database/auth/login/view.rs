@@ -1,14 +1,20 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct LoginUserQueryView {
     email: String,
     password: String,
+    params: Vec<QueryParam>,
 }
 
 impl LoginUserQueryView {
     pub fn new(email: String, password: String) -> Self {
-        Self { email, password }
+        Self {
+            params: vec![QueryParam::Text(email.clone())],
+            email,
+            password,
+        }
     }
 
     pub fn get_email(&self) -> &String {
@@ -20,9 +26,13 @@ impl LoginUserQueryView {
     }
 }
 
-impl DatabaseQueryView for LoginUserQueryView {
-    fn get_request(&self) -> String {
-        "SELECT id, password, first_connect FROM users WHERE email = $1".to_string()
+impl ApiRequestDto for LoginUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT id, password, first_connect FROM users WHERE email = $1) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
@@ -36,13 +46,13 @@ impl Display for LoginUserQueryView {
     }
 }
 
-#[derive(Debug, sqlx::FromRow, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct LoginUserQueryResultView {
-    #[sqlx(rename = "id")]
+    #[serde(rename = "id")]
     user_id: i32,
-    #[sqlx(rename = "password")]
+    #[serde(rename = "password")]
     password: String,
-    #[sqlx(rename = "first_connect")]
+    #[serde(rename = "first_connect")]
     first_connect: bool,
 }
 

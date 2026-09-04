@@ -1,10 +1,12 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct GetActiveSessionQueryView {
     user_id: u64,
     ip_address: std::net::IpAddr,
     device_info: String,
+    params: Vec<QueryParam>,
 }
 
 impl GetActiveSessionQueryView {
@@ -13,6 +15,11 @@ impl GetActiveSessionQueryView {
             user_id,
             ip_address,
             device_info: device_info.to_string(),
+            params: vec![
+                QueryParam::I64(user_id as i64),
+                QueryParam::IpAddr(ip_address),
+                QueryParam::Text(device_info.to_string()),
+            ],
         }
     }
 
@@ -29,10 +36,13 @@ impl GetActiveSessionQueryView {
     }
 }
 
-impl DatabaseQueryView for GetActiveSessionQueryView {
-    fn get_request(&self) -> String {
-        "SELECT * FROM v_sessions WHERE user_id = $1 AND ip_address = $2 AND device_info = $3"
-            .to_string()
+impl ApiRequestDto for GetActiveSessionQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT * FROM v_sessions WHERE user_id = $1 AND ip_address = $2 AND device_info = $3) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

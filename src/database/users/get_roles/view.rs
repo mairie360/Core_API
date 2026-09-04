@@ -1,13 +1,18 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct GetUserRolesQueryView {
     id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetUserRolesQueryView {
     pub fn new(id: u64) -> Self {
-        Self { id }
+        Self {
+            id,
+            params: vec![QueryParam::I32(id as i32)],
+        }
     }
 
     pub fn get_id(&self) -> u64 {
@@ -15,9 +20,13 @@ impl GetUserRolesQueryView {
     }
 }
 
-impl DatabaseQueryView for GetUserRolesQueryView {
-    fn get_request(&self) -> String {
-        "SELECT role_id FROM user_roles WHERE user_id = $1".to_string()
+impl ApiRequestDto for GetUserRolesQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT to_jsonb(role_id) FROM user_roles WHERE user_id = $1"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

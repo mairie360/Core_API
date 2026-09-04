@@ -1,14 +1,19 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct GetUserByIdQueryView {
     id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl GetUserByIdQueryView {
     pub fn new(id: u64) -> Self {
-        Self { id }
+        Self {
+            id,
+            params: vec![QueryParam::I32(id as i32)],
+        }
     }
 
     pub fn get_id(&self) -> u64 {
@@ -16,10 +21,13 @@ impl GetUserByIdQueryView {
     }
 }
 
-impl DatabaseQueryView for GetUserByIdQueryView {
-    fn get_request(&self) -> String {
-        "SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1"
-            .to_string()
+impl ApiRequestDto for GetUserByIdQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 
@@ -29,7 +37,7 @@ impl Display for GetUserByIdQueryView {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GetUserByIdQueryResultView {
     first_name: String,
     last_name: String,

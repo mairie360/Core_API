@@ -1,11 +1,11 @@
-use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
-use crate::database::roles::patch_role::{patch_role_query, PatchRoleQueryView};
+use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::database::roles::patch_role::PatchRoleQueryView;
 use crate::endpoints::v1::admin::roles::patch::view::PatchView;
 
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchError {
@@ -39,10 +39,9 @@ impl ResponseError for PatchError {
     }
 }
 
-async fn does_role_exist(id: u64, pool: PgPool) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, pool).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn patch_role(
@@ -50,7 +49,8 @@ async fn patch_role(
     payload: PatchView,
     state: web::Data<AppState>,
 ) -> Result<(), PatchError> {
-    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
+    let smart_db = state.get_smart_db();
+    if !does_role_exist(id, smart_db).await {
         return Err(PatchError::NotFound);
     }
     let view = PatchRoleQueryView::new(
@@ -59,9 +59,12 @@ async fn patch_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    patch_role_query(view, state.db_pool.clone().unwrap())
-        .await
-        .map_err(|_| PatchError::DatabaseError)?;
+    if !view.is_noop() {
+        smart_db
+            .execute(view)
+            .await
+            .map_err(|_| PatchError::DatabaseError)?;
+    }
     Ok(())
 }
 

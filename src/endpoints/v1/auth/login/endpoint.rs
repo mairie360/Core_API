@@ -1,5 +1,5 @@
 use super::view::{LoginResponseView, LoginView};
-use crate::database::auth::login::{login_query, LoginUserQueryView};
+use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
@@ -7,9 +7,10 @@ use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
 use base64::{engine::general_purpose, Engine as _};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::pool::redis::simple_key::secured::{handle_secure_get, handle_secure_post};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 use rand::fill;
 use uuid::Uuid;
 
@@ -31,7 +32,7 @@ impl std::fmt::Display for LoginError {
             }
             LoginError::TokenGenerationError => write!(f, "Failed to generate JWT token."),
             LoginError::FirstConnectError(token) => {
-                write!(f, "{}", token.to_string())
+                write!(f, "{}", token)
             }
             LoginError::RedisError => write!(f, "Internal Redis error."),
         }
@@ -78,7 +79,10 @@ pub async fn generate_session(
     let refresh_token = generate_refresh_token();
     let view = CreateSessionQueryView::new(user_id, &refresh_token, device_info, ip_adress);
     create_new_session(state, user_id, view).await;
-    let jwt = generate_jwt(user_id.to_string().as_str()).map_err(|e| {
+    // TODO: le rôle n'est pas encore exploité par la lib (ni AdminMiddleware, ni check_jwt_validity
+    // ne le lisent depuis les claims), donc on ne fait pas d'aller-retour DB supplémentaire ici pour
+    // le récupérer. À brancher sur un vrai rôle utilisateur si/quand la lib s'en sert.
+    let jwt = generate_jwt(user_id.to_string().as_str(), "").map_err(|e| {
         eprintln!("JWT Generation Error: {}", e);
         LoginError::TokenGenerationError
     })?;
@@ -89,38 +93,34 @@ async fn generate_first_connection_token(
     user_id: u64,
     state: web::Data<AppState>,
 ) -> Result<String, LoginError> {
-    match handle_secure_get(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/first_connection_token", user_id),
-    )
-    .await
+    let redis = state.get_redis();
+
+    if let Ok(Some(token)) = redis
+        .secure_get::<String>(&format!("{}/first_connection_token", user_id))
+        .await
     {
-        Ok(token) => return Ok(token),
-        _ => {}
-    };
+        return Ok(token);
+    }
     let token = Uuid::new_v4().to_string();
-    println!("{}", format!("{}/first_connection_id", token));
+    println!("{}/first_connection_id", token);
     println!("{}", &format!("{}/first_connection_token", user_id));
-    handle_secure_post(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/first_connection_token", user_id),
-        &token,
-    )
-    .await
-    .map_err(|e| {
-        eprintln!("Redis Error: {}", e);
-        LoginError::RedisError
-    })?;
-    handle_secure_post(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/first_connection_id", token),
-        &format!("{}", user_id),
-    )
-    .await
-    .map_err(|e| {
-        eprintln!("Redis Error: {}", e);
-        LoginError::RedisError
-    })?;
+    redis
+        .secure_set(&format!("{}/first_connection_token", user_id), &token)
+        .await
+        .map_err(|e| {
+            eprintln!("Redis Error: {}", e);
+            LoginError::RedisError
+        })?;
+    redis
+        .secure_set(
+            &format!("{}/first_connection_id", token),
+            &format!("{}", user_id),
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Redis Error: {}", e);
+            LoginError::RedisError
+        })?;
     Ok(token)
 }
 
@@ -131,12 +131,18 @@ async fn login_user(
 ) -> Result<(String, String), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
-    let user_record = login_query(view, state.db_pool.clone().unwrap())
+    let user_record = match state
+        .get_smart_db()
+        .fetch_one::<crate::database::auth::login::LoginUserQueryResultView, _>(&view)
         .await
-        .map_err(|e| {
+    {
+        Ok(result) => Some(result),
+        Err(ApiLibError::Database(DbError::NotFound)) => None,
+        Err(e) => {
             eprintln!("Login DB Error: {}", e);
-            LoginError::DatabaseError
-        })?;
+            return Err(LoginError::DatabaseError);
+        }
+    };
 
     match user_record {
         Some(user) if user.first_connect() => Err(LoginError::FirstConnectError(
@@ -181,11 +187,9 @@ pub async fn login(
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
-    let ip_address = std::net::IpAddr::from(
-        ip_str
-            .parse::<std::net::IpAddr>()
-            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0))),
-    );
+    let ip_address = ip_str
+        .parse::<std::net::IpAddr>()
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
 
     let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 

@@ -1,14 +1,12 @@
-use crate::database::auth::is_first_time::{is_first_time_query, IsFirstTimeQueryView};
-use crate::database::get_user_id::{get_user_id_query, GetUserIdQueryView};
+use crate::database::auth::is_first_time::IsFirstTimeQueryView;
+use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::queries::does_user_exist_by_email_query;
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
-use mairie360_api_lib::pool::redis::simple_key::secured::{handle_secure_get, handle_secure_post};
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,23 +61,23 @@ impl ResponseError for ResetPasswordError {
     }
 }
 
-async fn check_user(pool: PgPool, email: &str) -> Result<(), ResetPasswordError> {
+async fn check_user(smart_db: &SmartDatabase, email: &str) -> Result<(), ResetPasswordError> {
     println!("email: {}", email);
     let view = DoesUserExistByEmailQueryView::new(email.to_string());
-    let result = does_user_exist_by_email_query(view, pool.clone()).await;
+    let result: Result<bool, _> = smart_db.fetch_scalar(&view).await;
     match result {
         Ok(true) => {}
         _ => return Err(ResetPasswordError::UserNotFound),
     };
 
     let view = GetUserIdQueryView::new(email);
-    let user_id = match get_user_id_query(view, pool.clone()).await {
+    let user_id = match smart_db.fetch_scalar::<i32, _>(&view).await {
         Ok(user_id) => user_id,
         Err(_) => return Err(ResetPasswordError::DatabaseError),
     };
 
     let view = IsFirstTimeQueryView::new(user_id as u64);
-    let result = is_first_time_query(view, pool).await.unwrap();
+    let result = smart_db.fetch_scalar(&view).await.unwrap();
     if result {
         Ok(())
     } else {
@@ -129,28 +127,26 @@ async fn handle_forgot_password(
     }
 }
 
-async fn trigger(state: web::Data<AppState>, email: &str) -> Result<(), ResetPasswordError> {
+async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError> {
     let token = Uuid::new_v4().to_string();
-    handle_secure_post(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/forgot_password_token", email),
-        &token,
-    )
-    .await
-    .map_err(|e| {
-        eprintln!("Redis Error: {}", e);
-        ResetPasswordError::RedisError
-    })?;
-    handle_secure_post(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/forgot_password_email", token),
-        &format!("{}", email),
-    )
-    .await
-    .map_err(|e| {
-        eprintln!("Redis Error: {}", e);
-        ResetPasswordError::RedisError
-    })?;
+    let redis = state.get_redis();
+    redis
+        .secure_set(&format!("{}/forgot_password_token", email), &token)
+        .await
+        .map_err(|e| {
+            eprintln!("Redis Error: {}", e);
+            ResetPasswordError::RedisError
+        })?;
+    redis
+        .secure_set(
+            &format!("{}/forgot_password_email", token),
+            &email.to_string(),
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Redis Error: {}", e);
+            ResetPasswordError::RedisError
+        })?;
     match handle_forgot_password(token, email).await {
         Ok(_) => Ok(()),
         Err(_) => Err(ResetPasswordError::MailError),
@@ -161,23 +157,19 @@ async fn forgot_password_trigger(
     state: web::Data<AppState>,
     view: ForgotPasswordView,
 ) -> Result<(), ResetPasswordError> {
-    let token = handle_secure_get(
-        state.get_redis_conn().await.unwrap(),
-        &format!("{}/forgot_password_token", view.email()),
-    )
-    .await;
-    if token.is_ok() {
+    let smart_db = state.get_smart_db();
+
+    let token = state
+        .get_redis()
+        .secure_get::<String>(&format!("{}/forgot_password_token", view.email()))
+        .await;
+    if matches!(token, Ok(Some(_))) {
         return Err(ResetPasswordError::AlreadyRequested);
     }
 
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(ResetPasswordError::DatabaseError),
-    };
-
-    match check_user(pool.clone(), view.email()).await {
+    match check_user(smart_db, view.email()).await {
         Err(err) => Err(err),
-        _ => trigger(state, view.email()).await,
+        _ => trigger(&state, view.email()).await,
     }
 }
 

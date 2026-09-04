@@ -1,11 +1,11 @@
-use crate::database::groups::get_user_groups::{get_user_groups, GetUserGroupsQuerView};
-use crate::database::roles::get_roles_by_id::{get_roles_by_id_query, GetRolesByIdQueryView};
-use crate::database::users::get_roles::{get_user_roles_query, GetUserRolesQueryView};
-use crate::database::users::get_user_by_id::{get_user_by_id_query, GetUserByIdQueryView};
+use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
+use crate::database::roles::get_roles_by_id::GetRolesByIdQueryView;
+use crate::database::users::get_roles::GetUserRolesQueryView;
+use crate::database::users::get_user_by_id::GetUserByIdQueryView;
 use crate::endpoints::v1::user::id::get::view::GetUserResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetUserError {
@@ -43,35 +43,30 @@ async fn trigger_get_user(
     state: web::Data<AppState>,
     id: u64,
 ) -> Result<GetUserResponseView, GetUserError> {
-    let pool = match state.db_pool.clone() {
-        Some(pool) => pool,
-        None => return Err(GetUserError::DatabaseError),
-    };
+    let smart_db = state.get_smart_db();
 
     let view = GetUserByIdQueryView::new(id);
-    let result = get_user_by_id_query(view, pool.clone())
-        .await
-        .map_err(|e| {
+    let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
+        smart_db.fetch_one(&view).await.map_err(|e| {
             eprintln!("Login DB Error: {}", e);
             GetUserError::UnknownUser
         })?;
     let view = GetUserGroupsQuerView::new(id);
-    let groups = get_user_groups(view, pool.clone()).await.map_err(|e| {
+    let groups = smart_db.fetch_all(&view).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetUserError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(id);
-    let role_id = get_user_roles_query(role, pool.clone())
-        .await
-        .map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
-            GetUserError::DatabaseError
-        })?;
-    let view = GetRolesByIdQueryView::new(role_id);
-    let role = get_roles_by_id_query(view, pool).await.map_err(|e| {
+    let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetUserError::DatabaseError
     })?;
+    let view = GetRolesByIdQueryView::new(role_id);
+    let role: Vec<crate::database::roles::get_roles_by_id::Role> =
+        smart_db.fetch_all(&view).await.map_err(|e| {
+            eprintln!("Login DB Error: {}", e);
+            GetUserError::DatabaseError
+        })?;
 
     Ok(GetUserResponseView::new(
         result.first_name(),

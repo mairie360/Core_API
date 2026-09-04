@@ -1,9 +1,11 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct ChangePasswordQueryView {
     password: String,
     user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl ChangePasswordQueryView {
@@ -11,6 +13,10 @@ impl ChangePasswordQueryView {
         Self {
             password: password.to_string(),
             user_id,
+            params: vec![
+                QueryParam::Text(password.to_string()),
+                QueryParam::I32(user_id as i32),
+            ],
         }
     }
 
@@ -23,9 +29,13 @@ impl ChangePasswordQueryView {
     }
 }
 
-impl DatabaseQueryView for ChangePasswordQueryView {
-    fn get_request(&self) -> String {
-        "UPDATE users SET password = $1 WHERE id = $2".to_string()
+impl ApiRequestDto for ChangePasswordQueryView {
+    fn query_sql(&self) -> &'static str {
+        "UPDATE users SET password = $1 WHERE id = $2"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

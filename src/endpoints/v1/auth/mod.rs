@@ -6,11 +6,10 @@ pub mod register;
 pub mod reset_password;
 
 use actix_web::web;
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 
 use crate::database::sessions::{
-    create_session::{create_session_query, CreateSessionQueryView},
-    revoke_previous_session::{revoke_previous_session_query, RevokePreviousSessionQueryView},
+    create_session::CreateSessionQueryView, revoke_previous_session::RevokePreviousSessionQueryView,
 };
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -30,8 +29,10 @@ pub async fn revoke_previous_session(
     ip_adress: &std::net::IpAddr,
     device_info: &str,
 ) {
-    let view = RevokePreviousSessionQueryView::new(user_id, ip_adress.clone(), device_info);
-    revoke_previous_session_query(view, state.db_pool.clone().unwrap())
+    let view = RevokePreviousSessionQueryView::new(user_id, *ip_adress, device_info);
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|e| {
             eprintln!("Revoke Previous Session DB Error: {}", e);
@@ -51,7 +52,9 @@ pub async fn create_new_session(
         view.get_device_info(),
     )
     .await;
-    create_session_query(view, state.db_pool.clone().unwrap())
+    state
+        .get_smart_db()
+        .execute(view)
         .await
         .map_err(|e| {
             eprintln!("Create Session DB Error: {}", e);

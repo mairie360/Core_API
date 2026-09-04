@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
 pub enum PermissionAction {
     Create,
     Read,
@@ -15,6 +15,7 @@ pub enum PermissionAction {
 }
 
 impl PermissionAction {
+    #[allow(clippy::wrong_self_convention)]
     fn to_string(&self) -> &str {
         match self {
             PermissionAction::Create => "create",
@@ -50,9 +51,11 @@ impl Display for PermissionAction {
     }
 }
 
+#[derive(serde::Deserialize)]
 pub struct GetPermissionIdQueryView {
     resource_id: u64,
     action: PermissionAction,
+    params: Vec<QueryParam>,
 }
 
 impl GetPermissionIdQueryView {
@@ -60,6 +63,10 @@ impl GetPermissionIdQueryView {
         Self {
             resource_id,
             action,
+            params: vec![
+                QueryParam::I32(resource_id as i32),
+                QueryParam::Text(action.to_string().to_owned()),
+            ],
         }
     }
 
@@ -72,9 +79,13 @@ impl GetPermissionIdQueryView {
     }
 }
 
-impl DatabaseQueryView for GetPermissionIdQueryView {
-    fn get_request(&self) -> String {
-        "SELECT id FROM permissions WHERE resource_id = $1 AND action = $2".to_string()
+impl ApiRequestDto for GetPermissionIdQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT id FROM permissions WHERE resource_id = $1 AND action = $2"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

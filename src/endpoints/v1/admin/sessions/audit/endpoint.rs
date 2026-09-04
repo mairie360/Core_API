@@ -3,7 +3,7 @@ use crate::endpoints::v1::admin::sessions::audit::response_view::AuditResponseVi
 
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
+use mairie360_api_lib::state::AppState;
 // use serde_json;
 
 #[derive(Debug, Clone, PartialEq)]

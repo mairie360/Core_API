@@ -1,13 +1,18 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+#[derive(serde::Deserialize)]
 pub struct DeleteUserQueryView {
     user_id: u64,
+    params: Vec<QueryParam>,
 }
 
 impl DeleteUserQueryView {
     pub fn new(user_id: u64) -> Self {
-        Self { user_id }
+        Self {
+            user_id,
+            params: vec![QueryParam::I32(user_id as i32)],
+        }
     }
 
     pub fn user_id(&self) -> u64 {
@@ -15,9 +20,13 @@ impl DeleteUserQueryView {
     }
 }
 
-impl DatabaseQueryView for DeleteUserQueryView {
-    fn get_request(&self) -> String {
-        "SELECT delete_user($1)".to_string()
+impl ApiRequestDto for DeleteUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT delete_user($1)"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

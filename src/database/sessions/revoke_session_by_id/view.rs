@@ -1,20 +1,27 @@
-use mairie360_api_lib::database::db_interface::DatabaseQueryView;
+use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize)]
 pub struct RevokeSessionByIdQueryView {
     user_id: u64,
     id: Uuid,
     revoked_at: chrono::DateTime<chrono::Utc>,
+    params: Vec<QueryParam>,
 }
 
 impl RevokeSessionByIdQueryView {
     pub fn new(user_id: u64, id: Uuid) -> Self {
+        let revoked_at = chrono::Utc::now();
         Self {
             user_id,
             id,
-            revoked_at: chrono::Utc::now(),
+            revoked_at,
+            params: vec![
+                QueryParam::DateTime(revoked_at),
+                QueryParam::I64(user_id as i64),
+                QueryParam::Uuid(id),
+            ],
         }
     }
 
@@ -31,13 +38,16 @@ impl RevokeSessionByIdQueryView {
     }
 }
 
-impl DatabaseQueryView for RevokeSessionByIdQueryView {
-    fn get_request(&self) -> String {
+impl ApiRequestDto for RevokeSessionByIdQueryView {
+    fn query_sql(&self) -> &'static str {
         "UPDATE sessions
          SET revoked_at = $1
          WHERE user_id = $2
          AND id = $3"
-            .to_string()
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
     }
 }
 

@@ -1,11 +1,11 @@
-use crate::database::roles::change_role::{change_role_query, ChangeRoleQueryView};
-use crate::database::roles::does_role_exist::{does_role_exist_query, DoesRoleExistQueryView};
+use crate::database::roles::change_role::ChangeRoleQueryView;
+use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use actix_web::http::StatusCode;
 use actix_web::{put, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::pool::AppState;
-use sqlx::PgPool;
+use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PutError {
@@ -39,10 +39,9 @@ impl ResponseError for PutError {
     }
 }
 
-async fn does_role_exist(id: u64, pool: PgPool) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
     let view = DoesRoleExistQueryView::new(id);
-    let result = does_role_exist_query(view, pool).await;
-    result.unwrap()
+    smart_db.fetch_scalar(&view).await.unwrap()
 }
 
 async fn put_role(
@@ -50,7 +49,10 @@ async fn put_role(
     payload: RoleWriteView,
     state: web::Data<AppState>,
 ) -> Result<(), PutError> {
-    if !does_role_exist(id, state.db_pool.clone().unwrap()).await {
+    let smart_db = state.get_smart_db();
+    // L'existence du rôle vient d'être vérifiée juste au-dessus : pas besoin de la
+    // revérifier une deuxième fois avant d'exécuter la mise à jour.
+    if !does_role_exist(id, smart_db).await {
         return Err(PutError::NotFound);
     }
     let view = ChangeRoleQueryView::new(
@@ -59,7 +61,8 @@ async fn put_role(
         payload.description(),
         payload.can_be_deleted(),
     );
-    change_role_query(view, state.db_pool.clone().unwrap())
+    smart_db
+        .execute(view)
         .await
         .map_err(|_| PutError::DatabaseError)?;
     Ok(())
