@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 COMPOSE_FILE="docker-compose-performance.yml"
 SERVICE_NAME="k6-perf-test"
 
