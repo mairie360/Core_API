@@ -7,5 +7,16 @@
         "matchPackageNames": ["sqlx"],
         "allowedVersions": "0.8.0"
       }
-    ]
+    ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/cicd\\.yml$"],
+      "matchStrings": [
+        "cicd_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "mairie360/CICD",
+      "datasourceTemplate": "github-tags"
+    }
+  ]
 }
