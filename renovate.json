@@ -1,17 +1,40 @@
 {
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>mairie360/renovate-config"
   ],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "ignoreTests": true,
+  "minimumReleaseAge": null,
+  "dependencyDashboardApproval": false,
+  "prCreation": "immediate",
   "packageRules": [
-      {
-        "matchPackageNames": ["sqlx"],
-        "allowedVersions": "0.8.0"
-      }
-    ],
+    {
+      "matchPackageNames": [
+        "sqlx"
+      ],
+      "allowedVersions": "0.8.0"
+    },
+    {
+      "description": "Aucune restriction : tout est automergé (majeures, 0.x, Dockerfile de prod), même si la CI échoue",
+      "matchPackageNames": [
+        "*"
+      ],
+      "automerge": true,
+      "ignoreTests": true
+    }
+  ],
+  "lockFileMaintenance": {
+    "automerge": true
+  },
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^\\.github/workflows/cicd\\.yml$"],
+      "managerFilePatterns": [
+        "/^\\.github/workflows/cicd\\.yml$/"
+      ],
       "matchStrings": [
         "cicd_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],
