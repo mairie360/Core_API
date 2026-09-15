@@ -12,7 +12,7 @@ enum RemoveUserRoleError {
 impl std::fmt::Display for RemoveUserRoleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RemoveUserRoleError::NotFound => {
+            Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
         }
@@ -22,7 +22,7 @@ impl std::fmt::Display for RemoveUserRoleError {
 impl ResponseError for RemoveUserRoleError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RemoveUserRoleError::NotFound => StatusCode::NOT_FOUND,
+            Self::NotFound => StatusCode::NOT_FOUND,
         }
     }
 

@@ -8,6 +8,7 @@ pub struct GetSessionByTokenQueryView {
 }
 
 impl GetSessionByTokenQueryView {
+    #[must_use]
     pub fn new(token: String) -> Self {
         Self {
             params: vec![QueryParam::Text(token.clone())],
@@ -15,6 +16,7 @@ impl GetSessionByTokenQueryView {
         }
     }
 
+    #[must_use]
     pub fn get_token(&self) -> &str {
         &self.token
     }

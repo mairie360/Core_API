@@ -8,6 +8,7 @@ pub struct GetUserRolesQueryView {
 }
 
 impl GetUserRolesQueryView {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self {
             id,
@@ -15,7 +16,8 @@ impl GetUserRolesQueryView {
         }
     }
 
-    pub fn get_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_id(&self) -> u64 {
         self.id
     }
 }

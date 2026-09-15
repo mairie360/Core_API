@@ -12,7 +12,7 @@ pub static PATCH_MUTEX: OnceCell<tokio::sync::Mutex<()>> = OnceCell::const_new()
 pub async fn setup_tests() {
     if COUNT.get().is_none() {
         let (_container, host) = get_shared_db().await;
-        let pool = get_raw_pool(host.to_string()).await;
+        let pool = get_raw_pool(host.clone()).await;
         COUNT.set(0).unwrap();
         let _ = sqlx::query(
             "INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, $2, true)",

@@ -8,14 +8,14 @@ use serial_test::serial;
 #[serial]
 async fn get_active_sessions_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetActiveSessionsQueryView::new(*ALICE_ID.get().unwrap() as u64);
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.get_user_id(), *ALICE_ID.get().unwrap() as u64);
     let result: Result<Vec<Session>, _> = pool.fetch_all(&view).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     let sessions = result.unwrap();
     assert!(!sessions.is_empty());
     assert_eq!(sessions[0].user_id(), *ALICE_ID.get().unwrap());
@@ -25,11 +25,11 @@ async fn get_active_sessions_success() {
 #[serial]
 async fn get_active_sessions_unknown_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetActiveSessionsQueryView::new(999_999);
     let result: Result<Vec<Session>, _> = pool.fetch_all(&view).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     assert!(result.unwrap().is_empty());
 }

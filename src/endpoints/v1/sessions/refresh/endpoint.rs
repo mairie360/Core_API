@@ -17,8 +17,8 @@ pub enum RefreshError {
 impl std::fmt::Display for RefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RefreshError::InvalidToken => write!(f, "Session not found"),
-            RefreshError::DatabaseError => {
+            Self::InvalidToken => write!(f, "Session not found"),
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -28,8 +28,8 @@ impl std::fmt::Display for RefreshError {
 impl ResponseError for RefreshError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RefreshError::InvalidToken => StatusCode::UNAUTHORIZED,
-            RefreshError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidToken => StatusCode::UNAUTHORIZED,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -76,6 +76,11 @@ async fn refresh_request(
     ),
     tag = "Sessions",
 )]
+#[post("/refresh")]
+// actix-web exécute chaque handler sur un runtime single-threaded par worker : la future
+// n'a pas besoin d'être Send même si elle retient un HttpRequest (non-Send) à travers un
+// .await, contrairement à ce que suppose ce lint pedantic.
+#[allow(clippy::future_not_send)]
 pub async fn refresh(
     body: web::Json<RefreshRequestView>,
     state: web::Data<AppState>,

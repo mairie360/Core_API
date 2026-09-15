@@ -13,7 +13,7 @@ use serial_test::serial;
 #[serial]
 async fn test_get_session_by_token() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     // Create a session
     let _ = pool
@@ -35,11 +35,11 @@ async fn test_get_session_by_token() {
         .unwrap();
 
     let view = GetSessionByTokenQueryView::new("test_get_session_by_token".to_string());
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.get_token(), "test_get_session_by_token");
     let session: Session = pool.fetch_one(&view).await.unwrap();
 
-    println!("{:?}", session);
+    println!("{session:?}");
     assert_eq!(session.user_id(), 1);
     assert_eq!(session.device_info(), "any_device");
     let _ = session.id();
@@ -53,7 +53,7 @@ async fn test_get_session_by_token() {
 #[serial]
 async fn test_get_session_by_unknow_token() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     // Create a session
     let _ = pool

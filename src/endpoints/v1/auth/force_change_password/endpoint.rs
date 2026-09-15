@@ -16,13 +16,13 @@ enum ForceChanhePasswordError {
 impl std::fmt::Display for ForceChanhePasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ForceChanhePasswordError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            ForceChanhePasswordError::Forbidden => {
+            Self::Forbidden => {
                 write!(f, "Unknown user token")
             }
-            ForceChanhePasswordError::Unauthorized => {
+            Self::Unauthorized => {
                 write!(f, "Unauthorized")
             }
         }
@@ -32,9 +32,9 @@ impl std::fmt::Display for ForceChanhePasswordError {
 impl ResponseError for ForceChanhePasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ForceChanhePasswordError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            ForceChanhePasswordError::Forbidden => StatusCode::FORBIDDEN,
-            ForceChanhePasswordError::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -44,10 +44,10 @@ impl ResponseError for ForceChanhePasswordError {
 }
 
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
-    println!("{}/first_connection_id", token);
+    println!("{token}/first_connection_id");
     match state
         .get_redis()
-        .secure_get::<String>(&format!("{}/first_connection_id", token))
+        .secure_get::<String>(&format!("{token}/first_connection_id"))
         .await
     {
         Ok(Some(id)) => id.parse().ok(),
@@ -79,9 +79,8 @@ async fn force_change_password_trigger(
 ) -> Result<(), ForceChanhePasswordError> {
     let smart_db = state.get_smart_db();
 
-    let user_id = match get_user_id(&state, view.token()).await {
-        Some(user_id) => user_id,
-        None => return Err(ForceChanhePasswordError::Forbidden),
+    let Some(user_id) = get_user_id(&state, view.token()).await else {
+        return Err(ForceChanhePasswordError::Forbidden);
     };
 
     if !is_first_time(smart_db, user_id).await {

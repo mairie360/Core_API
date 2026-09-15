@@ -17,10 +17,10 @@ enum RevokeError {
 impl std::fmt::Display for RevokeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RevokeError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            RevokeError::InvalidToken => {
+            Self::InvalidToken => {
                 write!(f, "Session not found.")
             }
         }
@@ -30,8 +30,8 @@ impl std::fmt::Display for RevokeError {
 impl ResponseError for RevokeError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RevokeError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            RevokeError::InvalidToken => StatusCode::UNAUTHORIZED,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidToken => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -59,7 +59,7 @@ async fn revoke_request(
     };
 
     match state.get_smart_db().execute(db_view).await {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(_) => Err(RevokeError::DatabaseError),
     }
 }
@@ -79,6 +79,10 @@ async fn revoke_request(
     )
 )]
 #[post("/revoke")]
+// actix-web exécute chaque handler sur un runtime single-threaded par worker : la future
+// n'a pas besoin d'être Send même si elle retient un HttpRequest (non-Send) à travers un
+// .await, contrairement à ce que suppose ce lint pedantic.
+#[allow(clippy::future_not_send)]
 pub async fn revoke(
     user: AuthenticatedUser,
     body: web::Json<RevokeRequestView>,
@@ -96,5 +100,5 @@ pub async fn revoke(
 
     revoke_request(user, view, state, ip_address)
         .await
-        .map(|_| HttpResponse::Ok().body("Session revoked successfully"))
+        .map(|()| HttpResponse::Ok().body("Session revoked successfully"))
 }

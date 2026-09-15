@@ -7,7 +7,7 @@ pub struct GetGroupsResultView {
 }
 
 impl GetGroupsResultView {
-    pub fn new(groups: Vec<Group>) -> Self {
+    pub const fn new(groups: Vec<Group>) -> Self {
         Self { groups }
     }
 }

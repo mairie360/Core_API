@@ -11,6 +11,7 @@ pub struct AddAccessToUserQueryView {
 }
 
 impl AddAccessToUserQueryView {
+    #[must_use]
     pub fn new(
         user_id: u64,
         ressource_type_id: u64,
@@ -31,19 +32,23 @@ impl AddAccessToUserQueryView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 
-    pub fn ressource_type_id(&self) -> u64 {
+    #[must_use]
+    pub const fn ressource_type_id(&self) -> u64 {
         self.ressource_type_id
     }
 
-    pub fn ressource_instance_id(&self) -> u64 {
+    #[must_use]
+    pub const fn ressource_instance_id(&self) -> u64 {
         self.ressource_instance_id
     }
 
-    pub fn access_type_id(&self) -> u64 {
+    #[must_use]
+    pub const fn access_type_id(&self) -> u64 {
         self.access_type_id
     }
 }

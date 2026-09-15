@@ -9,12 +9,12 @@ use crate::common::{get_pool, roles::setup_tests};
 async fn test_get_roles() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let roles: Vec<RoleQueryResult> = pool.fetch_all(&GetRolesQueryView::default()).await.unwrap();
 
     assert!(!roles.is_empty());
     let role = &roles[0];
-    println!("{}", role);
+    println!("{role}");
     let _ = role.created_at();
 }

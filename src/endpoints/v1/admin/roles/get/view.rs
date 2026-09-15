@@ -27,7 +27,7 @@ pub struct GetResponseView {
 impl From<Vec<RoleQueryResult>> for GetResponseView {
     fn from(results: Vec<RoleQueryResult>) -> Self {
         Self {
-            roles: results.into_iter().map(|r| r.into()).collect(),
+            roles: results.into_iter().map(std::convert::Into::into).collect(),
         }
     }
 }

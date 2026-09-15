@@ -2,6 +2,11 @@
 name = "core_api"
 version = "0.1.0"
 edition = "2021"
+description = "Core API for mairie360: users, sessions/auth, roles, groups and resource-access management"
+license = "MIT"
+repository = "https://github.com/mairie360/Core_API"
+keywords = ["mairie360", "actix-web", "api", "auth"]
+categories = ["web-programming", "database"]
 
 [dependencies]
 actix-web = "4"

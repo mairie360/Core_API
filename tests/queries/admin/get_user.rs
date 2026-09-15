@@ -53,19 +53,19 @@ async fn get_user(
 #[serial]
 async fn get_user_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result = get_user(&pool, *ALICE_ID.get().unwrap() as u64).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     let result = result.unwrap();
     assert!(format!("{}", result.user()).contains("Alice"));
-    println!("{}", result);
+    println!("{result}");
 
     let roles = result.roles();
     assert!(!roles.is_empty());
     let role = &roles[0];
-    println!("{:?}", role);
+    println!("{role:?}");
     assert!(!role.name().is_empty());
     let _ = role.description();
 
@@ -78,9 +78,9 @@ async fn get_user_success() {
 #[serial]
 async fn get_user_bad_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result = get_user(&pool, 999_999).await;
 
-    assert!(result.is_err(), "{:?}", result);
+    assert!(result.is_err(), "{result:?}");
 }

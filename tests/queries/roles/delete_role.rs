@@ -9,10 +9,10 @@ use serial_test::serial;
 async fn test_delete_role() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = DeleteRoleQueryView::new(*DELETE_ID.get().unwrap());
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.id(), *DELETE_ID.get().unwrap());
     let result = pool.execute(view).await;
 
@@ -24,7 +24,7 @@ async fn test_delete_role() {
 async fn test_delete_role_bad_id() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = DeleteRoleQueryView::new(999);
     let result = pool.execute(view).await;

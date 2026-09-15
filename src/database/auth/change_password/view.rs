@@ -9,6 +9,7 @@ pub struct ChangePasswordQueryView {
 }
 
 impl ChangePasswordQueryView {
+    #[must_use]
     pub fn new(password: &str, user_id: u64) -> Self {
         Self {
             password: password.to_string(),
@@ -20,11 +21,13 @@ impl ChangePasswordQueryView {
         }
     }
 
+    #[must_use]
     pub fn get_password(&self) -> &str {
         &self.password
     }
 
-    pub fn get_user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_user_id(&self) -> u64 {
         self.user_id
     }
 }

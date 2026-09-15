@@ -7,7 +7,7 @@ lint_check = "fmt --all -- --check"
 lint_fix = "fmt --all"
 
 # This alias check the code
-check_code = "clippy --all-targets --all-features -- -D warnings"
+check_code = "clippy --all-targets --all-features -- -W clippy::all -W clippy::pedantic -W clippy::nursery -W clippy::cargo -D warnings"
 
 # This alias generate the OpenAPI documentation
 open_api = "run --example generate_openapi"

@@ -17,7 +17,7 @@ impl std::fmt::Display for PostUserGroupError {
             // PostUserGroupError::BadRequest => {
             //     write!(f, "Bad request.")
             // }
-            PostUserGroupError::UnknowUser => {
+            Self::UnknowUser => {
                 write!(f, "Unknow user.")
             }
         }
@@ -28,7 +28,7 @@ impl ResponseError for PostUserGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
             // PostUserGroupError::BadRequest => StatusCode::BAD_REQUEST,
-            PostUserGroupError::UnknowUser => StatusCode::NOT_FOUND,
+            Self::UnknowUser => StatusCode::NOT_FOUND,
         }
     }
 

@@ -13,6 +13,7 @@ pub struct CanAddAccessQueryView {
 }
 
 impl CanAddAccessQueryView {
+    #[must_use]
     pub fn new(
         owner_id: u64,
         target_id: u64,
@@ -29,26 +30,34 @@ impl CanAddAccessQueryView {
         }
     }
 
-    pub fn owner_id(&self) -> u64 {
+    #[must_use]
+    pub const fn owner_id(&self) -> u64 {
         self.owner_id
     }
 
-    pub fn target_id(&self) -> u64 {
+    #[must_use]
+    pub const fn target_id(&self) -> u64 {
         self.target_id
     }
 
-    pub fn ressource_id(&self) -> u64 {
+    #[must_use]
+    pub const fn ressource_id(&self) -> u64 {
         self.ressource_id
     }
 
+    #[must_use]
     pub fn ressource_type(&self) -> &str {
         &self.ressource_type
     }
 
-    pub fn access_type(&self) -> AccessType {
+    #[must_use]
+    pub const fn access_type(&self) -> AccessType {
         self.access_type
     }
 
+    /// # Errors
+    ///
+    /// Retourne une erreur si la requête vers la base de données échoue.
     pub async fn check(&self, smart_db: &SmartDatabase) -> Result<bool, ApiLibError> {
         if self.access_type() == AccessType::Error {
             return Ok(false);

@@ -11,7 +11,7 @@ use std::net::IpAddr;
 #[serial]
 async fn get_active_session_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetActiveSessionQueryView::new(
         *ALICE_ID.get().unwrap() as u64,
@@ -20,14 +20,14 @@ async fn get_active_session_success() {
     );
     let result: Result<Session, _> = pool.fetch_one(&view).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
 }
 
 #[tokio::test]
 #[serial]
 async fn get_active_session_no_match() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetActiveSessionQueryView::new(
         *ALICE_ID.get().unwrap() as u64,
