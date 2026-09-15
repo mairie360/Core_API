@@ -9,6 +9,7 @@ pub struct GetUserGroupsQuerView {
 }
 
 impl GetUserGroupsQuerView {
+    #[must_use]
     pub fn new(user_id: u64) -> Self {
         Self {
             user_id,
@@ -16,7 +17,8 @@ impl GetUserGroupsQuerView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 }

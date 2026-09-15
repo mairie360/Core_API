@@ -9,7 +9,7 @@ use serial_test::serial;
 #[serial]
 async fn add_user_to_group_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -19,12 +19,11 @@ async fn add_user_to_group_success() {
     let result: i32 = pool.fetch_scalar(&view).await.unwrap();
 
     let view = AddUserToGroupQueryView::new(result as u64, 2);
-    println!("{}", view);
+    println!("{view}");
     let result = pool.execute(view).await;
     assert!(
         result.is_ok(),
-        "add_user_to_group_success failed: {:?}",
-        result
+        "add_user_to_group_success failed: {result:?}"
     );
 }
 
@@ -32,7 +31,7 @@ async fn add_user_to_group_success() {
 #[serial]
 async fn add_user_to_group_duplicate_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -52,7 +51,7 @@ async fn add_user_to_group_duplicate_user() {
 #[serial]
 async fn add_user_to_group_unknow_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -70,7 +69,7 @@ async fn add_user_to_group_unknow_user() {
 #[serial]
 async fn add_user_to_group_unknow_group() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = AddUserToGroupQueryView::new(999, 2);
     let result = pool.execute(view).await;
@@ -81,7 +80,7 @@ async fn add_user_to_group_unknow_group() {
 #[serial]
 async fn add_user_to_group_unknow_user_and_group() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = AddUserToGroupQueryView::new(999, 999);
     let result = pool.execute(view).await;

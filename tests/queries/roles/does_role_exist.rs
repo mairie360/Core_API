@@ -8,10 +8,10 @@ use serial_test::serial;
 async fn test_does_role_exist_true() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = DoesRoleExistQueryView::new(1);
-    println!("{}", view);
+    println!("{view}");
     let result: bool = pool.fetch_scalar(&view).await.unwrap();
 
     assert!(result);
@@ -22,7 +22,7 @@ async fn test_does_role_exist_true() {
 async fn test_does_role_exist_false() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result: bool = pool
         .fetch_scalar(&DoesRoleExistQueryView::new(999))

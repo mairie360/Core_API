@@ -6,7 +6,7 @@ pub struct RemoveAccessView {
 }
 
 impl RemoveAccessView {
-    pub fn access_id(&self) -> u64 {
+    pub const fn access_id(&self) -> u64 {
         self.access_id
     }
 }

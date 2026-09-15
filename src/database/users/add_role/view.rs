@@ -9,6 +9,7 @@ pub struct AddRolesQueryView {
 }
 
 impl AddRolesQueryView {
+    #[must_use]
     pub fn new(role_id: u64, user_id: u64) -> Self {
         Self {
             role_id,
@@ -20,11 +21,13 @@ impl AddRolesQueryView {
         }
     }
 
-    pub fn role_id(&self) -> u64 {
+    #[must_use]
+    pub const fn role_id(&self) -> u64 {
         self.role_id
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 }

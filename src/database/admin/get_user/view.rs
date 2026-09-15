@@ -11,6 +11,7 @@ pub struct AdminGetUserQueryView {
 }
 
 impl AdminGetUserQueryView {
+    #[must_use]
     pub fn new(user_id: u64) -> Self {
         Self {
             user_id,
@@ -18,7 +19,8 @@ impl AdminGetUserQueryView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 }
@@ -47,22 +49,26 @@ pub struct RoleQueryResult {
 }
 
 impl RoleQueryResult {
+    #[must_use]
     pub fn new(id: i32, name: &str, description: Option<&str>) -> Self {
         Self {
             id,
             name: name.to_string(),
-            description: description.map(|d| d.to_string()),
+            description: description.map(std::string::ToString::to_string),
         }
     }
 
-    pub fn id(&self) -> i32 {
+    #[must_use]
+    pub const fn id(&self) -> i32 {
         self.id
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
@@ -97,7 +103,8 @@ pub struct AdminGetUserQueryResultView {
 }
 
 impl AdminGetUserQueryResultView {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         user: User,
         roles: Vec<RoleQueryResult>,
         groups: Vec<Group>,
@@ -111,19 +118,23 @@ impl AdminGetUserQueryResultView {
         }
     }
 
-    pub fn user(&self) -> &User {
+    #[must_use]
+    pub const fn user(&self) -> &User {
         &self.user
     }
 
-    pub fn roles(&self) -> &Vec<RoleQueryResult> {
+    #[must_use]
+    pub const fn roles(&self) -> &Vec<RoleQueryResult> {
         &self.roles
     }
 
+    #[must_use]
     pub fn groups(&self) -> Vec<Group> {
         self.groups.clone()
     }
 
-    pub fn sessions(&self) -> &Vec<Session> {
+    #[must_use]
+    pub const fn sessions(&self) -> &Vec<Session> {
         &self.sessions
     }
 }

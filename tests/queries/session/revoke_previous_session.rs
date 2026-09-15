@@ -10,7 +10,7 @@ use serial_test::serial;
 #[serial]
 async fn test_revoke_previous_session() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let sessions: Vec<Session> = pool
         .fetch_all(&GetSessionsByUserQueryView::new(1))
@@ -19,10 +19,10 @@ async fn test_revoke_previous_session() {
 
     let view = RevokePreviousSessionQueryView::new(
         1,
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+        std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
         "",
     );
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.get_user_id(), 1);
     let _ = view.get_ip();
     let _ = view.get_device_info();

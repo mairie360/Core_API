@@ -21,16 +21,10 @@ enum ResetPasswordError {
 impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResetPasswordError::DatabaseError => {
+            Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
                 write!(f, "Internal server error")
             }
-            ResetPasswordError::RedisError => {
-                write!(f, "Internal server error")
-            }
-            ResetPasswordError::TokenGenerationError => {
-                write!(f, "Internal server error")
-            }
-            ResetPasswordError::UnknownToken => {
+            Self::UnknownToken => {
                 write!(f, "Unknown token")
             }
         }
@@ -40,10 +34,10 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ResetPasswordError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::RedisError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::TokenGenerationError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::UnknownToken => StatusCode::UNAUTHORIZED,
+            Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            Self::UnknownToken => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -54,10 +48,12 @@ impl ResponseError for ResetPasswordError {
 
 async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, ResetPasswordError> {
     let view = GetUserIdQueryView::new(email);
-    match smart_db.fetch_scalar::<i32, _>(&view).await {
-        Ok(user_id) => Ok(user_id as u64),
-        Err(_) => Err(ResetPasswordError::DatabaseError),
-    }
+    smart_db
+        .fetch_scalar::<i32, _>(&view)
+        .await
+        .map_or(Err(ResetPasswordError::DatabaseError), |user_id| {
+            Ok(user_id as u64)
+        })
 }
 
 async fn reset_pwd(
@@ -85,25 +81,25 @@ async fn reset_password_trigger(
     let email: String = match redis.secure_get::<String>(&key).await {
         Ok(Some(email)) => email,
         other => {
-            eprintln!("Failed to get email from Redis: {:?}", other);
+            eprintln!("Failed to get email from Redis: {other:?}");
             return Err(ResetPasswordError::UnknownToken);
         }
     };
     let user_id = match get_user_id(smart_db, &email).await {
         Ok(user_id) => user_id,
         Err(e) => {
-            eprintln!("Failed to get user ID: {:?}", e);
+            eprintln!("Failed to get user ID: {e:?}");
             return Err(e);
         }
     };
 
-    let reversed_key = format!("{}/forgot_password_token", email);
+    let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
-        eprintln!("Failed to delete reversed key: {:?}", e);
+        eprintln!("Failed to delete reversed key: {e:?}");
         return Err(ResetPasswordError::RedisError);
     }
     if let Err(e) = redis.delete(&key).await {
-        eprintln!("Failed to delete key: {:?}", e);
+        eprintln!("Failed to delete key: {e:?}");
         return Err(ResetPasswordError::RedisError);
     }
 
@@ -112,7 +108,7 @@ async fn reset_password_trigger(
     match generate_session(user_id, &view.device_info(), ip_adress, state).await {
         Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),
         Err(e) => {
-            eprintln!("Failed to generate session: {:?}", e);
+            eprintln!("Failed to generate session: {e:?}");
             Err(ResetPasswordError::TokenGenerationError)
         }
     }
@@ -138,10 +134,10 @@ pub async fn reset_password(
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
     let ip_address = ip_str
         .parse::<std::net::IpAddr>()
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
     let (jwt, refresh_token) = reset_password_trigger(state, body.into_inner(), ip_address).await?;
 
     Ok(HttpResponse::Ok()
-        .append_header(("Authorization", format!("Bearer {}", jwt)))
+        .append_header(("Authorization", format!("Bearer {jwt}")))
         .json(ResetPasswordResponseView::from(refresh_token)))
 }

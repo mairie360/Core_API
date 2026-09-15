@@ -8,6 +8,7 @@ pub struct RemoveAccessQueryView {
 }
 
 impl RemoveAccessQueryView {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self {
             id,
@@ -15,7 +16,8 @@ impl RemoveAccessQueryView {
         }
     }
 
-    pub fn id(&self) -> u64 {
+    #[must_use]
+    pub const fn id(&self) -> u64 {
         self.id
     }
 }

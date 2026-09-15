@@ -29,7 +29,7 @@ async fn change_role(
 #[serial]
 async fn test_change_role_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let name = "test_change_role_success".to_string() + random::<u64>().to_string().as_str();
     let description =
@@ -60,7 +60,7 @@ async fn test_change_role_success() {
         &change_description,
         Some(true),
     );
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.id(), new_role_id as u64);
     assert_eq!(view.name(), change_name);
     assert_eq!(view.description(), change_description);
@@ -92,7 +92,7 @@ async fn test_change_role_success() {
 async fn test_change_role_bad_id() {
     setup_tests().await;
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = ChangeRoleQueryView::new(999, "Admin", "Administrateur", Some(false));
     let result = change_role(&pool, view).await;

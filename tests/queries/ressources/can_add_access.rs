@@ -8,7 +8,7 @@ use serial_test::serial;
 #[serial]
 async fn success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         2,
@@ -23,7 +23,7 @@ async fn success() {
 #[serial]
 async fn failure_bad_owner_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = CanAddAccessQueryView::new(
         (*GROUP_OWNER_ID.get().unwrap() as u64) + 1,
         2,
@@ -38,7 +38,7 @@ async fn failure_bad_owner_id() {
 #[serial]
 async fn failure_bad_ressource_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         2,
@@ -53,7 +53,7 @@ async fn failure_bad_ressource_id() {
 #[serial]
 async fn failure_access_type_error() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         1,

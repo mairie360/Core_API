@@ -9,10 +9,12 @@ pub struct GetAccessResultView {
 }
 
 impl GetAccessResultView {
-    pub fn new(accesses: Vec<Access>) -> Self {
+    #[must_use]
+    pub const fn new(accesses: Vec<Access>) -> Self {
         Self { accesses }
     }
 
+    #[must_use]
     pub fn accesses(&self) -> &[Access] {
         &self.accesses
     }
@@ -22,7 +24,7 @@ impl Display for GetAccessResultView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Accesses:")?;
         for access in &self.accesses {
-            writeln!(f, "  {}", access)?;
+            writeln!(f, "  {access}")?;
         }
         Ok(())
     }

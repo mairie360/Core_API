@@ -11,41 +11,50 @@ pub struct ChangeRoleQueryView {
 }
 
 impl ChangeRoleQueryView {
+    #[must_use]
     pub fn new(id: u64, name: &str, description: &str, can_be_deleted: Option<bool>) -> Self {
         Self {
             id,
             name: name.to_string(),
             description: description.to_string(),
             can_be_deleted,
-            params: match can_be_deleted {
-                Some(can_be_deleted) => vec![
-                    QueryParam::Text(name.to_string()),
-                    QueryParam::Text(description.to_string()),
-                    QueryParam::Bool(can_be_deleted),
-                    QueryParam::I64(id as i64),
-                ],
-                None => vec![
-                    QueryParam::Text(name.to_string()),
-                    QueryParam::Text(description.to_string()),
-                    QueryParam::I64(id as i64),
-                ],
-            },
+            params: can_be_deleted.map_or_else(
+                || {
+                    vec![
+                        QueryParam::Text(name.to_string()),
+                        QueryParam::Text(description.to_string()),
+                        QueryParam::I64(id as i64),
+                    ]
+                },
+                |can_be_deleted| {
+                    vec![
+                        QueryParam::Text(name.to_string()),
+                        QueryParam::Text(description.to_string()),
+                        QueryParam::Bool(can_be_deleted),
+                        QueryParam::I64(id as i64),
+                    ]
+                },
+            ),
         }
     }
 
-    pub fn id(&self) -> u64 {
+    #[must_use]
+    pub const fn id(&self) -> u64 {
         self.id
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
-    pub fn can_be_deleted(&self) -> Option<bool> {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> Option<bool> {
         self.can_be_deleted
     }
 }

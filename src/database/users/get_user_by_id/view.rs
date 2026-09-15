@@ -9,6 +9,7 @@ pub struct GetUserByIdQueryView {
 }
 
 impl GetUserByIdQueryView {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self {
             id,
@@ -16,7 +17,8 @@ impl GetUserByIdQueryView {
         }
     }
 
-    pub fn get_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_id(&self) -> u64 {
         self.id
     }
 }
@@ -48,6 +50,7 @@ pub struct GetUserByIdQueryResultView {
 }
 
 impl GetUserByIdQueryResultView {
+    #[must_use]
     pub fn new(
         first_name: &str,
         last_name: &str,
@@ -60,37 +63,48 @@ impl GetUserByIdQueryResultView {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
-            phone_number: phone_number.map(|p| p.to_string()),
+            phone_number: phone_number.map(std::string::ToString::to_string),
             status: status.to_string(),
             is_archived,
         }
     }
 
+    /// # Panics
+    ///
+    /// Panique si `Self` ne peut pas être sérialisé en JSON (ne devrait pas arriver : tous les
+    /// champs sont des types `serde`-compatibles standards).
+    #[must_use]
     pub fn json(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap()
     }
 
+    #[must_use]
     pub fn first_name(&self) -> &str {
         &self.first_name
     }
 
+    #[must_use]
     pub fn last_name(&self) -> &str {
         &self.last_name
     }
 
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }
 
+    #[must_use]
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }
 
+    #[must_use]
     pub fn status(&self) -> &str {
         &self.status
     }
 
-    pub fn is_archived(&self) -> bool {
+    #[must_use]
+    pub const fn is_archived(&self) -> bool {
         self.is_archived
     }
 }

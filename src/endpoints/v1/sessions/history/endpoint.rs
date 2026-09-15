@@ -14,7 +14,7 @@ enum HistoryError {
 impl std::fmt::Display for HistoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HistoryError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -24,7 +24,7 @@ impl std::fmt::Display for HistoryError {
 impl ResponseError for HistoryError {
     fn status_code(&self) -> StatusCode {
         match self {
-            HistoryError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -48,7 +48,10 @@ async fn get_user_info(
         .map_err(|_| HistoryError::DatabaseError)?;
 
     Ok(HistoryResponseView::new(
-        query_result.into_iter().map(|s| s.into()).collect(),
+        query_result
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect(),
     ))
 }
 

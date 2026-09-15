@@ -14,7 +14,8 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         id: Uuid,
         user_id: i32,
         device_info: String,
@@ -34,31 +35,38 @@ impl Session {
         }
     }
 
-    pub fn id(&self) -> &Uuid {
+    #[must_use]
+    pub const fn id(&self) -> &Uuid {
         &self.id
     }
 
-    pub fn user_id(&self) -> i32 {
+    #[must_use]
+    pub const fn user_id(&self) -> i32 {
         self.user_id
     }
 
+    #[must_use]
     pub fn device_info(&self) -> &str {
         &self.device_info
     }
 
-    pub fn ip_address(&self) -> &std::net::IpAddr {
+    #[must_use]
+    pub const fn ip_address(&self) -> &std::net::IpAddr {
         &self.ip_address
     }
 
-    pub fn created_at(&self) -> &DateTime<Utc> {
+    #[must_use]
+    pub const fn created_at(&self) -> &DateTime<Utc> {
         &self.created_at
     }
 
-    pub fn expires_at(&self) -> &DateTime<Utc> {
+    #[must_use]
+    pub const fn expires_at(&self) -> &DateTime<Utc> {
         &self.expires_at
     }
 
-    pub fn revoked_at(&self) -> Option<&DateTime<Utc>> {
+    #[must_use]
+    pub const fn revoked_at(&self) -> Option<&DateTime<Utc>> {
         self.revoked_at.as_ref()
     }
 }

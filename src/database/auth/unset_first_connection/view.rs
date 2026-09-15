@@ -9,6 +9,7 @@ pub struct UnsetFirstConnectionQueryView {
 }
 
 impl UnsetFirstConnectionQueryView {
+    #[must_use]
     pub fn new(user_id: u64, password: &str) -> Self {
         Self {
             user_id,
@@ -20,10 +21,12 @@ impl UnsetFirstConnectionQueryView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 
+    #[must_use]
     pub fn password(&self) -> &str {
         &self.password
     }
