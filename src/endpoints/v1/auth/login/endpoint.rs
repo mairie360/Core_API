@@ -81,7 +81,7 @@ pub async fn generate_session(
 ) -> Result<(String, String), LoginError> {
     let refresh_token = generate_refresh_token();
     let view = CreateSessionQueryView::new(user_id, &refresh_token, device_info, ip_adress);
-    create_new_session(state, user_id, view).await;
+    create_new_session(state.get_smart_db(), view).await;
     // TODO: le rôle n'est pas encore exploité par la lib (ni AdminMiddleware, ni check_jwt_validity
     // ne le lisent depuis les claims), donc on ne fait pas d'aller-retour DB supplémentaire ici pour
     // le récupérer. À brancher sur un vrai rôle utilisateur si/quand la lib s'en sert.
