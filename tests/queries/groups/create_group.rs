@@ -7,14 +7,14 @@ use serial_test::serial;
 #[serial]
 async fn create_group_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
         "create_group_name_success",
         "create_group_description_success",
     );
-    println!("{}", view);
+    println!("{view}");
     let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_ok());
 }
@@ -23,7 +23,7 @@ async fn create_group_success() {
 #[serial]
 async fn create_group_duplicate_name() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,

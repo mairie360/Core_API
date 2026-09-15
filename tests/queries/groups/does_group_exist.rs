@@ -9,7 +9,7 @@ use serial_test::serial;
 #[serial]
 async fn does_group_exist_true() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -18,38 +18,22 @@ async fn does_group_exist_true() {
     );
     let result: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = DoesGroupExistQuerView::new(result as u64);
-    println!("{}", view);
+    println!("{view}");
     let result = pool.fetch_scalar(&view).await;
-    assert!(
-        result.is_ok(),
-        "group should exist, {result:?}",
-        result = result
-    );
+    assert!(result.is_ok(), "group should exist, {result:?}");
     let bool_value: bool = result.unwrap();
-    assert!(
-        bool_value,
-        "result should be true, {bool_value:?}",
-        bool_value = bool_value
-    );
+    assert!(bool_value, "result should be true, {bool_value:?}");
 }
 
 #[tokio::test]
 #[serial]
 async fn does_group_exist_false() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = DoesGroupExistQuerView::new(999);
     let result = pool.fetch_scalar(&view).await;
-    assert!(
-        result.is_ok(),
-        "result should be ok, {result:?}",
-        result = result
-    );
+    assert!(result.is_ok(), "result should be ok, {result:?}");
     let bool_value: bool = result.unwrap();
-    assert!(
-        !bool_value,
-        "result should be false, {result:?}",
-        result = bool_value
-    );
+    assert!(!bool_value, "result should be false, {bool_value:?}");
 }

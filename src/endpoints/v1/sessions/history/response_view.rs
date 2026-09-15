@@ -10,8 +10,8 @@ pub struct HistoryResponseView {
 }
 
 impl HistoryResponseView {
-    pub fn new(sessions: Vec<SessionSchema>) -> Self {
-        HistoryResponseView { sessions }
+    pub const fn new(sessions: Vec<SessionSchema>) -> Self {
+        Self { sessions }
     }
 }
 
@@ -23,6 +23,6 @@ impl Display for HistoryResponseView {
 
 impl From<Vec<SessionSchema>> for HistoryResponseView {
     fn from(sessions: Vec<SessionSchema>) -> Self {
-        HistoryResponseView { sessions }
+        Self { sessions }
     }
 }

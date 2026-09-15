@@ -10,6 +10,7 @@ pub struct GetActiveSessionQueryView {
 }
 
 impl GetActiveSessionQueryView {
+    #[must_use]
     pub fn new(user_id: u64, ip_address: std::net::IpAddr, device_info: &str) -> Self {
         Self {
             user_id,
@@ -23,14 +24,17 @@ impl GetActiveSessionQueryView {
         }
     }
 
-    pub fn get_user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_user_id(&self) -> u64 {
         self.user_id
     }
 
-    pub fn get_ip(&self) -> &std::net::IpAddr {
+    #[must_use]
+    pub const fn get_ip(&self) -> &std::net::IpAddr {
         &self.ip_address
     }
 
+    #[must_use]
     pub fn get_device_info(&self) -> &str {
         &self.device_info
     }

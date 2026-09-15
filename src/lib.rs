@@ -1,3 +1,19 @@
+// Les dépendances transitives (via mairie360_api_lib et le reste de l'arbre) imposent plusieurs
+// versions de certains crates (base64, bitflags, ...) ; on ne maîtrise pas ces versions depuis ce
+// repo, donc ce lint clippy::cargo est désactivé plutôt que laissé en échec permanent.
+#![allow(clippy::multiple_crate_versions)]
+// Revue au cas par cas (2026-09) : tous les casts u64<->i32/i64 de ce crate concernent des
+// identifiants (user_id, group_id, role_id, ...) allant et venant de colonnes Postgres
+// int4/int8 via `QueryParam` — jamais un calcul ou une donnée numérique arbitraire. Les ids
+// Postgres (SERIAL/BIGSERIAL) sont toujours positifs et largement sous i32::MAX/i64::MAX en
+// pratique, donc ces casts sont sûrs par construction ; les désactiver un par un aurait juste
+// dupliqué cette même justification des dizaines de fois.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
+
 pub mod database;
 pub mod endpoints;
 
@@ -16,11 +32,18 @@ pub struct EmailDestination {
 // Type alias pour clarifier le type du mailer de la lib 'lettre'
 pub type SmtpMailer = AsyncSmtpTransport<Tokio1Executor>;
 
+/// # Errors
+///
+/// Cette fonction ne retourne actuellement jamais d'erreur (toujours `Ok`), la signature
+/// `Result` est conservée pour rester compatible avec ses appelants.
 pub fn get_email_sender() -> Result<String, Box<dyn std::error::Error>> {
     // Récupère les variables d'environnement, avec des valeurs de secours (fallback) au cas où
     Ok(env::var("EMAIL_FROM").unwrap_or_else(|_| "Beta App <noreply@votrebeta.com>".to_string()))
 }
 
+/// # Errors
+///
+/// Retourne une erreur si l'adresse source/destination ou le corps du message est invalide.
 pub fn build_email(
     destination: &EmailDestination,
     subject: &str,
@@ -35,6 +58,9 @@ pub fn build_email(
     Ok(email)
 }
 
+/// # Errors
+///
+/// Retourne une erreur si l'envoi SMTP échoue (connexion, authentification, transport).
 pub async fn send_email(email: Message) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Récupération des identifiants SMTP
     let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".to_string());

@@ -6,6 +6,9 @@ pub struct PatchRoleQueryView {
     id: u64,
     name: Option<String>,
     description: Option<String>,
+    // Double Option volontaire : distingue "champ absent" (None), "champ fourni à null"
+    // (Some(None)) et "champ fourni avec une valeur" (Some(Some(_))), voir `new()` plus bas.
+    #[allow(clippy::option_option)]
     can_be_deleted: Option<Option<bool>>,
     // `query_sql` doit renvoyer un &'static str, mais les colonnes patchées (donc le texte SQL)
     // varient à chaque appel selon les champs fournis. On construit la requête une fois dans
@@ -16,6 +19,7 @@ pub struct PatchRoleQueryView {
 }
 
 impl PatchRoleQueryView {
+    #[must_use]
     pub fn new(
         id: u64,
         name: Option<String>,
@@ -69,24 +73,29 @@ impl PatchRoleQueryView {
         }
     }
 
-    pub fn id(&self) -> u64 {
+    #[must_use]
+    pub const fn id(&self) -> u64 {
         self.id
     }
 
+    #[must_use]
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
 
+    #[must_use]
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
 
-    pub fn can_be_deleted(&self) -> Option<Option<bool>> {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> Option<Option<bool>> {
         self.can_be_deleted
     }
 
     /// Vrai si aucun champ n'a été fourni : il n'y a alors rien à écrire en base.
-    pub fn is_noop(&self) -> bool {
+    #[must_use]
+    pub const fn is_noop(&self) -> bool {
         self.sql.is_empty()
     }
 }

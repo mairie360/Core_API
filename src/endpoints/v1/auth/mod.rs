@@ -35,7 +35,7 @@ pub async fn revoke_previous_session(
         .execute(view)
         .await
         .map_err(|e| {
-            eprintln!("Revoke Previous Session DB Error: {}", e);
+            eprintln!("Revoke Previous Session DB Error: {e}");
         })
         .ok();
 }
@@ -57,7 +57,7 @@ pub async fn create_new_session(
         .execute(view)
         .await
         .map_err(|e| {
-            eprintln!("Create Session DB Error: {}", e);
+            eprintln!("Create Session DB Error: {e}");
         })
         .ok();
 }

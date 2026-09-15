@@ -9,7 +9,7 @@ use serial_test::serial;
 #[serial]
 async fn test_get_sessions() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     // Create a session
     let _ = pool
@@ -22,10 +22,10 @@ async fn test_get_sessions() {
         .await;
 
     let view = GetSessionsQueryView::new(vec![1, 2]);
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.id(), &[1, 2]);
     let result: Result<Vec<Session>, _> = pool.fetch_all(&view).await;
-    assert!(result.is_ok(), "Failed to get sessions: {:?}", result);
+    assert!(result.is_ok(), "Failed to get sessions: {result:?}");
     let result = result.unwrap();
     assert!(
         !result.is_empty(),

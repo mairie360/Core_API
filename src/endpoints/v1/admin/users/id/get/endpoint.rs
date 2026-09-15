@@ -21,7 +21,7 @@ enum GetUserError {
 impl std::fmt::Display for GetUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetUserError::UnknownUser => write!(f, "Unknown user"),
+            Self::UnknownUser => write!(f, "Unknown user"),
         }
     }
 }
@@ -29,7 +29,7 @@ impl std::fmt::Display for GetUserError {
 impl ResponseError for GetUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetUserError::UnknownUser => StatusCode::NOT_FOUND,
+            Self::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
 
@@ -48,7 +48,7 @@ async fn get_user(
         .fetch_one(&AdminGetUserQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{:?}", e);
+            eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
 
@@ -56,14 +56,14 @@ async fn get_user(
         .fetch_all(&GetUserRolesQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{:?}", e);
+            eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
     let roles_result: Vec<Role> = smart_db
         .fetch_all(&GetRolesByIdQueryView::new(roles_id.clone()))
         .await
         .map_err(|e| {
-            eprintln!("{:?}", e);
+            eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
     let mut roles: Vec<RoleQueryResult> = Vec::new();
@@ -79,7 +79,7 @@ async fn get_user(
         .fetch_all(&GetSessionsByUserQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{:?}", e);
+            eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
 
@@ -87,7 +87,7 @@ async fn get_user(
         .fetch_all(&GetUserGroupsQuerView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{:?}", e);
+            eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
 

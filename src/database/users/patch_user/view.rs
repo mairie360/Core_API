@@ -19,6 +19,7 @@ pub struct PatchUserQueryView {
 }
 
 impl PatchUserQueryView {
+    #[must_use]
     pub fn new(
         id: u64,
         first_name: Option<&str>,
@@ -67,38 +68,45 @@ impl PatchUserQueryView {
 
         Self {
             id,
-            first_name: first_name.map(|s| s.to_string()),
-            last_name: last_name.map(|s| s.to_string()),
-            email: email.map(|s| s.to_string()),
-            phone_number: phone_number.map(|s| s.to_string()),
-            password: password.map(|s| s.to_string()),
+            first_name: first_name.map(std::string::ToString::to_string),
+            last_name: last_name.map(std::string::ToString::to_string),
+            email: email.map(std::string::ToString::to_string),
+            phone_number: phone_number.map(std::string::ToString::to_string),
+            password: password.map(std::string::ToString::to_string),
             sql,
             params,
         }
     }
 
-    pub fn id(&self) -> u64 {
+    #[must_use]
+    pub const fn id(&self) -> u64 {
         self.id
     }
 
+    #[must_use]
     pub fn first_name(&self) -> Option<&str> {
         self.first_name.as_deref()
     }
+    #[must_use]
     pub fn last_name(&self) -> Option<&str> {
         self.last_name.as_deref()
     }
+    #[must_use]
     pub fn email(&self) -> Option<&str> {
         self.email.as_deref()
     }
+    #[must_use]
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }
+    #[must_use]
     pub fn password(&self) -> Option<&str> {
         self.password.as_deref()
     }
 
     /// Vrai si aucun champ n'a été fourni : il n'y a alors rien à écrire en base.
-    pub fn is_noop(&self) -> bool {
+    #[must_use]
+    pub const fn is_noop(&self) -> bool {
         self.sql.is_empty()
     }
 }

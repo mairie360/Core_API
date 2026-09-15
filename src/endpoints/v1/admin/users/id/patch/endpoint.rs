@@ -14,7 +14,7 @@ enum PatchUserError {
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchUserError::UnknownUser => write!(f, "Unknown user"),
+            Self::UnknownUser => write!(f, "Unknown user"),
         }
     }
 }
@@ -22,7 +22,7 @@ impl std::fmt::Display for PatchUserError {
 impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchUserError::UnknownUser => StatusCode::NOT_FOUND,
+            Self::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
 

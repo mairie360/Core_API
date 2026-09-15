@@ -6,7 +6,7 @@ pub struct GetGroupUsersResultView {
 }
 
 impl GetGroupUsersResultView {
-    pub fn new(users: Vec<u64>) -> Self {
+    pub const fn new(users: Vec<u64>) -> Self {
         Self { users }
     }
 }

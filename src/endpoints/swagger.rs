@@ -23,6 +23,6 @@ impl Modify for SecurityAddon {
         components.add_security_scheme(
             "jwt",
             SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
-        )
+        );
     }
 }

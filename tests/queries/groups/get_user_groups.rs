@@ -8,13 +8,13 @@ use serial_test::serial;
 #[serial]
 async fn get_user_groups_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetUserGroupsQuerView::new(*GROUP_OWNER_ID.get().unwrap() as u64);
-    println!("{}", view);
+    println!("{view}");
 
     let result: Result<Vec<Group>, _> = pool.fetch_all(&view).await;
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     assert!(!result.unwrap().is_empty());
 }
 
@@ -22,11 +22,11 @@ async fn get_user_groups_success() {
 #[serial]
 async fn get_user_groups_without_groups() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetUserGroupsQuerView::new(3);
     let result: Result<Vec<Group>, _> = pool.fetch_all(&view).await;
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     assert!(result.unwrap().is_empty());
 }
 
@@ -34,10 +34,10 @@ async fn get_user_groups_without_groups() {
 #[serial]
 async fn get_groups_bad_user_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetUserGroupsQuerView::new(999);
     let result: Result<Vec<Group>, _> = pool.fetch_all(&view).await;
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
     assert!(result.unwrap().is_empty());
 }

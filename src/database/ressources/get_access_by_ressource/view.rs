@@ -14,7 +14,8 @@ pub struct Access {
 }
 
 impl Access {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         id: i32,
         user_id: Option<i32>,
         group_id: Option<i32>,
@@ -32,27 +33,33 @@ impl Access {
         }
     }
 
-    pub fn id(&self) -> i32 {
+    #[must_use]
+    pub const fn id(&self) -> i32 {
         self.id
     }
 
-    pub fn user_id(&self) -> Option<i32> {
+    #[must_use]
+    pub const fn user_id(&self) -> Option<i32> {
         self.user_id
     }
 
-    pub fn group_id(&self) -> Option<i32> {
+    #[must_use]
+    pub const fn group_id(&self) -> Option<i32> {
         self.group_id
     }
 
-    pub fn resource_id(&self) -> i32 {
+    #[must_use]
+    pub const fn resource_id(&self) -> i32 {
         self.resource_id
     }
 
-    pub fn resource_instance_id(&self) -> i32 {
+    #[must_use]
+    pub const fn resource_instance_id(&self) -> i32 {
         self.resource_instance_id
     }
 
-    pub fn permission_id(&self) -> i32 {
+    #[must_use]
+    pub const fn permission_id(&self) -> i32 {
         self.permission_id
     }
 }
@@ -77,6 +84,7 @@ pub struct GetAccessByRessourceQueryView {
 }
 
 impl GetAccessByRessourceQueryView {
+    #[must_use]
     pub fn new(resource_id: u64) -> Self {
         Self {
             resource_id,
@@ -84,7 +92,8 @@ impl GetAccessByRessourceQueryView {
         }
     }
 
-    pub fn resource_id(&self) -> u64 {
+    #[must_use]
+    pub const fn resource_id(&self) -> u64 {
         self.resource_id
     }
 }

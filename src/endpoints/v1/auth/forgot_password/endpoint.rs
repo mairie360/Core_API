@@ -22,22 +22,22 @@ enum ResetPasswordError {
 impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResetPasswordError::AlreadyRequested => {
+            Self::AlreadyRequested => {
                 write!(f, "Password reset already requested.")
             }
-            ResetPasswordError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            ResetPasswordError::MailError => {
+            Self::MailError => {
                 write!(f, "An error occurred while sending the email.")
             }
-            ResetPasswordError::RedisError => {
+            Self::RedisError => {
                 write!(f, "An error occurred while accessing Redis.")
             }
-            ResetPasswordError::UserFirstTimeError => {
+            Self::UserFirstTimeError => {
                 write!(f, "User not valid.")
             }
-            ResetPasswordError::UserNotFound => {
+            Self::UserNotFound => {
                 write!(f, "User not found.")
             }
         }
@@ -47,12 +47,12 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ResetPasswordError::AlreadyRequested => StatusCode::CONFLICT,
-            ResetPasswordError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::MailError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::RedisError => StatusCode::INTERNAL_SERVER_ERROR,
-            ResetPasswordError::UserFirstTimeError => StatusCode::UNAUTHORIZED,
-            ResetPasswordError::UserNotFound => StatusCode::NOT_FOUND,
+            Self::AlreadyRequested => StatusCode::CONFLICT,
+            Self::DatabaseError | Self::MailError | Self::RedisError => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            Self::UserFirstTimeError => StatusCode::UNAUTHORIZED,
+            Self::UserNotFound => StatusCode::NOT_FOUND,
         }
     }
 
@@ -62,18 +62,17 @@ impl ResponseError for ResetPasswordError {
 }
 
 async fn check_user(smart_db: &SmartDatabase, email: &str) -> Result<(), ResetPasswordError> {
-    println!("email: {}", email);
+    println!("email: {email}");
     let view = DoesUserExistByEmailQueryView::new(email.to_string());
     let result: Result<bool, _> = smart_db.fetch_scalar(&view).await;
     match result {
         Ok(true) => {}
         _ => return Err(ResetPasswordError::UserNotFound),
-    };
+    }
 
     let view = GetUserIdQueryView::new(email);
-    let user_id = match smart_db.fetch_scalar::<i32, _>(&view).await {
-        Ok(user_id) => user_id,
-        Err(_) => return Err(ResetPasswordError::DatabaseError),
+    let Ok(user_id) = smart_db.fetch_scalar::<i32, _>(&view).await else {
+        return Err(ResetPasswordError::DatabaseError);
     };
 
     let view = IsFirstTimeQueryView::new(user_id as u64);
@@ -94,7 +93,7 @@ async fn handle_forgot_password(
         from: match get_email_sender() {
             Ok(sender) => sender,
             Err(e) => {
-                eprintln!("Email Sender Error: {}", e);
+                eprintln!("Email Sender Error: {e}");
                 return Err(ResetPasswordError::MailError);
             }
         },
@@ -103,25 +102,22 @@ async fn handle_forgot_password(
 
     // Préparation du contenu du mail
     let subject = "Réinitialisation de votre mot de passe";
-    let body = format!(
-        "Bonjour, voici votre jeton de réinitialisation : {}",
-        temporary_token
-    );
+    let body = format!("Bonjour, voici votre jeton de réinitialisation : {temporary_token}");
 
     // Étape 2 : On construit le mail avec les bonnes infos
     let email = match build_email(&destination, subject, &body) {
         Ok(email) => email,
         Err(e) => {
-            eprintln!("Email Build Error: {}", e);
+            eprintln!("Email Build Error: {e}");
             return Err(ResetPasswordError::MailError);
         }
     };
 
     // Étape 3 : On l'envoie via le serveur SMTP
     match send_email(email).await {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(e) => {
-            eprintln!("Mail Error: {}", e);
+            eprintln!("Mail Error: {e}");
             Err(ResetPasswordError::MailError)
         }
     }
@@ -131,24 +127,24 @@ async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError
     let token = Uuid::new_v4().to_string();
     let redis = state.get_redis();
     redis
-        .secure_set(&format!("{}/forgot_password_token", email), &token)
+        .secure_set(&format!("{email}/forgot_password_token"), &token)
         .await
         .map_err(|e| {
-            eprintln!("Redis Error: {}", e);
+            eprintln!("Redis Error: {e}");
             ResetPasswordError::RedisError
         })?;
     redis
         .secure_set(
-            &format!("{}/forgot_password_email", token),
+            &format!("{token}/forgot_password_email"),
             &email.to_string(),
         )
         .await
         .map_err(|e| {
-            eprintln!("Redis Error: {}", e);
+            eprintln!("Redis Error: {e}");
             ResetPasswordError::RedisError
         })?;
     match handle_forgot_password(token, email).await {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(_) => Err(ResetPasswordError::MailError),
     }
 }

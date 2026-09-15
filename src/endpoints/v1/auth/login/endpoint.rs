@@ -14,7 +14,7 @@ use mairie360_api_lib::state::AppState;
 use rand::fill;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoginError {
     DatabaseError,
     FirstConnectError(String),
@@ -26,15 +26,15 @@ pub enum LoginError {
 impl std::fmt::Display for LoginError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LoginError::InvalidCredentials => write!(f, "Invalid credentials provided."),
-            LoginError::DatabaseError => {
+            Self::InvalidCredentials => write!(f, "Invalid credentials provided."),
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            LoginError::TokenGenerationError => write!(f, "Failed to generate JWT token."),
-            LoginError::FirstConnectError(token) => {
-                write!(f, "{}", token)
+            Self::TokenGenerationError => write!(f, "Failed to generate JWT token."),
+            Self::FirstConnectError(token) => {
+                write!(f, "{token}")
             }
-            LoginError::RedisError => write!(f, "Internal Redis error."),
+            Self::RedisError => write!(f, "Internal Redis error."),
         }
     }
 }
@@ -42,11 +42,11 @@ impl std::fmt::Display for LoginError {
 impl ResponseError for LoginError {
     fn status_code(&self) -> StatusCode {
         match self {
-            LoginError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            LoginError::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
-            LoginError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            LoginError::RedisError => StatusCode::INTERNAL_SERVER_ERROR,
-            LoginError::TokenGenerationError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            Self::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
+            Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -70,6 +70,9 @@ fn generate_refresh_token() -> String {
     general_purpose::URL_SAFE_NO_PAD.encode(buffer)
 }
 
+/// # Errors
+///
+/// Retourne une erreur si la génération du JWT échoue.
 pub async fn generate_session(
     user_id: u64,
     device_info: &str,
@@ -83,7 +86,7 @@ pub async fn generate_session(
     // ne le lisent depuis les claims), donc on ne fait pas d'aller-retour DB supplémentaire ici pour
     // le récupérer. À brancher sur un vrai rôle utilisateur si/quand la lib s'en sert.
     let jwt = generate_jwt(user_id.to_string().as_str(), "").map_err(|e| {
-        eprintln!("JWT Generation Error: {}", e);
+        eprintln!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
     Ok((jwt, refresh_token))
@@ -96,29 +99,29 @@ async fn generate_first_connection_token(
     let redis = state.get_redis();
 
     if let Ok(Some(token)) = redis
-        .secure_get::<String>(&format!("{}/first_connection_token", user_id))
+        .secure_get::<String>(&format!("{user_id}/first_connection_token"))
         .await
     {
         return Ok(token);
     }
     let token = Uuid::new_v4().to_string();
-    println!("{}/first_connection_id", token);
-    println!("{}", &format!("{}/first_connection_token", user_id));
+    println!("{token}/first_connection_id");
+    println!("{user_id}/first_connection_token");
     redis
-        .secure_set(&format!("{}/first_connection_token", user_id), &token)
+        .secure_set(&format!("{user_id}/first_connection_token"), &token)
         .await
         .map_err(|e| {
-            eprintln!("Redis Error: {}", e);
+            eprintln!("Redis Error: {e}");
             LoginError::RedisError
         })?;
     redis
         .secure_set(
-            &format!("{}/first_connection_id", token),
-            &format!("{}", user_id),
+            &format!("{token}/first_connection_id"),
+            &format!("{user_id}"),
         )
         .await
         .map_err(|e| {
-            eprintln!("Redis Error: {}", e);
+            eprintln!("Redis Error: {e}");
             LoginError::RedisError
         })?;
     Ok(token)
@@ -139,7 +142,7 @@ async fn login_user(
         Ok(result) => Some(result),
         Err(ApiLibError::Database(DbError::NotFound)) => None,
         Err(e) => {
-            eprintln!("Login DB Error: {}", e);
+            eprintln!("Login DB Error: {e}");
             return Err(LoginError::DatabaseError);
         }
     };
@@ -189,11 +192,11 @@ pub async fn login(
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
     let ip_address = ip_str
         .parse::<std::net::IpAddr>()
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)));
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
 
     let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 
     Ok(HttpResponse::Ok()
-        .append_header(("Authorization", format!("Bearer {}", jwt)))
+        .append_header(("Authorization", format!("Bearer {jwt}")))
         .json(LoginResponseView::from(refresh_token)))
 }
