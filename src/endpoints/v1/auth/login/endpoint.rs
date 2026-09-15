@@ -102,8 +102,6 @@ async fn generate_first_connection_token(
         return Ok(token);
     }
     let token = Uuid::new_v4().to_string();
-    println!("{}/first_connection_id", token);
-    println!("{}", &format!("{}/first_connection_token", user_id));
     redis
         .secure_set(&format!("{}/first_connection_token", user_id), &token)
         .await

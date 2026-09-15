@@ -44,7 +44,6 @@ impl ResponseError for ForceChanhePasswordError {
 }
 
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
-    println!("{}/first_connection_id", token);
     match state
         .get_redis()
         .secure_get::<String>(&format!("{}/first_connection_id", token))
@@ -89,13 +88,31 @@ async fn force_change_password_trigger(
     }
 
     change_password(smart_db, user_id, view.new_password()).await?;
+    consume_first_connection_token(&state, view.token(), user_id).await;
 
     Ok(())
 }
 
+/// Le jeton de première connexion est à usage unique : une fois le mot de passe enregistré, les deux
+/// clés posées au login sont supprimées. Un échec Redis n'annule pas le changement déjà persisté.
+async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
+    let redis = state.get_redis();
+    for key in [
+        format!("{}/first_connection_id", token),
+        format!("{}/first_connection_token", user_id),
+    ] {
+        if let Err(error) = redis.secure_delete(&key).await {
+            eprintln!(
+                "Suppression du jeton de première connexion impossible : {:?}",
+                error
+            );
+        }
+    }
+}
+
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
     responses(
         (status = 200, description = "Password changed successfully"),
         (status = 400, description = "Bad request"),

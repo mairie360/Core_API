@@ -1,4 +1,5 @@
 use crate::common::get_pool;
+use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryView};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
@@ -34,6 +35,14 @@ async fn unset_first_connection_success() {
     let result = pool.execute(view).await;
 
     assert!(result.is_ok(), "{:?}", result);
+
+    // Le mot de passe doit réellement être remplacé et la première connexion levée.
+    let stored: LoginUserQueryResultView = pool
+        .fetch_one(&LoginUserQueryView::new(email, String::new()))
+        .await
+        .unwrap();
+    assert_eq!(stored.password(), "new_password");
+    assert!(!stored.first_connect());
 }
 
 #[tokio::test]
