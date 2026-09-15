@@ -8,7 +8,7 @@ use mairie360_api_lib::state::AppState;
 use crate::database::sessions::get_active_session_user_id::GetActiveSessionUserIdQueryView;
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
     DatabaseError,
     InvalidToken,
@@ -76,11 +76,6 @@ async fn refresh_request(
     ),
     tag = "Sessions",
 )]
-#[post("/refresh")]
-// actix-web exécute chaque handler sur un runtime single-threaded par worker : la future
-// n'a pas besoin d'être Send même si elle retient un HttpRequest (non-Send) à travers un
-// .await, contrairement à ce que suppose ce lint pedantic.
-#[allow(clippy::future_not_send)]
 pub async fn refresh(
     body: web::Json<RefreshRequestView>,
     state: web::Data<AppState>,

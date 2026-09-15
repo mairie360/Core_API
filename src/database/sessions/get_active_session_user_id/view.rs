@@ -13,6 +13,7 @@ pub struct GetActiveSessionUserIdQueryView {
 }
 
 impl GetActiveSessionUserIdQueryView {
+    #[must_use]
     pub fn new(token_hash: &str) -> Self {
         Self {
             token_hash: token_hash.to_string(),
@@ -20,6 +21,7 @@ impl GetActiveSessionUserIdQueryView {
         }
     }
 
+    #[must_use]
     pub fn get_token_hash(&self) -> &str {
         &self.token_hash
     }
