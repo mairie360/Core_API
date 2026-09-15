@@ -10,8 +10,8 @@ pub struct GetResponseView {
 }
 
 impl GetResponseView {
-    pub fn new(sessions: Vec<SessionSchema>) -> Self {
-        GetResponseView { sessions }
+    pub const fn new(sessions: Vec<SessionSchema>) -> Self {
+        Self { sessions }
     }
 }
 
@@ -23,6 +23,6 @@ impl Display for GetResponseView {
 
 impl From<Vec<SessionSchema>> for GetResponseView {
     fn from(sessions: Vec<SessionSchema>) -> Self {
-        GetResponseView { sessions }
+        Self { sessions }
     }
 }

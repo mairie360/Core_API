@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 pub enum PermissionAction {
     Create,
     Read,
@@ -16,16 +16,16 @@ pub enum PermissionAction {
 
 impl PermissionAction {
     #[allow(clippy::wrong_self_convention)]
-    fn to_string(&self) -> &str {
+    const fn to_string(&self) -> &str {
         match self {
-            PermissionAction::Create => "create",
-            PermissionAction::Read => "read",
-            PermissionAction::Update => "update",
-            PermissionAction::Delete => "delete",
-            PermissionAction::ReadAll => "read_all",
-            PermissionAction::UpdateAll => "update_all",
-            PermissionAction::DeleteAll => "delete_all",
-            PermissionAction::Error => "error",
+            Self::Create => "create",
+            Self::Read => "read",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::ReadAll => "read_all",
+            Self::UpdateAll => "update_all",
+            Self::DeleteAll => "delete_all",
+            Self::Error => "error",
         }
     }
 }
@@ -33,14 +33,14 @@ impl PermissionAction {
 impl From<String> for PermissionAction {
     fn from(s: String) -> Self {
         match s.as_str() {
-            "create" => PermissionAction::Create,
-            "read" => PermissionAction::Read,
-            "update" => PermissionAction::Update,
-            "delete" => PermissionAction::Delete,
-            "read_all" => PermissionAction::ReadAll,
-            "update_all" => PermissionAction::UpdateAll,
-            "delete_all" => PermissionAction::DeleteAll,
-            _ => PermissionAction::Error,
+            "create" => Self::Create,
+            "read" => Self::Read,
+            "update" => Self::Update,
+            "delete" => Self::Delete,
+            "read_all" => Self::ReadAll,
+            "update_all" => Self::UpdateAll,
+            "delete_all" => Self::DeleteAll,
+            _ => Self::Error,
         }
     }
 }
@@ -59,6 +59,7 @@ pub struct GetPermissionIdQueryView {
 }
 
 impl GetPermissionIdQueryView {
+    #[must_use]
     pub fn new(resource_id: u64, action: PermissionAction) -> Self {
         Self {
             resource_id,
@@ -70,11 +71,13 @@ impl GetPermissionIdQueryView {
         }
     }
 
-    pub fn resource_id(&self) -> u64 {
+    #[must_use]
+    pub const fn resource_id(&self) -> u64 {
         self.resource_id
     }
 
-    pub fn action(&self) -> PermissionAction {
+    #[must_use]
+    pub const fn action(&self) -> PermissionAction {
         self.action
     }
 }

@@ -12,6 +12,7 @@ pub struct RegisterUserQueryView {
 }
 
 impl RegisterUserQueryView {
+    #[must_use]
     pub fn new(
         first_name: &str,
         last_name: &str,
@@ -24,37 +25,46 @@ impl RegisterUserQueryView {
             last_name: last_name.to_string(),
             email: email.to_string(),
             password: password.to_string(),
-            phone_number: phone_number.map(|s| s.to_string()),
-            params: match phone_number {
-                Some(phone_number) => vec![
-                    QueryParam::Text(first_name.to_string()),
-                    QueryParam::Text(last_name.to_string()),
-                    QueryParam::Text(email.to_string()),
-                    QueryParam::Text(password.to_string()),
-                    QueryParam::Text(phone_number.to_string()),
-                ],
-                None => vec![
-                    QueryParam::Text(first_name.to_string()),
-                    QueryParam::Text(last_name.to_string()),
-                    QueryParam::Text(email.to_string()),
-                    QueryParam::Text(password.to_string()),
-                ],
-            },
+            phone_number: phone_number.map(std::string::ToString::to_string),
+            params: phone_number.map_or_else(
+                || {
+                    vec![
+                        QueryParam::Text(first_name.to_string()),
+                        QueryParam::Text(last_name.to_string()),
+                        QueryParam::Text(email.to_string()),
+                        QueryParam::Text(password.to_string()),
+                    ]
+                },
+                |phone_number| {
+                    vec![
+                        QueryParam::Text(first_name.to_string()),
+                        QueryParam::Text(last_name.to_string()),
+                        QueryParam::Text(email.to_string()),
+                        QueryParam::Text(password.to_string()),
+                        QueryParam::Text(phone_number.to_string()),
+                    ]
+                },
+            ),
         }
     }
 
+    #[must_use]
     pub fn get_first_name(&self) -> &str {
         &self.first_name
     }
+    #[must_use]
     pub fn get_last_name(&self) -> &str {
         &self.last_name
     }
+    #[must_use]
     pub fn get_email(&self) -> &str {
         &self.email
     }
+    #[must_use]
     pub fn get_password(&self) -> &str {
         &self.password
     }
+    #[must_use]
     pub fn get_phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }

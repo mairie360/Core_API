@@ -8,7 +8,7 @@ use serial_test::serial;
 #[serial]
 async fn delete_group_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -17,17 +17,17 @@ async fn delete_group_success() {
     );
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = DeleteGroupQueryView::new(id as u64);
-    println!("{}", view);
+    println!("{view}");
     let result = pool.execute(view).await;
-    assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
+    assert!(result.is_ok(), "result should be Ok, got: {result:?}");
 }
 
 #[tokio::test]
 #[serial]
 async fn delete_group_bad_group_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = DeleteGroupQueryView::new(999);
     let result = pool.execute(view).await;
-    assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
+    assert!(result.is_ok(), "result should be Ok, got: {result:?}");
 }

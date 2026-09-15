@@ -7,12 +7,14 @@ pub struct GetSessionsQueryView {
 }
 
 impl GetSessionsQueryView {
+    #[must_use]
     pub fn new(id: Vec<u64>) -> Self {
         Self {
             id: id.into_iter().map(|id| id as i32).collect(),
         }
     }
 
+    #[must_use]
     pub fn id(&self) -> &[i32] {
         &self.id
     }
@@ -31,7 +33,7 @@ impl ApiRequestDto for GetSessionsQueryView {
                 "ARRAY[{}]",
                 self.id
                     .iter()
-                    .map(|id| id.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(",")
             )
@@ -39,8 +41,7 @@ impl ApiRequestDto for GetSessionsQueryView {
 
         Box::leak(
             format!(
-                "SELECT row_to_json(t) FROM (SELECT * FROM sessions WHERE user_id = ANY({})) t",
-                ids
+                "SELECT row_to_json(t) FROM (SELECT * FROM sessions WHERE user_id = ANY({ids})) t"
             )
             .into_boxed_str(),
         )

@@ -10,7 +10,7 @@ use serial_test::serial;
 #[serial]
 async fn is_user_member_true() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -22,9 +22,9 @@ async fn is_user_member_true() {
     let view = AddUserToGroupQueryView::new(result as u64, 2);
     let _ = pool.execute(view).await;
     let view = IsUserMemberQueryView::new(result as u64, 2);
-    println!("{}", view);
+    println!("{view}");
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
-    assert!(result.is_ok(), "is_user_member_true failed: {:?}", result);
+    assert!(result.is_ok(), "is_user_member_true failed: {result:?}");
     assert!(
         result.unwrap(),
         "is_user_member_true failed: result is false"
@@ -35,7 +35,7 @@ async fn is_user_member_true() {
 #[serial]
 async fn is_user_member_false() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -46,7 +46,7 @@ async fn is_user_member_false() {
 
     let view = IsUserMemberQueryView::new(id as u64, 3);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
-    assert!(result.is_ok(), "is_user_member_false failed: {:?}", result);
+    assert!(result.is_ok(), "is_user_member_false failed: {result:?}");
     assert!(
         !result.unwrap(),
         "is_user_member_false failed: result is true"
@@ -57,7 +57,7 @@ async fn is_user_member_false() {
 #[serial]
 async fn is_user_member_unknow_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -70,8 +70,7 @@ async fn is_user_member_unknow_user() {
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
     assert!(
         result.is_ok(),
-        "is_user_member_unknow_user failed: {:?}",
-        result
+        "is_user_member_unknow_user failed: {result:?}"
     );
     assert!(
         !result.unwrap(),
@@ -83,14 +82,13 @@ async fn is_user_member_unknow_user() {
 #[serial]
 async fn is_user_member_unknow_group() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = IsUserMemberQueryView::new(999, 2);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
     assert!(
         result.is_ok(),
-        "is_user_member_unknow_group failed: {:?}",
-        result
+        "is_user_member_unknow_group failed: {result:?}"
     );
     assert!(
         !result.unwrap(),
@@ -102,14 +100,13 @@ async fn is_user_member_unknow_group() {
 #[serial]
 async fn is_user_member_unknow_user_and_group() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = IsUserMemberQueryView::new(999, 999);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
     assert!(
         result.is_ok(),
-        "is_user_member_unknow_user_and_group failed: {:?}",
-        result
+        "is_user_member_unknow_user_and_group failed: {result:?}"
     );
     assert!(
         !result.unwrap(),

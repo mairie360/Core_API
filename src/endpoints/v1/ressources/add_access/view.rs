@@ -1,6 +1,6 @@
 use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub enum AccessType {
     Delete,
     Error,
@@ -9,12 +9,13 @@ pub enum AccessType {
 }
 
 impl AccessType {
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            AccessType::Read => "read",
-            AccessType::Update => "update",
-            AccessType::Delete => "delete",
-            AccessType::Error => "error",
+            Self::Read => "read",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::Error => "error",
         }
     }
 }
@@ -22,10 +23,10 @@ impl AccessType {
 impl From<&str> for AccessType {
     fn from(s: &str) -> Self {
         match s {
-            "read" => AccessType::Read,
-            "update" => AccessType::Update,
-            "delete" => AccessType::Delete,
-            _ => AccessType::Error,
+            "read" => Self::Read,
+            "update" => Self::Update,
+            "delete" => Self::Delete,
+            _ => Self::Error,
         }
     }
 }
@@ -39,6 +40,7 @@ pub struct AddAccessView {
 }
 
 impl AddAccessView {
+    #[must_use]
     pub fn new(
         user_id: u64,
         resource_id: u64,
@@ -53,19 +55,23 @@ impl AddAccessView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 
-    pub fn resource_id(&self) -> u64 {
+    #[must_use]
+    pub const fn resource_id(&self) -> u64 {
         self.resource_id
     }
 
+    #[must_use]
     pub fn ressource_type(&self) -> &str {
         &self.ressource_type
     }
 
-    pub fn access_type(&self) -> AccessType {
+    #[must_use]
+    pub const fn access_type(&self) -> AccessType {
         self.access_type
     }
 }

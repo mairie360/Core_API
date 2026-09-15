@@ -11,7 +11,8 @@ pub struct PatchMeView {
 }
 
 impl PatchMeView {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         first_name: Option<String>,
         last_name: Option<String>,
         email: Option<String>,
@@ -25,18 +26,22 @@ impl PatchMeView {
         }
     }
 
+    #[must_use]
     pub fn first_name(&self) -> Option<&str> {
         self.first_name.as_deref()
     }
 
+    #[must_use]
     pub fn last_name(&self) -> Option<&str> {
         self.last_name.as_deref()
     }
 
+    #[must_use]
     pub fn email(&self) -> Option<&str> {
         self.email.as_deref()
     }
 
+    #[must_use]
     pub fn phone(&self) -> Option<&str> {
         self.phone.as_deref()
     }

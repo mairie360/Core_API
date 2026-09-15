@@ -8,6 +8,7 @@ pub struct GetActiveSessionsQueryView {
 }
 
 impl GetActiveSessionsQueryView {
+    #[must_use]
     pub fn new(user_id: u64) -> Self {
         Self {
             user_id,
@@ -15,7 +16,8 @@ impl GetActiveSessionsQueryView {
         }
     }
 
-    pub fn get_user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_user_id(&self) -> u64 {
         self.user_id
     }
 }
@@ -38,6 +40,6 @@ impl ApiRequestDto for GetActiveSessionsQueryView {
 
 impl Display for GetActiveSessionsQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetActiveSessionsQueryView: user_id = {}", self.user_id,)
+        write!(f, "GetActiveSessionsQueryView: user_id = {}", self.user_id)
     }
 }

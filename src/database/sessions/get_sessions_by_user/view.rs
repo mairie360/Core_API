@@ -8,6 +8,7 @@ pub struct GetSessionsByUserQueryView {
 }
 
 impl GetSessionsByUserQueryView {
+    #[must_use]
     pub fn new(user_id: u64) -> Self {
         Self {
             user_id,
@@ -15,7 +16,8 @@ impl GetSessionsByUserQueryView {
         }
     }
 
-    pub fn get_user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_user_id(&self) -> u64 {
         self.user_id
     }
 }

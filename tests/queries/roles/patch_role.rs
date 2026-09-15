@@ -23,7 +23,7 @@ async fn patch_role(
 #[serial]
 async fn test_patch_role_name() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = PatchRoleQueryView::new(
         *PATCH_ID.get().unwrap(),
@@ -31,8 +31,8 @@ async fn test_patch_role_name() {
         None,
         None,
     );
-    println!("{}", view);
-    println!("{:?}", view);
+    println!("{view}");
+    println!("{view:?}");
     assert_eq!(view.id(), *PATCH_ID.get().unwrap());
     assert_eq!(view.name(), Some("Patch"));
     assert_eq!(view.description(), None);
@@ -55,7 +55,7 @@ async fn test_patch_role_name() {
 #[serial]
 async fn test_patch_role_description() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = PatchRoleQueryView::new(
         *PATCH_ID.get().unwrap(),
@@ -80,7 +80,7 @@ async fn test_patch_role_description() {
 #[serial]
 async fn test_patch_role_can_be_deleted_to_false() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = PatchRoleQueryView::new(*PATCH_ID.get().unwrap(), None, None, Some(Some(false)));
     let _guard = PATCH_MUTEX.get().unwrap().lock().await;

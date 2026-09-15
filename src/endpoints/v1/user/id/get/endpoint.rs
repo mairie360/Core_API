@@ -16,10 +16,10 @@ enum GetUserError {
 impl std::fmt::Display for GetUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetUserError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            GetUserError::UnknownUser => {
+            Self::UnknownUser => {
                 write!(f, "User not found.")
             }
         }
@@ -29,8 +29,8 @@ impl std::fmt::Display for GetUserError {
 impl ResponseError for GetUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetUserError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            GetUserError::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
 
@@ -48,23 +48,23 @@ async fn trigger_get_user(
     let view = GetUserByIdQueryView::new(id);
     let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
         smart_db.fetch_one(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
+            eprintln!("Login DB Error: {e}");
             GetUserError::UnknownUser
         })?;
     let view = GetUserGroupsQuerView::new(id);
     let groups = smart_db.fetch_all(&view).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
+        eprintln!("Login DB Error: {e}");
         GetUserError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(id);
     let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
+        eprintln!("Login DB Error: {e}");
         GetUserError::DatabaseError
     })?;
     let view = GetRolesByIdQueryView::new(role_id);
     let role: Vec<crate::database::roles::get_roles_by_id::Role> =
         smart_db.fetch_all(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
+            eprintln!("Login DB Error: {e}");
             GetUserError::DatabaseError
         })?;
 
@@ -75,7 +75,7 @@ async fn trigger_get_user(
         result.phone_number(),
         result.status(),
         result.is_archived(),
-        role.first().map(|r| r.name()).unwrap_or(""),
+        role.first().map_or("", |r| r.name()),
         groups,
     ))
 }
