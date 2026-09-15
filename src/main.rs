@@ -1,7 +1,7 @@
 use actix_web::{middleware, web, App, HttpServer};
 
-use core_api::endpoints::config;
 use core_api::endpoints::swagger::ApiDoc;
+use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
 use mairie360_api_lib::security::JwtMiddleware;
 
@@ -40,6 +40,8 @@ async fn main() -> std::io::Result<()> {
             )
             .service(health::health)
             .service(hello::hello)
+            // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
+            .configure(public_config)
             // 3. Endpoints Protégés par JWT
             .service(
                 web::scope("/api").wrap(JwtMiddleware).configure(config), // Tes routes v1, etc.

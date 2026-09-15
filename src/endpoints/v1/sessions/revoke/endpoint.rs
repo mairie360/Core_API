@@ -1,5 +1,3 @@
-use std::net::IpAddr;
-
 use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -46,11 +44,11 @@ async fn revoke_request(
     user: AuthenticatedUser,
     view: RevokeRequestView,
     state: web::Data<AppState>,
-    ip_adress: IpAddr,
+    ip_address: std::net::IpAddr,
 ) -> Result<(), RevokeError> {
     let user_id = user.id;
 
-    let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_adress);
+    let db_view = IsSessionTokenValidQueryView::new(user_id, view.refresh_token(), ip_address);
 
     let is_valid: Result<bool, _> = state.get_smart_db().fetch_scalar(&db_view).await;
 
@@ -88,15 +86,15 @@ pub async fn revoke(
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RevokeError> {
     let view = body.into_inner();
-
-    let ip_adress = request
+    // Depuis mairie360_api_lib (MAIR-125), l'IP n'est plus un critère de validité du token : elle
+    // n'est lue que pour la signature de la vue, avec le même repli que le login.
+    let ip_address = request
         .connection_info()
         .realip_remote_addr()
-        .unwrap()
-        .parse()
-        .unwrap();
+        .and_then(|ip| ip.parse().ok())
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
 
-    revoke_request(user, view, state, ip_adress)
+    revoke_request(user, view, state, ip_address)
         .await
         .map(|_| HttpResponse::Ok().body("Session revoked successfully"))
 }
