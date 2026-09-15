@@ -69,7 +69,7 @@ async fn trigger_get_me(
         result.email(),
         result.phone_number(),
         result.status(),
-        role[0].name(),
+        role.first().map(|r| r.name()).unwrap_or(""),
         groups,
     ))
 }

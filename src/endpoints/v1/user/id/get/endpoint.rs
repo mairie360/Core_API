@@ -75,7 +75,7 @@ async fn trigger_get_user(
         result.phone_number(),
         result.status(),
         result.is_archived(),
-        role[0].name(),
+        role.first().map(|r| r.name()).unwrap_or(""),
         groups,
     ))
 }
