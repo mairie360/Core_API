@@ -175,7 +175,7 @@ async fn forgot_password_trigger(
 
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
     responses(
         (status = 200, description = "Forgot password request sent successfully"),
         (status = 400, description = "Bad request"),

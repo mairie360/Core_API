@@ -120,7 +120,7 @@ async fn reset_password_trigger(
 
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
     responses(
         (status = 200, description = "Password reset successfully", body = ResetPasswordResponseView),
         (status = 400, description = "Bad request"),

@@ -1,6 +1,7 @@
 mod delete;
 pub mod doc;
 mod get;
+mod patch;
 mod users;
 
 use actix_web::middleware::from_fn;
@@ -14,7 +15,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             // 1. Les routes standards
             .service(get::endpoint::get_group)
             .configure(users::config)
-            // 2. On applique le middleware et la config UNIQUEMENT au delete
+            // 2. On applique le middleware et la config UNIQUEMENT au delete et au patch
             // en l'enveloppant dans un scope vide ""
             .service(
                 web::scope("")
@@ -24,7 +25,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                         id_param_pattern: Some("group_id"),
                     })
                     .wrap(from_fn(access_guard_middleware))
-                    .service(delete::endpoint::delete_group), // On réutilise le service existant avec sa macro
+                    .service(delete::endpoint::delete_group) // On réutilise le service existant avec sa macro
+                    .service(patch::endpoint::patch_group),
             ),
     );
 }
