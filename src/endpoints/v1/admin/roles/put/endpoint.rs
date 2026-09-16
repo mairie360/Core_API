@@ -71,15 +71,65 @@ async fn put_role(
 #[utoipa::path(
     put,
     path = "/{id}",
-    request_body = RoleWriteView,
+    summary = "Remplacer un rôle",
+    description = "Remplace intégralement le nom, la description et le caractère supprimable d'un \
+                   rôle existant. Réservé aux administrateurs.\n\n\
+                   Contrairement au `PATCH`, tous les champs du corps sont écrits : un champ omis \
+                   est écrasé par sa valeur par défaut, pas conservé. Pour une modification \
+                   partielle, utiliser `PATCH /api/v1/admin/roles/{id}`.\n\n\
+                   La réponse a un corps vide ; relire le rôle via `GET /api/v1/admin/roles/`.",
+    request_body(
+        content = RoleWriteView,
+        description = "Nouvelle définition complète du rôle.",
+        example = json!({
+            "name": "agent",
+            "description": "Agent municipal habilité à instruire les dossiers",
+            "can_be_deleted": true
+        })
+    ),
     responses(
-        (status = 200, description = "Role deleted successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Rôle remplacé. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, champ obligatoire absent, ou `id` du chemin qui n'est pas un entier.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `name`")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "Aucun rôle ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The requested resource was not found.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la mise à jour, par exemple un nom déjà pris par un autre rôle.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     params(
-        ("id" = i32, Path, description = "Role database id")
+        ("id" = u64, Path, description = "Identifiant du rôle.", example = 2)
     ),
     security(
         ("jwt" = [])

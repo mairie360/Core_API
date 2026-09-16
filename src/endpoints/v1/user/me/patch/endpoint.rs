@@ -58,9 +58,50 @@ async fn trigger_patch_me(
 #[utoipa::path(
     patch,
     path = "/",
+    summary = "Modifier son propre profil",
+    description = "Met à jour l'état civil, l'adresse e-mail ou le téléphone de l'utilisateur \
+                   porté par le JWT. Modification partielle : seuls les champs présents dans le \
+                   corps sont écrits, les autres restent inchangés.\n\n\
+                   Un corps vide, ou ne contenant que des `null`, est accepté et ne déclenche \
+                   aucune écriture : la réponse reste `200`.\n\n\
+                   Le mot de passe et les rôles ne se modifient pas ici : passer par \
+                   `/api/v1/auth/forgot_password` pour le mot de passe et par \
+                   `/api/v1/admin/users/` pour les rôles. La réponse a un corps vide ; il faut \
+                   rappeler `GET /api/v1/user/me/` pour relire le profil.",
+    request_body(
+        content = PatchMeView,
+        description = "Champs à modifier. Tous facultatifs ; un champ absent ou `null` est ignoré.",
+        example = json!({
+            "first_name": "Jean",
+            "phone": "0798765432"
+        })
+    ),
     responses(
-        (status = 200, description = "User updated successfully"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Profil mis à jour, ou rien à mettre à jour. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, ou champ d'un type inattendu.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: invalid type: integer `42`, expected a string")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la mise à jour du profil.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Users",
     security(

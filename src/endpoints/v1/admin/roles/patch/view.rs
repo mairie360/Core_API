@@ -3,8 +3,15 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchView {
+    /// Nouveau nom du rôle. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "agent")]
     name: Option<String>,
+    /// Nouvelle description. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "Agent municipal habilité à instruire les dossiers")]
     description: Option<String>,
+    /// Doublement optionnel : omettre le champ laisse la valeur actuelle, alors que `null`
+    /// l'efface. `false` protège le rôle contre sa suppression.
+    #[schema(example = true)]
     can_be_deleted: Option<Option<bool>>,
 }
 

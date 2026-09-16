@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetGroupsResultView {
+    /// Groupes dont l'utilisateur connecté est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
 }
 

@@ -168,12 +168,56 @@ async fn login_user(
 #[utoipa::path(
     post,
     path = "",
-    request_body = LoginView,
+    summary = "Se connecter",
+    description = "Authentifie un utilisateur par e-mail et mot de passe, ouvre une session et \
+                   renvoie un JWT dans l'en-tête `Authorization` ainsi qu'un jeton de \
+                   rafraîchissement dans le corps. Route publique : le `JwtMiddleware` laisse \
+                   passer tout ce qui est sous `/auth`.\n\n\
+                   La session est liée à l'adresse IP d'origine : le rafraîchissement et la \
+                   révocation devront repasser par la même adresse.\n\n\
+                   Tant que l'utilisateur n'a pas choisi son propre mot de passe, la réponse est \
+                   `412` et non `200` : elle porte alors un jeton de première connexion à \
+                   présenter à `POST /api/v1/auth/force_change_password`. C'est le seul statut \
+                   d'erreur de cette opération dont le corps est du JSON et non du texte brut.",
+    request_body(
+        content = LoginView,
+        description = "Identifiants de l'utilisateur et description de l'appareil utilisé.",
+        example = json!({
+            "email": "jean.dupont@mairie360.fr",
+            "password": "MotDePasse!123",
+            "device_info": "Chrome 140 sur Windows 11"
+        })
+    ),
     responses(
-        (status = 200, description = "User login successfully!", body = LoginResponseView),
-        (status = 401, description = "Invalid credentials provided."),
-        (status = 412, description = "User needs to change password because first login", body = LoginFirstConnectionResponseView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Connexion réussie. Le JWT est renvoyé dans l'en-tête `Authorization`, le jeton de rafraîchissement dans le corps.",
+            body = LoginResponseView,
+            headers(
+                ("Authorization" = String, description = "JWT d'accès, préfixé par `Bearer `.")
+            ),
+            example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+        ),
+        (
+            status = 401,
+            description = "Adresse e-mail inconnue ou mot de passe incorrect.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid credentials provided.")
+        ),
+        (
+            status = 412,
+            description = "Première connexion : le mot de passe doit être changé via `/api/v1/auth/force_change_password` en utilisant le jeton renvoyé.",
+            body = LoginFirstConnectionResponseView,
+            example = json!({ "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35" })
+        ),
+        (
+            status = 500,
+            description = "Erreur interne : base de données, Redis ou génération du JWT.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Auth"
 )]

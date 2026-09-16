@@ -4,7 +4,12 @@ use utoipa::ToSchema;
 
 #[derive(Deserialize, ToSchema)]
 pub struct AddRoleToUserView {
+    /// Identifiant du rôle à attribuer, tel que renvoyé par `GET /api/v1/admin/roles/`.
+    #[schema(example = 2)]
     role_id: u64,
+    /// Identifiant de l'utilisateur qui reçoit le rôle. C'est cette valeur qui fait foi, pas
+    /// l'`userId` du chemin.
+    #[schema(example = 42)]
     user_id: u64,
 }
 

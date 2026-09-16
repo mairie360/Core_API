@@ -72,17 +72,60 @@ async fn reset_password(
 #[utoipa::path(
     patch,
     path = "password",
+    summary = "Réinitialiser le mot de passe d'un utilisateur (administration)",
+    description = "Attribue un nouveau mot de passe à un compte, sans passer par l'e-mail de \
+                   réinitialisation. Sert à débloquer un utilisateur qui n'a plus accès à sa boîte \
+                   mail. Réservé aux administrateurs.\n\n\
+                   Le mot de passe doit contenir entre 8 et 255 caractères — comptés en \
+                   caractères, pas en octets. La réponse a un corps vide.",
     params(
-        ("userId" = u64, Path, description = "User ID")
+        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
     ),
-    request_body = AdminResetPasswordView,
+    request_body(
+        content = AdminResetPasswordView,
+        description = "Nouveau mot de passe, de 8 à 255 caractères.",
+        example = json!({ "new_password": "NouveauMotDePasse!123" })
+    ),
     responses(
-        (status = 204, description = "Password reset and active sessions revoked"),
-        (status = 400, description = "Invalid password"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-        (status = 404, description = "Unknown user"),
-        (status = 500, description = "Database error occurred")
+        (
+            status = 204,
+            description = "Mot de passe réinitialisé. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, ou mot de passe de moins de 8 ou de plus de 255 caractères.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The password must contain between 8 and 255 characters")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "Aucun utilisateur ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown user")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de l'enregistrement du mot de passe.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
+        )
     ),
     tag = "Admin - Users",
     security(

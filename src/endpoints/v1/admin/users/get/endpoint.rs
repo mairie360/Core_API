@@ -71,13 +71,67 @@ async fn list_users(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Lister les utilisateurs (administration)",
+    description = "Vue d'administration paginée sur les comptes utilisateurs, archivés compris, \
+                   avec téléphone, statut et rôles. Réservé aux administrateurs.\n\n\
+                   À distinguer de `GET /api/v1/user/`, qui est l'annuaire ouvert à tous : celui-ci \
+                   masque les comptes archivés, ne pagine pas et ne renvoie ni téléphone ni statut.\n\n\
+                   `total` compte les utilisateurs correspondant aux filtres, toutes pages \
+                   confondues ; `total_pages` en découle. Une `page` au-delà de `total_pages` \
+                   renvoie une liste vide, pas une erreur.",
     params(AdminListUsersQuery),
     responses(
-        (status = 200, description = "Users retrieved successfully", body = AdminListUsersResultView),
-        (status = 400, description = "Invalid pagination"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-        (status = 500, description = "Database error occurred")
+        (
+            status = 200,
+            description = "Page d'utilisateurs correspondant aux filtres.",
+            body = AdminListUsersResultView,
+            example = json!({
+                "users": [
+                    {
+                        "id": 42,
+                        "first_name": "Jean",
+                        "last_name": "Dupont",
+                        "email": "jean.dupont@mairie360.fr",
+                        "phone_number": "0612345678",
+                        "status": "active",
+                        "is_archived": false,
+                        "roles": [{ "id": 2, "name": "agent" }]
+                    }
+                ],
+                "page": 1,
+                "page_size": 20,
+                "total": 137,
+                "total_pages": 7
+            })
+        ),
+        (
+            status = 400,
+            description = "`page` vaut 0, ou `page_size` vaut 0 ou dépasse 500.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid pagination")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture ou du comptage.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
+        )
     ),
     tag = "Admin - Users",
     security(

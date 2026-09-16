@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetGroupResultView {
+    /// Le groupe demandé.
     group: Group,
 }
 

@@ -43,9 +43,45 @@ async fn get_roles(state: web::Data<AppState>) -> Result<AdminGetRolesResultView
 #[utoipa::path(
     get,
     path = "/",
+    summary = "Lister les rôles (administration)",
+    description = "Renvoie tous les rôles de la plateforme. Même contenu que \
+                   `GET /api/v1/roles/`, mais sous le préfixe d'administration : c'est le point \
+                   d'entrée des écrans d'admin, à côté des opérations d'écriture voisines.\n\n\
+                   Réservé aux administrateurs. Un rôle sans description renvoie une chaîne vide, \
+                   jamais `null`.",
     responses(
-        (status = 200, description = "Roles retrieved successfully", body = AdminGetRolesResultView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Liste des rôles de la plateforme.",
+            body = AdminGetRolesResultView,
+            example = json!({
+                "roles": [
+                    { "id": 1, "name": "admin", "description": "Administrateur de la plateforme" },
+                    { "id": 2, "name": "agent", "description": "Agent municipal" }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture des rôles.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     security(
         ("jwt" = [])

@@ -66,16 +66,42 @@ async fn delete_user_from_group(
 #[utoipa::path(
     delete,
     path = "/",
+    summary = "Retirer un utilisateur d'un groupe",
+    description = "Détache un utilisateur d'un groupe. Le compte utilisateur et le groupe sont \
+                   conservés ; seul le lien d'appartenance disparaît.\n\n\
+                   Contrairement à la suppression d'un groupe, cet appel n'est pas idempotent : \
+                   retirer un utilisateur qui n'est pas membre répond `404`.\n\n\
+                   Cet endpoint ne vérifie pas que l'appelant est propriétaire du groupe.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe"),
-        ("user_id" = u64, Path, description = "ID de l'utilisateur")
+        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3),
+        ("user_id" = u64, Path, description = "Identifiant de l'utilisateur à retirer.", example = 42)
     ),
     responses(
-        (status = 204, description = "User deleted from group successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Utilisateur retiré du groupe. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Échec de la suppression du lien une fois l'appartenance confirmée. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "L'utilisateur n'est pas membre de ce groupe, ou l'un des deux identifiants n'existe pas.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknow user.")
+        ),
     ),
     tag = "Groups",
     security(

@@ -176,16 +176,61 @@ async fn forgot_password_trigger(
 #[utoipa::path(
     post,
     path = "",
-    responses(
-        (status = 200, description = "Forgot password request sent successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "User not found"),
-        (status = 500, description = "Internal server error")
+    summary = "Demander la réinitialisation d'un mot de passe",
+    description = "Génère un jeton de réinitialisation à usage unique, le stocke dans Redis et \
+                   l'envoie par e-mail à l'utilisateur. Le jeton est ensuite à présenter à \
+                   `POST /api/v1/auth/reset_password`.\n\n\
+                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.\n\n\
+                   Le jeton n'est **jamais** renvoyé dans la réponse : un `200` signifie seulement \
+                   que l'e-mail a été remis au serveur SMTP. Une demande déjà en cours pour cette \
+                   adresse est refusée en `409` tant que le jeton précédent n'a pas été consommé.",
+    request_body(
+        content = ForgotPasswordView,
+        description = "Adresse e-mail du compte à réinitialiser.",
+        example = json!({ "email": "jean.dupont@mairie360.fr" })
     ),
-    tag = "Auth",
-    security(
-        ("jwt" = [])
-    )
+    responses(
+        (
+            status = 200,
+            description = "E-mail de réinitialisation envoyé. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ `email` absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `email`")
+        ),
+        (
+            status = 401,
+            description = "Le compte n'est pas éligible à la réinitialisation dans son état actuel.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User not valid.")
+        ),
+        (
+            status = 404,
+            description = "Aucun compte ne correspond à cette adresse e-mail.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User not found.")
+        ),
+        (
+            status = 409,
+            description = "Une demande de réinitialisation est déjà en cours pour cette adresse.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Password reset already requested.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données, de Redis, ou échec de l'envoi de l'e-mail.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while sending the email.")
+        )
+    ),
+    tag = "Auth"
 )]
 #[post("/forgot_password")]
 pub async fn forgot_password(

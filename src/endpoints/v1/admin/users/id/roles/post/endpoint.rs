@@ -47,20 +47,60 @@ async fn add_role_to_user(
 
 #[utoipa::path(
     post,
-    request_body = AddRoleToUserView,
     path = "/",
+    summary = "Attribuer un rôle à un utilisateur",
+    description = "Rattache un rôle à un compte utilisateur. Réservé aux administrateurs.\n\n\
+                   Attention : l'utilisateur visé est celui du champ `user_id` du **corps**, pas \
+                   celui du chemin. L'`userId` de l'URL est ignoré par le handler ; renseigner les \
+                   deux avec la même valeur pour éviter toute ambiguïté.\n\n\
+                   La réponse a un corps vide. Tout échec d'écriture est rapporté en `404` : ce \
+                   endpoint ne renvoie jamais `500`.",
+    request_body(
+        content = AddRoleToUserView,
+        description = "Rôle à attribuer et utilisateur qui le reçoit.",
+        example = json!({ "role_id": 2, "user_id": 42 })
+    ),
     params(
-        ("userId" = u64, Path, description = "Event ID")
+        ("userId" = u64, Path, description = "Identifiant de l'utilisateur. **Ignoré** : c'est le `user_id` du corps qui fait foi.", example = 42)
     ),
     responses(
-        (status = 200, description = "User role updated successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "User or role not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Rôle attribué. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ obligatoire absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `role_id`")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "`user_id` ou `role_id` ne correspond à rien, ou l'utilisateur porte déjà ce rôle.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User or role not found.")
+        ),
     ),
     security(
         ("jwt" = [])
-    )
+    ),
+    tag = "Admin - Users"
 )]
 #[post("/")]
 pub async fn admin_add_role_to_user(

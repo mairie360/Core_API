@@ -65,15 +65,43 @@ async fn trigger_get_group_members(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Lister les membres d'un groupe",
+    description = "Renvoie les identifiants des utilisateurs membres du groupe. Seuls les \
+                   identifiants sont renvoyés : pour obtenir leurs noms et adresses, les repasser \
+                   à `GET /api/v1/user/?ids=1,2,3`.\n\n\
+                   La liste est vide si le groupe n'a aucun membre — ce qui est le cas juste après \
+                   sa création, le propriétaire n'étant pas ajouté automatiquement.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe")
+        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
     responses(
-        (status = 200, body = GetGroupUsersResultView),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Unknow group"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Identifiants des membres du groupe.",
+            body = GetGroupUsersResultView,
+            example = json!({ "users": [1, 2, 5] })
+        ),
+        (
+            status = 400,
+            description = "Échec de la lecture des membres une fois le groupe trouvé. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "Aucun groupe ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknow group")
+        ),
     ),
     tag = "Groups",
     security(

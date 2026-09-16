@@ -124,14 +124,59 @@ async fn register_user(
 #[utoipa::path(
     post,
     path = "",
-    request_body = RegisterView,
-    responses(
-        (status = 201, description = "User registered successfully", body = String),
-        (status = 400, description = "Invalid data provided", body = String),
-        (status = 409, description = "User already exists", body = String),
-        (status = 500, description = "Database error occurred", body = String)
+    summary = "Créer un compte utilisateur",
+    description = "Crée un compte à partir d'une adresse e-mail unique. Route publique : le \
+                   `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.\n\n\
+                   Validations appliquées avant l'écriture en base :\n\
+                   - `email` : non vide et de la forme `locale@domaine.tld` ;\n\
+                   - `password` : au moins 8 caractères ;\n\
+                   - `phone_number` : optionnel, mais s'il est fourni, au moins 10 chiffres \
+                   uniquement (pas d'espace, de `+` ni de séparateur).\n\n\
+                   Toutes ces validations partagent le même `400` et le même message : la réponse \
+                   ne dit pas laquelle a échoué.",
+    request_body(
+        content = RegisterView,
+        description = "État civil, identifiants et téléphone facultatif du nouvel utilisateur.",
+        example = json!({
+            "first_name": "Jean",
+            "last_name": "Dupont",
+            "email": "jean.dupont@mairie360.fr",
+            "password": "MotDePasse!123",
+            "phone_number": "0612345678"
+        })
     ),
-    tag = "Authentication"
+    responses(
+        (
+            status = 201,
+            description = "Compte créé. L'utilisateur est marqué en première connexion : son premier \
+                           `POST /api/v1/auth/login` répondra `412` et exigera un changement de mot de passe.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User registered successfully!")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, ou e-mail, mot de passe ou numéro de téléphone ne respectant pas les règles ci-dessus.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid data provided")
+        ),
+        (
+            status = 409,
+            description = "Un compte utilise déjà cette adresse e-mail.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User already exists")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données pendant la vérification d'unicité ou l'insertion.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
+        )
+    ),
+    tag = "Auth"
 )]
 #[post("/register")]
 pub async fn register(

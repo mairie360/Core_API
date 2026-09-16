@@ -70,11 +70,23 @@ impl RoleQueryResult {
 
 #[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, Clone)]
 pub struct User {
+    /// Prénom de l'utilisateur.
+    #[schema(example = "Jean")]
     first_name: String,
+    /// Nom de famille de l'utilisateur.
+    #[schema(example = "Dupont")]
     last_name: String,
+    /// Adresse e-mail, unique sur la plateforme.
+    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
+    /// Numéro de téléphone, ou `null` s'il n'en a pas renseigné.
+    #[schema(example = "0612345678")]
     phone_number: Option<String>,
+    /// Statut du compte tel qu'il est stocké en base.
+    #[schema(example = "active")]
     status: String,
+    /// `true` si le compte est archivé : il ne peut plus se connecter.
+    #[schema(example = false)]
     is_archived: bool,
 }
 

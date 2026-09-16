@@ -7,12 +7,25 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetMeResponseView {
+    /// Prénom de l'utilisateur connecté.
+    #[schema(example = "Jean")]
     first_name: String,
+    /// Nom de famille de l'utilisateur connecté.
+    #[schema(example = "Dupont")]
     last_name: String,
+    /// Adresse e-mail, unique sur la plateforme.
+    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
+    /// Numéro de téléphone, ou `null` si l'utilisateur n'en a pas renseigné.
+    #[schema(example = "0612345678")]
     phone: Option<String>,
+    /// Statut du compte tel qu'il est stocké en base.
+    #[schema(example = "active")]
     status: String,
+    /// Nom du rôle principal de l'utilisateur. Chaîne vide s'il n'en a pas.
+    #[schema(example = "agent")]
     role: String,
+    /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
 }
 

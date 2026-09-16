@@ -99,16 +99,80 @@ async fn get_user(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Consulter la fiche complète d'un utilisateur (administration)",
+    description = "Renvoie tout ce que la plateforme sait d'un utilisateur : état civil, \
+                   téléphone, statut, archivage, rôles, groupes et **historique complet de ses \
+                   sessions** (révoquées et expirées comprises). Réservé aux administrateurs.\n\n\
+                   C'est la vue la plus large sur un compte ; `GET /api/v1/user/{id}/`, ouverte à \
+                   tous, ne renvoie ni les sessions ni le détail des rôles.\n\n\
+                   Tout échec de lecture, y compris une panne de base, est rapporté en `404` : ce \
+                   endpoint ne renvoie jamais `500`.",
     params(
-        ("userId" = u64, Path, description = "Event ID")
+        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
     ),
     responses(
-        (status = 200, description = "User retrieved successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 404, description = "Unknown user"),
-        (status = 500, description = "Database error occurred")
+        (
+            status = 200,
+            description = "Fiche complète de l'utilisateur.",
+            body = GetUserResultView,
+            example = json!({
+                "user": {
+                    "first_name": "Jean",
+                    "last_name": "Dupont",
+                    "email": "jean.dupont@mairie360.fr",
+                    "phone_number": "0612345678",
+                    "status": "active",
+                    "is_archived": false
+                },
+                "roles": [{ "id": 2, "name": "agent", "description": "Agent municipal" }],
+                "groups": [
+                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+                ],
+                "sessions": [
+                    {
+                        "id": "1",
+                        "device_info": "Chrome 140 sur Windows 11",
+                        "ip_address": "192.168.1.24",
+                        "created_at": "2026-09-16 08:42:11 UTC",
+                        "expires_at": "2026-09-23 08:42:11 UTC",
+                        "revoked_at": null
+                    }
+                ]
+            })
+        ),
+        (
+            status = 400,
+            description = "L'`userId` du chemin n'est pas un entier.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("can not parse \"abc\" to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "Aucun utilisateur ne porte cet identifiant — ou la lecture de ses rôles, groupes ou sessions a échoué.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown user")
+        ),
     ),
-    tag = "Admin - Users"
+    tag = "Admin - Users",
+    security(
+        ("jwt" = [])
+    )
 )]
 #[get("/")]
 pub async fn admin_get_user(

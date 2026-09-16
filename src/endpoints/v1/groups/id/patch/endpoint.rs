@@ -74,17 +74,63 @@ async fn trigger_patch_group(
 #[utoipa::path(
     patch,
     path = "",
+    summary = "Modifier un groupe",
+    description = "Met à jour le nom ou la description d'un groupe et renvoie le groupe tel \
+                   qu'enregistré. Modification partielle : un champ absent ou `null` reste \
+                   inchangé.\n\n\
+                   Au moins un des deux champs doit être fourni : un corps vide est refusé en \
+                   `400`. Le nom, une fois nettoyé de ses espaces de bord, ne peut être ni vide ni \
+                   plus long que 255 caractères.\n\n\
+                   Attention : cet endpoint ne vérifie pas que l'appelant est propriétaire du \
+                   groupe. Tout utilisateur authentifié peut modifier n'importe quel groupe.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe")
+        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
-    request_body = PatchGroupView,
+    request_body(
+        content = PatchGroupView,
+        description = "Champs à modifier. Les deux sont facultatifs, mais au moins un doit être présent.",
+        example = json!({ "description": "Instruction des permis de construire et des déclarations préalables" })
+    ),
     responses(
-        (status = 200, description = "Group updated successfully", body = Group),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-        (status = 404, description = "Unknow group"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Groupe mis à jour.",
+            body = Group,
+            example = json!({
+                "id": 3,
+                "owner_id": 2,
+                "name": "Service urbanisme",
+                "description": "Instruction des permis de construire et des déclarations préalables"
+            })
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, aucun champ à modifier, ou nom vide ou de plus de 255 caractères.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "Aucun groupe ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknow group")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la mise à jour.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Groups",
     security(

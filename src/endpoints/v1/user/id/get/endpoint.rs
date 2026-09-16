@@ -83,12 +83,54 @@ async fn trigger_get_user(
 #[utoipa::path(
     get,
     path = "/",
+    summary = "Consulter la fiche d'un utilisateur",
+    description = "Renvoie la fiche complète d'un utilisateur : état civil, téléphone, statut, \
+                   drapeau d'archivage, rôle et groupes. Accessible à tout utilisateur \
+                   authentifié.\n\n\
+                   Contrairement à `GET /api/v1/user/`, cet endpoint renvoie aussi les \
+                   utilisateurs archivés, avec `is_archived` à `true`.",
     params(
-        ("id" = u64, Path, description = "ID de l'utilisateur")
+        ("id" = u64, Path, description = "Identifiant de l'utilisateur à consulter.", example = 42)
     ),
     responses(
-        (status = 200, description = "User retrieved successfully", body = GetUserResponseView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Fiche de l'utilisateur.",
+            body = GetUserResponseView,
+            example = json!({
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "email": "jean.dupont@mairie360.fr",
+                "phone": "0612345678",
+                "status": "active",
+                "is_archived": false,
+                "role": "agent",
+                "groups": [
+                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "Aucun utilisateur ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User not found.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture de l'utilisateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Users",
     security(

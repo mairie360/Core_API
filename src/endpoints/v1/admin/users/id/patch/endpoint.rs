@@ -58,16 +58,67 @@ async fn patch_user(
 #[utoipa::path(
     patch,
     path = "",
+    summary = "Modifier un utilisateur (administration)",
+    description = "Met à jour partiellement un compte : seuls les champs présents dans le corps \
+                   sont écrits. Réservé aux administrateurs.\n\n\
+                   Contrairement à `PATCH /api/v1/user/me/`, un administrateur peut aussi changer \
+                   le mot de passe ici. Pour une réinitialisation qui applique les règles de \
+                   longueur, préférer `PATCH /api/v1/admin/users/{userId}/password`, qui les \
+                   vérifie : le champ `password` de cet endpoint est écrit sans validation.\n\n\
+                   Un corps vide est accepté et ne déclenche aucune écriture. Comme l'existence du \
+                   compte n'est pas vérifiée au préalable, un `userId` inconnu répond alors `200`.",
     params(
-        ("userId" = u64, Path, description = "Event ID")
+        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
+    ),
+    request_body(
+        content = PatchUserView,
+        description = "Champs à modifier. Tous facultatifs ; un champ absent ou `null` est ignoré.",
+        example = json!({
+            "email": "j.dupont@mairie360.fr",
+            "phone_number": "0798765432"
+        })
     ),
     responses(
-        (status = 200, description = "User patched successfully"),
-        (status = 400, description = "Invalid data provided"),
-        (status = 404, description = "Unknown user"),
-        (status = 500, description = "Database error occurred")
+        (
+            status = 200,
+            description = "Compte mis à jour, ou rien à mettre à jour.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User patched successfully!")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, ou `userId` du chemin qui n'est pas un entier.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: invalid type: integer `42`, expected a string")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "L'écriture a échoué : `userId` inconnu, ou adresse e-mail déjà prise par un autre compte.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown user")
+        ),
     ),
-    tag = "Admin - Users"
+    tag = "Admin - Users",
+    security(
+        ("jwt" = [])
+    )
 )]
 #[patch("/")]
 pub async fn admin_patch_user(

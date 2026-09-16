@@ -6,6 +6,7 @@ use crate::endpoints::v1::sessions::view::SessionSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct HistoryResponseView {
+    /// Toutes les sessions de l'utilisateur, expirées et révoquées comprises.
     sessions: Vec<SessionSchema>,
 }
 

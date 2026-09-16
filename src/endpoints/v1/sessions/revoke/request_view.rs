@@ -4,6 +4,8 @@ use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RevokeRequestView {
+    /// Jeton de rafraîchissement de la session à révoquer.
+    #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     pub refresh_token: String,
 }
 

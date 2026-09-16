@@ -6,6 +6,7 @@ use crate::endpoints::v1::sessions::view::SessionSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetSessionsResultView {
+    /// Sessions encore valides, de la plus récente à la plus ancienne. Peut être vide.
     sessions: Vec<SessionSchema>,
 }
 

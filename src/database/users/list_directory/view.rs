@@ -72,10 +72,22 @@ impl Display for ListDirectoryUsersQueryView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct DirectoryUser {
+    /// Identifiant de l'utilisateur, à réutiliser dans `GET /api/v1/user/{id}/`.
+    #[schema(example = 1)]
     pub id: i32,
+    /// Prénom de l'utilisateur.
+    #[schema(example = "Jean")]
     pub first_name: String,
+    /// Nom de famille de l'utilisateur.
+    #[schema(example = "Dupont")]
     pub last_name: String,
+    /// Adresse e-mail, unique sur la plateforme.
+    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
+    /// Noms des rôles portés par l'utilisateur. Vide s'il n'en a aucun.
+    #[schema(example = json!(["agent"]))]
     pub roles: Vec<String>,
+    /// Identifiants des groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
+    #[schema(example = json!([3, 7]))]
     pub group_ids: Vec<i32>,
 }

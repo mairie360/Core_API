@@ -43,9 +43,39 @@ async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetRolesResultV
 #[utoipa::path(
     get,
     path = "/",
+    summary = "Lister les rôles disponibles",
+    description = "Renvoie tous les rôles définis sur la plateforme, pour alimenter un sélecteur \
+                   côté client. Lecture seule et ouverte à tout utilisateur authentifié : la \
+                   création, la modification et la suppression des rôles passent par \
+                   `/api/v1/admin/roles`, réservé aux administrateurs.\n\n\
+                   Un rôle sans description renvoie une chaîne vide, jamais `null`.",
     responses(
-        (status = 200, description = "Roles retrieved successfully", body = GetRolesResultView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Liste des rôles de la plateforme.",
+            body = GetRolesResultView,
+            example = json!({
+                "roles": [
+                    { "id": 1, "name": "admin", "description": "Administrateur de la plateforme" },
+                    { "id": 2, "name": "agent", "description": "Agent municipal" },
+                    { "id": 3, "name": "citoyen", "description": "" }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture des rôles.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Roles",
     security(

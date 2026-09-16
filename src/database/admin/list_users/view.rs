@@ -104,18 +104,38 @@ impl Display for AdminCountUsersQueryView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRole {
+    /// Identifiant du rôle.
+    #[schema(example = 2)]
     pub id: i32,
+    /// Nom technique du rôle.
+    #[schema(example = "agent")]
     pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRow {
+    /// Identifiant de l'utilisateur.
+    #[schema(example = 42)]
     pub id: i32,
+    /// Prénom de l'utilisateur.
+    #[schema(example = "Jean")]
     pub first_name: String,
+    /// Nom de famille de l'utilisateur.
+    #[schema(example = "Dupont")]
     pub last_name: String,
+    /// Adresse e-mail, unique sur la plateforme.
+    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
+    /// Numéro de téléphone, ou `null` s'il n'en a pas renseigné.
+    #[schema(example = "0612345678")]
     pub phone_number: Option<String>,
+    /// Statut du compte tel qu'il est stocké en base.
+    #[schema(example = "active")]
     pub status: String,
+    /// `true` si le compte est archivé. Ces comptes apparaissent ici mais pas dans
+    /// `GET /api/v1/user/`, et ne peuvent plus se connecter.
+    #[schema(example = false)]
     pub is_archived: bool,
+    /// Rôles portés par l'utilisateur. Vide s'il n'en a aucun.
     pub roles: Vec<AdminUserRole>,
 }
