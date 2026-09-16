@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Jeton de rafraîchissement à échanger contre un nouveau jeton d'accès.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RefreshRequestView {
     /// Jeton de rafraîchissement obtenu au login, pour la session à renouveler.

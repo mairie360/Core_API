@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Modification partielle d'un rôle : seuls les champs fournis sont mis à jour.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchView {
     /// Nouveau nom du rôle. Absent ou `null` pour ne pas y toucher.

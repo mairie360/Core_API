@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Modification partielle d'un utilisateur par un administrateur : seuls les champs fournis sont mis à jour.
 #[derive(Deserialize, ToSchema)]
 pub struct PatchUserView {
     /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.

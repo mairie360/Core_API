@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Compte utilisateur créé par un administrateur.
 #[derive(Deserialize, ToSchema)]
 pub struct CreateUserView {
     /// Prénom de l'utilisateur.

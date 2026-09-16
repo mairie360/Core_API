@@ -41,6 +41,7 @@ impl AdminListUsersQuery {
     }
 }
 
+/// Page de la liste d'administration des utilisateurs.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminListUsersResultView {
     /// Utilisateurs de la page demandée, archivés compris. Vide au-delà de la dernière page.

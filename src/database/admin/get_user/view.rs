@@ -68,6 +68,7 @@ impl RoleQueryResult {
     }
 }
 
+/// Informations de profil d'un utilisateur, telles que vues par un administrateur.
 #[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, Clone)]
 pub struct User {
     /// Prénom de l'utilisateur.

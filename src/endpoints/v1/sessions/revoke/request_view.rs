@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Session de l'utilisateur connecté à révoquer, désignée par son jeton de rafraîchissement.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RevokeRequestView {
     /// Jeton de rafraîchissement de la session à révoquer.

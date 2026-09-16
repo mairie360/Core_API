@@ -2,6 +2,7 @@ use crate::database::roles::get_roles::RoleQueryResult;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Rôle de la plateforme.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 struct Role {
     /// Identifiant du rôle, à réutiliser dans `POST /api/v1/admin/users/{userId}/roles/`.
@@ -25,6 +26,7 @@ impl From<RoleQueryResult> for Role {
     }
 }
 
+/// Liste des rôles.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GetRolesResultView {
     /// Tous les rôles définis sur la plateforme.

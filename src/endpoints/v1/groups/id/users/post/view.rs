@@ -1,5 +1,6 @@
 use utoipa::ToSchema;
 
+/// Ajout d'un utilisateur à un groupe.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostUserGroupView {
     /// Identifiant de l'utilisateur à rattacher.

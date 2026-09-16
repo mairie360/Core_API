@@ -1,5 +1,6 @@
 use utoipa::ToSchema;
 
+/// Groupe à créer ; l'appelant en devient propriétaire.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupView {
     /// Nom du groupe. Obligatoire, au plus 255 caractères.
@@ -20,6 +21,7 @@ impl PostGroupView {
     }
 }
 
+/// Groupe créé.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupResultView {
     /// Identifiant attribué au groupe créé, à réutiliser dans `/api/v1/groups/{group_id}/`.

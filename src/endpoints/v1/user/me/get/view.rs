@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Profil de l'utilisateur connecté.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetMeResponseView {
     /// Prénom de l'utilisateur connecté.

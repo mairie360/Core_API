@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Identifiants de connexion.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct LoginView {
     /// Adresse e-mail du compte.
@@ -40,6 +41,7 @@ impl Display for LoginView {
     }
 }
 
+/// Connexion réussie : jeton de rafraîchissement de la session ouverte.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct LoginResponseView {
     /// Jeton opaque permettant d'obtenir un nouveau JWT via `POST /api/v1/sessions/refresh`,
@@ -76,6 +78,7 @@ impl From<String> for LoginResponseView {
     }
 }
 
+/// Première connexion : jeton à présenter pour choisir un nouveau mot de passe avant d'ouvrir une session.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct LoginFirstConnectionResponseView {
     /// Jeton de première connexion, à usage unique, à présenter à

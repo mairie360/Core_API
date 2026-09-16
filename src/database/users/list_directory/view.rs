@@ -70,6 +70,7 @@ impl Display for ListDirectoryUsersQueryView {
     }
 }
 
+/// Fiche d'annuaire d'un utilisateur actif : identité, rôles et groupes.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct DirectoryUser {
     /// Identifiant de l'utilisateur, à réutiliser dans `GET /api/v1/user/{id}/`.

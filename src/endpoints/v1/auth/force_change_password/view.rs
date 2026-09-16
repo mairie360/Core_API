@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Changement de mot de passe imposé à la première connexion.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ForceChangePasswordView {
     /// Jeton de première connexion renvoyé par le `412` de `POST /api/v1/auth/login`.

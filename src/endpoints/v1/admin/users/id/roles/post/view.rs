@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Attribution d'un rôle à un utilisateur.
 #[derive(Deserialize, ToSchema)]
 pub struct AddRoleToUserView {
     /// Identifiant du rôle à attribuer, tel que renvoyé par `GET /api/v1/admin/roles/`.

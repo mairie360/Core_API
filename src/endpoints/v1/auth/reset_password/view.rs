@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Réinitialisation du mot de passe à partir du jeton reçu par e-mail.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ResetPasswordView {
     /// Jeton de réinitialisation reçu par e-mail. À usage unique.
@@ -32,6 +33,7 @@ impl ResetPasswordView {
     }
 }
 
+/// Réinitialisation réussie : jeton de rafraîchissement de la nouvelle session.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ResetPasswordResponseView {
     /// Jeton opaque permettant d'obtenir un nouveau JWT via `POST /api/v1/sessions/refresh`.

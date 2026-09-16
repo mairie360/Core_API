@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Création de compte par l'utilisateur lui-même.
 #[derive(Deserialize, ToSchema)]
 pub struct RegisterView {
     /// Prénom de l'utilisateur.

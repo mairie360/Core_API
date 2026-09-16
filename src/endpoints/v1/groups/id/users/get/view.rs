@@ -1,5 +1,6 @@
 use utoipa::ToSchema;
 
+/// Membres d'un groupe.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetGroupUsersResultView {
     /// Identifiants des membres du groupe, à repasser à `GET /api/v1/user/?ids=…` pour obtenir

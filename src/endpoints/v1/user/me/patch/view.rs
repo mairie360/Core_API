@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Modification partielle du profil de l'utilisateur connecté : seuls les champs fournis sont mis à jour.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchMeView {
     /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.

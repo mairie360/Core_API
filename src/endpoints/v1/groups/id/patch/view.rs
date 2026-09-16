@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 pub const MAX_GROUP_NAME_LENGTH: usize = 255;
 
+/// Modification partielle d'un groupe : seuls les champs fournis sont mis à jour.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct PatchGroupView {
     /// Nouveau nom du groupe. Absent ou `null` pour ne pas y toucher. Une fois les espaces de

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Rôle à créer ou à remplacer entièrement.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RoleWriteView {
     /// Nom technique du rôle, unique sur la plateforme.

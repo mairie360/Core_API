@@ -58,6 +58,7 @@ pub fn parse_id_list(value: Option<&str>) -> Option<Vec<u64>> {
         .collect()
 }
 
+/// Résultat d'une recherche dans l'annuaire.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct DirectoryUsersResultView {
     /// Utilisateurs non archivés correspondant aux filtres. Vide si aucun ne correspond.

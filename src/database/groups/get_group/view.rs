@@ -38,6 +38,7 @@ impl Display for GetGroupQuerView {
     }
 }
 
+/// Groupe d'utilisateurs (service, équipe…) et son propriétaire.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Group {
     /// Identifiant du groupe.

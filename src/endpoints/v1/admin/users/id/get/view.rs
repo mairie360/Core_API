@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Session d'un utilisateur, telle que vue par un administrateur.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 struct SessionResultView {
     /// Identifiant de la session, sérialisé en chaîne bien qu'il soit numérique en base.
@@ -42,6 +43,7 @@ impl From<&Session> for SessionResultView {
     }
 }
 
+/// Rôle porté par l'utilisateur consulté.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 struct RoleResultView {
     /// Identifiant du rôle.
@@ -65,6 +67,7 @@ impl From<&RoleQueryResult> for RoleResultView {
     }
 }
 
+/// Fiche complète d'un utilisateur pour l'administration : profil, rôles, groupes et sessions.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 pub struct GetUserResultView {
     /// État civil et statut du compte.

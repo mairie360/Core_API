@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 
 use crate::database::sessions::Session;
 
+/// Session d'un utilisateur (un appareil connecté).
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SessionSchema {
     /// Identifiant de la session, sérialisé en chaîne bien qu'il soit numérique en base.

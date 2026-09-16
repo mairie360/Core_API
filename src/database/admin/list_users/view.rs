@@ -102,6 +102,7 @@ impl Display for AdminCountUsersQueryView {
     }
 }
 
+/// Rôle porté par un utilisateur, dans la liste d'administration.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRole {
     /// Identifiant du rôle.
@@ -112,6 +113,7 @@ pub struct AdminUserRole {
     pub name: String,
 }
 
+/// Ligne de la liste d'administration des utilisateurs, comptes archivés compris.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRow {
     /// Identifiant de l'utilisateur.
