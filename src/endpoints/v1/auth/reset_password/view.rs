@@ -10,14 +10,17 @@ pub struct ResetPasswordView {
 }
 
 impl ResetPasswordView {
+    #[must_use]
     pub fn token(&self) -> &str {
         &self.token
     }
 
+    #[must_use]
     pub fn new_password(&self) -> &str {
         &self.new_password
     }
 
+    #[must_use]
     pub fn device_info(&self) -> String {
         self.device_info.clone()
     }
@@ -29,10 +32,12 @@ pub struct ResetPasswordResponseView {
 }
 
 impl ResetPasswordResponseView {
-    pub fn new(refresh_token: String) -> Self {
-        ResetPasswordResponseView { refresh_token }
+    #[must_use]
+    pub const fn new(refresh_token: String) -> Self {
+        Self { refresh_token }
     }
 
+    #[must_use]
     pub fn refresh_token(&self) -> &str {
         &self.refresh_token
     }
@@ -50,7 +55,7 @@ impl Display for ResetPasswordResponseView {
 
 impl From<String> for ResetPasswordResponseView {
     fn from(token: String) -> Self {
-        ResetPasswordResponseView {
+        Self {
             refresh_token: token,
         }
     }

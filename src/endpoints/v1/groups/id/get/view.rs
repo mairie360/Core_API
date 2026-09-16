@@ -7,7 +7,7 @@ pub struct GetGroupResultView {
 }
 
 impl GetGroupResultView {
-    pub fn new(group: Group) -> Self {
+    pub const fn new(group: Group) -> Self {
         Self { group }
     }
 }

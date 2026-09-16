@@ -12,7 +12,7 @@ enum GetError {
 impl std::fmt::Display for GetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
@@ -22,7 +22,7 @@ impl std::fmt::Display for GetError {
 impl ResponseError for GetError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 

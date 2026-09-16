@@ -8,6 +8,7 @@ pub struct DoesRoleExistQueryView {
 }
 
 impl DoesRoleExistQueryView {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self {
             id,

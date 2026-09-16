@@ -13,7 +13,7 @@ enum PostGroupError {
 impl std::fmt::Display for PostGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostGroupError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
@@ -23,7 +23,7 @@ impl std::fmt::Display for PostGroupError {
 impl ResponseError for PostGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PostGroupError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 

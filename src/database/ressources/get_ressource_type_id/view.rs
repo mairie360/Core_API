@@ -8,6 +8,7 @@ pub struct GetRessourceTypeIdQueryView {
 }
 
 impl GetRessourceTypeIdQueryView {
+    #[must_use]
     pub fn new(ressource_type: &str) -> Self {
         Self {
             ressource_type: ressource_type.to_string(),
@@ -15,6 +16,7 @@ impl GetRessourceTypeIdQueryView {
         }
     }
 
+    #[must_use]
     pub fn ressource_type(&self) -> &str {
         &self.ressource_type
     }

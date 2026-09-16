@@ -10,34 +10,42 @@ pub struct CreateRoleQueryView {
 }
 
 impl CreateRoleQueryView {
+    #[must_use]
     pub fn new(name: &str, description: &str, can_be_deleted: Option<bool>) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             can_be_deleted,
-            params: match can_be_deleted {
-                Some(can_be_deleted) => vec![
-                    QueryParam::Text(name.to_string()),
-                    QueryParam::Text(description.to_string()),
-                    QueryParam::Bool(can_be_deleted),
-                ],
-                None => vec![
-                    QueryParam::Text(name.to_string()),
-                    QueryParam::Text(description.to_string()),
-                ],
-            },
+            params: can_be_deleted.map_or_else(
+                || {
+                    vec![
+                        QueryParam::Text(name.to_string()),
+                        QueryParam::Text(description.to_string()),
+                    ]
+                },
+                |can_be_deleted| {
+                    vec![
+                        QueryParam::Text(name.to_string()),
+                        QueryParam::Text(description.to_string()),
+                        QueryParam::Bool(can_be_deleted),
+                    ]
+                },
+            ),
         }
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
-    pub fn can_be_deleted(&self) -> Option<bool> {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> Option<bool> {
         self.can_be_deleted
     }
 }

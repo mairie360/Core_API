@@ -16,13 +16,13 @@ enum DeleteError {
 impl std::fmt::Display for DeleteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            DeleteError::NotFound => {
+            Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
-            DeleteError::Forbidden => {
+            Self::Forbidden => {
                 write!(f, "The requested resource cannot be deleted.")
             }
         }
@@ -32,9 +32,9 @@ impl std::fmt::Display for DeleteError {
 impl ResponseError for DeleteError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            DeleteError::NotFound => StatusCode::NOT_FOUND,
-            DeleteError::Forbidden => StatusCode::FORBIDDEN,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::Forbidden => StatusCode::FORBIDDEN,
         }
     }
 

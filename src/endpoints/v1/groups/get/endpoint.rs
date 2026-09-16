@@ -13,7 +13,7 @@ enum GetGroupsError {
 impl std::fmt::Display for GetGroupsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetGroupsError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
@@ -23,7 +23,7 @@ impl std::fmt::Display for GetGroupsError {
 impl ResponseError for GetGroupsError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetGroupsError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 

@@ -7,19 +7,19 @@ use serial_test::serial;
 #[serial]
 async fn success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetRessourceTypeIdQueryView::new("users");
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.ressource_type(), "users");
     let result: i32 = pool.fetch_scalar(&view).await.unwrap();
-    assert_eq!(result, 1, "Expected 1, got {}", result);
+    assert_eq!(result, 1, "Expected 1, got {result}");
 }
 
 #[tokio::test]
 #[serial]
 async fn failure() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetRessourceTypeIdQueryView::new("invalid");
     let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_err());

@@ -8,7 +8,7 @@ use serial_test::serial;
 #[serial]
 async fn get_group_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view =
         CreateGroupQueryView::new(1, "get_group_success_name", "get_group_success_description");
@@ -20,24 +20,20 @@ async fn get_group_success() {
         Some("get_group_success_description"),
     );
     let view = GetGroupQuerView::new(id as u64);
-    println!("{}", view);
+    println!("{view}");
     let result = pool.fetch_one(&view).await;
-    assert!(result.is_ok(), "result should be Ok, got: {:?}", result);
+    assert!(result.is_ok(), "result should be Ok, got: {result:?}");
     let result: Group = result.unwrap();
-    assert_eq!(
-        result, group,
-        "result: {:#?}\nexpected: {:#?}",
-        result, group
-    );
+    assert_eq!(result, group, "result: {result:#?}\nexpected: {group:#?}");
 }
 
 #[tokio::test]
 #[serial]
 async fn get_group_bad_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = GetGroupQuerView::new(0);
     let result: Result<Group, _> = pool.fetch_one(&view).await;
-    assert!(result.is_err(), "result should be Err, got: {:?}", result);
+    assert!(result.is_err(), "result should be Err, got: {result:?}");
 }

@@ -9,11 +9,11 @@ pub struct AddRoleToUserView {
 }
 
 impl AddRoleToUserView {
-    pub fn role_id(&self) -> u64 {
+    pub const fn role_id(&self) -> u64 {
         self.role_id
     }
 
-    pub fn user_id(&self) -> u64 {
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 }

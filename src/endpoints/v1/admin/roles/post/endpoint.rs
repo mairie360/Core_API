@@ -13,7 +13,7 @@ enum PostError {
 impl std::fmt::Display for PostError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostError::Duplicate => {
+            Self::Duplicate => {
                 write!(f, "A role with this name already exists.")
             }
         }
@@ -23,7 +23,7 @@ impl std::fmt::Display for PostError {
 impl ResponseError for PostError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PostError::Duplicate => StatusCode::CONFLICT,
+            Self::Duplicate => StatusCode::CONFLICT,
         }
     }
 
