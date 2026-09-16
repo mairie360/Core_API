@@ -103,7 +103,7 @@ against Redis go through `mairie360_api_lib::pool::redis::simple_key::secured::{
 (used e.g. for the one-time first-login token, see `endpoints/v1/auth/login/endpoint.rs`).
 
 Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitively through
-`mairie360_api_lib` (>= 1.1.0), which is why files can `use sqlx::...` without it being listed directly. A
+`mairie360_api_lib` (1.2.2), which is why files can `use sqlx::...` without it being listed directly. A
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 
