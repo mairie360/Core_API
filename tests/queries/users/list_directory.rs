@@ -50,7 +50,8 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
     assert_eq!(ids(&limited), vec![adam]);
     assert_eq!(users[0].first_name, "Adam");
     assert_eq!(users[0].last_name, marker);
-    assert!(users[0].roles.is_empty());
+    // Sans rôle explicite, la base attribue Guest par défaut (Database >= 1.2.0).
+    assert_eq!(users[0].roles, vec!["Guest".to_string()]);
     assert!(users[0].group_ids.is_empty());
 }
 

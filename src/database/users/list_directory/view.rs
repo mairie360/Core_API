@@ -84,7 +84,7 @@ pub struct DirectoryUser {
     /// Adresse e-mail, unique sur la plateforme.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
-    /// Noms des rôles portés par l'utilisateur. Vide s'il n'en a aucun.
+    /// Noms des rôles portés par l'utilisateur. Un compte créé sans rôle reçoit `Guest` par défaut.
     #[schema(example = json!(["agent"]))]
     pub roles: Vec<String>,
     /// Identifiants des groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.

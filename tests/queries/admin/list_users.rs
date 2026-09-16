@@ -38,7 +38,13 @@ async fn admin_list_users_searches_and_paginates_by_name() {
     assert_eq!(ids(&second_page), vec![charlie]);
     assert_eq!(total, 3);
     assert!(!first_page[0].is_archived);
-    assert!(first_page[0].roles.is_empty());
+    // Sans rôle explicite, la base attribue Guest par défaut (Database >= 1.2.0).
+    let role_names = first_page[0]
+        .roles
+        .iter()
+        .map(|role| role.name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(role_names, vec!["Guest"]);
 }
 
 #[tokio::test]

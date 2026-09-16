@@ -136,6 +136,6 @@ pub struct AdminUserRow {
     /// `GET /api/v1/user/`, et ne peuvent plus se connecter.
     #[schema(example = false)]
     pub is_archived: bool,
-    /// Rôles portés par l'utilisateur. Vide s'il n'en a aucun.
+    /// Rôles portés par l'utilisateur. Un compte créé sans rôle reçoit `Guest` par défaut.
     pub roles: Vec<AdminUserRole>,
 }
