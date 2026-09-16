@@ -1,6 +1,6 @@
 use actix_web::{http::Method, test, web, App, HttpResponse};
-use core_api::endpoints::config;
 use core_api::endpoints::swagger::ApiDoc;
+use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::state::AppState;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use utoipa::OpenApi;
@@ -19,6 +19,8 @@ async fn every_published_operation_is_routed() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(state))
+            // Routes /api publiques (refresh du JWT) : montées hors du scope protégé, comme dans main.rs.
+            .configure(public_config)
             .service(web::scope("/api").configure(config))
             .default_service(web::to(HttpResponse::ImATeapot)),
     )
