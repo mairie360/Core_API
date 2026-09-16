@@ -16,10 +16,10 @@ enum PutError {
 impl std::fmt::Display for PutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PutError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            PutError::NotFound => {
+            Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
         }
@@ -29,8 +29,8 @@ impl std::fmt::Display for PutError {
 impl ResponseError for PutError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PutError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            PutError::NotFound => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::NotFound => StatusCode::NOT_FOUND,
         }
     }
 

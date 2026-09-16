@@ -36,6 +36,7 @@ pub struct GetUserResponseView {
 
 impl GetUserResponseView {
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         first_name: &str,
         last_name: &str,
@@ -46,11 +47,11 @@ impl GetUserResponseView {
         role: &str,
         groups: Vec<Group>,
     ) -> Self {
-        GetUserResponseView {
+        Self {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
-            phone: phone.map(|p| p.to_string()),
+            phone: phone.map(std::string::ToString::to_string),
             status: status.to_string(),
             is_archived,
             role: role.to_string(),
@@ -58,30 +59,37 @@ impl GetUserResponseView {
         }
     }
 
+    #[must_use]
     pub fn first_name(&self) -> &str {
         &self.first_name
     }
 
+    #[must_use]
     pub fn last_name(&self) -> &str {
         &self.last_name
     }
 
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }
 
+    #[must_use]
     pub fn phone(&self) -> Option<&str> {
         self.phone.as_deref()
     }
 
+    #[must_use]
     pub fn status(&self) -> &str {
         &self.status
     }
 
-    pub fn is_archived(&self) -> bool {
+    #[must_use]
+    pub const fn is_archived(&self) -> bool {
         self.is_archived
     }
 
+    #[must_use]
     pub fn role(&self) -> &str {
         &self.role
     }
@@ -105,14 +113,16 @@ impl Display for GetUserResponseView {
 
 impl From<GetUserByIdQueryResultView> for GetUserResponseView {
     fn from(query_result: GetUserByIdQueryResultView) -> Self {
-        GetUserResponseView {
+        Self {
             first_name: query_result.first_name().to_string(),
             last_name: query_result.last_name().to_string(),
             email: query_result.email().to_string(),
-            phone: query_result.phone_number().map(|p| p.to_string()),
+            phone: query_result
+                .phone_number()
+                .map(std::string::ToString::to_string),
             status: query_result.status().to_string(),
             is_archived: query_result.is_archived(),
-            role: "".to_string(),
+            role: String::new(),
             groups: vec![],
         }
     }

@@ -31,6 +31,7 @@ pub struct GetMeResponseView {
 }
 
 impl GetMeResponseView {
+    #[must_use]
     pub fn new(
         first_name: &str,
         last_name: &str,
@@ -40,41 +41,48 @@ impl GetMeResponseView {
         role: &str,
         groups: Vec<Group>,
     ) -> Self {
-        GetMeResponseView {
+        Self {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
-            phone: phone.map(|p| p.to_string()),
+            phone: phone.map(std::string::ToString::to_string),
             status: status.to_string(),
             role: role.to_string(),
             groups,
         }
     }
 
+    #[must_use]
     pub fn first_name(&self) -> &str {
         &self.first_name
     }
 
+    #[must_use]
     pub fn last_name(&self) -> &str {
         &self.last_name
     }
 
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }
 
+    #[must_use]
     pub fn phone(&self) -> Option<&str> {
         self.phone.as_deref()
     }
 
+    #[must_use]
     pub fn status(&self) -> &str {
         &self.status
     }
 
+    #[must_use]
     pub fn role(&self) -> &str {
         &self.role
     }
 
+    #[must_use]
     pub fn groups(&self) -> &[Group] {
         &self.groups
     }
@@ -98,13 +106,15 @@ impl Display for GetMeResponseView {
 
 impl From<GetUserByIdQueryResultView> for GetMeResponseView {
     fn from(query_result: GetUserByIdQueryResultView) -> Self {
-        GetMeResponseView {
+        Self {
             first_name: query_result.first_name().to_string(),
             last_name: query_result.last_name().to_string(),
             email: query_result.email().to_string(),
-            phone: query_result.phone_number().map(|p| p.to_string()),
+            phone: query_result
+                .phone_number()
+                .map(std::string::ToString::to_string),
             status: query_result.status().to_string(),
-            role: "".to_string(),
+            role: String::new(),
             groups: Vec::new(),
         }
     }

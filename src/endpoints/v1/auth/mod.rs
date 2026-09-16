@@ -6,11 +6,9 @@ pub mod register;
 pub mod reset_password;
 
 use actix_web::web;
-use mairie360_api_lib::state::AppState;
+use mairie360_api_lib::smart_db::SmartDatabase;
 
-use crate::database::sessions::{
-    create_session::CreateSessionQueryView, revoke_previous_session::RevokePreviousSessionQueryView,
-};
+use crate::database::sessions::create_session::CreateSessionQueryView;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -23,41 +21,20 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 }
 
-pub async fn revoke_previous_session(
-    state: web::Data<AppState>,
-    user_id: u64,
-    ip_adress: &std::net::IpAddr,
-    device_info: &str,
-) {
-    let view = RevokePreviousSessionQueryView::new(user_id, *ip_adress, device_info);
-    state
-        .get_smart_db()
+/// Crée une nouvelle session sans toucher aux sessions existantes de l'utilisateur.
+///
+/// Chaque connexion (appareil) garde sa propre session active. Les sessions ne se ferment que
+/// par expiration, déconnexion, révocation explicite ou archivage du compte.
+///
+/// On ne révoque pas « la session précédente du même appareil » : l'IP vue par Core est celle
+/// du BFF et `device_info` est un User-Agent, donc deux appareils distincts partagent souvent le
+/// même couple et se déconnectaient mutuellement.
+pub async fn create_new_session(smart_db: &SmartDatabase, view: CreateSessionQueryView) {
+    smart_db
         .execute(view)
         .await
         .map_err(|e| {
-            eprintln!("Revoke Previous Session DB Error: {}", e);
-        })
-        .ok();
-}
-
-pub async fn create_new_session(
-    state: web::Data<AppState>,
-    user_id: u64,
-    view: CreateSessionQueryView,
-) {
-    revoke_previous_session(
-        state.clone(),
-        user_id,
-        view.get_ip_address(),
-        view.get_device_info(),
-    )
-    .await;
-    state
-        .get_smart_db()
-        .execute(view)
-        .await
-        .map_err(|e| {
-            eprintln!("Create Session DB Error: {}", e);
+            eprintln!("Create Session DB Error: {e}");
         })
         .ok();
 }

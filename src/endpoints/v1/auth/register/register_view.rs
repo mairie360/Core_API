@@ -24,22 +24,27 @@ pub struct RegisterView {
 }
 
 impl RegisterView {
+    #[must_use]
     pub fn first_name(&self) -> &str {
         &self.first_name
     }
 
+    #[must_use]
     pub fn last_name(&self) -> &str {
         &self.last_name
     }
 
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }
 
+    #[must_use]
     pub fn password(&self) -> &str {
         &self.password
     }
 
+    #[must_use]
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
     }

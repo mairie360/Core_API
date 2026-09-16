@@ -12,6 +12,7 @@ pub struct RevokeSessionQueryView {
 }
 
 impl RevokeSessionQueryView {
+    #[must_use]
     pub fn new(user_id: u64, id: Uuid, token_hash: &str) -> Self {
         let revoked_at = chrono::Utc::now();
         Self {
@@ -28,19 +29,23 @@ impl RevokeSessionQueryView {
         }
     }
 
-    pub fn get_user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn get_user_id(&self) -> u64 {
         self.user_id
     }
 
-    pub fn get_id(&self) -> &Uuid {
+    #[must_use]
+    pub const fn get_id(&self) -> &Uuid {
         &self.id
     }
 
+    #[must_use]
     pub fn get_token_hash(&self) -> &str {
         &self.token_hash
     }
 
-    pub fn get_revoked_at(&self) -> &chrono::DateTime<chrono::Utc> {
+    #[must_use]
+    pub const fn get_revoked_at(&self) -> &chrono::DateTime<chrono::Utc> {
         &self.revoked_at
     }
 }

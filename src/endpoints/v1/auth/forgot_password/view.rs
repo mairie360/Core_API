@@ -10,6 +10,7 @@ pub struct ForgotPasswordView {
 }
 
 impl ForgotPasswordView {
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }

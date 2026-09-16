@@ -11,7 +11,7 @@ enum DeleteUserError {
 impl std::fmt::Display for DeleteUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteUserError::AlreadyDeleted => write!(f, "User is already deleted"),
+            Self::AlreadyDeleted => write!(f, "User is already deleted"),
         }
     }
 }
@@ -19,7 +19,7 @@ impl std::fmt::Display for DeleteUserError {
 impl ResponseError for DeleteUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteUserError::AlreadyDeleted => StatusCode::OK,
+            Self::AlreadyDeleted => StatusCode::OK,
         }
     }
 
@@ -31,7 +31,7 @@ impl ResponseError for DeleteUserError {
 async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), DeleteUserError> {
     let view = DeleteUserQueryView::new(user_id);
     state.get_smart_db().execute(view).await.map_err(|e| {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
         DeleteUserError::AlreadyDeleted
     })?;
 

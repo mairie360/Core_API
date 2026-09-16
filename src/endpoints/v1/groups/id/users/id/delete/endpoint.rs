@@ -15,10 +15,10 @@ enum DeleteUserFromGroupError {
 impl std::fmt::Display for DeleteUserFromGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteUserFromGroupError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
-            DeleteUserFromGroupError::UnknowUser => {
+            Self::UnknowUser => {
                 write!(f, "Unknow user.")
             }
         }
@@ -28,8 +28,8 @@ impl std::fmt::Display for DeleteUserFromGroupError {
 impl ResponseError for DeleteUserFromGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteUserFromGroupError::BadRequest => StatusCode::BAD_REQUEST,
-            DeleteUserFromGroupError::UnknowUser => StatusCode::NOT_FOUND,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::UnknowUser => StatusCode::NOT_FOUND,
         }
     }
 

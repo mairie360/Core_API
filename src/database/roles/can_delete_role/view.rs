@@ -8,6 +8,7 @@ pub struct CanDeleteRoleQueryView {
 }
 
 impl CanDeleteRoleQueryView {
+    #[must_use]
     pub fn new(id: u64) -> Self {
         Self {
             id,
@@ -15,7 +16,8 @@ impl CanDeleteRoleQueryView {
         }
     }
 
-    pub fn id(&self) -> u64 {
+    #[must_use]
+    pub const fn id(&self) -> u64 {
         self.id
     }
 }
@@ -32,6 +34,6 @@ impl ApiRequestDto for CanDeleteRoleQueryView {
 
 impl Display for CanDeleteRoleQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CanDeleteRoleQueryView: id = {}", self.id,)
+        write!(f, "CanDeleteRoleQueryView: id = {}", self.id)
     }
 }

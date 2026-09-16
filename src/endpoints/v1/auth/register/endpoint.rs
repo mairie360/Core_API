@@ -16,9 +16,9 @@ enum RegisterError {
 impl std::fmt::Display for RegisterError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegisterError::InvalidData => write!(f, "Invalid data provided"),
-            RegisterError::UserAlreadyExists => write!(f, "User already exists"),
-            RegisterError::DatabaseError => write!(f, "Database error occurred"),
+            Self::InvalidData => write!(f, "Invalid data provided"),
+            Self::UserAlreadyExists => write!(f, "User already exists"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
         }
     }
 }
@@ -26,9 +26,9 @@ impl std::fmt::Display for RegisterError {
 impl ResponseError for RegisterError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RegisterError::InvalidData => StatusCode::BAD_REQUEST,
-            RegisterError::UserAlreadyExists => StatusCode::CONFLICT,
-            RegisterError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidData => StatusCode::BAD_REQUEST,
+            Self::UserAlreadyExists => StatusCode::CONFLICT,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -41,26 +41,20 @@ fn is_valid_email(email: &str) -> bool {
     if email.is_empty() {
         return false;
     }
-    match email.find('@') {
-        Some(index) => {
-            let domain = &email[index + 1..];
-            !domain.is_empty() && domain.contains('.')
-        }
-        None => false,
-    }
+    email.find('@').is_some_and(|index| {
+        let domain = &email[index + 1..];
+        !domain.is_empty() && domain.contains('.')
+    })
 }
 
-fn is_valid_password(password: &str) -> bool {
+const fn is_valid_password(password: &str) -> bool {
     //Need to be more complex and based on requirements
     password.len() >= 8
 }
 
 fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
     //Need to be more complex and based on requirements
-    match phone_number {
-        Some(num) => num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()),
-        None => true,
-    }
+    phone_number.is_none_or(|num| num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()))
 }
 
 async fn can_be_registered(
@@ -110,7 +104,7 @@ async fn register_user(
         .fetch_scalar(&view)
         .await
         .map_err(|e| {
-            eprintln!("Database error: {}", e);
+            eprintln!("Database error: {e}");
             RegisterError::DatabaseError
         })?;
 

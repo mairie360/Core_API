@@ -36,7 +36,7 @@ pub struct AdminGetRolesResultView {
 impl From<Vec<RoleQueryResult>> for AdminGetRolesResultView {
     fn from(results: Vec<RoleQueryResult>) -> Self {
         Self {
-            roles: results.into_iter().map(|r| r.into()).collect(),
+            roles: results.into_iter().map(std::convert::Into::into).collect(),
         }
     }
 }

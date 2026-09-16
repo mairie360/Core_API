@@ -14,7 +14,7 @@ use crate::common::get_pool;
 #[serial]
 async fn test_revoke_session_with_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     // Create a session
     let _ = pool
@@ -47,7 +47,7 @@ async fn test_revoke_session_with_id() {
     let session_id = *session.id();
 
     let view = RevokeSessionByIdQueryView::new(1, session_id);
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.get_user_id(), 1);
     assert_eq!(*view.get_id(), session_id);
     let _ = view.get_revoked_at();

@@ -10,7 +10,7 @@ use serial_test::serial;
 #[serial]
 async fn unset_first_connection_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let email = format!(
         "unset_first_connection_{}@example.com",
@@ -49,10 +49,10 @@ async fn unset_first_connection_success() {
 #[serial]
 async fn unset_first_connection_bad_user_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let view = UnsetFirstConnectionQueryView::new(999_999, "new_password");
     let result = pool.execute(view).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
 }

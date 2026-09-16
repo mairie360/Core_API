@@ -9,6 +9,7 @@ pub struct LoginUserQueryView {
 }
 
 impl LoginUserQueryView {
+    #[must_use]
     pub fn new(email: String, password: String) -> Self {
         Self {
             params: vec![QueryParam::Text(email.clone())],
@@ -17,11 +18,13 @@ impl LoginUserQueryView {
         }
     }
 
-    pub fn get_email(&self) -> &String {
+    #[must_use]
+    pub const fn get_email(&self) -> &String {
         &self.email
     }
 
-    pub fn get_password(&self) -> &String {
+    #[must_use]
+    pub const fn get_password(&self) -> &String {
         &self.password
     }
 }
@@ -57,7 +60,8 @@ pub struct LoginUserQueryResultView {
 }
 
 impl LoginUserQueryResultView {
-    pub fn new(user_id: i32, password: String, first_connect: bool) -> Self {
+    #[must_use]
+    pub const fn new(user_id: i32, password: String, first_connect: bool) -> Self {
         Self {
             user_id,
             password,
@@ -65,15 +69,18 @@ impl LoginUserQueryResultView {
         }
     }
 
+    #[must_use]
     pub fn password(&self) -> &str {
         &self.password
     }
 
-    pub fn user_id(&self) -> i32 {
+    #[must_use]
+    pub const fn user_id(&self) -> i32 {
         self.user_id
     }
 
-    pub fn first_connect(&self) -> bool {
+    #[must_use]
+    pub const fn first_connect(&self) -> bool {
         self.first_connect
     }
 }

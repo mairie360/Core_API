@@ -10,11 +10,11 @@ use serial_test::serial;
 #[serial]
 async fn good_id_and_action() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetRessourceTypeIdQueryView::new("users");
     let ressource_type_id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = GetPermissionIdQueryView::new(ressource_type_id as u64, PermissionAction::ReadAll);
-    println!("{}", view);
+    println!("{view}");
     assert!(view.resource_id() > 0);
     assert_eq!(view.action(), PermissionAction::ReadAll);
     println!("{}", PermissionAction::Create);
@@ -22,14 +22,14 @@ async fn good_id_and_action() {
     println!("{}", PermissionAction::Delete);
     println!("{}", PermissionAction::UpdateAll);
     let result: i32 = pool.fetch_scalar(&view).await.unwrap();
-    assert_eq!(result, 1, "Expected 1, got {}", result);
+    assert_eq!(result, 1, "Expected 1, got {result}");
 }
 
 #[tokio::test]
 #[serial]
 async fn fail_invalid_resource_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetPermissionIdQueryView::new(100, PermissionAction::Read);
     let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_err());
@@ -39,7 +39,7 @@ async fn fail_invalid_resource_id() {
 #[serial]
 async fn fail_invalid_action() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetRessourceTypeIdQueryView::new("users");
     let ressource_type_id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = GetPermissionIdQueryView::new(ressource_type_id as u64, PermissionAction::DeleteAll);
@@ -51,7 +51,7 @@ async fn fail_invalid_action() {
 #[serial]
 async fn fail_error_action() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let ressource_type_id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = GetPermissionIdQueryView::new(ressource_type_id as u64, PermissionAction::Error);

@@ -18,14 +18,17 @@ pub struct LoginView {
 }
 
 impl LoginView {
+    #[must_use]
     pub fn email(&self) -> String {
         self.email.clone()
     }
 
+    #[must_use]
     pub fn password(&self) -> String {
         self.password.clone()
     }
 
+    #[must_use]
     pub fn device_info(&self) -> String {
         self.device_info.clone()
     }
@@ -51,10 +54,12 @@ pub struct LoginResponseView {
 }
 
 impl LoginResponseView {
-    pub fn new(refresh_token: String) -> Self {
-        LoginResponseView { refresh_token }
+    #[must_use]
+    pub const fn new(refresh_token: String) -> Self {
+        Self { refresh_token }
     }
 
+    #[must_use]
     pub fn refresh_token(&self) -> &str {
         &self.refresh_token
     }
@@ -72,7 +77,7 @@ impl Display for LoginResponseView {
 
 impl From<String> for LoginResponseView {
     fn from(token: String) -> Self {
-        LoginResponseView {
+        Self {
             refresh_token: token,
         }
     }
@@ -91,10 +96,12 @@ pub struct LoginFirstConnectionResponseView {
 }
 
 impl LoginFirstConnectionResponseView {
-    pub fn new(token: String) -> Self {
-        LoginFirstConnectionResponseView { token }
+    #[must_use]
+    pub const fn new(token: String) -> Self {
+        Self { token }
     }
 
+    #[must_use]
     pub fn token(&self) -> &str {
         &self.token
     }
@@ -108,6 +115,6 @@ impl Display for LoginFirstConnectionResponseView {
 
 impl From<String> for LoginFirstConnectionResponseView {
     fn from(token: String) -> Self {
-        LoginFirstConnectionResponseView { token }
+        Self { token }
     }
 }

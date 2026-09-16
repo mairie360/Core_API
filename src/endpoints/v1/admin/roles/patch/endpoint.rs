@@ -16,10 +16,10 @@ enum PatchError {
 impl std::fmt::Display for PatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            PatchError::NotFound => {
+            Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
         }
@@ -29,8 +29,8 @@ impl std::fmt::Display for PatchError {
 impl ResponseError for PatchError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            PatchError::NotFound => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::NotFound => StatusCode::NOT_FOUND,
         }
     }
 

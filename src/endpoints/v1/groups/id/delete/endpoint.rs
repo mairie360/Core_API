@@ -13,7 +13,7 @@ enum DeleteGroupError {
 impl std::fmt::Display for DeleteGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeleteGroupError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
@@ -23,7 +23,7 @@ impl std::fmt::Display for DeleteGroupError {
 impl ResponseError for DeleteGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DeleteGroupError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 

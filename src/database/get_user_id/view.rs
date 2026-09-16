@@ -8,6 +8,7 @@ pub struct GetUserIdQueryView {
 }
 
 impl GetUserIdQueryView {
+    #[must_use]
     pub fn new(email: &str) -> Self {
         Self {
             email: email.to_string(),
@@ -15,6 +16,7 @@ impl GetUserIdQueryView {
         }
     }
 
+    #[must_use]
     pub fn email(&self) -> &str {
         &self.email
     }

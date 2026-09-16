@@ -16,7 +16,7 @@ enum GetMeError {
 impl std::fmt::Display for GetMeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GetMeError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -26,7 +26,7 @@ impl std::fmt::Display for GetMeError {
 impl ResponseError for GetMeError {
     fn status_code(&self) -> StatusCode {
         match self {
-            GetMeError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -43,23 +43,23 @@ async fn trigger_get_me(
     let view = GetUserByIdQueryView::new(user_id);
     let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
         smart_db.fetch_one(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
+            eprintln!("Login DB Error: {e}");
             GetMeError::DatabaseError
         })?;
     let view = GetUserGroupsQuerView::new(user_id);
     let groups = smart_db.fetch_all(&view).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
+        eprintln!("Login DB Error: {e}");
         GetMeError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(user_id);
     let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
-        eprintln!("Login DB Error: {}", e);
+        eprintln!("Login DB Error: {e}");
         GetMeError::DatabaseError
     })?;
     let view = GetRolesByIdQueryView::new(role_id);
     let role: Vec<crate::database::roles::get_roles_by_id::Role> =
         smart_db.fetch_all(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {}", e);
+            eprintln!("Login DB Error: {e}");
             GetMeError::DatabaseError
         })?;
 
@@ -69,7 +69,7 @@ async fn trigger_get_me(
         result.email(),
         result.phone_number(),
         result.status(),
-        role[0].name(),
+        role.first().map_or("", |r| r.name()),
         groups,
     ))
 }

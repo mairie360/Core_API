@@ -9,10 +9,12 @@ pub struct GetRolesByIdQueryView {
 }
 
 impl GetRolesByIdQueryView {
-    pub fn new(id: Vec<i32>) -> Self {
+    #[must_use]
+    pub const fn new(id: Vec<i32>) -> Self {
         Self { id }
     }
 
+    #[must_use]
     pub fn id(&self) -> &[i32] {
         &self.id
     }
@@ -31,7 +33,7 @@ impl ApiRequestDto for GetRolesByIdQueryView {
                 "ARRAY[{}]",
                 self.id
                     .iter()
-                    .map(|id| id.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(",")
             )
@@ -39,8 +41,7 @@ impl ApiRequestDto for GetRolesByIdQueryView {
 
         Box::leak(
             format!(
-                "SELECT row_to_json(t) FROM (SELECT name, description, created_at, updated_at, can_be_deleted FROM roles WHERE id = ANY({})) t",
-                ids
+                "SELECT row_to_json(t) FROM (SELECT name, description, created_at, updated_at, can_be_deleted FROM roles WHERE id = ANY({ids})) t"
             )
             .into_boxed_str(),
         )
@@ -67,7 +68,8 @@ pub struct Role {
 }
 
 impl Role {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         name: String,
         description: Option<String>,
         created_at: DateTime<Utc>,
@@ -82,23 +84,28 @@ impl Role {
             can_be_deleted,
         }
     }
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
 
-    pub fn created_at(&self) -> &DateTime<Utc> {
+    #[must_use]
+    pub const fn created_at(&self) -> &DateTime<Utc> {
         &self.created_at
     }
 
-    pub fn updated_at(&self) -> Option<&DateTime<Utc>> {
+    #[must_use]
+    pub const fn updated_at(&self) -> Option<&DateTime<Utc>> {
         self.updated_at.as_ref()
     }
 
-    pub fn can_be_deleted(&self) -> bool {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> bool {
         self.can_be_deleted
     }
 }

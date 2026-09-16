@@ -9,7 +9,7 @@ use serial_test::serial;
 #[serial]
 async fn test_login_user_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let result: LoginUserQueryResultView = pool
         .fetch_one(&LoginUserQueryView::new(
             "alice@example.com".to_string(),
@@ -28,7 +28,7 @@ async fn test_login_user_success() {
 #[serial]
 async fn test_login_user_wrong_password() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result: Result<LoginUserQueryResultView, _> = pool
         .fetch_one(&LoginUserQueryView::new(
@@ -44,7 +44,7 @@ async fn test_login_user_wrong_password() {
 #[serial]
 async fn test_login_user_unknown_email() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result: Result<LoginUserQueryResultView, _> = pool
         .fetch_one(&LoginUserQueryView::new(

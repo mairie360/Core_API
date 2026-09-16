@@ -17,15 +17,18 @@ pub struct RoleWriteView {
 }
 
 impl RoleWriteView {
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
-    pub fn can_be_deleted(&self) -> Option<bool> {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> Option<bool> {
         self.can_be_deleted
     }
 }

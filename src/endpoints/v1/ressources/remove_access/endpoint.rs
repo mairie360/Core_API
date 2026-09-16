@@ -12,7 +12,7 @@ enum RemoveAccessError {
 impl std::fmt::Display for RemoveAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RemoveAccessError::BadRequest => {
+            Self::BadRequest => {
                 write!(f, "Bad request.")
             }
         }
@@ -22,7 +22,7 @@ impl std::fmt::Display for RemoveAccessError {
 impl ResponseError for RemoveAccessError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RemoveAccessError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 

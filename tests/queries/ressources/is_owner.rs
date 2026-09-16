@@ -7,9 +7,9 @@ use serial_test::serial;
 #[serial]
 async fn true_result() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = IsOwnerQueryView::new(*GROUP_OWNER_ID.get().unwrap() as u64, 1, "groups");
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.owner_id(), *GROUP_OWNER_ID.get().unwrap() as u64);
     assert_eq!(view.ressource_id(), 1);
     assert_eq!(view.ressource_type(), "groups");
@@ -20,7 +20,7 @@ async fn true_result() {
 #[serial]
 async fn false_bad_ressource_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = IsOwnerQueryView::new(*GROUP_OWNER_ID.get().unwrap() as u64, 2, "groups");
     assert!(!pool.fetch_scalar::<bool, _>(&view).await.unwrap());
 }
@@ -29,7 +29,7 @@ async fn false_bad_ressource_id() {
 #[serial]
 async fn false_bad_owner_id() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let view = IsOwnerQueryView::new((*GROUP_OWNER_ID.get().unwrap() as u64) + 1, 1, "groups");
     assert!(!pool.fetch_scalar::<bool, _>(&view).await.unwrap());
 }

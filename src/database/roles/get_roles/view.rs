@@ -29,7 +29,8 @@ pub struct RoleQueryResult {
 }
 
 impl RoleQueryResult {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         id: i32,
         name: String,
         description: Option<String>,
@@ -47,27 +48,33 @@ impl RoleQueryResult {
         }
     }
 
-    pub fn id(&self) -> i32 {
+    #[must_use]
+    pub const fn id(&self) -> i32 {
         self.id
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
     }
 
-    pub fn created_at(&self) -> &DateTime<Utc> {
+    #[must_use]
+    pub const fn created_at(&self) -> &DateTime<Utc> {
         &self.created_at
     }
 
-    pub fn updated_at(&self) -> Option<&DateTime<Utc>> {
+    #[must_use]
+    pub const fn updated_at(&self) -> Option<&DateTime<Utc>> {
         self.updated_at.as_ref()
     }
 
-    pub fn can_be_deleted(&self) -> bool {
+    #[must_use]
+    pub const fn can_be_deleted(&self) -> bool {
         self.can_be_deleted
     }
 }

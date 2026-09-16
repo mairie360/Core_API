@@ -14,7 +14,7 @@ enum PatchMeError {
 impl std::fmt::Display for PatchMeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchMeError::DatabaseError => {
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -24,7 +24,7 @@ impl std::fmt::Display for PatchMeError {
 impl ResponseError for PatchMeError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchMeError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -48,7 +48,7 @@ async fn trigger_patch_me(
     );
     if !db_view.is_noop() {
         state.get_smart_db().execute(db_view).await.map_err(|e| {
-            eprintln!("Error: {:?}", e);
+            eprintln!("Error: {e:?}");
             PatchMeError::DatabaseError
         })?;
     }

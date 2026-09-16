@@ -30,7 +30,7 @@ pub struct PostGroupResultView {
 }
 
 impl PostGroupResultView {
-    pub fn new(id: u64) -> Self {
+    pub const fn new(id: u64) -> Self {
         Self { id }
     }
 }

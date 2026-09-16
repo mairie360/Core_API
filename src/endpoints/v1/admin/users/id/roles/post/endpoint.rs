@@ -12,7 +12,7 @@ enum AddRoleToUserError {
 impl std::fmt::Display for AddRoleToUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddRoleToUserError::NotFound => {
+            Self::NotFound => {
                 write!(f, "User or role not found.")
             }
         }
@@ -22,7 +22,7 @@ impl std::fmt::Display for AddRoleToUserError {
 impl ResponseError for AddRoleToUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AddRoleToUserError::NotFound => StatusCode::NOT_FOUND,
+            Self::NotFound => StatusCode::NOT_FOUND,
         }
     }
 

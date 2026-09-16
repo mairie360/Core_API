@@ -13,7 +13,7 @@ use crate::common::get_pool;
 #[serial]
 async fn test_revoke_session_with_token() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     // Create a session
     let _ = pool
@@ -37,7 +37,7 @@ async fn test_revoke_session_with_token() {
     assert!(is_valid);
 
     let view = RevokeSessionByTokenQueryView::new(1, "test_revoke_session_with_token");
-    println!("{}", view);
+    println!("{view}");
     assert_eq!(view.get_user_id(), 1);
     assert_eq!(view.get_token_hash(), "test_revoke_session_with_token");
     let _ = view.get_revoked_at();
@@ -55,4 +55,34 @@ async fn test_revoke_session_with_token() {
         .unwrap();
 
     assert!(!is_valid);
+}
+
+/// MAIR-125 : avec la version patch de la lib, un refresh token reste valide quand l'IP du client
+/// a changé depuis le login. Échoue tant que `mairie360_api_lib` n'est pas mis à jour.
+#[tokio::test]
+#[serial]
+async fn test_session_token_valid_after_ip_change() {
+    let (_container, host) = get_shared_db().await;
+    let pool = get_pool(host.clone()).await;
+    let token = format!("session_token_ip_change_{}", uuid::Uuid::new_v4());
+
+    pool.execute(CreateSessionQueryView::new(
+        1,
+        &token,
+        "any_device",
+        std::net::IpAddr::from([192, 168, 1, 10]),
+    ))
+    .await
+    .unwrap();
+
+    let is_valid: bool = pool
+        .fetch_scalar(&IsSessionTokenValidQueryView::new(
+            1,
+            token,
+            std::net::IpAddr::from([10, 0, 0, 42]),
+        ))
+        .await
+        .unwrap();
+
+    assert!(is_valid);
 }

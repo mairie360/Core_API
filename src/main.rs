@@ -1,7 +1,10 @@
+// Voir lib.rs : versions multiples de dépendances transitives hors de notre contrôle.
+#![allow(clippy::multiple_crate_versions)]
+
 use actix_web::{middleware, web, App, HttpServer};
 
-use core_api::endpoints::config;
 use core_api::endpoints::swagger::ApiDoc;
+use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
 use mairie360_api_lib::security::JwtMiddleware;
 
@@ -20,15 +23,12 @@ async fn main() -> std::io::Result<()> {
     let db_host = get_critical_env_var("DB_HOST");
     let db_port = get_critical_env_var("DB_PORT");
     let db_name = get_critical_env_var("DB_NAME");
-    let pg_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        db_user, db_password, db_host, db_port, db_name
-    );
+    let pg_url = format!("postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}");
     let state = AppState::new(redis_url, pg_url).await;
     let data = web::Data::new(state);
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
-    let bind_address = format!("{}:{}", host, port);
+    let bind_address = format!("{host}:{port}");
     let server = HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
@@ -40,6 +40,8 @@ async fn main() -> std::io::Result<()> {
             )
             .service(health::health)
             .service(hello::hello)
+            // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
+            .configure(public_config)
             // 3. Endpoints Protégés par JWT
             .service(
                 web::scope("/api").wrap(JwtMiddleware).configure(config), // Tes routes v1, etc.
@@ -50,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     let addr = server.addrs().first().copied();
     tokio::spawn(async move {
         if let Some(addr) = addr {
-            println!("Serveur démarré avec succès sur http://{}", addr);
+            println!("Serveur démarré avec succès sur http://{addr}");
         }
     });
 

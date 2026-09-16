@@ -10,6 +10,7 @@ pub struct GetGroupQuerView {
 }
 
 impl GetGroupQuerView {
+    #[must_use]
     pub fn new(group_id: u64) -> Self {
         Self {
             group_id,
@@ -17,7 +18,8 @@ impl GetGroupQuerView {
         }
     }
 
-    pub fn group_id(&self) -> u64 {
+    #[must_use]
+    pub const fn group_id(&self) -> u64 {
         self.group_id
     }
 }
@@ -57,16 +59,18 @@ pub struct Group {
 }
 
 impl Group {
+    #[must_use]
     pub fn new(id: i32, name: &str, owner_id: i32, description: Option<&str>) -> Self {
         Self {
             id,
             name: name.to_string(),
             owner_id,
-            description: description.map(|d| d.to_string()),
+            description: description.map(std::string::ToString::to_string),
         }
     }
 
-    pub fn id(&self) -> i32 {
+    #[must_use]
+    pub const fn id(&self) -> i32 {
         self.id
     }
 }

@@ -25,7 +25,8 @@ impl PatchView {
         self.description.clone()
     }
 
-    pub fn can_be_deleted(&self) -> Option<Option<bool>> {
+    #[allow(clippy::option_option)]
+    pub const fn can_be_deleted(&self) -> Option<Option<bool>> {
         self.can_be_deleted
     }
 }

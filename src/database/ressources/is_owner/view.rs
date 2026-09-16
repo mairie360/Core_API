@@ -10,6 +10,7 @@ pub struct IsOwnerQueryView {
 }
 
 impl IsOwnerQueryView {
+    #[must_use]
     pub fn new(owner_id: u64, ressource_id: u64, ressource_type: &str) -> Self {
         Self {
             owner_id,
@@ -22,14 +23,17 @@ impl IsOwnerQueryView {
         }
     }
 
-    pub fn owner_id(&self) -> u64 {
+    #[must_use]
+    pub const fn owner_id(&self) -> u64 {
         self.owner_id
     }
 
-    pub fn ressource_id(&self) -> u64 {
+    #[must_use]
+    pub const fn ressource_id(&self) -> u64 {
         self.ressource_id
     }
 
+    #[must_use]
     pub fn ressource_type(&self) -> &str {
         &self.ressource_type
     }

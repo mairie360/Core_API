@@ -16,10 +16,12 @@ pub struct ForceChangePasswordView {
 }
 
 impl ForceChangePasswordView {
+    #[must_use]
     pub fn token(&self) -> &str {
         &self.token
     }
 
+    #[must_use]
     pub fn new_password(&self) -> &str {
         &self.new_password
     }

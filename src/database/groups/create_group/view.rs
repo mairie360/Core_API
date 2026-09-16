@@ -10,6 +10,7 @@ pub struct CreateGroupQueryView {
 }
 
 impl CreateGroupQueryView {
+    #[must_use]
     pub fn new(owner_id: u64, name: &str, description: &str) -> Self {
         Self {
             owner_id,
@@ -23,14 +24,17 @@ impl CreateGroupQueryView {
         }
     }
 
-    pub fn owner_id(&self) -> u64 {
+    #[must_use]
+    pub const fn owner_id(&self) -> u64 {
         self.owner_id
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }

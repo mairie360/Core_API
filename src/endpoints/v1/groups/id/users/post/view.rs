@@ -13,11 +13,11 @@ pub struct PostUserGroupView {
 }
 
 impl PostUserGroupView {
-    pub fn user_id(&self) -> u64 {
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 
-    pub fn group_id(&self) -> u64 {
+    pub const fn group_id(&self) -> u64 {
         self.group_id
     }
 }

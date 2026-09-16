@@ -38,7 +38,7 @@ impl From<&Session> for SessionResultView {
             ip_address: value.ip_address().to_string(),
             created_at: value.created_at().to_string(),
             expires_at: value.expires_at().to_string(),
-            revoked_at: value.revoked_at().map(|t| t.to_string()),
+            revoked_at: value.revoked_at().map(std::string::ToString::to_string),
         }
     }
 }
@@ -62,7 +62,7 @@ impl From<&RoleQueryResult> for RoleResultView {
         Self {
             id: value.id(),
             name: value.name().to_string(),
-            description: value.description().map(|d| d.to_string()),
+            description: value.description().map(std::string::ToString::to_string),
         }
     }
 }
@@ -97,9 +97,13 @@ impl From<AdminGetUserQueryResultView> for GetUserResultView {
     fn from(value: AdminGetUserQueryResultView) -> Self {
         Self {
             user: value.user().clone(),
-            roles: value.roles().iter().map(|r| r.into()).collect(),
+            roles: value.roles().iter().map(std::convert::Into::into).collect(),
             groups: value.groups().into_iter().collect(),
-            sessions: value.sessions().iter().map(|s| s.into()).collect(),
+            sessions: value
+                .sessions()
+                .iter()
+                .map(std::convert::Into::into)
+                .collect(),
         }
     }
 }
