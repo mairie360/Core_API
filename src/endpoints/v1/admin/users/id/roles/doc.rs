@@ -3,5 +3,8 @@ use crate::endpoints::v1::admin::users::id::roles::post::endpoint::__path_admin_
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
-#[openapi(paths(admin_delete_user_role, admin_add_role_to_user))]
+#[openapi(
+    paths(admin_delete_user_role, admin_add_role_to_user),
+    components(schemas(super::post::view::AddRoleToUserView))
+)]
 pub struct RolesDoc;

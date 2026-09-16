@@ -54,16 +54,50 @@ async fn trigger_add_user_to_group(
 #[utoipa::path(
     post,
     path = "",
+    summary = "Ajouter un utilisateur à un groupe",
+    description = "Rattache un utilisateur à un groupe. À partir de là, le groupe apparaît dans le \
+                   `GET /api/v1/groups/` de cet utilisateur.\n\n\
+                   Attention : le groupe visé est celui du champ `group_id` du **corps**, pas celui \
+                   du chemin. Le `group_id` de l'URL est ignoré par le handler ; renseigner les \
+                   deux avec la même valeur pour éviter toute ambiguïté.\n\n\
+                   Cet endpoint ne vérifie pas non plus que l'appelant est propriétaire du groupe.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe")
+        ("group_id" = u64, Path, description = "Identifiant du groupe. **Ignoré** : c'est le `group_id` du corps qui fait foi.", example = 3)
     ),
-    request_body = PostUserGroupView,
+    request_body(
+        content = PostUserGroupView,
+        description = "Utilisateur à rattacher et groupe de destination.",
+        example = json!({ "user_id": 42, "group_id": 3 })
+    ),
     responses(
-        (status = 200, description = "User added to group successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Unknow user."),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Utilisateur rattaché au groupe.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User added to group successfully")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ obligatoire absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `user_id`")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "`user_id` ou `group_id` ne correspond à rien, ou l'utilisateur est déjà membre du groupe.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknow user.")
+        ),
     ),
     tag = "Groups",
     security(

@@ -4,25 +4,31 @@ use utoipa::ToSchema;
 
 use crate::endpoints::v1::sessions::view::SessionSchema;
 
+/// Sessions actives de l'utilisateur connecté.
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct GetResponseView {
+pub struct GetSessionsResultView {
+    /// Sessions encore valides, de la plus récente à la plus ancienne. Peut être vide.
     sessions: Vec<SessionSchema>,
 }
 
-impl GetResponseView {
-    pub const fn new(sessions: Vec<SessionSchema>) -> Self {
-        Self { sessions }
+impl GetSessionsResultView {
+    pub fn new(sessions: Vec<SessionSchema>) -> Self {
+        GetSessionsResultView { sessions }
     }
 }
 
-impl Display for GetResponseView {
+impl Display for GetSessionsResultView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetResponseView {{ sessions: {:?} }}", self.sessions)
+        write!(
+            f,
+            "GetSessionsResultView {{ sessions: {:?} }}",
+            self.sessions
+        )
     }
 }
 
-impl From<Vec<SessionSchema>> for GetResponseView {
+impl From<Vec<SessionSchema>> for GetSessionsResultView {
     fn from(sessions: Vec<SessionSchema>) -> Self {
-        Self { sessions }
+        GetSessionsResultView { sessions }
     }
 }

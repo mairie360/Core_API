@@ -117,14 +117,74 @@ async fn register_user(
 #[utoipa::path(
     post,
     path = "",
-    request_body = CreateUserView,
-    responses(
-        (status = 201, description = "User created successfully"),
-        (status = 400, description = "Invalid data provided"),
-        (status = 409, description = "User already exists"),
-        (status = 500, description = "Database error occurred")
+    summary = "Créer un compte utilisateur (administration)",
+    description = "Crée un compte au nom d'un administrateur, sans que la personne ait à \
+                   s'inscrire. Réservé aux administrateurs.\n\n\
+                   Mêmes règles de validation que `POST /api/v1/auth/register` : e-mail de la \
+                   forme `locale@domaine.tld`, mot de passe d'au moins 8 caractères, téléphone \
+                   facultatif d'au moins 10 chiffres. Toutes partagent le même `400`.\n\n\
+                   Le mot de passe fourni ici est provisoire : le compte est marqué en première \
+                   connexion, et le premier `POST /api/v1/auth/login` de l'utilisateur répondra \
+                   `412` pour lui faire choisir le sien.",
+    request_body(
+        content = CreateUserView,
+        description = "État civil, identifiants provisoires et téléphone facultatif du compte à créer.",
+        example = json!({
+            "first_name": "Jean",
+            "last_name": "Dupont",
+            "email": "jean.dupont@mairie360.fr",
+            "password": "MotDePasse!123",
+            "phone_number": "0612345678"
+        })
     ),
-    tag = "Admin - Users"
+    responses(
+        (
+            status = 201,
+            description = "Compte créé, en attente du changement de mot de passe à la première connexion.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User created successfully!")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, ou e-mail, mot de passe ou numéro de téléphone ne respectant pas les règles ci-dessus.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid data provided")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 409,
+            description = "Un compte utilise déjà cette adresse e-mail.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User already exists")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données pendant la vérification d'unicité ou l'insertion.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
+        )
+    ),
+    tag = "Admin - Users",
+    security(
+        ("jwt" = [])
+    )
 )]
 #[post("/")]
 pub async fn admin_post_user(

@@ -67,14 +67,60 @@ async fn refresh_request(
 #[utoipa::path(
     post,
     path = "refresh",
-    request_body = RefreshRequestView,
+    summary = "Renouveler son JWT",
+    description = "Échange un jeton de rafraîchissement encore valide contre un nouveau JWT, sans \
+                   redemander le mot de passe. Le nouveau JWT est renvoyé dans l'en-tête \
+                   `Authorization` ; le corps n'est qu'un message de confirmation en texte brut.\n\n\
+                   Le JWT courant reste exigé dans l'en-tête `Authorization` de la requête : \
+                   appeler cet endpoint avec un JWT déjà expiré échoue en `401` au niveau de \
+                   l'intergiciel, avant d'atteindre le handler. Il faut donc rafraîchir **avant** \
+                   l'expiration, sinon une reconnexion complète est nécessaire.\n\n\
+                   Le jeton de rafraîchissement est validé pour le couple (utilisateur, adresse IP \
+                   d'origine) : un changement de réseau invalide la session.\n\n\
+                   Le jeton de rafraîchissement n'est pas tourné : le même reste utilisable \
+                   jusqu'à sa révocation ou son expiration.",
+    request_body(
+        content = RefreshRequestView,
+        description = "Jeton de rafraîchissement obtenu au login.",
+        example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+    ),
     responses(
-        (status = 200, description = "Token refreshed successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized, invalid, revoked or expired refresh token"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Nouveau JWT émis, renvoyé dans l'en-tête `Authorization`.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Authorization" = String, description = "Nouveau JWT d'accès, préfixé par `Bearer `.")
+            ),
+            example = json!("JWT refreshed successfully")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ `refresh_token` absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `refresh_token`")
+        ),
+        (
+            status = 401,
+            description = "JWT de la requête absent, invalide ou expiré, ou jeton de rafraîchissement inconnu, révoqué, expiré, ou présenté depuis une autre adresse IP.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Session not found")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données, ou échec de génération du nouveau JWT.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Sessions",
+    security(
+        ("jwt" = [])
+    )
 )]
 pub async fn refresh(
     body: web::Json<RefreshRequestView>,

@@ -7,13 +7,26 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Session d'un utilisateur, telle que vue par un administrateur.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 struct SessionResultView {
+    /// Identifiant de la session, sérialisé en chaîne bien qu'il soit numérique en base.
+    #[schema(example = "1")]
     id: String,
+    /// Description de l'appareil, telle que fournie par le client au login.
+    #[schema(example = "Chrome 140 sur Windows 11")]
     device_info: String,
+    /// Adresse IP depuis laquelle la session a été ouverte.
+    #[schema(example = "192.168.1.24")]
     ip_address: String,
+    /// Date d'ouverture de la session, au format `AAAA-MM-JJ HH:MM:SS UTC`.
+    #[schema(example = "2026-09-16 08:42:11 UTC")]
     created_at: String,
+    /// Date au-delà de laquelle le jeton de rafraîchissement n'est plus accepté.
+    #[schema(example = "2026-09-23 08:42:11 UTC")]
     expires_at: String,
+    /// Date de révocation, ou `null` si la session n'a jamais été révoquée.
+    #[schema(example = json!(null))]
     revoked_at: Option<String>,
 }
 
@@ -30,10 +43,17 @@ impl From<&Session> for SessionResultView {
     }
 }
 
+/// Rôle porté par l'utilisateur consulté.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 struct RoleResultView {
+    /// Identifiant du rôle.
+    #[schema(example = 2)]
     id: i32,
+    /// Nom technique du rôle.
+    #[schema(example = "agent")]
     name: String,
+    /// Description du rôle, ou `null` s'il n'en a pas.
+    #[schema(example = "Agent municipal")]
     description: Option<String>,
 }
 
@@ -47,11 +67,16 @@ impl From<&RoleQueryResult> for RoleResultView {
     }
 }
 
+/// Fiche complète d'un utilisateur pour l'administration : profil, rôles, groupes et sessions.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 pub struct GetUserResultView {
+    /// État civil et statut du compte.
     user: User,
+    /// Rôles portés par l'utilisateur. Vide s'il n'en a aucun.
     roles: Vec<RoleResultView>,
+    /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
+    /// Historique complet des sessions, révoquées et expirées comprises.
     sessions: Vec<SessionResultView>,
 }
 

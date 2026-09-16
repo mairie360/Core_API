@@ -65,15 +65,43 @@ async fn trigger_get_group(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Consulter un groupe",
+    description = "Renvoie le nom, la description et le propriétaire d'un groupe. Accessible à \
+                   tout utilisateur authentifié, y compris s'il n'est pas membre du groupe.\n\n\
+                   Pour la liste de ses membres, voir `GET /api/v1/groups/{group_id}/users/`.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe")
+        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
     responses(
-        (status = 200, body = GetGroupResultView),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Le groupe demandé.",
+            body = GetGroupResultView,
+            example = json!({
+                "group": { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+            })
+        ),
+        (
+            status = 400,
+            description = "Échec de la lecture du groupe une fois son existence confirmée. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "Aucun groupe ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknow group.")
+        ),
     ),
     tag = "Groups",
     security(

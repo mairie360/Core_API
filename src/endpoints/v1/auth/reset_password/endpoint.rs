@@ -116,12 +116,53 @@ async fn reset_password_trigger(
 
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
+    summary = "Réinitialiser un mot de passe avec un jeton",
+    description = "Consomme le jeton envoyé par `POST /api/v1/auth/forgot_password`, enregistre le \
+                   nouveau mot de passe et ouvre immédiatement une session : la réponse contient un \
+                   JWT dans l'en-tête `Authorization` et un jeton de rafraîchissement dans le corps, \
+                   comme un login. Un second appel avec le même jeton répond `401`.\n\n\
+                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.",
+    request_body(
+        content = ResetPasswordView,
+        description = "Jeton reçu par e-mail, nouveau mot de passe et description de l'appareil.",
+        example = json!({
+            "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35",
+            "new_password": "NouveauMotDePasse!123",
+            "device_info": "Chrome 140 sur Windows 11"
+        })
+    ),
     responses(
-        (status = 200, description = "Password reset successfully", body = ResetPasswordResponseView),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized, invalid token"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Mot de passe réinitialisé et session ouverte.",
+            body = ResetPasswordResponseView,
+            headers(
+                ("Authorization" = String, description = "JWT d'accès, préfixé par `Bearer `.")
+            ),
+            example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ obligatoire absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `token`")
+        ),
+        (
+            status = 401,
+            description = "Jeton inconnu, expiré ou déjà consommé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown token")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données, de Redis, ou échec de génération du JWT.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Internal server error")
+        )
     ),
     tag = "Auth",
 )]

@@ -1,9 +1,10 @@
-use crate::endpoints::v1::user::{id::doc::IdDoc, me::doc::MeDoc};
+use crate::endpoints::v1::user::{get::doc::DirectoryDoc, id::doc::IdDoc, me::doc::MeDoc};
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/me", api = MeDoc, tags = ["Users"]),
-    (path = "/{id}", api = IdDoc, tags = ["Users"]),
+    (path = "/", api = DirectoryDoc),
+    (path = "/me", api = MeDoc),
+    (path = "/{id}", api = IdDoc),
 ))]
 pub struct UserDoc;

@@ -25,7 +25,7 @@ impl GetUserGroupsQuerView {
 
 impl ApiRequestDto for GetUserGroupsQuerView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT * FROM groups WHERE id = (Select group_id FROM group_members WHERE user_id = $1)) t"
+        "SELECT row_to_json(t) FROM (SELECT * FROM groups WHERE id IN (SELECT group_id FROM group_members WHERE user_id = $1)) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {

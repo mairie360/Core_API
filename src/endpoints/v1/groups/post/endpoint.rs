@@ -50,12 +50,42 @@ async fn create_group(
 #[utoipa::path(
     post,
     path = "",
-    request_body = PostGroupView,
+    summary = "Créer un groupe",
+    description = "Crée un groupe dont l'utilisateur porté par le JWT devient le propriétaire \
+                   (`owner_id`). Il n'en est pas membre pour autant : il faut l'ajouter \
+                   explicitement via `POST /api/v1/groups/{group_id}/users/` pour qu'il \
+                   apparaisse dans `GET /api/v1/groups/`.\n\n\
+                   La réponse ne contient que l'identifiant attribué ; relire le groupe complet \
+                   avec `GET /api/v1/groups/{group_id}/`.",
+    request_body(
+        content = PostGroupView,
+        description = "Nom et description du groupe. Les deux champs sont obligatoires ; passer une chaîne vide pour une description absente.",
+        example = json!({
+            "name": "Service urbanisme",
+            "description": "Instruction des permis de construire"
+        })
+    ),
     responses(
-        (status = 200, description = "Group created successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Groupe créé. Le corps contient l'identifiant attribué.",
+            body = PostGroupResultView,
+            example = json!({ "id": 3 })
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé, champ obligatoire absent, ou échec de l'insertion en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
     ),
     tag = "Groups",
     security(

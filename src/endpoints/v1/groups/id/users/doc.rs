@@ -15,7 +15,7 @@ pub struct Doc;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/", api = Doc, tags = ["Groups"]),
-    (path = "/{user_id}", api = GroupsUsersIdDoc, tags = ["Groups"]),
+    (path = "/", api = Doc),
+    (path = "/{user_id}", api = GroupsUsersIdDoc),
 ))]
 pub struct GroupsUsersDoc;

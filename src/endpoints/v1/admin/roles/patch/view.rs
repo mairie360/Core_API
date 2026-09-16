@@ -1,13 +1,18 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Modification partielle d'un rôle : seuls les champs fournis sont mis à jour.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchView {
+    /// Nouveau nom du rôle. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "agent")]
     name: Option<String>,
+    /// Nouvelle description. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "Agent municipal habilité à instruire les dossiers")]
     description: Option<String>,
-    // Double Option volontaire : distingue "champ absent" (None), "champ fourni à null"
-    // (Some(None)) et "champ fourni avec une valeur" (Some(Some(_))).
-    #[allow(clippy::option_option)]
+    /// Doublement optionnel : omettre le champ laisse la valeur actuelle, alors que `null`
+    /// l'efface. `false` protège le rôle contre sa suppression.
+    #[schema(example = true)]
     can_be_deleted: Option<Option<bool>>,
 }
 

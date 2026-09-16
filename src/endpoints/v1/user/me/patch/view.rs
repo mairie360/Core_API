@@ -2,11 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
+/// Modification partielle du profil de l'utilisateur connecté : seuls les champs fournis sont mis à jour.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchMeView {
+    /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "Jean")]
     first_name: Option<String>,
+    /// Nouveau nom de famille. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "Dupont")]
     last_name: Option<String>,
+    /// Nouvelle adresse e-mail. Absent ou `null` pour ne pas y toucher.
+    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: Option<String>,
+    /// Nouveau numéro de téléphone. Absent ou `null` pour ne pas y toucher.
+    #[schema(example = "0798765432")]
     phone: Option<String>,
 }
 

@@ -46,16 +46,35 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
 #[utoipa::path(
     delete,
     path = "",
+    summary = "Supprimer un groupe",
+    description = "Supprime un groupe et les liens d'appartenance de ses membres. Les comptes \
+                   utilisateurs eux-mêmes ne sont pas touchés.\n\n\
+                   Opération idempotente : supprimer un groupe déjà supprimé ou inexistant répond \
+                   également `204`, sans erreur.\n\n\
+                   Attention : cet endpoint ne vérifie pas que l'appelant est propriétaire du \
+                   groupe. Tout utilisateur authentifié peut supprimer n'importe quel groupe.",
     params(
-        ("group_id" = u64, Path, description = "ID du groupe")
+        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
     responses(
-        (status = 204, description = "Group deleted successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-        (status = 404, description = "Not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Groupe supprimé, ou déjà absent. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Échec de la suppression en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
     ),
     tag = "Groups",
     security(

@@ -7,3 +7,4 @@ pub mod get_group;
 pub mod get_group_members;
 pub mod get_user_groups;
 pub mod is_user_member;
+pub mod update_group;

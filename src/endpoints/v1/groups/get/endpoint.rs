@@ -48,11 +48,37 @@ async fn trigger_get_groups(
 #[utoipa::path(
     get,
     path = "",
+    summary = "Lister ses groupes",
+    description = "Renvoie les groupes dont l'utilisateur porté par le JWT est membre, qu'il en \
+                   soit propriétaire ou simple participant. Il n'existe pas d'endpoint listant \
+                   tous les groupes de la plateforme.\n\n\
+                   La liste est vide si l'utilisateur n'appartient à aucun groupe.",
     responses(
-        (status = 200, body = GetGroupsResultView),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Groupes de l'utilisateur connecté.",
+            body = GetGroupsResultView,
+            example = json!({
+                "groups": [
+                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" },
+                    { "id": 7, "owner_id": 5, "name": "Astreinte week-end", "description": null }
+                ]
+            })
+        ),
+        (
+            status = 400,
+            description = "Échec de la lecture en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Bad request.")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
     ),
     tag = "Groups",
     security(

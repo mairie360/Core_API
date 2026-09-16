@@ -58,9 +58,52 @@ async fn get_user_info(
 #[utoipa::path(
     get,
     path = "history",
+    summary = "Consulter l'historique de ses sessions",
+    description = "Renvoie **toutes** les sessions de l'utilisateur porté par le JWT, y compris \
+                   celles qui sont expirées ou révoquées, afin qu'il puisse repérer une connexion \
+                   qu'il ne reconnaît pas. Pour ne voir que les sessions utilisables, voir \
+                   `GET /api/v1/sessions/`.\n\n\
+                   `revoked_at` est `null` tant que la session n'a pas été révoquée.",
     responses(
-        (status = 200, description = "User info retrieved successfully", body = HistoryResponseView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Historique complet des sessions de l'utilisateur connecté.",
+            body = HistoryResponseView,
+            example = json!({
+                "sessions": [
+                    {
+                        "id": "1",
+                        "device_info": "Chrome 140 sur Windows 11",
+                        "ip_address": "192.168.1.24",
+                        "created_at": "2026-09-16 08:42:11 UTC",
+                        "expires_at": "2026-09-23 08:42:11 UTC",
+                        "revoked_at": null
+                    },
+                    {
+                        "id": "2",
+                        "device_info": "Safari 18 sur iPhone",
+                        "ip_address": "10.0.0.7",
+                        "created_at": "2026-09-02 19:03:55 UTC",
+                        "expires_at": "2026-09-09 19:03:55 UTC",
+                        "revoked_at": "2026-09-04 07:15:02 UTC"
+                    }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture des sessions.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Sessions",
     security(

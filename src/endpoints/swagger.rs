@@ -6,6 +6,62 @@ use utoipa::{Modify, OpenApi};
 
 #[derive(OpenApi)]
 #[openapi(
+    info(
+        title = "Core API — Mairie 360",
+        version = "1.0.0",
+        description = "\
+API centrale de la plateforme **Mairie 360**. Elle détient les utilisateurs, les sessions, \
+les rôles, les groupes et les droits d'accès aux ressources : les autres APIs (Project, Calendar, \
+Message, ELearning) s'appuient sur elle pour authentifier et autoriser leurs appels.
+
+## Authentification
+
+Toutes les routes sous `/api` sont protégées par `JwtMiddleware`. Le jeton s'obtient via \
+`POST /api/v1/auth/login`, qui le renvoie dans l'en-tête de réponse `Authorization` \
+(`Bearer <jwt>`) accompagné d'un jeton de rafraîchissement dans le corps. Il faut ensuite le \
+présenter sur chaque appel dans l'en-tête `Authorization`, et le renouveler via \
+`POST /api/v1/sessions/refresh` avant son expiration (`JWT_TIMEOUT`).
+
+Les routes sous `/api/v1/admin` exigent en plus que l'utilisateur soit administrateur \
+(`AdminMiddleware`), sans quoi elles répondent `403 Forbidden`.
+
+## Format des erreurs
+
+Les réponses d'erreur (`4xx` et `5xx`) ont un corps **`text/plain`** contenant le message \
+d'erreur, et non un objet JSON. Les seules exceptions sont documentées explicitement opération par \
+opération (par exemple le `412` de `POST /api/v1/auth/login`, qui renvoie un objet JSON).
+
+Statuts renvoyés de façon transverse par les intergiciels, avant même d'atteindre le handler :
+
+| Statut | Signification |
+| --- | --- |
+| `401 Unauthorized` | En-tête `Authorization` absent, malformé, JWT invalide ou expiré, ou session révoquée. |
+| `403 Forbidden` | JWT valide mais droits insuffisants (route `admin` ou contrôle d'accès à la ressource). |
+| `500 Internal Server Error` | Panne de la base de données, de Redis ou d'un service externe. |
+",
+        contact(
+            name = "Équipe Mairie 360",
+            url = "https://github.com/mairie360"
+        ),
+        license(
+            name = "Propriétaire",
+            identifier = "LicenseRef-mairie360-proprietary"
+        )
+    ),
+    servers(
+        (url = "http://localhost:3000", description = "Développement local (cargo run)"),
+        (url = "http://development.mairie360.fr", description = "Pile Docker de développement (nginx)")
+    ),
+    tags(
+        (name = "Auth", description = "Connexion, inscription et cycle de vie du mot de passe (oubli, réinitialisation, changement forcé à la première connexion)."),
+        (name = "Sessions", description = "Sessions de l'utilisateur connecté : liste des sessions actives, historique, rafraîchissement et révocation."),
+        (name = "Users", description = "Annuaire des utilisateurs et profil de l'utilisateur connecté."),
+        (name = "Roles", description = "Consultation des rôles disponibles sur la plateforme."),
+        (name = "Groups", description = "Groupes d'utilisateurs et gestion de leurs membres."),
+        (name = "Admin - Users", description = "Administration des comptes utilisateurs. Réservé aux administrateurs."),
+        (name = "Admin - Roles", description = "Administration des rôles et de leurs permissions. Réservé aux administrateurs."),
+        (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
+    ),
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
@@ -22,7 +78,16 @@ impl Modify for SecurityAddon {
         let components = openapi.components.as_mut().unwrap();
         components.add_security_scheme(
             "jwt",
-            SecurityScheme::Http(Http::new(HttpAuthScheme::Bearer)),
-        );
+            SecurityScheme::Http(
+                Http::builder()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .description(Some(
+                        "JWT obtenu via `POST /api/v1/auth/login` (en-tête de réponse \
+                         `Authorization`) puis renouvelé via `POST /api/v1/sessions/refresh`.",
+                    ))
+                    .build(),
+            ),
+        )
     }
 }

@@ -71,14 +71,57 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
 #[utoipa::path(
     delete,
     path = "/{id}",
+    summary = "Supprimer un rôle",
+    description = "Supprime un rôle. Réservé aux administrateurs.\n\n\
+                   Certains rôles sont protégés par leur drapeau `can_be_deleted` : leur \
+                   suppression est refusée en `403`. Ce `403` a donc deux causes possibles sur ce \
+                   endpoint : appelant non administrateur, ou rôle non supprimable — le message du \
+                   corps permet de les distinguer.\n\n\
+                   Contrairement à la suppression d'un groupe, l'appel n'est pas idempotent : un \
+                   identifiant inconnu répond `404`.",
     responses(
-        (status = 204, description = "Role deleted successfully"),
-        (status = 403, description = "Role cannot be deleted"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 204,
+            description = "Rôle supprimé. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "L'`id` du chemin n'est pas un entier.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("can not parse \"abc\" to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'appelant n'est pas administrateur, ou le rôle est marqué non supprimable.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The requested resource cannot be deleted.")
+        ),
+        (
+            status = 404,
+            description = "Aucun rôle ne porte cet identifiant.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The requested resource was not found.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la suppression.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     params(
-        ("id" = i32, Path, description = "Role database id")
+        ("id" = u64, Path, description = "Identifiant du rôle.", example = 2)
     ),
     security(
         ("jwt" = [])

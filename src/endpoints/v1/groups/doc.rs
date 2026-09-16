@@ -5,8 +5,8 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/", api = Doc, tags = ["Groups"]),
-    (path = "/{group_id}", api = GroupsIdDoc, tags = ["Groups"]),
+    (path = "/", api = Doc),
+    (path = "/{group_id}", api = GroupsIdDoc),
 
 ))]
 pub struct GroupsDoc;

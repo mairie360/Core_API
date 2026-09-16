@@ -77,10 +77,43 @@ async fn trigger_get_me(
 #[utoipa::path(
     get,
     path = "/",
+    summary = "Consulter son propre profil",
+    description = "Renvoie la fiche de l'utilisateur porté par le JWT, sans avoir à connaître son \
+                   identifiant. C'est l'appel que font les fronts au chargement pour afficher le \
+                   nom et les groupes de l'utilisateur connecté.\n\n\
+                   Même contenu que `GET /api/v1/user/{id}/`, moins le drapeau `is_archived` : un \
+                   utilisateur archivé ne peut pas se connecter.",
     responses(
-        (status = 200, description = "Me retrieved successfully", body = GetMeResponseView),
-        (status = 400, description = "Bad request"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Profil de l'utilisateur connecté.",
+            body = GetMeResponseView,
+            example = json!({
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "email": "jean.dupont@mairie360.fr",
+                "phone": "0612345678",
+                "status": "active",
+                "role": "agent",
+                "groups": [
+                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture du profil.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Users",
     security(

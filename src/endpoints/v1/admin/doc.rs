@@ -5,8 +5,8 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
-    (path = "/roles", api = RolesDoc, tags = ["Admin - Roles"]),
-    // (path = "/sessions", api = SessionsDoc, tags = ["Admin - Sessions"]),
-    (path = "/users", api = UsersDoc, tags = ["Admin - Users"]),
+    (path = "/roles", api = RolesDoc),
+    // (path = "/sessions", api = SessionsDoc),
+    (path = "/users", api = UsersDoc),
 ))]
 pub struct AdminDoc;

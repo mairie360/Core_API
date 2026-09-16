@@ -41,16 +41,54 @@ async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), Del
 #[utoipa::path(
     delete,
     path = "",
+    summary = "Supprimer un utilisateur (administration)",
+    description = "Supprime un compte utilisateur. Réservé aux administrateurs.\n\n\
+                   Attention à la lecture du statut : une suppression réussie répond `204` avec un \
+                   corps vide, tandis qu'un **échec** — compte déjà supprimé, identifiant inconnu, \
+                   ou panne de base — répond `200` avec un message en texte brut. Un client ne \
+                   peut donc pas se contenter de tester `2xx` : il doit distinguer `204` de `200`.\n\n\
+                   Ce endpoint ne renvoie jamais `500`.",
     params(
-        ("userId" = u64, Path, description = "Event ID")
+        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
     ),
     responses(
-        (status = 200, description = "User is already deleted"),
-        (status = 204, description = "User deleted successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 500, description = "Database error occurred")
+        (
+            status = 204,
+            description = "Compte supprimé. Corps vide.",
+        ),
+        (
+            status = 200,
+            description = "La suppression n'a rien fait : compte déjà supprimé, identifiant inconnu, ou échec de l'écriture.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("User is already deleted")
+        ),
+        (
+            status = 400,
+            description = "L'`userId` du chemin n'est pas un entier.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("can not parse \"abc\" to a u64")
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
     ),
-    tag = "Admin - Users"
+    tag = "Admin - Users",
+    security(
+        ("jwt" = [])
+    )
 )]
 #[delete("/")]
 pub async fn admin_delete_user(

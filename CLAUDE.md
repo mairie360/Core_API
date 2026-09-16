@@ -43,6 +43,11 @@ cargo test                                   # all tests
 cargo test --test integration_test queries::auth::login::test_login_user_success
 ```
 
+`tests/routing_test.rs` checks that every `/api/v1` operation published by `ApiDoc` (the contract
+`@mairie360/core-api-openapi` is generated from) hits a mounted actix route: Core does not normalise trailing
+slashes, and utoipa replaces (does not merge) two `nest` entries that end on the same path, so operations sharing
+a path must be merged into one document first (see `admin/users/doc.rs`).
+
 Integration tests need **Docker running** — `get_shared_db()` (from `mairie360_api_lib::test_setup`) spins up a
 shared Postgres testcontainer on first use and hands back a pool. Tests that touch shared/seeded rows are
 annotated `#[serial]` (the `serial_test` crate) to avoid interference between tests running against the same
@@ -98,7 +103,7 @@ against Redis go through `mairie360_api_lib::pool::redis::simple_key::secured::{
 (used e.g. for the one-time first-login token, see `endpoints/v1/auth/login/endpoint.rs`).
 
 Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitively through
-`mairie360_api_lib` (>= 1.1.0), which is why files can `use sqlx::...` without it being listed directly. A
+`mairie360_api_lib` (1.2.2), which is why files can `use sqlx::...` without it being listed directly. A
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 

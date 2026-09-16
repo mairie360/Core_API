@@ -67,11 +67,48 @@ async fn revoke_request(
 #[utoipa::path(
     post,
     path = "revoke",
-    request_body = RevokeRequestView,
+    summary = "Révoquer une de ses sessions",
+    description = "Révoque la session identifiée par son jeton de rafraîchissement : c'est la \
+                   déconnexion. Le jeton ne peut plus servir à `POST /api/v1/sessions/refresh`, et \
+                   la session bascule dans l'historique avec un `revoked_at` renseigné.\n\n\
+                   Un utilisateur ne peut révoquer que ses propres sessions : le jeton est validé \
+                   pour le couple (utilisateur du JWT, adresse IP d'origine) avant la révocation. \
+                   Révoquer la session courante n'invalide pas immédiatement le JWT déjà émis, qui \
+                   reste refusé à la prochaine vérification de session.",
+    request_body(
+        content = RevokeRequestView,
+        description = "Jeton de rafraîchissement de la session à révoquer.",
+        example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+    ),
     responses(
-        (status = 200, description = "Token revoked successfully"),
-        (status = 401, description = "Unauthorized, invalid token or user not found"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Session revoked successfully")
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ `refresh_token` absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `refresh_token`")
+        ),
+        (
+            status = 401,
+            description = "JWT de la requête absent, invalide ou expiré, ou jeton de rafraîchissement inconnu, déjà révoqué, ou n'appartenant pas à l'utilisateur connecté.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Session not found.")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la révocation.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Sessions",
     security(

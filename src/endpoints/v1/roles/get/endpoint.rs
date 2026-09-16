@@ -1,5 +1,5 @@
 use crate::database::roles::get_roles::GetRolesQueryView;
-use crate::endpoints::v1::roles::get::view::GetResponseView;
+use crate::endpoints::v1::roles::get::view::GetRolesResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::state::AppState;
@@ -31,21 +31,51 @@ impl ResponseError for GetError {
     }
 }
 
-async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
+async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetRolesResultView, GetError> {
     let view = GetRolesQueryView::default();
     let result = state.get_smart_db().fetch_all(&view).await.map_err(|e| {
         eprintln!("Login DB Error: {e}");
         GetError::DatabaseError
     })?;
-    Ok(GetResponseView::from(result))
+    Ok(GetRolesResultView::from(result))
 }
 
 #[utoipa::path(
     get,
     path = "/",
+    summary = "Lister les rôles disponibles",
+    description = "Renvoie tous les rôles définis sur la plateforme, pour alimenter un sélecteur \
+                   côté client. Lecture seule et ouverte à tout utilisateur authentifié : la \
+                   création, la modification et la suppression des rôles passent par \
+                   `/api/v1/admin/roles`, réservé aux administrateurs.\n\n\
+                   Un rôle sans description renvoie une chaîne vide, jamais `null`.",
     responses(
-        (status = 200, description = "Roles retrieved successfully", body = GetResponseView),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Liste des rôles de la plateforme.",
+            body = GetRolesResultView,
+            example = json!({
+                "roles": [
+                    { "id": 1, "name": "admin", "description": "Administrateur de la plateforme" },
+                    { "id": 2, "name": "agent", "description": "Agent municipal" },
+                    { "id": 3, "name": "citoyen", "description": "" }
+                ]
+            })
+        ),
+        (
+            status = 401,
+            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de la lecture des rôles.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Roles",
     security(

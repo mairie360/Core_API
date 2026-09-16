@@ -34,7 +34,7 @@ impl UnsetFirstConnectionQueryView {
 
 impl ApiRequestDto for UnsetFirstConnectionQueryView {
     fn query_sql(&self) -> &'static str {
-        "UPDATE users SET first_connect = false AND password = $1 WHERE id = $2"
+        "UPDATE users SET first_connect = false, password = $1 WHERE id = $2"
     }
 
     fn query_params(&self) -> &[QueryParam] {

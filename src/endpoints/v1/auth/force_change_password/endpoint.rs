@@ -44,7 +44,6 @@ impl ResponseError for ForceChanhePasswordError {
 }
 
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
-    println!("{token}/first_connection_id");
     match state
         .get_redis()
         .secure_get::<String>(&format!("{token}/first_connection_id"))
@@ -88,19 +87,80 @@ async fn force_change_password_trigger(
     }
 
     change_password(smart_db, user_id, view.new_password()).await?;
+    consume_first_connection_token(&state, view.token(), user_id).await;
 
     Ok(())
 }
 
+/// Le jeton de première connexion est à usage unique : une fois le mot de passe enregistré, les deux
+/// clés posées au login sont supprimées. Un échec Redis n'annule pas le changement déjà persisté.
+async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
+    let redis = state.get_redis();
+    for key in [
+        format!("{}/first_connection_id", token),
+        format!("{}/first_connection_token", user_id),
+    ] {
+        if let Err(error) = redis.secure_delete(&key).await {
+            eprintln!(
+                "Suppression du jeton de première connexion impossible : {:?}",
+                error
+            );
+        }
+    }
+}
+
 #[utoipa::path(
     post,
-    path = "/",
+    path = "",
+    summary = "Changer le mot de passe imposé à la première connexion",
+    description = "Termine le parcours de première connexion : `POST /api/v1/auth/login` répond \
+                   `412` avec un jeton à usage unique tant que l'utilisateur n'a pas choisi son \
+                   propre mot de passe. Cet endpoint consomme ce jeton et enregistre le nouveau \
+                   mot de passe ; l'utilisateur peut ensuite se connecter normalement.\n\n\
+                   Contrairement à `reset_password`, aucune session n'est ouverte ici : la réponse \
+                   a un corps vide et il faut rappeler `POST /api/v1/auth/login`.\n\n\
+                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.",
+    request_body(
+        content = ForceChangePasswordView,
+        description = "Jeton de première connexion renvoyé par le `412` du login, et nouveau mot de passe.",
+        example = json!({
+            "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35",
+            "new_password": "NouveauMotDePasse!123"
+        })
+    ),
     responses(
-        (status = 200, description = "Password changed successfully"),
-        (status = 400, description = "Bad request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Unknown user token"),
-        (status = 500, description = "Internal server error")
+        (
+            status = 200,
+            description = "Mot de passe enregistré et jeton de première connexion consommé. Corps vide.",
+        ),
+        (
+            status = 400,
+            description = "Corps JSON malformé ou champ obligatoire absent.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Json deserialize error: missing field `token`")
+        ),
+        (
+            status = 401,
+            description = "Le jeton est valide mais le compte n'est plus en première connexion : le mot de passe a déjà été changé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unauthorized")
+        ),
+        (
+            status = 403,
+            description = "Jeton de première connexion inconnu, expiré ou déjà consommé.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown user token")
+        ),
+        (
+            status = 500,
+            description = "Erreur de base de données lors de l'enregistrement du mot de passe.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
     ),
     tag = "Auth"
 )]

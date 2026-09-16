@@ -17,7 +17,7 @@ use crate::endpoints::v1::admin::roles::put::endpoint::__path_admin_put_role;
     ),
     components(schemas(
         super::view::RoleWriteView,
-        super::get::view::GetResponseView,
+        super::get::view::AdminGetRolesResultView,
         super::patch::view::PatchView,
     ))
 )]
