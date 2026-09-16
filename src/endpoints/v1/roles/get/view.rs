@@ -20,11 +20,11 @@ impl From<RoleQueryResult> for Role {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct GetResponseView {
+pub struct GetRolesResultView {
     roles: Vec<Role>,
 }
 
-impl From<Vec<RoleQueryResult>> for GetResponseView {
+impl From<Vec<RoleQueryResult>> for GetRolesResultView {
     fn from(results: Vec<RoleQueryResult>) -> Self {
         Self {
             roles: results.into_iter().map(|r| r.into()).collect(),

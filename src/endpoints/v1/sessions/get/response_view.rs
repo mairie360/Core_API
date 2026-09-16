@@ -5,24 +5,28 @@ use utoipa::ToSchema;
 use crate::endpoints::v1::sessions::view::SessionSchema;
 
 #[derive(Serialize, Deserialize, ToSchema)]
-pub struct GetResponseView {
+pub struct GetSessionsResultView {
     sessions: Vec<SessionSchema>,
 }
 
-impl GetResponseView {
+impl GetSessionsResultView {
     pub fn new(sessions: Vec<SessionSchema>) -> Self {
-        GetResponseView { sessions }
+        GetSessionsResultView { sessions }
     }
 }
 
-impl Display for GetResponseView {
+impl Display for GetSessionsResultView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetResponseView {{ sessions: {:?} }}", self.sessions)
+        write!(
+            f,
+            "GetSessionsResultView {{ sessions: {:?} }}",
+            self.sessions
+        )
     }
 }
 
-impl From<Vec<SessionSchema>> for GetResponseView {
+impl From<Vec<SessionSchema>> for GetSessionsResultView {
     fn from(sessions: Vec<SessionSchema>) -> Self {
-        GetResponseView { sessions }
+        GetSessionsResultView { sessions }
     }
 }

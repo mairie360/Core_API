@@ -1,5 +1,5 @@
 use crate::database::roles::get_roles::GetRolesQueryView;
-use crate::endpoints::v1::roles::get::view::GetResponseView;
+use crate::endpoints::v1::roles::get::view::GetRolesResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::state::AppState;
@@ -31,20 +31,20 @@ impl ResponseError for GetError {
     }
 }
 
-async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetResponseView, GetError> {
+async fn trigger_get_roles(state: web::Data<AppState>) -> Result<GetRolesResultView, GetError> {
     let view = GetRolesQueryView::default();
     let result = state.get_smart_db().fetch_all(&view).await.map_err(|e| {
         eprintln!("Login DB Error: {}", e);
         GetError::DatabaseError
     })?;
-    Ok(GetResponseView::from(result))
+    Ok(GetRolesResultView::from(result))
 }
 
 #[utoipa::path(
     get,
     path = "/",
     responses(
-        (status = 200, description = "Roles retrieved successfully", body = GetResponseView),
+        (status = 200, description = "Roles retrieved successfully", body = GetRolesResultView),
         (status = 500, description = "Internal server error")
     ),
     tag = "Roles",

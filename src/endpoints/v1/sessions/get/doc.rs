@@ -4,6 +4,6 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(endpoint::get_active_sessions),
-    components(schemas(super::response_view::GetResponseView),)
+    components(schemas(super::response_view::GetSessionsResultView),)
 )]
 pub struct GetDoc;

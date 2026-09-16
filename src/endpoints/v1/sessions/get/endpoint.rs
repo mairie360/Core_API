@@ -1,5 +1,5 @@
 use crate::database::sessions::get_active_sessions::GetActiveSessionsQueryView;
-use crate::endpoints::v1::sessions::get::response_view::GetResponseView;
+use crate::endpoints::v1::sessions::get::response_view::GetSessionsResultView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
@@ -36,7 +36,7 @@ impl ResponseError for GetError {
 async fn get_user_info(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
-) -> Result<GetResponseView, GetError> {
+) -> Result<GetSessionsResultView, GetError> {
     let user_id = user.id;
 
     // Le cache Redis est désormais géré par `SmartDatabase` (cache-aside), via
@@ -47,7 +47,7 @@ async fn get_user_info(
         .await
         .map_err(|_| GetError::DatabaseError)?;
 
-    Ok(GetResponseView::new(
+    Ok(GetSessionsResultView::new(
         query_result.into_iter().map(|s| s.into()).collect(),
     ))
 }
@@ -56,7 +56,7 @@ async fn get_user_info(
     get,
     path = "",
     responses(
-        (status = 200, description = "User info retrieved successfully", body = GetResponseView),
+        (status = 200, description = "User info retrieved successfully", body = GetSessionsResultView),
         (status = 500, description = "Internal server error")
     ),
     tag = "Sessions",
