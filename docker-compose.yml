@@ -42,7 +42,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:1.2.1
+    image: ghcr.io/mairie360/database:1.3.0
     restart: always
     container_name: mairie360-db-core-api
     environment:
