@@ -34,7 +34,9 @@ docker compose up --build --watch   # full stack: postgres, liquibase migrations
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET`, `JWT_TIMEOUT` and
 `SMTP_*`/`EMAIL_FROM` env vars — all fetched with `get_critical_env_var` (panics on missing var), see
-`docker-compose.yml` for the dev values.
+`docker-compose.yml` for the dev values. The Postgres URL is assembled by
+`database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
+`DB_PASSWORD` may contain any character.
 
 Tests:
 
