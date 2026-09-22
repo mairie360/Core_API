@@ -4,7 +4,6 @@ use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
-use crate::password::{hash_password, is_hashed_password, verify_password};
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
@@ -12,6 +11,7 @@ use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use rand::fill;
@@ -184,9 +184,16 @@ async fn login_user(
     let stored_password = user.password();
     // Accounts created before this migration still hold a plaintext password: compare it
     // directly and, on success, replace it with a hash so the plaintext value is never read
-    // again. Everything hashed already goes through `verify_password`.
-    let credentials_valid = if is_hashed_password(stored_password) {
-        verify_password(&login_view.password(), stored_password)
+    // again. Everything hashed already goes through `verify_password`, which only accepts a
+    // value `is_hashed` agrees is an argon2id PHC string.
+    let credentials_valid = if is_hashed(stored_password) {
+        verify_password(&login_view.password(), stored_password).unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to verify password hash for {}: {e}",
+                login_view.email()
+            );
+            false
+        })
     } else {
         login_view.password() == stored_password.trim()
     };
@@ -199,7 +206,7 @@ async fn login_user(
         return Err(LoginError::InvalidCredentials);
     }
 
-    if !is_hashed_password(stored_password) {
+    if !is_hashed(stored_password) {
         migrate_plaintext_password(
             state.get_smart_db(),
             user.user_id() as u64,

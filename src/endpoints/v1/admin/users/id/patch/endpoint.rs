@@ -1,9 +1,10 @@
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::state::AppState;
 
 use crate::{
     database::users::patch_user::PatchUserQueryView,
-    endpoints::v1::admin::users::id::patch::view::PatchUserView, password::hash_password,
+    endpoints::v1::admin::users::id::patch::view::PatchUserView,
 };
 
 #[derive(Debug, Clone, PartialEq)]
