@@ -2,6 +2,7 @@ use crate::database::admin::reset_password::AdminResetPasswordQueryView;
 use crate::endpoints::v1::admin::users::id::password::view::{
     AdminResetPasswordView, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH,
 };
+use crate::password::hash_password;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::state::AppState;
 
@@ -50,12 +51,14 @@ async fn reset_password(
         return Err(ResetPasswordError::InvalidPassword);
     }
 
+    let hashed_password = hash_password(view.new_password()).map_err(|error| {
+        eprintln!("{:?}", error);
+        ResetPasswordError::DatabaseError
+    })?;
+
     let updated: bool = state
         .get_smart_db()
-        .fetch_scalar(&AdminResetPasswordQueryView::new(
-            user_id,
-            view.new_password(),
-        ))
+        .fetch_scalar(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
         .map_err(|error| {
             eprintln!("{:?}", error);

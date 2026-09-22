@@ -16,6 +16,7 @@
 
 pub mod database;
 pub mod endpoints;
+pub mod password;
 
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,

@@ -3,18 +3,20 @@ use mairie360_api_lib::state::AppState;
 
 use crate::{
     database::users::patch_user::PatchUserQueryView,
-    endpoints::v1::admin::users::id::patch::view::PatchUserView,
+    endpoints::v1::admin::users::id::patch::view::PatchUserView, password::hash_password,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchUserError {
     UnknownUser,
+    DatabaseError,
 }
 
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnknownUser => write!(f, "Unknown user"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
         }
     }
 }
@@ -23,6 +25,7 @@ impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -36,13 +39,22 @@ async fn patch_user(
     user_id: u64,
     view: PatchUserView,
 ) -> Result<(), PatchUserError> {
+    let hashed_password = view
+        .password()
+        .map(hash_password)
+        .transpose()
+        .map_err(|e| {
+            eprintln!("Password hashing error: {e}");
+            PatchUserError::DatabaseError
+        })?;
+
     let view = PatchUserQueryView::new(
         user_id,
         view.first_name(),
         view.last_name(),
         view.email(),
         view.phone_number(),
-        view.password(),
+        hashed_password.as_deref(),
     );
     if !view.is_noop() {
         state
@@ -113,6 +125,13 @@ async fn patch_user(
             body = String,
             content_type = "text/plain",
             example = json!("Unknown user")
+        ),
+        (
+            status = 500,
+            description = "Le champ `password` était présent mais n'a pas pu être haché (erreur interne argon2).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
         ),
     ),
     tag = "Admin - Users",
