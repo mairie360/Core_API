@@ -1,9 +1,9 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
-use crate::password::hash_password;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 

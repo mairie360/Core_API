@@ -2,9 +2,9 @@ use crate::common::{get_pool, get_raw_pool};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::endpoints::{config, public_config};
-use core_api::password::is_hashed_password;
 use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
+    password::is_hashed, security::JwtMiddleware, state::AppState,
+    test_setup::queries_setup::get_shared_db,
 };
 use serde_json::json;
 use serial_test::serial;
@@ -89,7 +89,7 @@ async fn register_stores_a_hash_not_the_plaintext_password() {
 
     let stored_password = fetch_stored_password(&raw_pool, &email).await;
     assert_ne!(stored_password, "plaintext_password_123");
-    assert!(is_hashed_password(&stored_password));
+    assert!(is_hashed(&stored_password));
 }
 
 #[tokio::test]
@@ -119,7 +119,7 @@ async fn login_migrates_legacy_plaintext_password_to_a_hash() {
 
     let stored_password = fetch_stored_password(&raw_pool, &email).await;
     assert_ne!(stored_password, "legacy_plaintext_pw");
-    assert!(is_hashed_password(&stored_password));
+    assert!(is_hashed(&stored_password));
 }
 
 #[tokio::test]

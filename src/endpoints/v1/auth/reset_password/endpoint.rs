@@ -4,10 +4,10 @@ use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
-use crate::password::hash_password;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 

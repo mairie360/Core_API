@@ -1,8 +1,8 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
-use crate::password::hash_password;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
