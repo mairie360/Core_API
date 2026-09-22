@@ -4,6 +4,7 @@ use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
+use crate::password::hash_password;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -61,7 +62,11 @@ async fn reset_pwd(
     new_password: &str,
     user_id: u64,
 ) -> Result<(), ResetPasswordError> {
-    let view = ChangePasswordQueryView::new(new_password, user_id);
+    let hashed_password = hash_password(new_password).map_err(|e| {
+        eprintln!("Password hashing error: {e}");
+        ResetPasswordError::DatabaseError
+    })?;
+    let view = ChangePasswordQueryView::new(&hashed_password, user_id);
     smart_db
         .execute(view)
         .await

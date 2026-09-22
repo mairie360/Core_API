@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
+use crate::password::hash_password;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -66,8 +67,15 @@ async fn change_password(
     user_id: u64,
     new_password: &str,
 ) -> Result<(), ForceChanhePasswordError> {
+    let hashed_password = hash_password(new_password).map_err(|e| {
+        eprintln!("Password hashing error: {e}");
+        ForceChanhePasswordError::DatabaseError
+    })?;
     smart_db
-        .execute(UnsetFirstConnectionQueryView::new(user_id, new_password))
+        .execute(UnsetFirstConnectionQueryView::new(
+            user_id,
+            &hashed_password,
+        ))
         .await
         .map_err(|_| ForceChanhePasswordError::DatabaseError)
 }
