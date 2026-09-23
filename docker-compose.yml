@@ -131,6 +131,11 @@ services:
       SMTP_USERNAME: "" # Pas besoin d'authentification en local
       SMTP_PASSWORD: "" # Pas besoin d'authentification en local
       EMAIL_FROM: "noreply.mairie360@dev.local"
+      # Keycloak SSO (POST /api/v1/auth/keycloak), disabled while these are empty
+      KEYCLOAK_REALM_URL: ${KEYCLOAK_REALM_URL:-}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
     depends_on:
       liquibase:
         condition: service_completed_successfully

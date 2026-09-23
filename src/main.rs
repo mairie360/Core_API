@@ -6,6 +6,7 @@ use actix_web::{middleware, web, App, HttpServer};
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
+use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
@@ -26,13 +27,20 @@ async fn main() -> std::io::Result<()> {
     let pg_url = format!("postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}");
     let state = AppState::new(redis_url, pg_url).await;
     let data = web::Data::new(state);
+    // Keycloak sign-in is optional during the transition: without its env vars, only the
+    // password login is available and `POST /api/v1/auth/keycloak` answers 503.
+    let keycloak =
+        KeycloakConfig::from_env().map(|config| web::Data::new(KeycloakClient::new(config)));
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{host}:{port}");
     let server = HttpServer::new(move || {
-        App::new()
-            .app_data(data.clone())
-            .wrap(middleware::Logger::default())
+        let app = App::new().app_data(data.clone());
+        let app = match &keycloak {
+            Some(keycloak) => app.app_data(keycloak.clone()),
+            None => app,
+        };
+        app.wrap(middleware::Logger::default())
             // post requests
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
