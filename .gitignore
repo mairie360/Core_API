@@ -20,8 +20,9 @@ target/
 
 /target
 
-# Postman tests config file
-collection.json
+# Postman collections are committed under tests/postman/ (newman integration tests);
+# only ad-hoc exports at the repo root stay ignored.
+/collection.json
 
 #Env file
 .env

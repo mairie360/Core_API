@@ -1,0 +1,48 @@
+{
+  "name": "Core API integration",
+  "_postman_variable_scope": "environment",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "test_user_password",
+      "value": "Newman!Password123",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "test_user_new_password",
+      "value": "Newman!Password456",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "test_user_email",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "first_connection_token",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "jwt",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}
