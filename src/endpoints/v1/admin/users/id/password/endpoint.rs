@@ -15,13 +15,12 @@ enum ResetPasswordError {
 impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResetPasswordError::InvalidPassword => write!(
+            Self::InvalidPassword => write!(
                 f,
-                "The password must contain between {} and {} characters",
-                MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH
+                "The password must contain between {MIN_PASSWORD_LENGTH} and {MAX_PASSWORD_LENGTH} characters"
             ),
-            ResetPasswordError::UnknownUser => write!(f, "Unknown user"),
-            ResetPasswordError::DatabaseError => write!(f, "Database error occurred"),
+            Self::UnknownUser => write!(f, "Unknown user"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
         }
     }
 }
@@ -29,9 +28,9 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ResetPasswordError::InvalidPassword => StatusCode::BAD_REQUEST,
-            ResetPasswordError::UnknownUser => StatusCode::NOT_FOUND,
-            ResetPasswordError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidPassword => StatusCode::BAD_REQUEST,
+            Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -58,7 +57,7 @@ async fn reset_password(
         ))
         .await
         .map_err(|error| {
-            eprintln!("{:?}", error);
+            eprintln!("{error:?}");
             ResetPasswordError::DatabaseError
         })?;
 

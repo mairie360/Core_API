@@ -9,7 +9,7 @@ use serial_test::serial;
 #[serial]
 async fn update_group_keeps_fields_that_are_not_provided() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let owner = *ALICE_ID.get().unwrap();
     let group_id: i32 = pool
         .fetch_scalar(&CreateGroupQueryView::new(
@@ -61,7 +61,7 @@ async fn update_group_keeps_fields_that_are_not_provided() {
 #[serial]
 async fn update_group_unknown_group_returns_no_row() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let result: Vec<Group> = pool
         .fetch_all(&UpdateGroupQueryView::new(999_999, Some("inconnu"), None))
