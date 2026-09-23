@@ -261,6 +261,80 @@ async fn test_send_password_setup_email() {
     );
 }
 
+#[tokio::test]
+async fn test_set_enabled_only_touches_the_flag() {
+    let mock = KeycloakMock::start();
+    let id = mock.seed_user("claire.martin@mairie360.test", true);
+    let admin = mock.admin_client();
+
+    admin.set_enabled(&id, false).await.unwrap();
+    let user = mock.user(&id).unwrap();
+    assert!(!user.enabled);
+    assert_eq!(user.first_name, "Seeded", "profile untouched");
+
+    admin.set_enabled(&id, true).await.unwrap();
+    assert!(mock.user(&id).unwrap().enabled);
+
+    assert_eq!(
+        admin.set_enabled("vanished", false).await,
+        Err(KeycloakAdminError::NotFound)
+    );
+}
+
+#[tokio::test]
+async fn test_delete_user_is_idempotent() {
+    let mock = KeycloakMock::start();
+    let id = mock.seed_user("claire.martin@mairie360.test", true);
+    let admin = mock.admin_client();
+
+    admin.delete_user(&id).await.unwrap();
+    assert!(mock.users().is_empty());
+    assert_eq!(mock.deletions(), vec![id.clone()]);
+
+    assert_eq!(admin.delete_user(&id).await, Ok(()), "already gone");
+}
+
+#[tokio::test]
+async fn test_logout_user_ends_the_sessions() {
+    let mock = KeycloakMock::start();
+    let id = mock.seed_user("claire.martin@mairie360.test", true);
+    let admin = mock.admin_client();
+
+    admin.logout_user(&id).await.unwrap();
+    assert_eq!(mock.logouts(), vec![id]);
+
+    assert_eq!(
+        admin.logout_user("vanished").await,
+        Err(KeycloakAdminError::NotFound)
+    );
+}
+
+#[tokio::test]
+async fn test_remove_user_realm_roles_unmaps_only_the_given_roles() {
+    let mock = KeycloakMock::start();
+    let id = mock.seed_user("claire.martin@mairie360.test", true);
+    mock.map_role(&id, "Maire");
+    mock.map_role(&id, "User");
+    let admin = mock.admin_client();
+    let maire = admin.realm_role("Maire").await.unwrap().unwrap();
+
+    admin
+        .remove_user_realm_roles(&id, std::slice::from_ref(&maire))
+        .await
+        .unwrap();
+    assert_eq!(
+        mock.user(&id).unwrap().realm_roles,
+        vec!["User".to_string()]
+    );
+
+    assert_eq!(
+        admin
+            .remove_user_realm_roles("vanished", std::slice::from_ref(&maire))
+            .await,
+        Err(KeycloakAdminError::NotFound)
+    );
+}
+
 #[test]
 fn test_admin_error_messages() {
     assert_eq!(

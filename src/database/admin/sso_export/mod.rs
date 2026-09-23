@@ -1,2 +1,2 @@
 mod view;
-pub use view::{ListSsoExportQueryView, SsoExportUser};
+pub use view::{GetSsoExportUserQueryView, ListSsoExportQueryView, SsoExportUser};

@@ -58,6 +58,18 @@ roles, disable archived accounts, then link through `link_user_identity()`. Repl
 duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
 compose files pin it and `.cargo/config.toml` sets `TEST_DB_VERSION` for the testcontainers.
 
+Administration mirroring (MAIR-142, `src/keycloak/sync.rs`): when `main.rs` registers a
+`KeycloakAdminClient` as app data (confidential client only), `POST /api/v1/admin/users/`,
+`PATCH`/`DELETE /api/v1/admin/users/{id}/` and the role grant/revoke take it as
+`Option<web::Data<KeycloakAdminClient>>` and mirror the change into the realm **before** the
+Core write, compensating the Keycloak side (delete the reserved account, restore the former
+profile, re-enable, re-map...) when Core refuses. Accounts are found by the recorded link, then
+by e-mail (linked on the spot); an account unknown to Keycloak is left to the migration, and
+without the client only Core is written. `DELETE /api/v1/admin/users/{id}/` archives through
+`DELETE FROM v_users_active` (the schema has no `delete_user()` function; the endpoint was
+broken before MAIR-142). The fake realm of `tests/common/keycloak_mock.rs` covers the Admin API
+subset used; `tests/endpoints/admin_users_keycloak.rs` exercises every path.
+
 Tests:
 
 ```bash

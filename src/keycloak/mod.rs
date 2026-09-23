@@ -10,13 +10,15 @@
 //!
 //! [`migration`] provisions every existing account and its roles in the realm through the
 //! Admin API and records the links, so nobody has to recreate an account by hand
-//! (MAIR-141).
+//! (MAIR-141). [`sync`] then keeps the realm in step with what administrators change in
+//! Core: accounts created, edited or archived, roles granted or revoked (MAIR-142).
 
 mod admin;
 mod client;
 mod config;
 mod error;
 pub mod migration;
+pub mod sync;
 
 pub use admin::{
     KeycloakAdminClient, KeycloakAdminError, KeycloakRole, KeycloakUser, KeycloakUserProfile,
