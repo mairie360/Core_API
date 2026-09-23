@@ -2,6 +2,7 @@ pub mod health;
 pub mod hello;
 pub mod swagger;
 pub mod v1;
+pub mod validation;
 
 use actix_web::web;
 

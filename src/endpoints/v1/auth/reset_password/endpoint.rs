@@ -4,6 +4,7 @@ use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -22,7 +23,10 @@ impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
-                write!(f, "Internal server error")
+                write!(
+                    f,
+                    "The password could not be reset, please try again later."
+                )
             }
             Self::UnknownToken => {
                 write!(f, "Unknown token")
@@ -144,10 +148,10 @@ async fn reset_password_trigger(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ obligatoire absent.",
+            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` empty, longer than 255 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `token`")
+            example = json!("Invalid `token`: must not contain control characters")
         ),
         (
             status = 401,
@@ -158,10 +162,10 @@ async fn reset_password_trigger(
         ),
         (
             status = 500,
-            description = "Erreur de base de données, de Redis, ou échec de génération du JWT.",
+            description = "Database or Redis failure, or JWT generation failure.",
             body = String,
             content_type = "text/plain",
-            example = json!("Internal server error")
+            example = json!("The password could not be reset, please try again later.")
         )
     ),
     tag = "Auth",
@@ -169,7 +173,7 @@ async fn reset_password_trigger(
 #[post("/reset_password")]
 pub async fn reset_password(
     state: web::Data<AppState>,
-    body: web::Json<ResetPasswordView>,
+    body: ValidatedJson<ResetPasswordView>,
     conn: ConnectionInfo,
 ) -> Result<impl Responder, ResetPasswordError> {
     let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();

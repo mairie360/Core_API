@@ -1,6 +1,7 @@
 use crate::database::groups::get_group::Group;
 use crate::database::groups::update_group::UpdateGroupQueryView;
 use crate::endpoints::v1::groups::id::patch::view::{PatchGroupView, MAX_GROUP_NAME_LENGTH};
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -105,10 +106,10 @@ async fn trigger_patch_group(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, aucun champ à modifier, ou nom vide ou de plus de 255 caractères.",
+            description = "Malformed JSON body, no field to update, or a field breaking its rules: `name` 1 to 64 characters once trimmed, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `name`: must not contain `<` or `>`")
         ),
         (
             status = 401,
@@ -142,7 +143,7 @@ pub async fn patch_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
-    view: web::Json<PatchGroupView>,
+    view: ValidatedJson<PatchGroupView>,
 ) -> Result<impl Responder, PatchGroupError> {
     let group = trigger_patch_group(state, id.into_inner(), view.into_inner()).await?;
     Ok(HttpResponse::Ok().json(group))

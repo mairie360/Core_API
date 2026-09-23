@@ -33,6 +33,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(data.clone())
             .wrap(middleware::Logger::default())
+            // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
+            .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // post requests
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")

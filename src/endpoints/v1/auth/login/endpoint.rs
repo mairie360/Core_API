@@ -3,6 +3,7 @@ use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
@@ -202,6 +203,13 @@ async fn login_user(
             example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
         ),
         (
+            status = 400,
+            description = "Malformed JSON body, missing field, or `email` (320), `password` (255) or `device_info` (512) longer than its limit or containing a control character. A well-formed but unknown address answers `401`, not `400`.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid `email`: must not contain control characters")
+        ),
+        (
             status = 401,
             description = "Adresse e-mail inconnue ou mot de passe incorrect.",
             body = String,
@@ -226,7 +234,7 @@ async fn login_user(
 )]
 #[post("/login")]
 pub async fn login(
-    payload: web::Json<LoginView>,
+    payload: ValidatedJson<LoginView>,
     state: web::Data<AppState>,
     conn: ConnectionInfo,
 ) -> Result<impl Responder, LoginError> {

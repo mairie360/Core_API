@@ -1,5 +1,6 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -7,7 +8,6 @@ use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum CreateUserError {
-    InvalidData,
     UserAlreadyExists,
     DatabaseError,
 }
@@ -15,7 +15,6 @@ enum CreateUserError {
 impl std::fmt::Display for CreateUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidData => write!(f, "Invalid data provided"),
             Self::UserAlreadyExists => write!(f, "User already exists"),
             Self::DatabaseError => write!(f, "Database error occurred"),
         }
@@ -25,7 +24,6 @@ impl std::fmt::Display for CreateUserError {
 impl ResponseError for CreateUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::InvalidData => StatusCode::BAD_REQUEST,
             Self::UserAlreadyExists => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -36,34 +34,10 @@ impl ResponseError for CreateUserError {
     }
 }
 
-fn is_valid_email(email: &str) -> bool {
-    if email.is_empty() {
-        return false;
-    }
-    email.find('@').is_some_and(|index| {
-        let domain = &email[index + 1..];
-        !domain.is_empty() && domain.contains('.')
-    })
-}
-
-const fn is_valid_password(password: &str) -> bool {
-    //Need to be more complex and based on requirements
-    password.len() >= 8
-}
-
-fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
-    //Need to be more complex and based on requirements
-    phone_number.is_none_or(|num| num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()))
-}
-
 async fn can_be_registered(
     register_view: &CreateUserView,
     smart_db: &SmartDatabase,
 ) -> Result<(), CreateUserError> {
-    if !is_valid_email(register_view.email()) {
-        return Err(CreateUserError::InvalidData);
-    }
-
     let exists: bool = smart_db
         .fetch_scalar(&DoesUserExistByEmailQueryView::new(
             register_view.email().to_string(),
@@ -75,12 +49,6 @@ async fn can_be_registered(
         return Err(CreateUserError::UserAlreadyExists);
     }
 
-    if !is_valid_password(register_view.password()) {
-        return Err(CreateUserError::InvalidData);
-    }
-    if !is_valid_phone_number(register_view.phone_number()) {
-        return Err(CreateUserError::InvalidData);
-    }
     Ok(())
 }
 
@@ -117,15 +85,20 @@ async fn register_user(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Créer un compte utilisateur (administration)",
-    description = "Crée un compte au nom d'un administrateur, sans que la personne ait à \
-                   s'inscrire. Réservé aux administrateurs.\n\n\
-                   Mêmes règles de validation que `POST /api/v1/auth/register` : e-mail de la \
-                   forme `locale@domaine.tld`, mot de passe d'au moins 8 caractères, téléphone \
-                   facultatif d'au moins 10 chiffres. Toutes partagent le même `400`.\n\n\
-                   Le mot de passe fourni ici est provisoire : le compte est marqué en première \
-                   connexion, et le premier `POST /api/v1/auth/login` de l'utilisateur répondra \
-                   `412` pour lui faire choisir le sien.",
+    summary = "Create a user account (administration)",
+    description = "Creates an account on behalf of an administrator, without the person having \
+                   to sign up. Administrators only.\n\n\
+                   Validations applied before anything is written, in this order (the first failing field \
+                   is named in the `400` body):\n\
+                   - `first_name`, `last_name`: 1 to 64 characters, not blank, no control \
+                   character, no `<` or `>`;\n\
+                   - `email`: a valid e-mail address (`local@domain.tld`), at most 320 characters;\n\
+                   - `password`: 8 to 255 characters, no control character;\n\
+                   - `phone_number`: optional; when present, 10 to 15 digits only (no space, `+` \
+                   or separator).\n\n\
+                   The password given here is temporary: the account is flagged as first \
+                   connection, and the user's first `POST /api/v1/auth/login` answers `412` so \
+                   they choose their own.",
     request_body(
         content = CreateUserView,
         description = "État civil, identifiants provisoires et téléphone facultatif du compte à créer.",
@@ -147,10 +120,10 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou e-mail, mot de passe ou numéro de téléphone ne respectant pas les règles ci-dessus.",
+            description = "Malformed JSON body, missing field, or a field breaking the validation rules above; the body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid data provided")
+            example = json!("Invalid `email`: must be a valid e-mail address")
         ),
         (
             status = 401,
@@ -188,7 +161,7 @@ async fn register_user(
 )]
 #[post("/")]
 pub async fn admin_post_user(
-    payload: web::Json<CreateUserView>,
+    payload: ValidatedJson<CreateUserView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, CreateUserError> {
     let register_view = payload.into_inner();

@@ -2,6 +2,7 @@ use crate::database::users::list_directory::{DirectoryUser, ListDirectoryUsersQu
 use crate::endpoints::v1::user::get::view::{
     parse_id_list, DirectoryUsersQuery, DirectoryUsersResultView, MAX_DIRECTORY_LIMIT,
 };
+use crate::endpoints::validation::ValidatedQuery;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -107,10 +108,10 @@ async fn trigger_list_directory_users(
         ),
         (
             status = 400,
-            description = "`ids` ou `group_ids` ne sont pas des listes d'entiers strictement positifs séparés par des virgules, ou `limit` est hors de l'intervalle 1–1000.",
+            description = "`ids` or `group_ids` is not a comma-separated list of strictly positive integers, `limit` is outside 1–1000, or `search`, `ids` or `group_ids` is longer than 255 characters or contains a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `search`: must not contain control characters")
         ),
         (
             status = 401,
@@ -136,7 +137,7 @@ async fn trigger_list_directory_users(
 pub async fn list_directory_users(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
-    query: web::Query<DirectoryUsersQuery>,
+    query: ValidatedQuery<DirectoryUsersQuery>,
 ) -> Result<impl Responder, DirectoryError> {
     let result = trigger_list_directory_users(state, query.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))

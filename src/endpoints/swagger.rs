@@ -25,19 +25,23 @@ présenter sur chaque appel dans l'en-tête `Authorization`, et le renouveler vi
 Les routes sous `/api/v1/admin` exigent en plus que l'utilisateur soit administrateur \
 (`AdminMiddleware`), sans quoi elles répondent `403 Forbidden`.
 
-## Format des erreurs
+## Error format
 
-Les réponses d'erreur (`4xx` et `5xx`) ont un corps **`text/plain`** contenant le message \
-d'erreur, et non un objet JSON. Les seules exceptions sont documentées explicitement opération par \
-opération (par exemple le `412` de `POST /api/v1/auth/login`, qui renvoie un objet JSON).
+Error responses (`4xx` and `5xx`) have a **`text/plain`** body holding the error message, not a \
+JSON object. The only exceptions are documented explicitly per operation (for example the `412` \
+of `POST /api/v1/auth/login`, which returns a JSON object). Every response carries \
+`X-Content-Type-Options: nosniff`.
 
-Statuts renvoyés de façon transverse par les intergiciels, avant même d'atteindre le handler :
+Statuses returned across the API, before the handler runs:
 
-| Statut | Signification |
+| Status | Meaning |
 | --- | --- |
-| `401 Unauthorized` | En-tête `Authorization` absent, malformé, JWT invalide ou expiré, ou session révoquée. |
-| `403 Forbidden` | JWT valide mais droits insuffisants (route `admin` ou contrôle d'accès à la ressource). |
-| `500 Internal Server Error` | Panne de la base de données, de Redis ou d'un service externe. |
+| `400` | Malformed body or query string, or a field breaking its validation rules (length, \
+format, control characters, `<` / `>` in names and descriptions); the body names the first \
+invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
+| `401` | `Authorization` header missing or malformed, invalid or expired JWT, or revoked session. |
+| `403` | Valid JWT but insufficient rights (`admin` route or resource access control). |
+| `500` | Database, Redis or external service failure. |
 ",
         contact(
             name = "Équipe Mairie 360",

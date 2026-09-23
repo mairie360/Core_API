@@ -5,6 +5,7 @@ use mairie360_api_lib::security::AuthenticatedUser;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 
+use crate::endpoints::validation::ValidatedJson;
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
 use mairie360_api_lib::state::AppState;
 
@@ -90,10 +91,10 @@ async fn revoke_request(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ `refresh_token` absent.",
+            description = "Malformed JSON body, missing `refresh_token`, or `refresh_token` longer than 512 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `refresh_token`")
+            example = json!("Invalid `refresh_token`: must not contain control characters")
         ),
         (
             status = 401,
@@ -122,7 +123,7 @@ async fn revoke_request(
 #[allow(clippy::future_not_send)]
 pub async fn revoke(
     user: AuthenticatedUser,
-    body: web::Json<RevokeRequestView>,
+    body: ValidatedJson<RevokeRequestView>,
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RevokeError> {

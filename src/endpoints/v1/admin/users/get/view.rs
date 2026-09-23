@@ -1,4 +1,7 @@
 use crate::database::admin::list_users::AdminUserRow;
+use crate::endpoints::validation::{
+    check_opaque, check_optional, Validate, ValidationError, MAX_SEARCH_LENGTH,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
@@ -16,7 +19,7 @@ pub struct AdminListUsersQuery {
     #[param(minimum = 1, maximum = 500, example = 20)]
     page_size: Option<u64>,
     /// Recherche sur le prénom, le nom ou l'email. Insensible à la casse et partielle.
-    #[param(example = "dupont")]
+    #[param(max_length = 255, example = "dupont")]
     search: Option<String>,
     /// Restreint la liste aux membres de ce groupe.
     #[param(example = 3)]
@@ -58,4 +61,12 @@ pub struct AdminListUsersResultView {
     /// Nombre de pages, soit `total` divisé par `page_size`, arrondi au supérieur.
     #[schema(example = 7)]
     pub total_pages: u64,
+}
+
+impl Validate for AdminListUsersQuery {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_optional(self.search.as_deref(), |search| {
+            check_opaque("search", search, MAX_SEARCH_LENGTH)
+        })
+    }
 }

@@ -1,6 +1,9 @@
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
+use crate::endpoints::validation::ValidatedJson;
 use crate::{
     database::users::patch_user::PatchUserQueryView,
     endpoints::v1::admin::users::id::patch::view::PatchUserView,
@@ -8,12 +11,16 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchUserError {
+    EmailAlreadyUsed,
     UnknownUser,
 }
 
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::EmailAlreadyUsed => {
+                write!(f, "Another account already uses this e-mail address.")
+            }
             Self::UnknownUser => write!(f, "Unknown user"),
         }
     }
@@ -22,6 +29,7 @@ impl std::fmt::Display for PatchUserError {
 impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
+            Self::EmailAlreadyUsed => StatusCode::CONFLICT,
             Self::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
@@ -49,7 +57,12 @@ async fn patch_user(
             .get_smart_db()
             .execute(view)
             .await
-            .map_err(|_| PatchUserError::UnknownUser)?;
+            .map_err(|e| match e {
+                ApiLibError::Database(DbError::UniqueViolation(_)) => {
+                    PatchUserError::EmailAlreadyUsed
+                }
+                _ => PatchUserError::UnknownUser,
+            })?;
     }
 
     Ok(())
@@ -88,10 +101,10 @@ async fn patch_user(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou `userId` du chemin qui n'est pas un entier.",
+            description = "Malformed JSON body, `userId` in the path that is not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `phone_number` 10 to 15 digits; `password` 8 to 255 characters without control character. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: invalid type: integer `42`, expected a string")
+            example = json!("Invalid `phone_number`: must be 10 to 15 digits")
         ),
         (
             status = 401,
@@ -114,6 +127,13 @@ async fn patch_user(
             content_type = "text/plain",
             example = json!("Unknown user")
         ),
+        (
+            status = 409,
+            description = "`email` is already used by another account.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Another account already uses this e-mail address.")
+        ),
     ),
     tag = "Admin - Users",
     security(
@@ -124,7 +144,7 @@ async fn patch_user(
 pub async fn admin_patch_user(
     state: web::Data<AppState>,
     path: web::Path<u64>,
-    view: web::Json<PatchUserView>,
+    view: ValidatedJson<PatchUserView>,
 ) -> Result<impl Responder, PatchUserError> {
     patch_user(state, path.into_inner(), view.into_inner()).await?;
 

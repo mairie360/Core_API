@@ -258,7 +258,7 @@
                   "    pm.response.to.have.status(400);",
                   "});",
                   "pm.test(\"Body matches the expected text\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"Invalid data provided\");",
+                  "    pm.expect(pm.response.text()).to.eql(\"Invalid `email`: must be a valid e-mail address\");",
                   "});"
                 ]
               }

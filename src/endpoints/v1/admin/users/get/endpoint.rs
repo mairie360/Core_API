@@ -4,6 +4,7 @@ use crate::database::admin::list_users::{
 use crate::endpoints::v1::admin::users::get::view::{
     AdminListUsersQuery, AdminListUsersResultView, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
 };
+use crate::endpoints::validation::ValidatedQuery;
 use actix_web::{error::ResponseError, get, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::state::AppState;
 
@@ -106,7 +107,7 @@ async fn list_users(
         ),
         (
             status = 400,
-            description = "`page` vaut 0, ou `page_size` vaut 0 ou dépasse 500.",
+            description = "`page` is 0, `page_size` is 0 or above 500, or `search` is longer than 255 characters or contains a control character.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid pagination")
@@ -141,7 +142,7 @@ async fn list_users(
 #[get("/")]
 pub async fn admin_list_users(
     state: web::Data<AppState>,
-    query: web::Query<AdminListUsersQuery>,
+    query: ValidatedQuery<AdminListUsersQuery>,
 ) -> Result<impl Responder, ListUsersError> {
     let result = list_users(state, query.into_inner()).await?;
 

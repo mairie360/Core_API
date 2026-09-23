@@ -5,10 +5,10 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 use super::register_view::RegisterView;
+use crate::endpoints::validation::ValidatedJson;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RegisterError {
-    InvalidData,
     UserAlreadyExists,
     DatabaseError,
 }
@@ -16,7 +16,6 @@ enum RegisterError {
 impl std::fmt::Display for RegisterError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidData => write!(f, "Invalid data provided"),
             Self::UserAlreadyExists => write!(f, "User already exists"),
             Self::DatabaseError => write!(f, "Database error occurred"),
         }
@@ -26,7 +25,6 @@ impl std::fmt::Display for RegisterError {
 impl ResponseError for RegisterError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::InvalidData => StatusCode::BAD_REQUEST,
             Self::UserAlreadyExists => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -37,34 +35,10 @@ impl ResponseError for RegisterError {
     }
 }
 
-fn is_valid_email(email: &str) -> bool {
-    if email.is_empty() {
-        return false;
-    }
-    email.find('@').is_some_and(|index| {
-        let domain = &email[index + 1..];
-        !domain.is_empty() && domain.contains('.')
-    })
-}
-
-const fn is_valid_password(password: &str) -> bool {
-    //Need to be more complex and based on requirements
-    password.len() >= 8
-}
-
-fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
-    //Need to be more complex and based on requirements
-    phone_number.is_none_or(|num| num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()))
-}
-
 async fn can_be_registered(
     register_view: &RegisterView,
     smart_db: &SmartDatabase,
 ) -> Result<(), RegisterError> {
-    if !is_valid_email(register_view.email()) {
-        return Err(RegisterError::InvalidData);
-    }
-
     let exists: bool = smart_db
         .fetch_scalar(&DoesUserExistByEmailQueryView::new(
             register_view.email().to_string(),
@@ -76,12 +50,6 @@ async fn can_be_registered(
         return Err(RegisterError::UserAlreadyExists);
     }
 
-    if !is_valid_password(register_view.password()) {
-        return Err(RegisterError::InvalidData);
-    }
-    if !is_valid_phone_number(register_view.phone_number()) {
-        return Err(RegisterError::InvalidData);
-    }
     Ok(())
 }
 
@@ -118,16 +86,17 @@ async fn register_user(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Créer un compte utilisateur",
-    description = "Crée un compte à partir d'une adresse e-mail unique. Route publique : le \
-                   `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.\n\n\
-                   Validations appliquées avant l'écriture en base :\n\
-                   - `email` : non vide et de la forme `locale@domaine.tld` ;\n\
-                   - `password` : au moins 8 caractères ;\n\
-                   - `phone_number` : optionnel, mais s'il est fourni, au moins 10 chiffres \
-                   uniquement (pas d'espace, de `+` ni de séparateur).\n\n\
-                   Toutes ces validations partagent le même `400` et le même message : la réponse \
-                   ne dit pas laquelle a échoué.",
+    summary = "Create a user account",
+    description = "Creates an account for a unique e-mail address. Public route: the \
+                   `JwtMiddleware` lets everything under `/auth` through.\n\n\
+                   Validations applied before anything is written, in this order (the first failing field \
+                   is named in the `400` body):\n\
+                   - `first_name`, `last_name`: 1 to 64 characters, not blank, no control \
+                   character, no `<` or `>`;\n\
+                   - `email`: a valid e-mail address (`local@domain.tld`), at most 320 characters;\n\
+                   - `password`: 8 to 255 characters, no control character;\n\
+                   - `phone_number`: optional; when present, 10 to 15 digits only (no space, `+` \
+                   or separator).",
     request_body(
         content = RegisterView,
         description = "État civil, identifiants et téléphone facultatif du nouvel utilisateur.",
@@ -150,10 +119,10 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou e-mail, mot de passe ou numéro de téléphone ne respectant pas les règles ci-dessus.",
+            description = "Malformed JSON body, missing field, or a field breaking the validation rules above; the body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid data provided")
+            example = json!("Invalid `email`: must be a valid e-mail address")
         ),
         (
             status = 409,
@@ -174,7 +143,7 @@ async fn register_user(
 )]
 #[post("/register")]
 pub async fn register(
-    payload: web::Json<RegisterView>,
+    payload: ValidatedJson<RegisterView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RegisterError> {
     let register_view = payload.into_inner();
