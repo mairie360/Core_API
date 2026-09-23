@@ -1,5 +1,6 @@
 use crate::common::keycloak_mock::{
-    id_token_claims, sign, KeycloakMock, TestKey, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI,
+    id_token_claims, sign, subject_for, KeycloakMock, TestKey, CLIENT_ID, CLIENT_SECRET,
+    REDIRECT_URI,
 };
 use core_api::keycloak::{
     AuthorizationCode, KeycloakClient, KeycloakConfig, KeycloakError, KeycloakIdentity,
@@ -42,7 +43,7 @@ async fn test_authenticate_returns_verified_identity() {
     assert_eq!(
         identity,
         Ok(KeycloakIdentity {
-            subject: "f3b2c1d0-7a6e-4c5b-9d8e-1a2b3c4d5e6f".to_string(),
+            subject: subject_for(EMAIL),
             email: EMAIL.to_string(),
         })
     );

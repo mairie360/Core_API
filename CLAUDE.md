@@ -41,9 +41,22 @@ Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and
 (confidential client) and `KEYCLOAK_ISSUER` (public issuer when Core reaches Keycloak through an
 internal URL) are optional. Without them the route answers `503` and only the password login
 works. Core redeems the authorization code, verifies the ID token against the realm JWKS and opens
-the same Core session (JWT + refresh token) as a password login for the account whose e-mail
-matches the token's verified e-mail; no account is created. Tests use a local fake realm
-(`tests/common/keycloak_mock.rs`, throwaway RSA keys in `tests/fixtures/`), no Keycloak needed.
+the same Core session (JWT + refresh token) as a password login. The account is resolved by the
+Keycloak user id (`sub`) recorded in `user_identities` (`resolve_user_identity()`), falling back to
+the token's verified e-mail for an account not linked yet, which links it on the spot
+(`link_user_identity()`); no account is created and a subject linked to another account is
+refused. Tests use a local fake realm (`tests/common/keycloak_mock.rs`, throwaway RSA keys in
+`tests/fixtures/`), no Keycloak needed.
+
+Account migration to Keycloak (MAIR-141): `POST /api/v1/admin/keycloak/migration` (admin only)
+and the `keycloak_migration` binary (`src/bin/`, shipped in the image as `/app/keycloak-migration`,
+same env vars, `--send-password-setup-email` flag) both run `keycloak::migration::migrate_users`:
+read `v_users_sso_export`, find or create each account in the realm through the Admin REST API
+(`src/keycloak/admin.rs`, service account of the confidential client, which needs the
+`realm-management` roles `manage-users`, `view-realm`, `manage-realm`), map Core roles as realm
+roles, disable archived accounts, then link through `link_user_identity()`. Replayable without
+duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
+compose files pin it and `.cargo/config.toml` sets `TEST_DB_VERSION` for the testcontainers.
 
 Tests:
 

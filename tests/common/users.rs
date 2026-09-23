@@ -1,6 +1,9 @@
+use core_api::database::auth::link_identity::LinkUserIdentityQueryView;
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
+use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use mairie360_api_lib::smart_db::SmartDatabase;
+use sqlx::PgPool;
 
 /// Crée un utilisateur dont le nom de famille et l'email contiennent `marker`, et renvoie son id.
 pub async fn create_user(pool: &SmartDatabase, first_name: &str, marker: &str) -> i32 {
@@ -31,4 +34,36 @@ pub fn unique_marker(prefix: &str) -> String {
         .take(8)
         .collect();
     format!("{prefix}{suffix}")
+}
+
+/// Links `user_id` to the Keycloak subject `subject` through the schema's `link_user_identity()`.
+pub async fn link_identity(pool: &SmartDatabase, user_id: i32, subject: &str) {
+    let _: i32 = pool
+        .fetch_scalar(&LinkUserIdentityQueryView::new(
+            user_id,
+            KEYCLOAK_PROVIDER,
+            subject,
+        ))
+        .await
+        .unwrap();
+}
+
+/// `(provider, subject)` links of `user_id`, ordered by provider.
+pub async fn user_identities(raw: &PgPool, user_id: i32) -> Vec<(String, String)> {
+    sqlx::query_as(
+        "SELECT provider, subject FROM user_identities WHERE user_id = $1 ORDER BY provider",
+    )
+    .bind(user_id)
+    .fetch_all(raw)
+    .await
+    .unwrap()
+}
+
+/// Archives `user_id` through the soft-delete view, as `DELETE /api/v1/admin/users/{id}` does.
+pub async fn archive_user(raw: &PgPool, user_id: i32) {
+    sqlx::query("DELETE FROM v_users_active WHERE id = $1")
+        .bind(user_id)
+        .execute(raw)
+        .await
+        .unwrap();
 }
