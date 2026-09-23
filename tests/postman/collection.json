@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Core API integration tests",
-    "description": "End-to-end smoke tests replayed by newman in CI (MAIR-117). `baseUrl` is injected by docker-compose-integration.yml; the default in environment.json targets a local stack. The flow registers a fresh user (unique e-mail generated at run time), walks the first-connection password change, logs in, and exercises the session routes with the issued JWT.",
+    "description": "End-to-end smoke tests replayed by newman in CI (MAIR-117). `baseUrl` is injected by docker-compose-integration.yml; the default in environment.json targets a local stack. The flow registers a fresh user (unique e-mail generated at run time), walks the first-connection password change, logs in, and exercises the session routes with the issued JWT, then archives the account through the admin route (JWT of the seeded Admin forged in the pre-request script).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -13,7 +13,15 @@
           "// One fresh account per run so the collection is replayable against a persistent database.",
           "if (!pm.environment.get(\"test_user_email\")) {",
           "    pm.environment.set(\"test_user_email\", `newman.${Date.now()}@mairie360.test`);",
-          "}"
+          "}",
+          "// Admin routes need the seeded Admin (user 1), who has no known password: forge its JWT exactly",
+          "// like mairie360_api_lib::jwt_manager does (HS256, claims { sub, role, exp }), signed with the",
+          "// JWT_SECRET of the compose stack.",
+          "const cryptoJs = require('crypto-js');",
+          "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+          "const header = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));",
+          "const payload = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ sub: String(pm.environment.get('admin_user_id')), role: '', exp: Math.floor(Date.now() / 1000) + 3600 })));",
+          "pm.environment.set('jwt_admin', `${header}.${payload}.${b64url(cryptoJs.HmacSHA256(`${header}.${payload}`, pm.environment.get('jwt_secret')))}`);"
         ]
       }
     }
@@ -965,6 +973,188 @@
                 "exec": [
                   "pm.test(\"Status is 401\", function () {",
                   "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Find the test user",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/?search={{test_user_email}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{test_user_email}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The registered user is listed\", function () {",
+                  "    const user = pm.response.json().users.find((u) => u.email === pm.environment.get(\"test_user_email\"));",
+                  "    pm.expect(user).to.be.an(\"object\");",
+                  "    pm.environment.set(\"test_user_id\", user.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleting a user without admin rights is rejected",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{test_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{test_user_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete the test user",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{test_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{test_user_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deleting an archived user answers 404",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{test_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{test_user_id}}",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Body matches the expected text\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Unknown user\");",
                   "});"
                 ]
               }

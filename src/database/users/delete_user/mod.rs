@@ -1,2 +1,2 @@
 mod view;
-pub use view::DeleteUserQueryView;
+pub use view::{DeleteUserQueryView, IsUserActiveQueryView};
