@@ -160,7 +160,7 @@ async fn put_role(
         )
     ),
     params(
-        ("id" = u64, Path, description = "Identifiant du rôle.", example = 2)
+        ("id" = u64, Path, description = "Role id. The base roles (1 to 5: Admin, Maire, Responsable, User, Guest) are protected; the roles created afterwards start at 6.", example = 6)
     ),
     security(
         ("jwt" = [])
