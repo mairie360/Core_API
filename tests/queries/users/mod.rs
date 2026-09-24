@@ -4,5 +4,6 @@ mod get_roles;
 mod get_user_by_id;
 mod list_directory;
 mod patch_user;
+mod preferences;
 mod remove_role;
 mod test_users_queries;
