@@ -41,7 +41,7 @@ async fn trigger_add_user_to_group(
     state: web::Data<AppState>,
     view: PostUserGroupView,
 ) -> Result<(), PostUserGroupError> {
-    let db_view = AddUserToGroupQueryView::new(view.user_id(), view.group_id());
+    let db_view = AddUserToGroupQueryView::new(view.group_id(), view.user_id());
     state
         .get_smart_db()
         .execute(db_view)
