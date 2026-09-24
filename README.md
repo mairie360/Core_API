@@ -23,7 +23,8 @@ Changes to your code will automatically trigger a refresh or the rebuild of the 
 
 The end-to-end scenario lives in `tests/postman/collection.json` (Postman v2.1 collection) with
 its variables in `tests/postman/environment.json`. CI replays it with the `postman/newman` image
-against the API built from the checkout, without any Postman account:
+against the published `dev-<sha>` API image (`IMAGE_REF`), without any Postman account. Locally,
+leave `IMAGE_REF` empty and the script builds `core-api:local` from `development.Dockerfile`:
 
 ```bash
 ./integration_test.sh
