@@ -3,6 +3,7 @@
 
 use actix_web::{middleware, web, App, HttpServer};
 
+use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
@@ -43,8 +44,13 @@ async fn main() -> std::io::Result<()> {
             // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
             .configure(public_config)
             // 3. Endpoints Protégés par JWT
+            // The last `wrap` runs first: JwtMiddleware validates the JWT, then session_guard
+            // rejects it if its session was revoked (MAIR-226).
             .service(
-                web::scope("/api").wrap(JwtMiddleware).configure(config), // Tes routes v1, etc.
+                web::scope("/api")
+                    .wrap(middleware::from_fn(session_guard))
+                    .wrap(JwtMiddleware)
+                    .configure(config),
             )
     })
     .bind(bind_address)?;

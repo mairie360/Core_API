@@ -739,6 +739,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "futures-util",
+ "jsonwebtoken",
  "lettre",
  "mairie360_api_lib",
  "once_cell",

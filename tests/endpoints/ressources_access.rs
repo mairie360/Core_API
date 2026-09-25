@@ -3,6 +3,7 @@
 
 use crate::common::{get_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
+use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID, GROUP_OWNER_ID};
@@ -26,7 +27,12 @@ macro_rules! init_app {
             App::new()
                 .app_data($state.clone())
                 .configure(public_config)
-                .service(web::scope("/api").wrap(JwtMiddleware).configure(config)),
+                .service(
+                    web::scope("/api")
+                        .wrap(actix_web::middleware::from_fn(session_guard))
+                        .wrap(JwtMiddleware)
+                        .configure(config),
+                ),
         )
         .await
     };
