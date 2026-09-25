@@ -4,6 +4,7 @@ use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
+use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -104,6 +105,15 @@ async fn reset_password_trigger(
     }
 
     reset_pwd(smart_db, view.new_password(), user_id).await?;
+
+    // Sessions opened with the old password end here, in every API (MAIR-264). The session opened
+    // below is the only one left.
+    revoke_all_user_sessions(&state, user_id)
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to revoke the previous sessions: {e}");
+            ResetPasswordError::DatabaseError
+        })?;
 
     match generate_session(user_id, &view.device_info(), ip_adress, state).await {
         Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),

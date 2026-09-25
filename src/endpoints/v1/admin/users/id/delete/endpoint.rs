@@ -1,7 +1,10 @@
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::state::AppState;
 
+use crate::database::sessions::get_active_session_ids::GetActiveSessionIdsQueryView;
 use crate::database::users::delete_user::DeleteUserQueryView;
+use crate::session_revocation::publish_revoked_sessions;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserError {
@@ -29,11 +32,21 @@ impl ResponseError for DeleteUserError {
 }
 
 async fn delete_user(state: web::Data<AppState>, user_id: u64) -> Result<(), DeleteUserError> {
+    // The database drops the user's sessions with the account: read them first, to publish them
+    // to the revocation list once the deletion succeeded (MAIR-264).
+    let sessions: Vec<Uuid> = state
+        .get_smart_db()
+        .fetch_all(&GetActiveSessionIdsQueryView::new(user_id))
+        .await
+        .unwrap_or_default();
+
     let view = DeleteUserQueryView::new(user_id);
     state.get_smart_db().execute(view).await.map_err(|e| {
         eprintln!("Error: {e}");
         DeleteUserError::AlreadyDeleted
     })?;
+
+    publish_revoked_sessions(state.get_redis(), &sessions).await;
 
     Ok(())
 }

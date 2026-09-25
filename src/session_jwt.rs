@@ -33,6 +33,15 @@ impl SessionClaims {
     pub const fn session_id(&self) -> Option<Uuid> {
         self.sid
     }
+
+    /// Seconds left before the token expires (0 once expired).
+    #[must_use]
+    pub fn remaining_lifetime(&self) -> u64 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_secs());
+        u64::try_from(self.exp).map_or(0, |exp| exp.saturating_sub(now))
+    }
 }
 
 /// Issues a JWT for `user_id`, bound to the session `session_id`.

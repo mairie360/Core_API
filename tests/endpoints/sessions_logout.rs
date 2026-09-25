@@ -6,6 +6,7 @@ use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::session_jwt::{decode_session_jwt, generate_session_jwt};
 use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{
     security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
 };
@@ -81,7 +82,9 @@ async fn open_session(state: &web::Data<AppState>) -> (String, String) {
 async fn logout_revokes_the_jwt_and_its_refresh_token() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    // Logout writes the revoked session to Redis (MAIR-264).
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let app = init_app!(state);
 
     let (jwt, refresh_token) = open_session(&state).await;
@@ -119,7 +122,9 @@ async fn logout_revokes_the_jwt_and_its_refresh_token() {
 async fn logout_keeps_the_other_sessions() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    // Logout writes the revoked session to Redis (MAIR-264).
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let app = init_app!(state);
 
     let (laptop, _) = open_session(&state).await;
@@ -144,7 +149,9 @@ async fn logout_keeps_the_other_sessions() {
 async fn refresh_keeps_the_session_bound_jwt() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    // Logout writes the revoked session to Redis (MAIR-264).
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let app = init_app!(state);
 
     let (jwt, refresh_token) = open_session(&state).await;
@@ -182,7 +189,9 @@ async fn refresh_keeps_the_session_bound_jwt() {
 async fn legacy_jwt_without_session_id_still_works() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    // Logout writes the revoked session to Redis (MAIR-264).
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let app = init_app!(state);
 
     let legacy = generate_jwt("1", "").unwrap();
@@ -201,7 +210,9 @@ async fn legacy_jwt_without_session_id_still_works() {
 async fn logout_requires_a_jwt() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    // Logout writes the revoked session to Redis (MAIR-264).
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let app = init_app!(state);
 
     let req = test::TestRequest::post()

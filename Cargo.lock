@@ -744,6 +744,7 @@ dependencies = [
  "mairie360_api_lib",
  "once_cell",
  "rand 0.10.3",
+ "redis",
  "serde",
  "serde_json",
  "serial_test",

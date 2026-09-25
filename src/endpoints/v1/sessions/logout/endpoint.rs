@@ -1,5 +1,6 @@
 use crate::database::sessions::revoke_current_session::RevokeCurrentSessionQueryView;
 use crate::session_jwt::decode_session_jwt;
+use crate::session_revocation::publish_revoked_session;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::jwt_manager::get_jwt_from_request;
@@ -9,12 +10,14 @@ use mairie360_api_lib::state::AppState;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogoutError {
     Database,
+    Redis,
 }
 
 impl std::fmt::Display for LogoutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Database => write!(f, "An error occurred while accessing the database."),
+            Self::Redis => write!(f, "An error occurred while accessing Redis."),
         }
     }
 }
@@ -22,7 +25,7 @@ impl std::fmt::Display for LogoutError {
 impl ResponseError for LogoutError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Database => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Database | Self::Redis => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -45,8 +48,9 @@ impl ResponseError for LogoutError {
                    nothing with it). A JWT issued before this route \
                    existed carries no session id: the call answers `204` without revoking \
                    anything, and that JWT simply expires after `JWT_TIMEOUT`.\n\n\
-                   Other APIs (Project, Calendar, ...) keep accepting a revoked JWT until it \
-                   expires: only Core checks the session behind a JWT.",
+                   The session is also written to the Redis revocation list \
+                   (`revoked:<session id>`, until the JWT expires): the other APIs refuse the JWT \
+                   once they run a `mairie360_api_lib` version that checks it.",
     responses(
         (
             status = 204,
@@ -61,7 +65,7 @@ impl ResponseError for LogoutError {
         ),
         (
             status = 500,
-            description = "Database failure while revoking the session.",
+            description = "Database or Redis failure while revoking the session. Safe to retry.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -81,11 +85,12 @@ pub async fn logout(
     request: HttpRequest,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, LogoutError> {
-    let session_id = get_jwt_from_request(&request)
-        .and_then(|jwt| decode_session_jwt(&jwt).ok())
-        .and_then(|claims| claims.session_id());
+    let claims = get_jwt_from_request(&request).and_then(|jwt| decode_session_jwt(&jwt).ok());
+    let session = claims
+        .as_ref()
+        .and_then(|claims| Some((claims.session_id()?, claims.remaining_lifetime())));
 
-    if let Some(session_id) = session_id {
+    if let Some((session_id, remaining_lifetime)) = session {
         state
             .get_smart_db()
             .execute(RevokeCurrentSessionQueryView::new(session_id, user.id))
@@ -93,6 +98,14 @@ pub async fn logout(
             .map_err(|e| {
                 eprintln!("Logout DB Error: {e}");
                 LogoutError::Database
+            })?;
+        // Other APIs refuse the JWT through the shared revocation list (MAIR-264). A failure is
+        // reported: logging out again retries the write.
+        publish_revoked_session(state.get_redis(), session_id, remaining_lifetime)
+            .await
+            .map_err(|e| {
+                eprintln!("Logout Redis Error: {e}");
+                LogoutError::Redis
             })?;
     }
 

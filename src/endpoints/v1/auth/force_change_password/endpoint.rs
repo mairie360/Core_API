@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
+use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -87,6 +88,11 @@ async fn force_change_password_trigger(
     }
 
     change_password(smart_db, user_id, view.new_password()).await?;
+    // A password change ends the sessions opened with the previous password, in every API
+    // (MAIR-264). Usually none: a first-connection login opens no session.
+    revoke_all_user_sessions(&state, user_id)
+        .await
+        .map_err(|_| ForceChanhePasswordError::DatabaseError)?;
     consume_first_connection_token(&state, view.token(), user_id).await;
 
     Ok(())
