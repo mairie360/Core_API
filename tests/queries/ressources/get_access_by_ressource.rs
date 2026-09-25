@@ -23,7 +23,7 @@ async fn success() {
     let permission_id = permission_id as u64;
     let view = AddAccessToUserQueryView::new(4, ressource_type_id, 1, permission_id);
     let _ = pool.execute(view).await;
-    let view = GetAccessByRessourceQueryView::new(1);
+    let view = GetAccessByRessourceQueryView::new(1, "groups");
     println!("{view}");
     let result: Vec<core_api::database::ressources::get_access_by_ressource::Access> =
         pool.fetch_all(&view).await.unwrap();
@@ -50,7 +50,7 @@ async fn success() {
 async fn unknow_ressource() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
-    let view = GetAccessByRessourceQueryView::new(2);
+    let view = GetAccessByRessourceQueryView::new(2, "groups");
     let result: Vec<core_api::database::ressources::get_access_by_ressource::Access> =
         pool.fetch_all(&view).await.unwrap();
     assert!(result.is_empty(), "{result:?}");

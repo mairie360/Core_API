@@ -33,3 +33,26 @@ async fn false_bad_owner_id() {
     let view = IsOwnerQueryView::new((*GROUP_OWNER_ID.get().unwrap() as u64) + 1, 1, "groups");
     assert!(!pool.fetch_scalar::<bool, _>(&view).await.unwrap());
 }
+
+#[tokio::test]
+#[serial]
+async fn false_for_a_type_without_owner() {
+    let (_container, host) = get_shared_db().await;
+    let pool = get_pool(host.clone()).await;
+    assert!(!IsOwnerQueryView::supports("users"));
+    let view = IsOwnerQueryView::new(*GROUP_OWNER_ID.get().unwrap() as u64, 1, "users");
+    assert!(!pool.fetch_scalar::<bool, _>(&view).await.unwrap());
+}
+
+#[tokio::test]
+#[serial]
+async fn table_name_is_never_taken_from_the_input() {
+    let (_container, host) = get_shared_db().await;
+    let pool = get_pool(host.clone()).await;
+    let view = IsOwnerQueryView::new(
+        *GROUP_OWNER_ID.get().unwrap() as u64,
+        1,
+        "groups WHERE true OR id = $1 OR owner_id = $2) --",
+    );
+    assert!(!pool.fetch_scalar::<bool, _>(&view).await.unwrap());
+}

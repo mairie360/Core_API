@@ -1,10 +1,15 @@
 use utoipa::ToSchema;
 
+/// Permission granted on a resource instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub enum AccessType {
+    /// Delete the instance.
     Delete,
+    /// Not a real permission: always rejected with `400`.
     Error,
+    /// Read the instance.
     Read,
+    /// Modify the instance.
     Update,
 }
 
@@ -31,11 +36,21 @@ impl From<&str> for AccessType {
     }
 }
 
+/// Access to grant on a resource instance.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct AddAccessView {
+    /// Id of the user who receives the access.
+    #[schema(example = 42)]
     user_id: u64,
+    /// Id of the resource instance (for example the group id when `ressource_type` is `groups`).
+    #[schema(example = 3)]
     resource_id: u64,
+    /// Resource type, as named in the `resources` table (`groups`, `events`, `users`, `roles`,
+    /// ...). Only `groups` and `events` instances have an owner.
+    #[schema(example = "groups")]
     ressource_type: String,
+    /// Permission granted.
+    #[schema(example = "Read")]
     access_type: AccessType,
 }
 
