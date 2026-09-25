@@ -13,7 +13,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
 /// Minimal SMTP server accepting every message, so the "known e-mail" path really sends its mail.
-async fn start_fake_smtp() -> u16 {
+pub(super) async fn start_fake_smtp() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {

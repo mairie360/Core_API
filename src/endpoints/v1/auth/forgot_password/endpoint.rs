@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
+use crate::redis_keys::{redis_key, set_token, FORGOT_PASSWORD_TTL_SECONDS};
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -110,23 +111,28 @@ async fn handle_forgot_password(
 async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError> {
     let token = Uuid::new_v4().to_string();
     let redis = state.get_redis();
-    redis
-        .secure_set(&format!("{email}/forgot_password_token"), &token)
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            ResetPasswordError::Redis
-        })?;
-    redis
-        .secure_set(
-            &format!("{token}/forgot_password_email"),
-            &email.to_string(),
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            ResetPasswordError::Redis
-        })?;
+    set_token(
+        redis,
+        &format!("{email}/forgot_password_token"),
+        &token,
+        FORGOT_PASSWORD_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        ResetPasswordError::Redis
+    })?;
+    set_token(
+        redis,
+        &format!("{token}/forgot_password_email"),
+        email,
+        FORGOT_PASSWORD_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        ResetPasswordError::Redis
+    })?;
     match handle_forgot_password(token, email).await {
         Ok(()) => Ok(()),
         Err(_) => Err(ResetPasswordError::Mail),
@@ -139,7 +145,10 @@ async fn forgot_password_trigger(
 ) -> Result<(), ResetPasswordError> {
     let token = state
         .get_redis()
-        .secure_get::<String>(&format!("{}/forgot_password_token", view.email()))
+        .secure_get::<String>(&redis_key(&format!(
+            "{}/forgot_password_token",
+            view.email()
+        )))
         .await;
     // A reset is already waiting for this address: answer as if a new e-mail had been sent.
     if matches!(token, Ok(Some(_))) {
