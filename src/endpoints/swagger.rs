@@ -53,7 +53,7 @@ Statuts renvoyés de façon transverse par les intergiciels, avant même d'attei
         (url = "http://development.mairie360.fr", description = "Pile Docker de développement (nginx)")
     ),
     tags(
-        (name = "Auth", description = "Connexion, inscription et cycle de vie du mot de passe (oubli, réinitialisation, changement forcé à la première connexion)."),
+        (name = "Auth", description = "Login and password lifecycle (forgotten password, reset, forced change at first connection). Accounts are created by administrators only (`POST /api/v1/admin/users/`)."),
         (name = "Sessions", description = "Sessions de l'utilisateur connecté : liste des sessions actives, historique, rafraîchissement et révocation."),
         (name = "Users", description = "Annuaire des utilisateurs et profil de l'utilisateur connecté."),
         (name = "Roles", description = "Consultation des rôles disponibles sur la plateforme."),

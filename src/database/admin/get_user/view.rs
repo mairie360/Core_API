@@ -101,8 +101,8 @@ impl Display for User {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "User: first_name: {}, last_name: {}, email: {}, phone_number: {:?}, status: {}, is_archived: {}",
-            self.first_name, self.last_name, self.email, self.phone_number, self.status, self.is_archived
+            "User: first_name: {}, last_name: {}, email: [PROTECTED], phone_number: [PROTECTED], status: {}, is_archived: {}",
+            self.first_name, self.last_name, self.status, self.is_archived
         )
     }
 }

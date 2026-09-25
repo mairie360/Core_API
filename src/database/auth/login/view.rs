@@ -43,8 +43,7 @@ impl Display for LoginUserQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "LoginUserQueryView: email = {}, password = [PROTECTED]",
-            self.email
+            "LoginUserQueryView: email = [PROTECTED], password = [PROTECTED]"
         )
     }
 }

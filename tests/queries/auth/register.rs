@@ -76,3 +76,19 @@ async fn test_register_user_duplicate_email() {
 
     assert!(register_result.is_err());
 }
+
+#[test]
+fn display_never_prints_credentials() {
+    let view = RegisterUserQueryView::new(
+        "Jean",
+        "Dupont",
+        "jean.dupont@mairie360.fr",
+        "S3cret-Passw0rd",
+        Some("0612345678"),
+    );
+    let printed = view.to_string();
+    assert!(printed.contains("Jean"), "{printed}");
+    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "0612345678"] {
+        assert!(!printed.contains(secret), "{printed}");
+    }
+}

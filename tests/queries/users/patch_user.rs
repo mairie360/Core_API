@@ -181,3 +181,20 @@ async fn patch_user_bad_user_id_is_noop_free_but_harmless() {
 
     assert!(result.is_ok(), "{result:?}");
 }
+
+#[test]
+fn display_never_prints_credentials() {
+    let view = PatchUserQueryView::new(
+        7,
+        Some("Jean"),
+        None,
+        Some("jean.dupont@mairie360.fr"),
+        Some("0612345678"),
+        Some("S3cret-Passw0rd"),
+    );
+    let printed = view.to_string();
+    assert!(printed.contains("Jean"), "{printed}");
+    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "0612345678"] {
+        assert!(!printed.contains(secret), "{printed}");
+    }
+}

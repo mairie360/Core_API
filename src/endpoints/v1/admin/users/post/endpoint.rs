@@ -117,15 +117,15 @@ async fn register_user(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Créer un compte utilisateur (administration)",
-    description = "Crée un compte au nom d'un administrateur, sans que la personne ait à \
-                   s'inscrire. Réservé aux administrateurs.\n\n\
-                   Mêmes règles de validation que `POST /api/v1/auth/register` : e-mail de la \
-                   forme `locale@domaine.tld`, mot de passe d'au moins 8 caractères, téléphone \
-                   facultatif d'au moins 10 chiffres. Toutes partagent le même `400`.\n\n\
-                   Le mot de passe fourni ici est provisoire : le compte est marqué en première \
-                   connexion, et le premier `POST /api/v1/auth/login` de l'utilisateur répondra \
-                   `412` pour lui faire choisir le sien.",
+    summary = "Create a user account (administration)",
+    description = "Creates an account on behalf of an administrator. Reserved to administrators: \
+                   this is the only way to create an account, there is no public sign-up route.\n\n\
+                   Validation: e-mail of the form `local@domain.tld`, password of at least 8 \
+                   characters, optional phone number of at least 10 digits. All share the same \
+                   `400`.\n\n\
+                   The password given here is temporary: the account is flagged as first \
+                   connection, and the user's first `POST /api/v1/auth/login` answers `412` so \
+                   they choose their own.",
     request_body(
         content = CreateUserView,
         description = "État civil, identifiants provisoires et téléphone facultatif du compte à créer.",
