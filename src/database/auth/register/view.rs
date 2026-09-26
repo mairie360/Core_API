@@ -90,10 +90,14 @@ impl ApiRequestDto for RegisterUserQueryView {
 }
 
 impl Display for RegisterUserQueryView {
+    // Never print the e-mail, phone number or password: this view may end up in logs.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.phone_number {
-            Some(_) => write!(f, "RegisterUserQueryView: first_name = {}, last_name = {}, email = {}, password = {}, phone_number = {}", self.first_name, self.last_name, self.email, self.password, self.phone_number.as_deref().unwrap()),
-            None => write!(f, "RegisterUserQueryView: first_name = {}, last_name = {}, email = {}, password = {}", self.first_name, self.last_name, self.email, self.password),
-        }
+        write!(
+            f,
+            "RegisterUserQueryView: first_name = {}, last_name = {}, email = [PROTECTED], password = [PROTECTED], phone_number = {}",
+            self.first_name,
+            self.last_name,
+            if self.phone_number.is_some() { "[PROTECTED]" } else { "none" }
+        )
     }
 }
