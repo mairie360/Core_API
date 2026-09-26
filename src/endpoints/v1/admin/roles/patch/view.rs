@@ -20,6 +20,7 @@ pub struct PatchView {
     /// Doublement optionnel : omettre le champ laisse la valeur actuelle, alors que `null`
     /// l'efface. `false` protège le rôle contre sa suppression.
     #[schema(example = true)]
+    #[allow(clippy::option_option)] // Tri-state on purpose: omitted, `null`, or a value.
     can_be_deleted: Option<Option<bool>>,
 }
 

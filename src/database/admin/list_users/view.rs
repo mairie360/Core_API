@@ -33,6 +33,7 @@ pub struct AdminListUsersQueryView {
 }
 
 impl AdminListUsersQueryView {
+    #[must_use]
     pub fn new(search: Option<&str>, group_id: Option<u64>, page: u64, page_size: u64) -> Self {
         let mut params = filter_params(search, group_id);
         params.push(QueryParam::I64(page_size as i64));
@@ -79,6 +80,7 @@ pub struct AdminCountUsersQueryView {
 }
 
 impl AdminCountUsersQueryView {
+    #[must_use]
     pub fn new(search: Option<&str>, group_id: Option<u64>) -> Self {
         Self {
             params: filter_params(search, group_id),

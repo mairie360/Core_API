@@ -1,4 +1,5 @@
 pub mod doc;
+pub mod keycloak;
 pub mod roles;
 // pub mod sessions;
 pub mod users;
@@ -10,6 +11,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/admin")
             // .wrap(AdminMiddleware)
+            .configure(keycloak::config)
             .configure(roles::config)
             // .configure(sessions::config)
             .configure(users::config),

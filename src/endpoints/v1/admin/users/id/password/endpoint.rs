@@ -1,11 +1,14 @@
 use crate::database::admin::reset_password::AdminResetPasswordQueryView;
-use crate::endpoints::v1::admin::users::id::password::view::AdminResetPasswordView;
-use crate::endpoints::validation::ValidatedJson;
+use crate::endpoints::v1::admin::users::id::password::view::{
+    AdminResetPasswordView, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH,
+};
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
+    InvalidPassword,
     UnknownUser,
     DatabaseError,
 }
@@ -13,8 +16,12 @@ enum ResetPasswordError {
 impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResetPasswordError::UnknownUser => write!(f, "Unknown user"),
-            ResetPasswordError::DatabaseError => write!(f, "Database error occurred"),
+            Self::InvalidPassword => write!(
+                f,
+                "The password must contain between {MIN_PASSWORD_LENGTH} and {MAX_PASSWORD_LENGTH} characters"
+            ),
+            Self::UnknownUser => write!(f, "Unknown user"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
         }
     }
 }
@@ -22,8 +29,9 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ResetPasswordError::UnknownUser => StatusCode::NOT_FOUND,
-            ResetPasswordError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidPassword => StatusCode::BAD_REQUEST,
+            Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -37,15 +45,22 @@ async fn reset_password(
     user_id: u64,
     view: AdminResetPasswordView,
 ) -> Result<(), ResetPasswordError> {
+    let length = view.new_password().chars().count();
+    if !(MIN_PASSWORD_LENGTH..=MAX_PASSWORD_LENGTH).contains(&length) {
+        return Err(ResetPasswordError::InvalidPassword);
+    }
+
+    let hashed_password = hash_password(view.new_password()).map_err(|error| {
+        eprintln!("{error:?}");
+        ResetPasswordError::DatabaseError
+    })?;
+
     let updated: bool = state
         .get_smart_db()
-        .fetch_scalar(&AdminResetPasswordQueryView::new(
-            user_id,
-            view.new_password(),
-        ))
+        .fetch_scalar(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
         .map_err(|error| {
-            eprintln!("{:?}", error);
+            eprintln!("{error:?}");
             ResetPasswordError::DatabaseError
         })?;
 
@@ -80,10 +95,10 @@ async fn reset_password(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, `userId` in the path that is not an integer, or `new_password` shorter than 8 or longer than 255 characters (counted in characters, not bytes) or containing a control character.",
+            description = "Corps JSON malformé, ou mot de passe de moins de 8 ou de plus de 255 caractères.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must be at least 8 characters")
+            example = json!("The password must contain between 8 and 255 characters")
         ),
         (
             status = 401,
@@ -123,7 +138,7 @@ async fn reset_password(
 pub async fn admin_reset_user_password(
     state: web::Data<AppState>,
     path: web::Path<u64>,
-    view: ValidatedJson<AdminResetPasswordView>,
+    view: web::Json<AdminResetPasswordView>,
 ) -> Result<impl Responder, ResetPasswordError> {
     reset_password(state, path.into_inner(), view.into_inner()).await?;
 

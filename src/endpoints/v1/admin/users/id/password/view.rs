@@ -1,8 +1,8 @@
-use crate::endpoints::validation::{
-    check_password, Validate, ValidationError, MIN_PASSWORD_LENGTH,
-};
 use serde::Deserialize;
 use utoipa::ToSchema;
+
+pub const MIN_PASSWORD_LENGTH: usize = 8;
+pub const MAX_PASSWORD_LENGTH: usize = 255;
 
 /// Nouveau mot de passe imposé par un administrateur.
 #[derive(Deserialize, ToSchema)]
@@ -15,11 +15,5 @@ pub struct AdminResetPasswordView {
 impl AdminResetPasswordView {
     pub fn new_password(&self) -> &str {
         &self.new_password
-    }
-}
-
-impl Validate for AdminResetPasswordView {
-    fn validate(&self) -> Result<(), ValidationError> {
-        check_password("new_password", &self.new_password, MIN_PASSWORD_LENGTH)
     }
 }
