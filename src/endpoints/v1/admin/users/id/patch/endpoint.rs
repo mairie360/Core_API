@@ -1,4 +1,5 @@
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
@@ -12,6 +13,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PatchUserError {
     UnknownUser,
+    DatabaseError,
     Keycloak(SyncError),
 }
 
@@ -19,6 +21,7 @@ impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnknownUser => write!(f, "Unknown user"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
             Self::Keycloak(error) => write!(f, "{error}"),
         }
     }
@@ -28,6 +31,7 @@ impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -49,13 +53,22 @@ async fn patch_in_core(
     user_id: u64,
     view: &PatchUserView,
 ) -> Result<(), PatchUserError> {
+    let hashed_password = view
+        .password()
+        .map(hash_password)
+        .transpose()
+        .map_err(|e| {
+            eprintln!("Password hashing error: {e}");
+            PatchUserError::DatabaseError
+        })?;
+
     let view = PatchUserQueryView::new(
         user_id,
         view.first_name(),
         view.last_name(),
         view.email(),
         view.phone_number(),
-        view.password(),
+        hashed_password.as_deref(),
     );
     if !view.is_noop() {
         smart_db
@@ -204,7 +217,7 @@ async fn patch_user(
         ),
         (
             status = 500,
-            description = "The account could not be read, or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            description = "The account could not be read, its new password could not be hashed (internal argon2 error), or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
