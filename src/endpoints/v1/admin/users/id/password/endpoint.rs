@@ -54,12 +54,14 @@ async fn reset_password(
         return Err(ResetPasswordError::InvalidPassword);
     }
 
+    let hashed_password = hash_password(view.new_password()).map_err(|error| {
+        eprintln!("{:?}", error);
+        ResetPasswordError::DatabaseError
+    })?;
+
     let result: AdminResetPasswordResult = state
         .get_smart_db()
-        .fetch_one(&AdminResetPasswordQueryView::new(
-            user_id,
-            view.new_password(),
-        ))
+        .fetch_one(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
         .map_err(|error| {
             eprintln!("{:?}", error);

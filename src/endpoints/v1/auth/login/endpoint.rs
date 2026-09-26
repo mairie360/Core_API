@@ -11,6 +11,8 @@ use actix_web::{
 use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
+use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use rand::fill;
 use uuid::Uuid;
