@@ -188,6 +188,24 @@ function addGroupMember(groupId, userId) {
   fixture('POST', `/api/v1/groups/${groupId}/users/`, { group_id: groupId, user_id: userId });
 }
 
+/** Grants MEMBER_ID a `read` access on the group `groupId` (a resource instance of type `groups`). */
+function grantGroupAccess(groupId) {
+  fixture('POST', '/api/v1/ressources/add_access', {
+    user_id: MEMBER_ID,
+    resource_id: groupId,
+    ressource_type: 'groups',
+    access_type: 'Read',
+  });
+}
+
+function groupAccesses(groupId) {
+  return fixture('POST', `/api/v1/ressources/${groupId}/access?ressource_type=groups`).json('accesses');
+}
+
+function revokeAccess(accessId) {
+  fixture('POST', '/api/v1/ressources/remove_access', { access_id: accessId });
+}
+
 const spec = loadSpec();
 
 const readHandlers = {
@@ -197,6 +215,10 @@ const readHandlers = {
   'GET /api/v1/user/': ({ request }) =>
     check(request({ query: { search: 'test', limit: 50 } }), { 'directory 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
+  'GET /api/v1/user/me/notifications/': ({ request }) =>
+    check(request(), { 'notification settings 200': (r) => r.status === 200 }),
+  'GET /api/v1/user/me/preferences/': ({ request }) =>
+    check(request(), { 'preferences 200': (r) => r.status === 200 }),
   'GET /api/v1/user/{id}/': ({ request }) =>
     check(request({ path: { id: MEMBER_ID } }), { 'user 200': (r) => r.status === 200 }),
   'GET /api/v1/roles/': ({ request }) => check(request(), { 'roles 200': (r) => r.status === 200 }),
@@ -252,6 +274,12 @@ const writeHandlers = {
     fixture('POST', '/api/v1/sessions/revoke', { refresh_token: session.refresh }, { headers: bearer(session.jwt) });
     deleteUser(account.id);
   },
+  'POST /api/v1/sessions/logout': ({ request }) => {
+    const account = activeAccount('logout');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt) }), { 'logout 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
   'POST /api/v1/sessions/revoke': ({ request }) => {
     const account = activeAccount('revoke');
     const session = login(account);
@@ -285,6 +313,10 @@ const writeHandlers = {
   // Own profile of the Admin (idempotent value).
   'PATCH /api/v1/user/me/': ({ request }) =>
     check(request({ body: { phone: '0612345678' } }), { 'patch me 200': (r) => r.status === 200 }),
+  'PATCH /api/v1/user/me/notifications/': ({ request }) =>
+    check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
+  'PATCH /api/v1/user/me/preferences/': ({ request }) =>
+    check(request({ body: { theme: 'light' } }), { 'patch preferences 200': (r) => r.status === 200 }),
 
   // Administration of accounts: create → patch → password → roles → delete.
   'POST /api/v1/admin/users/': ({ request }) => {
@@ -365,6 +397,49 @@ const writeHandlers = {
   'DELETE /api/v1/admin/roles/{id}': ({ request }) => {
     const roleId = createRole('delete');
     check(request({ path: { id: roleId } }), { 'delete role 204': (r) => r.status === 204 });
+  },
+
+  // Keycloak is not configured in the test stack: both routes answer 503 (expected, so it does not
+  // count in `http_req_failed`). The sign-in itself is covered by tests/keycloak_*.rs.
+  'POST /api/v1/auth/keycloak': ({ request }) =>
+    check(
+      request({
+        body: { code: 'k6-code', redirect_uri: 'https://login.mairie360.fr/auth/callback', device_info: DEVICE },
+        params: { responseCallback: http.expectedStatuses(503) },
+      }),
+      { 'keycloak sign-in 503 (not configured)': (r) => r.status === 503 },
+    ),
+  'POST /api/v1/admin/keycloak/migration': ({ request }) =>
+    check(request({ params: { responseCallback: http.expectedStatuses(503) } }), {
+      'keycloak migration 503 (not configured)': (r) => r.status === 503,
+    }),
+
+  // Accesses of a resource instance (here a group): grant → list → revoke.
+  'POST /api/v1/ressources/add_access': ({ request }) => {
+    const groupId = createGroup('access-add');
+    const res = request({
+      body: { user_id: MEMBER_ID, resource_id: groupId, ressource_type: 'groups', access_type: 'Read' },
+    });
+    check(res, { 'add access 200': (r) => r.status === 200 });
+    groupAccesses(groupId).forEach((access) => revokeAccess(access.id));
+    deleteGroup(groupId);
+  },
+  'POST /api/v1/ressources/{id}/access': ({ request }) => {
+    const groupId = createGroup('access-list');
+    grantGroupAccess(groupId);
+    check(request({ path: { id: groupId }, query: { ressource_type: 'groups' } }), {
+      'list accesses 200': (r) => r.status === 200,
+    });
+    groupAccesses(groupId).forEach((access) => revokeAccess(access.id));
+    deleteGroup(groupId);
+  },
+  'POST /api/v1/ressources/remove_access': ({ request }) => {
+    const groupId = createGroup('access-remove');
+    grantGroupAccess(groupId);
+    const accesses = groupAccesses(groupId);
+    if (accesses.length === 0) fail(`fixture: no access on group ${groupId}`);
+    check(request({ body: { access_id: accesses[0].id } }), { 'remove access 200': (r) => r.status === 200 });
+    deleteGroup(groupId);
   },
 
   // Groups: create → patch → members → delete.

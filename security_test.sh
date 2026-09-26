@@ -40,7 +40,7 @@ echo "==> [3/4] Report (logs)..."
 docker compose -f "$COMPOSE_FILE" logs "$SERVICE_NAME"
 
 echo "==> [4/4] Cleaning up the containers..."
-docker compose -f "$COMPOSE_FILE" down
+docker compose -f "$COMPOSE_FILE" down -v
 
 echo "----------------------------------------"
 echo "Final exit code: $EXIT_CODE"
