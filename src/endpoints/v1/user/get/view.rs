@@ -37,7 +37,7 @@ impl DirectoryUsersQuery {
         self.group_ids.as_deref()
     }
 
-    pub fn limit(&self) -> Option<u64> {
+    pub const fn limit(&self) -> Option<u64> {
         self.limit
     }
 }
@@ -53,7 +53,7 @@ pub fn parse_id_list(value: Option<&str>) -> Option<Vec<u64>> {
             id.trim()
                 .parse::<u64>()
                 .ok()
-                .filter(|id| *id > 0 && *id <= i32::MAX as u64)
+                .filter(|id| *id > 0 && i32::try_from(*id).is_ok())
         })
         .collect()
 }
