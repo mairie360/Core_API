@@ -2,6 +2,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::{
     create_session::CreateSessionQueryView, revoke_session_by_token::RevokeSessionByTokenQueryView,
 };
+use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use mairie360_api_lib::{
     security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
@@ -21,7 +22,12 @@ macro_rules! init_app {
             App::new()
                 .app_data($state.clone())
                 .configure(public_config)
-                .service(web::scope("/api").wrap(JwtMiddleware).configure(config)),
+                .service(
+                    web::scope("/api")
+                        .wrap(actix_web::middleware::from_fn(session_guard))
+                        .wrap(JwtMiddleware)
+                        .configure(config),
+                ),
         )
         .await
     };

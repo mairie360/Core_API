@@ -15,6 +15,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .configure(auth::config)
             .configure(groups::config)
+            .configure(ressources::config)
             .configure(roles::config)
             .configure(sessions::config)
             .configure(user::config)

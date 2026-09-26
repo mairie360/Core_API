@@ -55,7 +55,14 @@ impl AddAccessToUserQueryView {
 
 impl ApiRequestDto for AddAccessToUserQueryView {
     fn query_sql(&self) -> &'static str {
-        "INSERT INTO access_control (user_id, resource_id, resource_instance_id, permission_id) VALUES ($1, $2, $3, $4)"
+        // Idempotent: the `uq_access_entry` constraint never matches a user entry (its
+        // `group_id` is NULL and NULLs are distinct), so duplicates are skipped explicitly.
+        "INSERT INTO access_control (user_id, resource_id, resource_instance_id, permission_id) \
+         SELECT $1, $2, $3, $4 \
+         WHERE NOT EXISTS (\
+             SELECT 1 FROM access_control \
+             WHERE user_id = $1 AND resource_id = $2 AND resource_instance_id = $3 AND permission_id = $4\
+         )"
     }
 
     fn query_params(&self) -> &[QueryParam] {

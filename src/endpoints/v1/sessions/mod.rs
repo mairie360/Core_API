@@ -1,6 +1,7 @@
 pub mod doc;
 mod get;
 mod history;
+mod logout;
 mod refresh;
 mod revoke;
 pub mod view;
@@ -12,6 +13,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/sessions")
             .service(get::endpoint::get_active_sessions)
             .service(history::endpoint::history)
+            .service(logout::endpoint::logout)
             .service(revoke::endpoint::revoke),
     );
 }

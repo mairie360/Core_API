@@ -1,14 +1,16 @@
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::sessions::get_active_session_ids::GetActiveSessionIdsQueryView;
 use crate::database::users::delete_user::{DeleteUserQueryView, IsUserActiveQueryView};
 use crate::keycloak::sync::{
     disable_account, enable_account, export_user, find_account, SyncError,
 };
 use crate::keycloak::KeycloakAdminClient;
+use crate::session_revocation::publish_revoked_sessions;
+use uuid::Uuid;
 
 /// SQLSTATE raised by `fn_check_can_delete_user` when the user still owns resources.
 const RESTRICT_VIOLATION: &str = "23001";
@@ -64,7 +66,15 @@ fn is_restrict_violation(error: &ApiLibError) -> bool {
     )
 }
 
-async fn archive_in_core(smart_db: &SmartDatabase, user_id: u64) -> Result<(), DeleteUserError> {
+async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUserError> {
+    let smart_db = state.get_smart_db();
+    // The database drops the user's sessions with the account: read them first, to publish them
+    // to the revocation list once the deletion succeeded (MAIR-264).
+    let sessions: Vec<Uuid> = smart_db
+        .fetch_all(&GetActiveSessionIdsQueryView::new(user_id))
+        .await
+        .unwrap_or_default();
+
     smart_db
         .execute(DeleteUserQueryView::new(user_id))
         .await
@@ -75,7 +85,11 @@ async fn archive_in_core(smart_db: &SmartDatabase, user_id: u64) -> Result<(), D
                 eprintln!("Error: {e}");
                 DeleteUserError::DatabaseError
             }
-        })
+        })?;
+
+    publish_revoked_sessions(state.get_redis(), &sessions).await;
+
+    Ok(())
 }
 
 async fn delete_user(
@@ -97,25 +111,25 @@ async fn delete_user(
 
     // Without Keycloak, or for an account unknown to Keycloak: Core alone.
     let Some(admin) = admin else {
-        return archive_in_core(smart_db, user_id).await;
+        return archive_in_core(&state, user_id).await;
     };
     let Some(user) = export_user(smart_db, user_id as i32)
         .await
         .map_err(DeleteUserError::Keycloak)?
     else {
-        return archive_in_core(smart_db, user_id).await;
+        return archive_in_core(&state, user_id).await;
     };
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
         .await
         .map_err(DeleteUserError::Keycloak)?
     else {
-        return archive_in_core(smart_db, user_id).await;
+        return archive_in_core(&state, user_id).await;
     };
 
     disable_account(admin, &keycloak_id)
         .await
         .map_err(DeleteUserError::Keycloak)?;
-    if let Err(error) = archive_in_core(smart_db, user_id).await {
+    if let Err(error) = archive_in_core(&state, user_id).await {
         if let Err(restore) = enable_account(admin, &keycloak_id).await {
             eprintln!(
                 "Keycloak sync: Core refused to archive user {user_id} and the Keycloak account {keycloak_id} could not be re-enabled: {restore}"
