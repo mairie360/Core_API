@@ -771,6 +771,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "sqlx",
+ "testcontainers",
  "tokio",
  "tokio-postgres",
  "url",

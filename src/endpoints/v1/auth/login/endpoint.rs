@@ -3,6 +3,7 @@ use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
+use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::session_jwt::generate_session_jwt;
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
@@ -118,23 +119,28 @@ async fn generate_first_connection_token(
         return Ok(token);
     }
     let token = Uuid::new_v4().to_string();
-    redis
-        .secure_set(&format!("{user_id}/first_connection_token"), &token)
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            LoginError::RedisError
-        })?;
-    redis
-        .secure_set(
-            &format!("{token}/first_connection_id"),
-            &format!("{user_id}"),
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            LoginError::RedisError
-        })?;
+    set_token(
+        redis,
+        &format!("{user_id}/first_connection_token"),
+        &token,
+        FIRST_CONNECTION_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        LoginError::RedisError
+    })?;
+    set_token(
+        redis,
+        &format!("{token}/first_connection_id"),
+        &user_id.to_string(),
+        FIRST_CONNECTION_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        LoginError::RedisError
+    })?;
     Ok(token)
 }
 
