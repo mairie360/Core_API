@@ -1,6 +1,7 @@
 use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 use sqlx::PgPool;
 
@@ -35,7 +36,7 @@ async fn test_register_user_success() {
             "John",
             "Doe",
             &unique_email,
-            "secure_password",
+            seed_password_hash(),
             Some("0601020304"),
         ))
         .await
@@ -59,7 +60,7 @@ async fn test_register_user_duplicate_email() {
             "John",
             "Doe",
             &unique_email,
-            "secure_password",
+            seed_password_hash(),
             Some("0601020304"),
         ))
         .await;
@@ -69,7 +70,7 @@ async fn test_register_user_duplicate_email() {
             "John",
             "Doe",
             &unique_email,
-            "secure_password",
+            seed_password_hash(),
             Some("0601020304"),
         ))
         .await;

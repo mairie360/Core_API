@@ -3,7 +3,9 @@ use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::sso_login::{SsoLoginUserQueryResultView, SsoLoginUserQueryView};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID, BOB_ID};
+use mairie360_api_lib::test_setup::queries_setup::{
+    get_shared_db, seed_password_hash, ALICE_ID, BOB_ID,
+};
 use serial_test::serial;
 
 #[tokio::test]
@@ -50,10 +52,11 @@ async fn test_sso_login_prefers_exact_case_match() {
     for address in [email.to_uppercase(), email.clone()] {
         sqlx::query(
             "INSERT INTO users (first_name, last_name, email, password, status) \
-             VALUES ('Sso', $1, $2, 'password', 'active')",
+             VALUES ('Sso', $1, $2, $3, 'active')",
         )
         .bind(&marker)
         .bind(&address)
+        .bind(seed_password_hash())
         .execute(&raw)
         .await
         .unwrap();
