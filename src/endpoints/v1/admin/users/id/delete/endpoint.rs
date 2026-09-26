@@ -1,8 +1,10 @@
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::sessions::get_active_session_ids::GetActiveSessionIdsQueryView;
-use crate::database::users::delete_user::DeleteUserQueryView;
+use crate::database::users::delete_user::{DeleteUserQueryView, IsUserActiveQueryView};
 use crate::keycloak::sync::{
     disable_account, enable_account, export_user, find_account, SyncError,
 };
@@ -10,16 +12,26 @@ use crate::keycloak::KeycloakAdminClient;
 use crate::session_revocation::publish_revoked_sessions;
 use uuid::Uuid;
 
+/// SQLSTATE raised by `fn_check_can_delete_user` when the user still owns resources.
+const RESTRICT_VIOLATION: &str = "23001";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum DeleteUserError {
-    AlreadyDeleted,
+    UnknownUser,
+    OwnsResources,
+    DatabaseError,
     Keycloak(SyncError),
 }
 
 impl std::fmt::Display for DeleteUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AlreadyDeleted => write!(f, "User is already deleted"),
+            Self::UnknownUser => write!(f, "Unknown user"),
+            Self::OwnsResources => write!(
+                f,
+                "The user still owns groups, events or projects: transfer them first"
+            ),
+            Self::DatabaseError => write!(f, "Database error occurred"),
             Self::Keycloak(error) => write!(f, "{error}"),
         }
     }
@@ -28,9 +40,10 @@ impl std::fmt::Display for DeleteUserError {
 impl ResponseError for DeleteUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::AlreadyDeleted => StatusCode::OK,
-            Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
-            Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
+            Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::OwnsResources | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::DatabaseError
+            | Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
@@ -45,6 +58,14 @@ impl ResponseError for DeleteUserError {
     }
 }
 
+fn is_restrict_violation(error: &ApiLibError) -> bool {
+    matches!(
+        error,
+        ApiLibError::Database(DbError::Sqlx(sqlx::Error::Database(db_error)))
+            if db_error.code().as_deref() == Some(RESTRICT_VIOLATION)
+    )
+}
+
 async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUserError> {
     let smart_db = state.get_smart_db();
     // The database drops the user's sessions with the account: read them first, to publish them
@@ -54,11 +75,17 @@ async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUse
         .await
         .unwrap_or_default();
 
-    let view = DeleteUserQueryView::new(user_id);
-    smart_db.execute(view).await.map_err(|e| {
-        eprintln!("Error: {e}");
-        DeleteUserError::AlreadyDeleted
-    })?;
+    smart_db
+        .execute(DeleteUserQueryView::new(user_id))
+        .await
+        .map_err(|e| {
+            if is_restrict_violation(&e) {
+                DeleteUserError::OwnsResources
+            } else {
+                eprintln!("Error: {e}");
+                DeleteUserError::DatabaseError
+            }
+        })?;
 
     publish_revoked_sessions(state.get_redis(), &sessions).await;
 
@@ -71,21 +98,25 @@ async fn delete_user(
     user_id: u64,
 ) -> Result<(), DeleteUserError> {
     let smart_db = state.get_smart_db();
-    // The soft-delete view matches no row for an unknown or archived user: tell it apart first,
-    // as the historical contract answers `200` in that case.
-    let user = export_user(smart_db, user_id as i32)
+    let active: bool = smart_db
+        .fetch_scalar(&IsUserActiveQueryView::new(user_id))
         .await
-        .map_err(|error| {
-            if admin.is_some() {
-                DeleteUserError::Keycloak(error)
-            } else {
-                DeleteUserError::AlreadyDeleted
-            }
-        })?
-        .filter(|user| user.enabled)
-        .ok_or(DeleteUserError::AlreadyDeleted)?;
+        .map_err(|e| {
+            eprintln!("Error: {e}");
+            DeleteUserError::DatabaseError
+        })?;
+    if !active {
+        return Err(DeleteUserError::UnknownUser);
+    }
+
     // Without Keycloak, or for an account unknown to Keycloak: Core alone.
     let Some(admin) = admin else {
+        return archive_in_core(&state, user_id).await;
+    };
+    let Some(user) = export_user(smart_db, user_id as i32)
+        .await
+        .map_err(DeleteUserError::Keycloak)?
+    else {
         return archive_in_core(&state, user_id).await;
     };
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
@@ -112,34 +143,24 @@ async fn delete_user(
 #[utoipa::path(
     delete,
     path = "",
-    summary = "Archive a user (administration)",
-    description = "Archives a user account (soft delete: the row is kept, flagged archived, and \
-                   the schema ends the user's Core sessions). Reserved to administrators.\n\n\
-                   Mind the status: a successful archive answers `204` with an empty body, while \
-                   a **failure** (account already archived, unknown id, account owning groups, \
-                   events or projects, or database outage) answers `200` with a plain-text \
-                   message. A client cannot just test `2xx`: it must tell `204` from `200`.\n\n\
+    summary = "Delete a user (administration)",
+    description = "Archives a user account: it is flagged `archived` and leaves the active users \
+                   (directory, admin listing), but is never hard-deleted. Administrators only.\n\n\
+                   Refused with `409` while the user still owns groups, events or projects: \
+                   transfer them first. An unknown or already archived user answers `404`.\n\n\
                    **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client and \
-                   the account is active and known to Keycloak (recorded link, then e-mail), its \
-                   Keycloak account is **disabled** (never deleted) and all its Keycloak sessions \
-                   are ended **before** Core archives it. If Core then refuses (`200`), the \
-                   Keycloak account is re-enabled. An account already archived answers `200` \
-                   without calling Keycloak; an account unknown to Keycloak only goes through \
-                   Core. Without Keycloak, or with a public client, only Core is written.",
+                   the account is known to Keycloak (recorded link, then e-mail), its Keycloak \
+                   account is **disabled** (never deleted) and its Keycloak sessions are ended \
+                   **before** Core archives it. If Core then refuses, the Keycloak account is \
+                   re-enabled. An account unknown to Keycloak only goes through Core, as does any \
+                   call without a confidential client.",
     params(
         ("userId" = u64, Path, description = "User id.", example = 42)
     ),
     responses(
         (
             status = 204,
-            description = "Account archived (and its Keycloak account disabled and signed out when mirrored). Empty body.",
-        ),
-        (
-            status = 200,
-            description = "Nothing was archived: account already archived, unknown id, account owning groups/events/projects, or write failure. The Keycloak account, if it had been disabled, is re-enabled.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("User is already deleted")
+            description = "Account archived. Empty body.",
         ),
         (
             status = 400,
@@ -150,7 +171,7 @@ async fn delete_user(
         ),
         (
             status = 401,
-            description = "`Authorization` header missing, JWT invalid or expired, or session revoked.",
+            description = "`Authorization` header missing, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -163,11 +184,25 @@ async fn delete_user(
             example = json!("Forbidden: User is not an admin.")
         ),
         (
-            status = 500,
-            description = "The account could not be read, or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            status = 404,
+            description = "No active user matches `userId` (unknown or already archived).",
             body = String,
             content_type = "text/plain",
-            example = json!("An error occurred while accessing the database.")
+            example = json!("Unknown user")
+        ),
+        (
+            status = 409,
+            description = "The user still owns groups, events or projects.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The user still owns groups, events or projects: transfer them first")
+        ),
+        (
+            status = 500,
+            description = "Database error while checking or archiving the user, or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
         ),
         (
             status = 502,

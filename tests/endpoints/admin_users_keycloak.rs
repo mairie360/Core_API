@@ -583,8 +583,11 @@ async fn test_delete_user_re_enables_the_keycloak_account_when_core_refuses() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body, "User is already deleted");
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(
+        body,
+        "The user still owns groups, events or projects: transfer them first"
+    );
     assert!(mock.user(&keycloak_id).unwrap().enabled, "re-enabled");
     assert!(!core_user(&env, user_id).await.3, "still active in Core");
 }
@@ -608,7 +611,7 @@ async fn test_delete_user_already_archived_does_not_call_keycloak() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     assert!(mock.token_requests().is_empty());
     assert!(mock.logouts().is_empty());
 }
