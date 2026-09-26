@@ -15,11 +15,7 @@ base64 = "0.23.0"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "ring", "webpki-roots", "builder"] }
-# Bumped ahead of the actual crates.io release: 1.3.0 is the version mairie360_api_lib#132
-# (feat(password): add argon2id hashing module) will publish as once merged (feat -> minor bump
-# per its semantic-release config). Do not merge this PR before that version exists on
-# crates.io, see the PR discussion.
-mairie360_api_lib = "1.3.0"
+mairie360_api_lib = "1.4.0"
 percent-encoding = "2.3"
 rand = "0.10"
 serde = { version = "1.0.219", features = ["derive"] }
