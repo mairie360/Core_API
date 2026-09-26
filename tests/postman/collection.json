@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Core API integration tests",
-    "description": "End-to-end smoke tests replayed by newman in CI (MAIR-117). `baseUrl` is injected by docker-compose-integration.yml; the default in environment.json targets a local stack. The flow registers a fresh user (unique e-mail generated at run time), walks the first-connection password change, logs in, and exercises the session routes with the issued JWT, then archives the account through the admin route (JWT of the seeded Admin forged in the pre-request script).",
+    "description": "End-to-end smoke tests replayed by newman in CI (MAIR-117). `baseUrl` is injected by docker-compose-integration.yml; the default in environment.json targets a local stack. The flow creates a fresh user through the admin route (unique e-mail generated at run time), walks the first-connection password change, logs in, and exercises the session routes with the issued JWT, then archives the account through the admin route (JWT of the seeded Admin forged in the pre-request script).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -224,7 +224,7 @@
           "response": []
         },
         {
-          "name": "Register with an invalid e-mail is rejected",
+          "name": "Creating a user with an invalid e-mail is rejected",
           "request": {
             "method": "POST",
             "header": [
@@ -232,18 +232,24 @@
                 "key": "Content-Type",
                 "value": "application/json",
                 "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "auth",
-                "register"
+                "admin",
+                "users",
+                ""
               ]
             },
             "body": {
@@ -266,7 +272,7 @@
                   "    pm.response.to.have.status(400);",
                   "});",
                   "pm.test(\"Body matches the expected text\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"Invalid `email`: must be a valid e-mail address\");",
+                  "    pm.expect(pm.response.text()).to.eql(\"Invalid data provided\");",
                   "});"
                 ]
               }
@@ -275,7 +281,7 @@
           "response": []
         },
         {
-          "name": "Register a new user",
+          "name": "Create a new user through the admin route",
           "request": {
             "method": "POST",
             "header": [
@@ -283,18 +289,24 @@
                 "key": "Content-Type",
                 "value": "application/json",
                 "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "auth",
-                "register"
+                "admin",
+                "users",
+                ""
               ]
             },
             "body": {
@@ -317,7 +329,7 @@
                   "    pm.response.to.have.status(201);",
                   "});",
                   "pm.test(\"Body matches the expected text\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"User registered successfully!\");",
+                  "    pm.expect(pm.response.text()).to.eql(\"User created successfully!\");",
                   "});"
                 ]
               }
@@ -326,7 +338,7 @@
           "response": []
         },
         {
-          "name": "Register the same e-mail twice is rejected",
+          "name": "Creating the same e-mail twice is rejected",
           "request": {
             "method": "POST",
             "header": [
@@ -334,18 +346,24 @@
                 "key": "Content-Type",
                 "value": "application/json",
                 "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "v1",
-                "auth",
-                "register"
+                "admin",
+                "users",
+                ""
               ]
             },
             "body": {
@@ -1345,6 +1363,65 @@
                   "    const user = pm.response.json().users.find((u) => u.email === pm.environment.get(\"test_user_email\"));",
                   "    pm.expect(user).to.be.an(\"object\");",
                   "    pm.environment.set(\"test_user_id\", user.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login again to get a session that is not revoked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_user_email}}\",\n  \"password\": \"{{test_user_new_password}}\",\n  \"device_info\": \"newman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Authorization header carries a Bearer JWT\", function () {",
+                  "    const auth = pm.response.headers.get(\"Authorization\");",
+                  "    pm.expect(auth, \"Authorization header\").to.be.a(\"string\");",
+                  "    pm.expect(auth).to.match(/^Bearer [A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+$/);",
+                  "    pm.environment.set(\"jwt\", auth.substring(\"Bearer \".length));",
+                  "});",
+                  "pm.test(\"Body carries a refresh token\", function () {",
+                  "    const token = pm.response.json().refresh_token;",
+                  "    pm.expect(token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.environment.set(\"refresh_token\", token);",
                   "});"
                 ]
               }

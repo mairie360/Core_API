@@ -43,7 +43,7 @@ VALUES (6, 'agent', 'Agent municipal', TRUE)
 ON CONFLICT DO NOTHING;
 
 -- Explicit ids do not advance the SERIAL sequence: move it past the fixtures so the users
--- created during the scan (POST /api/v1/admin/users, /auth/register) do not collide with them.
+-- created during the scan (POST /api/v1/admin/users) do not collide with them.
 SELECT setval(pg_get_serial_sequence('users', 'id'), GREATEST((SELECT MAX(id) FROM users), 1));
 SELECT setval(pg_get_serial_sequence('groups', 'id'), GREATEST((SELECT MAX(id) FROM groups), 1));
 SELECT setval(pg_get_serial_sequence('roles', 'id'), GREATEST((SELECT MAX(id) FROM roles), 1));

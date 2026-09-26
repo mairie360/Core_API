@@ -6,4 +6,6 @@
 10109	IGNORE	Modern Web Application
 10112	IGNORE	Session Management Response Identified
 90005	IGNORE	Sec-Fetch-* Headers Not Present (API, not applicable)
+10023	OUTOFSCOPE	.*/api-docs/openapi\.json
+100000	OUTOFSCOPE	.*/(auth|admin)/keycloak.*
 100001	OUTOFSCOPE	.*/swagger-ui/.*
