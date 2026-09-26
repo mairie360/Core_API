@@ -17,8 +17,8 @@ enum DirectoryError {
 impl std::fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DirectoryError::BadRequest => write!(f, "Bad request."),
-            DirectoryError::DatabaseError => {
+            Self::BadRequest => write!(f, "Bad request."),
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -28,8 +28,8 @@ impl std::fmt::Display for DirectoryError {
 impl ResponseError for DirectoryError {
     fn status_code(&self) -> StatusCode {
         match self {
-            DirectoryError::BadRequest => StatusCode::BAD_REQUEST,
-            DirectoryError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -59,7 +59,7 @@ async fn trigger_list_directory_users(
         ))
         .await
         .map_err(|error| {
-            eprintln!("{:?}", error);
+            eprintln!("{error:?}");
             DirectoryError::DatabaseError
         })?;
 

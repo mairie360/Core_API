@@ -48,7 +48,10 @@ async fn get_user_info(
         .map_err(|_| GetError::DatabaseError)?;
 
     Ok(GetSessionsResultView::new(
-        query_result.into_iter().map(|s| s.into()).collect(),
+        query_result
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect(),
     ))
 }
 

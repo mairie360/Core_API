@@ -1,6 +1,7 @@
 pub mod doc;
 pub mod force_change_password;
 pub mod forgot_password;
+pub mod keycloak;
 pub mod login;
 pub mod register;
 pub mod reset_password;
@@ -15,6 +16,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/auth")
             .service(force_change_password::endpoint::force_change_password)
             .service(forgot_password::endpoint::forgot_password)
+            .service(keycloak::endpoint::keycloak_login)
             .service(login::endpoint::login)
             .service(register::endpoint::register)
             .service(reset_password::endpoint::reset_password),

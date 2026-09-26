@@ -34,7 +34,43 @@ docker compose up --build --watch   # full stack: postgres, liquibase migrations
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET`, `JWT_TIMEOUT` and
 `SMTP_*`/`EMAIL_FROM` env vars — all fetched with `get_critical_env_var` (panics on missing var), see
-`docker-compose.yml` for the dev values.
+`docker-compose.yml` for the dev values. The Postgres URL is assembled by
+`database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
+`DB_PASSWORD` may contain any character.
+
+Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
+`get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
+(confidential client) and `KEYCLOAK_ISSUER` (public issuer when Core reaches Keycloak through an
+internal URL) are optional. Without them the route answers `503` and only the password login
+works. Core redeems the authorization code, verifies the ID token against the realm JWKS and opens
+the same Core session (JWT + refresh token) as a password login. The account is resolved by the
+Keycloak user id (`sub`) recorded in `user_identities` (`resolve_user_identity()`), falling back to
+the token's verified e-mail for an account not linked yet, which links it on the spot
+(`link_user_identity()`); no account is created and a subject linked to another account is
+refused. Tests use a local fake realm (`tests/common/keycloak_mock.rs`, throwaway RSA keys in
+`tests/fixtures/`), no Keycloak needed.
+
+Account migration to Keycloak (MAIR-141): `POST /api/v1/admin/keycloak/migration` (admin only)
+and the `keycloak_migration` binary (`src/bin/`, shipped in the image as `/app/keycloak-migration`,
+same env vars, `--send-password-setup-email` flag) both run `keycloak::migration::migrate_users`:
+read `v_users_sso_export`, find or create each account in the realm through the Admin REST API
+(`src/keycloak/admin.rs`, service account of the confidential client, which needs the
+`realm-management` roles `manage-users`, `view-realm`, `manage-realm`), map Core roles as realm
+roles, disable archived accounts, then link through `link_user_identity()`. Replayable without
+duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
+compose files pin it and `.cargo/config.toml` sets `TEST_DB_VERSION` for the testcontainers.
+
+Administration mirroring (MAIR-142, `src/keycloak/sync.rs`): when `main.rs` registers a
+`KeycloakAdminClient` as app data (confidential client only), `POST /api/v1/admin/users/`,
+`PATCH`/`DELETE /api/v1/admin/users/{id}/` and the role grant/revoke take it as
+`Option<web::Data<KeycloakAdminClient>>` and mirror the change into the realm **before** the
+Core write, compensating the Keycloak side (delete the reserved account, restore the former
+profile, re-enable, re-map...) when Core refuses. Accounts are found by the recorded link, then
+by e-mail (linked on the spot); an account unknown to Keycloak is left to the migration, and
+without the client only Core is written. `DELETE /api/v1/admin/users/{id}/` archives through
+`DELETE FROM v_users_active` (the schema has no `delete_user()` function; the endpoint was
+broken before MAIR-142). The fake realm of `tests/common/keycloak_mock.rs` covers the Admin API
+subset used; `tests/endpoints/admin_users_keycloak.rs` exercises every path.
 
 Tests:
 
@@ -179,3 +215,7 @@ schema, not the source of truth.
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
 push; the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
+
+## Pull request reviewers
+
+Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
