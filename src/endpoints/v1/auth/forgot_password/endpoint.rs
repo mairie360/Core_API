@@ -1,7 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
-use crate::redis_keys::{redis_key, set_token, FORGOT_PASSWORD_TTL_SECONDS};
+use crate::redis_keys::{set_token, FORGOT_PASSWORD_TTL_SECONDS};
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -145,10 +145,7 @@ async fn forgot_password_trigger(
 ) -> Result<(), ResetPasswordError> {
     let token = state
         .get_redis()
-        .secure_get::<String>(&redis_key(&format!(
-            "{}/forgot_password_token",
-            view.email()
-        )))
+        .secure_get::<String>(&format!("{}/forgot_password_token", view.email()))
         .await;
     // A reset is already waiting for this address: answer as if a new e-mail had been sent.
     if matches!(token, Ok(Some(_))) {

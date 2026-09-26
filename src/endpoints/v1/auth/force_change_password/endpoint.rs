@@ -1,7 +1,6 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
-use crate::redis_keys::redis_key;
 use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -49,7 +48,7 @@ impl ResponseError for ForceChanhePasswordError {
 async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
     match state
         .get_redis()
-        .secure_get::<String>(&redis_key(&format!("{token}/first_connection_id")))
+        .secure_get::<String>(&format!("{token}/first_connection_id"))
         .await
     {
         Ok(Some(id)) => id.parse().ok(),
@@ -112,8 +111,8 @@ async fn force_change_password_trigger(
 async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
     let redis = state.get_redis();
     for key in [
-        redis_key(&format!("{token}/first_connection_id")),
-        redis_key(&format!("{user_id}/first_connection_token")),
+        format!("{token}/first_connection_id"),
+        format!("{user_id}/first_connection_token"),
     ] {
         if let Err(error) = redis.secure_delete(&key).await {
             eprintln!("Could not delete the first-connection token: {error:?}");

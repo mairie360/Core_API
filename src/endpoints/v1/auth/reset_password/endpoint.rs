@@ -4,7 +4,6 @@ use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
-use crate::redis_keys::redis_key;
 use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
@@ -84,7 +83,7 @@ async fn reset_password_trigger(
     let smart_db = state.get_smart_db();
     let redis = state.get_redis();
 
-    let key = redis_key(&format!("{}/forgot_password_email", view.token()));
+    let key = format!("{}/forgot_password_email", view.token());
     let email: String = match redis.secure_get::<String>(&key).await {
         Ok(Some(email)) => email,
         other => {
@@ -100,7 +99,7 @@ async fn reset_password_trigger(
         }
     };
 
-    let reversed_key = redis_key(&format!("{email}/forgot_password_token"));
+    let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
         eprintln!("Failed to delete reversed key: {e:?}");
         return Err(ResetPasswordError::RedisError);

@@ -6,16 +6,13 @@
 //! they refuse the JWTs of the session too. Core itself already refuses them through
 //! `endpoints::session_guard`, which reads the `sessions` table.
 //!
-//! Local copy of the lib's `revoke_session`: Core cannot depend on the unreleased lib version.
-//! Same key (`revoked:` + the session id, never prefixed), so both implementations are
-//! interchangeable; replace this module by the lib helper when the lib is bumped.
-//!
-//! The lib 1.2.2 `Redis` has no atomic `SET ... EX`, so the key is written with `SET` then
-//! `EXPIRE` (both allowed by the Redis ACL of the API roles).
+//! The write goes through the lib's `revoke_session` (`SET … EX`, atomic): the key is
+//! `revoked:` + the session id and is **never prefixed**, unlike Core's other keys, so the ACL of
+//! every API role can read it.
 
 use crate::database::sessions::revoke_user_sessions::RevokeUserSessionsQueryView;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::get_jwt_timeout;
+use mairie360_api_lib::jwt_manager::{get_jwt_timeout, revoke_session};
 use mairie360_api_lib::redis::error::RedisError;
 use mairie360_api_lib::redis::redis_interface::Redis;
 use mairie360_api_lib::state::AppState;
@@ -49,10 +46,8 @@ pub async fn publish_revoked_session(
     session_id: Uuid,
     ttl_seconds: u64,
 ) -> Result<(), RedisError> {
-    let key = revoked_session_key(session_id);
     let ttl = ttl_seconds.clamp(1, max_jwt_lifetime().max(1));
-    redis.set(&key, 1_i32).await?;
-    redis.expire(&key, ttl).await
+    revoke_session(redis, &session_id.to_string(), ttl).await
 }
 
 /// Marks every session of `session_ids` as revoked for `JWT_TIMEOUT`.

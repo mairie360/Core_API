@@ -3,7 +3,7 @@ use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
-use crate::redis_keys::{redis_key, set_token, FIRST_CONNECTION_TTL_SECONDS};
+use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::session_jwt::generate_session_jwt;
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
@@ -113,7 +113,7 @@ async fn generate_first_connection_token(
     let redis = state.get_redis();
 
     if let Ok(Some(token)) = redis
-        .secure_get::<String>(&redis_key(&format!("{user_id}/first_connection_token")))
+        .secure_get::<String>(&format!("{user_id}/first_connection_token"))
         .await
     {
         return Ok(token);
