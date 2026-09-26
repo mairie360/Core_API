@@ -94,11 +94,27 @@ polling `/health`, and dependent services wait for it with `service_completed_su
 
 The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
 `JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
-service (`init-test.sql`: plain `User` account `id=2`, user `id=1` is the Admin created by liquibase) and fails on
+service (`init-test.sql`: plain `User` accounts `id=2` and `id=42`, user `id=1` is the Admin created by liquibase) and fails on
 any alert not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://core:3000` is required: the
 spec's `servers` (localhost, development.mairie360.fr) are unreachable from the ZAP container. Keep `rules.tsv`
 identical in every API. The scan fuzzes every field, so a `500` (value too long for its column, NUL byte, unmapped
 constraint violation) or a `<script>` echoed back fails the job: validate inputs, don't silence the alert.
+
+Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairie360/CICD `tests/`, available as
+`cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with
+`CICD_VERSION`; gitignored). ZAP runs with `--hook zap_hooks.py` and fails when an operation of the served spec was
+never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403 (the `/auth/**` routes
+declare none: public). `load-test.js` is built on `coverage.js` and covers every operation (MAIR-195): GET handlers
+run in the `reads` scenario (20 VUs) as the Admin against a group created in `setup()`, the other methods in the
+`writes` scenario (2 VUs), each handler creating and deleting its own accounts, roles and groups so they are
+order-independent (deleted accounts stay archived). The auth flows run end to end on throwaway accounts: register →
+login `412` → `force_change_password` → login → refresh → revoke, and `forgot_password` → `reset_password` with the
+token read from the Mailpit API (`MAILPIT_URL`). One `p(95)` threshold per `op` tag (200 ms reads, 500 ms writes) and `http_req_failed < 1%` (the expected `412` of the fixture logins is excluded
+through `responseCallback`). The spec k6 reads is the one served by the image under test, saved into the
+`openapi-spec` volume by `core-ready`. **Adding an endpoint = adding its handler in `load-test.js`** (k6 aborts at
+init otherwise), nothing to do for ZAP. `init-test.sql` also seeds the rows of the spec's path examples (user 42,
+group 3, role 6) so ZAP reaches real rows; the role examples point at 6 because the five base roles are protected
+(`403` on delete), which the gate would read as an unauthenticated operation.
 
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the

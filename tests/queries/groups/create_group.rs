@@ -1,5 +1,7 @@
 use crate::common::get_pool;
 use core_api::database::groups::create_group::CreateGroupQueryView;
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
@@ -33,6 +35,10 @@ async fn create_group_duplicate_name() {
     let result: Result<i32, _> = pool.fetch_scalar(&view).await;
     assert!(result.is_ok());
 
+    // The endpoint maps this unique violation to 409.
     let result: Result<i32, _> = pool.fetch_scalar(&view).await;
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(ApiLibError::Database(DbError::UniqueViolation(_)))
+    ));
 }

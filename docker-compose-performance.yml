@@ -1,6 +1,7 @@
 volumes:
   postgres-data:
   redis-data:
+  openapi-spec:
 
 networks:
   backend:
@@ -94,6 +95,21 @@ services:
       timeout: 5s
       retries: 5
 
+  seeder:
+    image: postgres:18-alpine
+    depends_on:
+      liquibase:
+        condition: service_completed_successfully
+    volumes:
+      - ./init-test.sql:/init-test.sql:ro
+    # ON_ERROR_STOP: a failing fixture must fail the stack, not leave k6 running without its users.
+    command: >
+      psql -h postgres -U postgres -d mairie_360_database -v ON_ERROR_STOP=1 -f /init-test.sql
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-password}
+    networks:
+      - backend
+
   core:
     container_name: core-api-developpement
     # The API under test: the published ghcr.io/mairie360/core-api:dev-<sha> image in CI, or
@@ -127,14 +143,22 @@ services:
   # The published image is distroless (no shell, no curl), so the API cannot carry its own
   # healthcheck: this sidecar polls /health and the services that need the API wait for it to
   # complete instead.
+  # It also saves the spec served by the image under test into the `openapi-spec` volume: that
+  # is the coverage reference of load-test.js (openapi.json is gitignored, so the CI checkout has
+  # none, and the served spec is the one of the exact image being tested).
   core-ready:
     image: curlimages/curl:latest
+    # Root, to write into the freshly created `openapi-spec` volume.
+    user: "0"
     depends_on:
       core:
         condition: service_started
+    volumes:
+      - openapi-spec:/spec
     command: >
       sh -c 'until curl -fsS http://core:3000/health >/dev/null; do
-      echo "waiting for core..."; sleep 2; done; echo "core ready"'
+      echo "waiting for core..."; sleep 2; done;
+      curl -fsS -o /spec/openapi.json http://core:3000/api-docs/openapi.json && echo "core ready"'
     networks:
       - backend
 
@@ -151,28 +175,28 @@ services:
       core-ready:
         condition: service_completed_successfully
 
-  # nginx:
-  #   image: nginx:1.29.1-bookworm
-  #   restart: always
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/nginx.conf
-  #   ports:
-  #     - "80:80"
-  #   networks:
-  #     - backend
-  #   depends_on:
-  #     mailpit:
-  #       condition: service_healthy
-
   k6-perf-test:
     image: grafana/k6:latest
     networks:
       - backend
+    # load-test.js declares one handler per operation of the spec through the shared OpenAPI
+    # coverage module (MAIR-194, mairie360/CICD tests/k6, see performance_test.sh): k6 aborts at
+    # init when an operation has no handler, and fails its thresholds when one is not exercised.
     volumes:
-      - ./load-test.js:/load-test.js
+      - ./load-test.js:/load-test.js:ro
+      - ./cicd-repo/tests/k6/coverage.js:/coverage.js:ro
+      - openapi-spec:/spec:ro
     command: ["run", "/load-test.js"]
     environment:
       - BASE_URL=http://core:3000
+      - OPENAPI_SPEC=/spec/openapi.json
+      - MAILPIT_URL=http://mailpit:8025
     depends_on:
       core-ready:
         condition: service_completed_successfully
+      # The fixtures load-test.js relies on (init-test.sql).
+      seeder:
+        condition: service_completed_successfully
+      # load-test.js reads the password reset e-mails through the Mailpit API.
+      mailpit:
+        condition: service_started
