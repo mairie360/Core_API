@@ -18,7 +18,7 @@ async fn is_active(pool: &SmartDatabase, user_id: u64) -> bool {
 #[serial]
 async fn test_delete_user_archives_the_account() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let user_id = create_user(&pool, "Delete", &unique_marker("archive")).await as u64;
     assert!(is_active(&pool, user_id).await);
 
@@ -33,7 +33,7 @@ async fn test_delete_user_archives_the_account() {
 #[serial]
 async fn test_is_user_active_is_false_for_an_unknown_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     assert!(!is_active(&pool, 999_999).await);
 }
@@ -42,7 +42,7 @@ async fn test_is_user_active_is_false_for_an_unknown_user() {
 #[serial]
 async fn test_delete_user_owning_a_group_is_a_restrict_violation() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let marker = unique_marker("owner");
     let user_id = create_user(&pool, "Owner", &marker).await as u64;
     let _: i32 = pool

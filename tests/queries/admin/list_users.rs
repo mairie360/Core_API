@@ -13,7 +13,7 @@ use serial_test::serial;
 #[serial]
 async fn admin_list_users_searches_and_paginates_by_name() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let marker = unique_marker("Paging");
     let charlie = create_user(&pool, "Charlie", &marker).await;
     let alex = create_user(&pool, "Alex", &marker).await;
@@ -51,7 +51,7 @@ async fn admin_list_users_searches_and_paginates_by_name() {
 #[serial]
 async fn admin_list_users_includes_roles_and_matches_full_name() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
 
     let rows: Vec<AdminUserRow> = pool
         .fetch_all(&AdminListUsersQueryView::new(
@@ -75,7 +75,7 @@ async fn admin_list_users_includes_roles_and_matches_full_name() {
 #[serial]
 async fn admin_list_users_filters_by_group() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let marker = unique_marker("Grouped");
     let member = create_user(&pool, "Member", &marker).await;
     let _outsider = create_user(&pool, "Outsider", &marker).await;

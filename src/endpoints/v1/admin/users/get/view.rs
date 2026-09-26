@@ -27,11 +27,11 @@ pub struct AdminListUsersQuery {
 }
 
 impl AdminListUsersQuery {
-    pub fn page(&self) -> Option<u64> {
+    pub const fn page(&self) -> Option<u64> {
         self.page
     }
 
-    pub fn page_size(&self) -> Option<u64> {
+    pub const fn page_size(&self) -> Option<u64> {
         self.page_size
     }
 
@@ -39,7 +39,7 @@ impl AdminListUsersQuery {
         self.search.as_deref()
     }
 
-    pub fn group_id(&self) -> Option<u64> {
+    pub const fn group_id(&self) -> Option<u64> {
         self.group_id
     }
 }
