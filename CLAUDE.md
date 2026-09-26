@@ -165,7 +165,7 @@ schema, not the source of truth.
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
-push; it wires in the Postman collection/environment IDs for this API. `auto-approve.yml` auto-approves Renovate
+push, with no input other than the package name and the CICD version. `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
