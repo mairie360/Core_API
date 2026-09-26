@@ -110,10 +110,10 @@ async fn logout_revokes_the_jwt_and_its_refresh_token() {
         .to_request();
     assert_eq!(status!(app, refresh), StatusCode::UNAUTHORIZED);
 
-    // Logging out again does not fail.
+    // Logging out again is refused like any other call: the JWT is revoked.
     assert_eq!(
         status!(app, logout(&jwt).to_request()),
-        StatusCode::NO_CONTENT
+        StatusCode::UNAUTHORIZED
     );
 }
 

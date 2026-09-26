@@ -3,7 +3,7 @@ use crate::common::{get_pool, get_raw_pool};
 use core_api::database::admin::reset_password::{
     AdminResetPasswordQueryView, AdminResetPasswordResult,
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, seed_password_hash};
 use serial_test::serial;
 
 #[tokio::test]
@@ -26,7 +26,7 @@ async fn admin_reset_password_updates_password_and_revokes_sessions() {
     let result: AdminResetPasswordResult = pool
         .fetch_one(&AdminResetPasswordQueryView::new(
             user_id as u64,
-            "a-new-password",
+            seed_password_hash(),
         ))
         .await
         .unwrap();
@@ -39,7 +39,7 @@ async fn admin_reset_password_updates_password_and_revokes_sessions() {
             .fetch_one(&raw)
             .await
             .unwrap();
-    assert_eq!(password, "a-new-password");
+    assert_eq!(password, seed_password_hash());
     assert!(!first_connect);
     let active_sessions: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND revoked_at IS NULL",
@@ -58,7 +58,10 @@ async fn admin_reset_password_unknown_user() {
     let pool = get_pool(host.clone()).await;
 
     let result: AdminResetPasswordResult = pool
-        .fetch_one(&AdminResetPasswordQueryView::new(999_999, "a-new-password"))
+        .fetch_one(&AdminResetPasswordQueryView::new(
+            999_999,
+            seed_password_hash(),
+        ))
         .await
         .unwrap();
 

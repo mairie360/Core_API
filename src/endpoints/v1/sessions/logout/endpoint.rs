@@ -43,22 +43,22 @@ impl ResponseError for LogoutError {
                    Core route, and the session's refresh token no longer works with \
                    `POST /api/v1/sessions/refresh`. The user's other sessions (other devices) \
                    stay active; to close one of them, use `POST /api/v1/sessions/revoke`.\n\n\
-                   Idempotent: logging out again with the same JWT answers `204` again (this is \
-                   the only route that still accepts the JWT of a revoked session, and it does \
-                   nothing with it). A JWT issued before this route \
-                   existed carries no session id: the call answers `204` without revoking \
-                   anything, and that JWT simply expires after `JWT_TIMEOUT`.\n\n\
+                   Logging out again with the same JWT answers `401`, like any other route: the \
+                   JWT of a revoked session is refused before this route runs. A JWT issued \
+                   before this route existed carries no session id: the call answers `204` \
+                   without revoking anything, and that JWT simply expires after \
+                   `JWT_TIMEOUT`.\n\n\
                    The session is also written to the Redis revocation list \
                    (`revoked:<session id>`, until the JWT expires): the other APIs refuse the JWT \
                    once they run a `mairie360_api_lib` version that checks it.",
     responses(
         (
             status = 204,
-            description = "Session revoked (or already revoked). Empty body.",
+            description = "Session revoked. Empty body.",
         ),
         (
             status = 401,
-            description = "Missing `Authorization` header, or invalid or expired JWT.",
+            description = "Missing `Authorization` header, or invalid, expired or revoked JWT (including a second logout with the same JWT).",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
