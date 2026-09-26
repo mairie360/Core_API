@@ -44,7 +44,7 @@ async fn patch_preferences(
 #[serial]
 async fn get_preferences_without_row_is_all_null() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool).await;
 
     let preferences: UserPreferences = pool
@@ -59,7 +59,7 @@ async fn get_preferences_without_row_is_all_null() {
 #[serial]
 async fn patch_preferences_upserts_and_keeps_absent_fields() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool).await;
 
     // First call creates the row.
@@ -108,7 +108,7 @@ async fn patch_preferences_upserts_and_keeps_absent_fields() {
 #[serial]
 async fn patch_preferences_with_an_unknown_theme_is_refused_by_the_database() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool).await;
 
     // The endpoint validates `theme` first; the CHECK constraint is the last line of defence.
@@ -128,7 +128,7 @@ async fn patch_preferences_with_an_unknown_theme_is_refused_by_the_database() {
 #[serial]
 async fn notification_settings_round_trip() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool).await;
 
     let empty: UserNotificationSettings = pool
