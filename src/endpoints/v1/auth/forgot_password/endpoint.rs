@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
+use crate::endpoints::validation::ValidatedJson;
 use crate::redis_keys::{set_token, FORGOT_PASSWORD_TTL_SECONDS};
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
@@ -183,10 +184,10 @@ async fn forgot_password_trigger(
         ),
         (
             status = 400,
-            description = "Malformed JSON body or missing `email` field.",
+            description = "Malformed JSON body, missing `email`, or `email` that is not a valid address of at most 320 characters.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `email`")
+            example = json!("Invalid `email`: must be a valid e-mail address")
         ),
         (
             status = 500,
@@ -201,7 +202,7 @@ async fn forgot_password_trigger(
 #[post("/forgot_password")]
 pub async fn forgot_password(
     state: web::Data<AppState>,
-    body: web::Json<ForgotPasswordView>,
+    body: ValidatedJson<ForgotPasswordView>,
 ) -> Result<impl Responder, ResetPasswordError> {
     forgot_password_trigger(state, body.into_inner()).await?;
     Ok(HttpResponse::Ok())

@@ -8,6 +8,7 @@ use crate::database::sessions::get_active_session_by_token::{
     ActiveSession, GetActiveSessionByTokenQueryView,
 };
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
+use crate::endpoints::validation::ValidatedJson;
 use crate::session_jwt::generate_session_jwt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,10 +101,10 @@ async fn refresh_request(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ `refresh_token` absent.",
+            description = "Malformed JSON body, missing `refresh_token`, or `refresh_token` longer than 512 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `refresh_token`")
+            example = json!("Invalid `refresh_token`: must not contain control characters")
         ),
         (
             status = 401,
@@ -126,7 +127,7 @@ async fn refresh_request(
     )
 )]
 pub async fn refresh(
-    body: web::Json<RefreshRequestView>,
+    body: ValidatedJson<RefreshRequestView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, RefreshError> {
     let view = body.into_inner();

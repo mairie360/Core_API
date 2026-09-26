@@ -1,3 +1,6 @@
+use crate::endpoints::validation::{
+    check_opaque, check_password, Validate, ValidationError, MAX_TOKEN_LENGTH,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -12,10 +15,10 @@ pub struct ResetPasswordView {
     )]
     token: String,
     /// Nouveau mot de passe en clair.
-    #[schema(format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 1, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
     /// Description libre de l'appareil, conservée sur la session ouverte par cet appel.
-    #[schema(example = "Chrome 140 sur Windows 11")]
+    #[schema(max_length = 512, example = "Chrome 140 sur Windows 11")]
     device_info: String,
 }
 
@@ -71,5 +74,13 @@ impl From<String> for ResetPasswordResponseView {
         Self {
             refresh_token: token,
         }
+    }
+}
+
+impl Validate for ResetPasswordView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_opaque("token", &self.token, MAX_TOKEN_LENGTH)?;
+        check_password("new_password", &self.new_password, 1)?;
+        check_opaque("device_info", &self.device_info, MAX_TOKEN_LENGTH)
     }
 }

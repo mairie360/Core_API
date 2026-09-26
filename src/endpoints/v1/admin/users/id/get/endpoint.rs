@@ -132,7 +132,7 @@ async fn get_user(
                     {
                         "id": "1",
                         "device_info": "Chrome 140 sur Windows 11",
-                        "ip_address": "192.168.1.24",
+                        "ip_address": "203.0.113.24",
                         "created_at": "2026-09-16 08:42:11 UTC",
                         "expires_at": "2026-09-23 08:42:11 UTC",
                         "revoked_at": null

@@ -1,15 +1,21 @@
 use crate::database::roles::change_role::ChangeRoleQueryView;
 use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{put, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PutError {
     NotFound,
+    Duplicate,
+    ProtectedName,
     DatabaseError,
 }
 
@@ -22,6 +28,12 @@ impl std::fmt::Display for PutError {
             Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
+            Self::Duplicate => {
+                write!(f, "A role with this name already exists.")
+            }
+            Self::ProtectedName => {
+                write!(f, "System roles cannot be renamed.")
+            }
         }
     }
 }
@@ -31,6 +43,8 @@ impl ResponseError for PutError {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::Duplicate => StatusCode::CONFLICT,
+            Self::ProtectedName => StatusCode::FORBIDDEN,
         }
     }
 
@@ -55,16 +69,26 @@ async fn put_role(
     if !does_role_exist(id, smart_db).await {
         return Err(PutError::NotFound);
     }
+    if let Some(name) = Some(payload.name()) {
+        // Checked here: the `protect_role_names` trigger would otherwise abort the update (500).
+        let forbidden: bool = smart_db
+            .fetch_scalar(&IsRenameForbiddenQueryView::new(id, name))
+            .await
+            .map_err(|_| PutError::DatabaseError)?;
+        if forbidden {
+            return Err(PutError::ProtectedName);
+        }
+    }
     let view = ChangeRoleQueryView::new(
         id,
         payload.name(),
         payload.description(),
         payload.can_be_deleted(),
     );
-    smart_db
-        .execute(view)
-        .await
-        .map_err(|_| PutError::DatabaseError)?;
+    smart_db.execute(view).await.map_err(|e| match e {
+        ApiLibError::Database(DbError::UniqueViolation(_)) => PutError::Duplicate,
+        _ => PutError::DatabaseError,
+    })?;
     Ok(())
 }
 
@@ -94,10 +118,10 @@ async fn put_role(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, champ obligatoire absent, ou `id` du chemin qui n'est pas un entier.",
+            description = "Malformed JSON body, missing field, `id` in the path that is not an integer, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `name`")
+            example = json!("Invalid `name`: must be at most 64 characters")
         ),
         (
             status = 401,
@@ -108,10 +132,10 @@ async fn put_role(
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), or `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`).",
             body = String,
             content_type = "text/plain",
-            example = json!("Forbidden: User is not an admin.")
+            example = json!("System roles cannot be renamed.")
         ),
         (
             status = 404,
@@ -119,6 +143,13 @@ async fn put_role(
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource was not found.")
+        ),
+        (
+            status = 409,
+            description = "`name` is already used by another role.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("A role with this name already exists.")
         ),
         (
             status = 500,
@@ -139,7 +170,7 @@ async fn put_role(
 #[put("/{id}")]
 pub async fn admin_put_role(
     id: web::Path<u64>,
-    payload: web::Json<RoleWriteView>,
+    payload: ValidatedJson<RoleWriteView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, PutError> {
     put_role(id.into_inner(), payload.into_inner(), state).await?;

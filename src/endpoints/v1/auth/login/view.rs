@@ -1,3 +1,7 @@
+use crate::endpoints::validation::{
+    check_opaque, Validate, ValidationError, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH,
+    MAX_TOKEN_LENGTH,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -6,14 +10,14 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct LoginView {
     /// Adresse e-mail du compte.
-    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
+    #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
     /// Mot de passe en clair, transmis tel quel sur le canal TLS.
-    #[schema(format = Password, example = "MotDePasse!123")]
+    #[schema(max_length = 255, format = Password, example = "MotDePasse!123")]
     password: String,
     /// Description libre de l'appareil, conservée sur la session pour que l'utilisateur
     /// reconnaisse ses connexions dans `GET /api/v1/sessions/`.
-    #[schema(example = "Chrome 140 sur Windows 11")]
+    #[schema(max_length = 512, example = "Chrome 140 sur Windows 11")]
     device_info: String,
 }
 
@@ -116,5 +120,14 @@ impl Display for LoginFirstConnectionResponseView {
 impl From<String> for LoginFirstConnectionResponseView {
     fn from(token: String) -> Self {
         Self { token }
+    }
+}
+
+impl Validate for LoginView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        // Only length and control characters: a malformed address simply matches no account (401).
+        check_opaque("email", &self.email, MAX_EMAIL_LENGTH)?;
+        check_opaque("password", &self.password, MAX_PASSWORD_LENGTH)?;
+        check_opaque("device_info", &self.device_info, MAX_TOKEN_LENGTH)
     }
 }

@@ -1,15 +1,21 @@
 use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use crate::database::roles::patch_role::PatchRoleQueryView;
 use crate::endpoints::v1::admin::roles::patch::view::PatchView;
 
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchError {
     NotFound,
+    Duplicate,
+    ProtectedName,
     DatabaseError,
 }
 
@@ -22,6 +28,12 @@ impl std::fmt::Display for PatchError {
             Self::NotFound => {
                 write!(f, "The requested resource was not found.")
             }
+            Self::Duplicate => {
+                write!(f, "A role with this name already exists.")
+            }
+            Self::ProtectedName => {
+                write!(f, "System roles cannot be renamed.")
+            }
         }
     }
 }
@@ -31,6 +43,8 @@ impl ResponseError for PatchError {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::Duplicate => StatusCode::CONFLICT,
+            Self::ProtectedName => StatusCode::FORBIDDEN,
         }
     }
 
@@ -53,6 +67,16 @@ async fn patch_role(
     if !does_role_exist(id, smart_db).await {
         return Err(PatchError::NotFound);
     }
+    if let Some(name) = payload.name().as_deref() {
+        // Checked here: the `protect_role_names` trigger would otherwise abort the update (500).
+        let forbidden: bool = smart_db
+            .fetch_scalar(&IsRenameForbiddenQueryView::new(id, name))
+            .await
+            .map_err(|_| PatchError::DatabaseError)?;
+        if forbidden {
+            return Err(PatchError::ProtectedName);
+        }
+    }
     let view = PatchRoleQueryView::new(
         id,
         payload.name(),
@@ -60,10 +84,10 @@ async fn patch_role(
         payload.can_be_deleted(),
     );
     if !view.is_noop() {
-        smart_db
-            .execute(view)
-            .await
-            .map_err(|_| PatchError::DatabaseError)?;
+        smart_db.execute(view).await.map_err(|e| match e {
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchError::Duplicate,
+            _ => PatchError::DatabaseError,
+        })?;
     }
     Ok(())
 }
@@ -91,10 +115,10 @@ async fn patch_role(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou `id` du chemin qui n'est pas un entier.",
+            description = "Malformed JSON body, `id` in the path that is not an integer, or a field present and breaking its rules: `name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: invalid type: integer `1`, expected a string")
+            example = json!("Invalid `description`: must not contain `<` or `>`")
         ),
         (
             status = 401,
@@ -105,10 +129,10 @@ async fn patch_role(
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), or `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`).",
             body = String,
             content_type = "text/plain",
-            example = json!("Forbidden: User is not an admin.")
+            example = json!("System roles cannot be renamed.")
         ),
         (
             status = 404,
@@ -116,6 +140,13 @@ async fn patch_role(
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource was not found.")
+        ),
+        (
+            status = 409,
+            description = "`name` is already used by another role.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("A role with this name already exists.")
         ),
         (
             status = 500,
@@ -136,7 +167,7 @@ async fn patch_role(
 #[patch("/{id}")]
 pub async fn admin_patch_role(
     id: web::Path<u64>,
-    payload: web::Json<PatchView>,
+    payload: ValidatedJson<PatchView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, PatchError> {
     patch_role(id.into_inner(), payload.into_inner(), state).await?;

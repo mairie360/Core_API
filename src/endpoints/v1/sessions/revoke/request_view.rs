@@ -1,3 +1,4 @@
+use crate::endpoints::validation::{check_opaque, Validate, ValidationError, MAX_TOKEN_LENGTH};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -6,7 +7,10 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RevokeRequestView {
     /// Jeton de rafraîchissement de la session à révoquer.
-    #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
+    #[schema(
+        max_length = 512,
+        example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE"
+    )]
     pub refresh_token: String,
 }
 
@@ -23,5 +27,11 @@ impl Display for RevokeRequestView {
             "RevokeRequestView {{ refresh_token: {} }}",
             self.refresh_token
         )
+    }
+}
+
+impl Validate for RevokeRequestView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_opaque("refresh_token", &self.refresh_token, MAX_TOKEN_LENGTH)
     }
 }

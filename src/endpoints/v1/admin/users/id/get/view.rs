@@ -17,7 +17,7 @@ struct SessionResultView {
     #[schema(example = "Chrome 140 sur Windows 11")]
     device_info: String,
     /// Adresse IP depuis laquelle la session a été ouverte.
-    #[schema(example = "192.168.1.24")]
+    #[schema(example = "203.0.113.24")]
     ip_address: String,
     /// Date d'ouverture de la session, au format `AAAA-MM-JJ HH:MM:SS UTC`.
     #[schema(example = "2026-09-16 08:42:11 UTC")]

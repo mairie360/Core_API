@@ -3,6 +3,7 @@ pub mod hello;
 pub mod session_guard;
 pub mod swagger;
 pub mod v1;
+pub mod validation;
 
 use actix_web::web;
 

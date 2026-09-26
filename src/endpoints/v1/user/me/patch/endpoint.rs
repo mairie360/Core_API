@@ -1,19 +1,26 @@
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::users::patch_user::PatchUserQueryView;
 use crate::endpoints::v1::user::me::patch::view::PatchMeView;
+use crate::endpoints::validation::ValidatedJson;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchMeError {
+    EmailAlreadyUsed,
     DatabaseError,
 }
 
 impl std::fmt::Display for PatchMeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::EmailAlreadyUsed => {
+                write!(f, "Another account already uses this e-mail address.")
+            }
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -24,6 +31,7 @@ impl std::fmt::Display for PatchMeError {
 impl ResponseError for PatchMeError {
     fn status_code(&self) -> StatusCode {
         match self {
+            Self::EmailAlreadyUsed => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -47,10 +55,19 @@ async fn trigger_patch_me(
         None,
     );
     if !db_view.is_noop() {
-        state.get_smart_db().execute(db_view).await.map_err(|e| {
-            eprintln!("Error: {e:?}");
-            PatchMeError::DatabaseError
-        })?;
+        state
+            .get_smart_db()
+            .execute(db_view)
+            .await
+            .map_err(|e| match e {
+                ApiLibError::Database(DbError::UniqueViolation(_)) => {
+                    PatchMeError::EmailAlreadyUsed
+                }
+                e => {
+                    eprintln!("Error: {e:?}");
+                    PatchMeError::DatabaseError
+                }
+            })?;
     }
     Ok(())
 }
@@ -83,10 +100,10 @@ async fn trigger_patch_me(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou champ d'un type inattendu.",
+            description = "Malformed JSON body, field of an unexpected type, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `phone` 10 to 15 digits. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: invalid type: integer `42`, expected a string")
+            example = json!("Invalid `phone`: must be 10 to 15 digits")
         ),
         (
             status = 401,
@@ -94,6 +111,13 @@ async fn trigger_patch_me(
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 409,
+            description = "`email` is already used by another account.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Another account already uses this e-mail address.")
         ),
         (
             status = 500,
@@ -111,7 +135,7 @@ async fn trigger_patch_me(
 #[patch("/")]
 pub async fn patch_me(
     state: web::Data<AppState>,
-    view: web::Json<PatchMeView>,
+    view: ValidatedJson<PatchMeView>,
     auth_user: AuthenticatedUser,
 ) -> Result<impl Responder, PatchMeError> {
     trigger_patch_me(state, view.into_inner(), auth_user.id).await?;

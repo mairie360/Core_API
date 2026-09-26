@@ -1,3 +1,7 @@
+use crate::endpoints::validation::{
+    check_email, check_label, check_optional, check_password, check_phone, Validate,
+    ValidationError, MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
+};
 use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -6,21 +10,20 @@ use utoipa::ToSchema;
 #[derive(Deserialize, ToSchema)]
 pub struct CreateUserView {
     /// Prénom de l'utilisateur.
-    #[schema(example = "Jean")]
+    #[schema(min_length = 1, max_length = 64, example = "Jean")]
     first_name: String,
     /// Nom de famille de l'utilisateur.
-    #[schema(example = "Dupont")]
+    #[schema(min_length = 1, max_length = 64, example = "Dupont")]
     last_name: String,
     /// Adresse e-mail, unique sur la plateforme. Doit contenir un `@` et un domaine pointé.
-    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
+    #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
-    /// Mot de passe provisoire, d'au moins 8 caractères. L'utilisateur devra en choisir un
-    /// autre à sa première connexion.
-    #[schema(format = Password, min_length = 8, example = "MotDePasse!123")]
+    /// Temporary password, 8 to 255 characters, no control character. The user must choose
+    /// another one at their first login.
+    #[schema(min_length = 8, max_length = 255, format = Password, example = "MotDePasse!123")]
     password: String,
-    /// Numéro de téléphone facultatif. S'il est fourni : au moins 10 caractères, chiffres
-    /// uniquement.
-    #[schema(min_length = 10, pattern = r"^\d{10,}$", example = "0612345678")]
+    /// Optional phone number. When present: 10 to 15 digits only.
+    #[schema(pattern = "^[0-9]{10,15}$", example = "0612345678")]
     phone_number: Option<String>,
 }
 
@@ -56,5 +59,17 @@ impl Display for CreateUserView {
             self.last_name,
             if self.phone_number.is_some() { "[PROTECTED]" } else { "none" }
         )
+    }
+}
+
+impl Validate for CreateUserView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_label("first_name", &self.first_name, MAX_NAME_LENGTH)?;
+        check_label("last_name", &self.last_name, MAX_NAME_LENGTH)?;
+        check_email("email", &self.email)?;
+        check_password("password", &self.password, MIN_PASSWORD_LENGTH)?;
+        check_optional(self.phone_number.as_deref(), |phone| {
+            check_phone("phone_number", phone)
+        })
     }
 }

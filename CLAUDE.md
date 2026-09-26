@@ -87,6 +87,14 @@ End-to-end tests (what CI runs on `main` after the dev release, needs Docker + G
 ./performance_test.sh    # docker-compose-performance.yml: full stack + k6 (load-test.js)
 ```
 
+The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
+`JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
+service (`init-test.sql`: plain `User` account `id=2`, user `id=1` is the Admin created by liquibase) and fails on
+any alert not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://core:3000` is required: the
+spec's `servers` (localhost, development.mairie360.fr) are unreachable from the ZAP container. Keep `rules.tsv`
+identical in every API. The scan fuzzes every field, so a `500` (value too long for its column, NUL byte, unmapped
+constraint violation) or a `<script>` echoed back fails the job: validate inputs, don't silence the alert.
+
 `tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
 `tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
 committed default (`http://localhost:3000`) stays usable from a host shell. The scenario registers a fresh user
@@ -130,6 +138,12 @@ Business logic is split into two mirrored trees under `src/`, one per resource/a
   - `view.rs` — request/response DTOs (`serde` + `utoipa::ToSchema`)
   - `doc.rs` — a `#[derive(OpenApi)]` struct listing that endpoint's paths/schemas, aggregated upward into a
     per-domain doc, ultimately into `endpoints::swagger::ApiDoc`
+
+Request bodies and query strings are extracted with `endpoints::validation::{ValidatedJson, ValidatedQuery}`
+instead of `web::Json` / `web::Query`: the view implements `Validate` (length matching the Postgres column, no
+control character, no `<` / `>` in names and descriptions, e-mail / phone format) and an invalid value answers
+`400` naming the field before the handler runs. Document the rules in the view's `#[schema]` and the handler's
+`400` response.
 
 When adding a new endpoint, follow an existing sibling (e.g. `src/endpoints/v1/auth/login/` +
 `src/database/auth/login/`) rather than inventing a new shape.

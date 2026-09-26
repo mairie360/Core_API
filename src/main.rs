@@ -65,6 +65,8 @@ async fn main() -> std::io::Result<()> {
             None => app,
         };
         app.wrap(middleware::Logger::default())
+            // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
+            .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // post requests
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")

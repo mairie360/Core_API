@@ -1,5 +1,6 @@
 use crate::database::groups::create_group::CreateGroupQueryView;
 use crate::endpoints::v1::groups::post::view::{PostGroupResultView, PostGroupView};
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -74,10 +75,10 @@ async fn create_group(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, champ obligatoire absent, ou échec de l'insertion en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            description = "Malformed JSON body, missing field, a field breaking its rules (`name` 1 to 64 characters once trimmed, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs), or failed insert. This endpoint answers `400` where others would answer `500`.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Invalid `name`: must be at most 64 characters")
         ),
         (
             status = 401,
@@ -96,7 +97,7 @@ async fn create_group(
 pub async fn post_group(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
-    view: web::Json<PostGroupView>,
+    view: ValidatedJson<PostGroupView>,
 ) -> Result<impl Responder, PostGroupError> {
     let result = create_group(user, state, view.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))

@@ -1,4 +1,7 @@
 use crate::database::users::list_directory::DirectoryUser;
+use crate::endpoints::validation::{
+    check_opaque, check_optional, Validate, ValidationError, MAX_SEARCH_LENGTH,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
@@ -8,15 +11,15 @@ pub const MAX_DIRECTORY_LIMIT: u64 = 1000;
 #[into_params(parameter_in = Query)]
 pub struct DirectoryUsersQuery {
     /// Recherche sur le prénom, le nom ou l'email. Insensible à la casse et partielle.
-    #[param(example = "dupont")]
+    #[param(max_length = 255, example = "dupont")]
     search: Option<String>,
     /// Identifiants d'utilisateurs séparés par des virgules (ex. `1,2,3`). Un identifiant qui
     /// n'est pas un entier strictement positif fait échouer la requête en `400`.
-    #[param(example = "1,2,3")]
+    #[param(max_length = 255, example = "1,2,3")]
     ids: Option<String>,
     /// Ne garde que les membres d'au moins un de ces groupes (identifiants séparés par des
     /// virgules). Mêmes règles de validation que `ids`.
-    #[param(example = "3,7")]
+    #[param(max_length = 255, example = "3,7")]
     group_ids: Option<String>,
     /// Nombre maximal d'utilisateurs renvoyés, de 1 à 1000 (1000 par défaut). Hors de cet
     /// intervalle, la requête échoue en `400`.
@@ -63,4 +66,18 @@ pub fn parse_id_list(value: Option<&str>) -> Option<Vec<u64>> {
 pub struct DirectoryUsersResultView {
     /// Utilisateurs non archivés correspondant aux filtres. Vide si aucun ne correspond.
     pub users: Vec<DirectoryUser>,
+}
+
+impl Validate for DirectoryUsersQuery {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_optional(self.search.as_deref(), |search| {
+            check_opaque("search", search, MAX_SEARCH_LENGTH)
+        })?;
+        check_optional(self.ids.as_deref(), |ids| {
+            check_opaque("ids", ids, MAX_SEARCH_LENGTH)
+        })?;
+        check_optional(self.group_ids.as_deref(), |ids| {
+            check_opaque("group_ids", ids, MAX_SEARCH_LENGTH)
+        })
+    }
 }

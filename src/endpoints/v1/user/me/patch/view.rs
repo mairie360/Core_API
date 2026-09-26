@@ -1,3 +1,7 @@
+use crate::endpoints::validation::{
+    check_email, check_label, check_optional, check_phone, Validate, ValidationError,
+    MAX_NAME_LENGTH,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
@@ -6,16 +10,16 @@ use utoipa::ToSchema;
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchMeView {
     /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.
-    #[schema(example = "Jean")]
+    #[schema(min_length = 1, max_length = 64, example = "Jean")]
     first_name: Option<String>,
     /// Nouveau nom de famille. Absent ou `null` pour ne pas y toucher.
-    #[schema(example = "Dupont")]
+    #[schema(min_length = 1, max_length = 64, example = "Dupont")]
     last_name: Option<String>,
     /// Nouvelle adresse e-mail. Absent ou `null` pour ne pas y toucher.
-    #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
+    #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: Option<String>,
     /// Nouveau numéro de téléphone. Absent ou `null` pour ne pas y toucher.
-    #[schema(example = "0798765432")]
+    #[schema(pattern = "^[0-9]{10,15}$", example = "0798765432")]
     phone: Option<String>,
 }
 
@@ -63,5 +67,18 @@ impl Display for PatchMeView {
             "PatchMeView {{ first_name: {:?}, last_name: {:?}, email: {:?}, phone: {:?} }}",
             self.first_name, self.last_name, self.email, self.phone
         )
+    }
+}
+
+impl Validate for PatchMeView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_optional(self.first_name.as_deref(), |name| {
+            check_label("first_name", name, MAX_NAME_LENGTH)
+        })?;
+        check_optional(self.last_name.as_deref(), |name| {
+            check_label("last_name", name, MAX_NAME_LENGTH)
+        })?;
+        check_optional(self.email.as_deref(), |email| check_email("email", email))?;
+        check_optional(self.phone.as_deref(), |phone| check_phone("phone", phone))
     }
 }

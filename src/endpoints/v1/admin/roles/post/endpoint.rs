@@ -1,6 +1,7 @@
 use crate::database::roles::create_role::CreateRoleQueryView;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
+use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::state::AppState;
@@ -74,10 +75,10 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ obligatoire absent.",
+            description = "Malformed JSON body, missing field, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `name`")
+            example = json!("Invalid `name`: must not contain `<` or `>`")
         ),
         (
             status = 401,
@@ -108,7 +109,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
 )]
 #[post("/")]
 pub async fn admin_post_role(
-    payload: web::Json<RoleWriteView>,
+    payload: ValidatedJson<RoleWriteView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, PostError> {
     create_role(payload.into_inner(), state).await?;

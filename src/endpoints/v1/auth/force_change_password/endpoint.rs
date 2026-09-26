@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
+use crate::endpoints::validation::ValidatedJson;
 use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -146,10 +147,10 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ obligatoire absent.",
+            description = "Malformed JSON body, missing field, `token` longer than 512 characters or containing a control character, or `new_password` empty, longer than 255 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `token`")
+            example = json!("Invalid `new_password`: must not contain control characters")
         ),
         (
             status = 401,
@@ -178,7 +179,7 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
 #[post("/force_change_password")]
 pub async fn force_change_password(
     state: web::Data<AppState>,
-    body: web::Json<ForceChangePasswordView>,
+    body: ValidatedJson<ForceChangePasswordView>,
 ) -> Result<impl Responder, ForceChanhePasswordError> {
     force_change_password_trigger(state, body.into_inner()).await?;
     Ok(HttpResponse::Ok())
