@@ -1,7 +1,12 @@
 pub mod add_role;
 pub mod delete_user;
+pub mod get_notification_settings;
+pub mod get_preferences;
 pub mod get_roles;
 pub mod get_user_by_id;
 pub mod list_directory;
+pub mod nullable_patch;
+pub mod patch_notification_settings;
+pub mod patch_preferences;
 pub mod patch_user;
 pub mod remove_role;
