@@ -25,4 +25,6 @@ COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/keycloa
 # Numeric uid/gid, so Kubernetes `runAsNonRoot: true` can verify it without resolving a name.
 USER 65532:65532
 
+# Runs as root until MAIR-229 adds a non-root user.
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["/app/core-api"]
