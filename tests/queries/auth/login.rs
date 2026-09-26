@@ -3,6 +3,7 @@ use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryVi
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
@@ -20,7 +21,7 @@ async fn test_login_user_success() {
 
     assert_eq!(
         result,
-        LoginUserQueryResultView::new(1, "password123".to_string(), true)
+        LoginUserQueryResultView::new(1, seed_password_hash().to_string(), true)
     );
 }
 
