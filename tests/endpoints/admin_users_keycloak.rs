@@ -17,7 +17,7 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::{
     security::JwtMiddleware,
     state::AppState,
-    test_setup::queries_setup::{get_shared_db, ADMIN_ID},
+    test_setup::queries_setup::{get_shared_db, seed_password_hash, ADMIN_ID},
 };
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -108,7 +108,11 @@ async fn fresh_user(env: &Env, first_name: &str) -> (i32, String) {
     let _: bool = env
         .pool
         .fetch_scalar(&RegisterUserQueryView::new(
-            first_name, "Synced", &email, "password", None,
+            first_name,
+            "Synced",
+            &email,
+            seed_password_hash(),
+            None,
         ))
         .await
         .unwrap();

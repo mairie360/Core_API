@@ -4,6 +4,7 @@ use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryVi
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
@@ -18,7 +19,7 @@ async fn change_password_success() {
             "Change",
             "Password",
             &email,
-            "old_password",
+            seed_password_hash(),
             None,
         ))
         .await
@@ -28,17 +29,20 @@ async fn change_password_success() {
         .await
         .unwrap();
 
-    let view = ChangePasswordQueryView::new("new_password", user_id as u64);
+    let view = ChangePasswordQueryView::new(seed_password_hash(), user_id as u64);
     let result = pool.execute(view).await;
 
     assert!(result.is_ok(), "{result:?}");
 
     let login_result: LoginUserQueryResultView = pool
-        .fetch_one(&LoginUserQueryView::new(email, "new_password".to_string()))
+        .fetch_one(&LoginUserQueryView::new(
+            email,
+            seed_password_hash().to_string(),
+        ))
         .await
         .unwrap();
 
-    assert_eq!(login_result.password().trim(), "new_password");
+    assert_eq!(login_result.password().trim(), seed_password_hash());
 }
 
 #[tokio::test]
@@ -47,7 +51,7 @@ async fn change_password_bad_user_id() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
 
-    let view = ChangePasswordQueryView::new("new_password", 999_999);
+    let view = ChangePasswordQueryView::new(seed_password_hash(), 999_999);
     let result = pool.execute(view).await;
 
     assert!(result.is_ok(), "{result:?}");
