@@ -764,6 +764,7 @@ dependencies = [
  "lettre",
  "mairie360_api_lib",
  "once_cell",
+ "percent-encoding",
  "rand 0.10.3",
  "redis",
  "reqwest",

@@ -79,6 +79,19 @@ cargo test                                   # all tests
 cargo test --test integration_test queries::auth::login::test_login_user_success
 ```
 
+End-to-end tests (what CI runs on `main` after the dev release, needs Docker + GHCR pull access):
+
+```bash
+./integration_test.sh    # docker-compose-integration.yml: full stack + newman replaying tests/postman/collection.json
+./security_test.sh       # docker-compose-security.yml: full stack + ZAP scan of /api-docs/openapi.json
+./performance_test.sh    # docker-compose-performance.yml: full stack + k6 (load-test.js)
+```
+
+`tests/postman/collection.json` is a Postman v2.1 collection (importable in the app) and
+`tests/postman/environment.json` its variables; the compose file overrides `baseUrl` with `--env-var` so the
+committed default (`http://localhost:3000`) stays usable from a host shell. The scenario registers a fresh user
+(unique e-mail generated in the collection pre-request script) so it is replayable against a persistent database.
+
 `tests/routing_test.rs` checks that every `/api/v1` operation published by `ApiDoc` (the contract
 `@mairie360/core-api-openapi` is generated from) hits a mounted actix route: Core does not normalise trailing
 slashes, and utoipa replaces (does not merge) two `nest` entries that end on the same path, so operations sharing
@@ -165,7 +178,8 @@ schema, not the source of truth.
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
-push, with no input other than the package name and the CICD version. `auto-approve.yml` auto-approves Renovate
+push, with no input other than the package name and the CICD version; the `integration_tests` job runs
+`./integration_test.sh` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
