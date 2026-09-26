@@ -185,6 +185,17 @@ async fn admin_password_reset_publishes_every_session() {
     assert!(status.is_success(), "{status}");
     assert_revoked(&env.redis, first);
     assert_revoked(&env.redis, second);
+
+    // MAIR-169: the new password is stored hashed, never in plaintext.
+    let stored_password: String = sqlx::query_scalar("SELECT password FROM users WHERE id = $1")
+        .bind(i32::try_from(user).unwrap())
+        .fetch_one(&crate::common::get_raw_pool(env.host.clone()).await)
+        .await
+        .unwrap();
+    assert!(
+        mairie360_api_lib::password::is_hashed(&stored_password),
+        "admin reset stored a plaintext password"
+    );
 }
 
 #[tokio::test]
