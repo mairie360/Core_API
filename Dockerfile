@@ -11,14 +11,18 @@ COPY . .
 
 RUN cargo build --release
 
-# --- Étape 2 : Runtime (Ultra-light) ---
-FROM gcr.io/distroless/cc-debian12
+# --- Stage 2: runtime (distroless, non-root) ---
+# `:nonroot` runs as uid/gid 65532. The binary stays owned by root and is only readable and
+# executable by that user: the API never writes to the filesystem (configuration comes from
+# environment variables, state lives in Postgres and Redis), so a read-only root filesystem works.
+FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app
 
-COPY --from=builder /usr/src/app/target/release/core_api /app/core-api
+COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
 # One-shot job: migrates the accounts and roles to Keycloak (MAIR-141), same env vars as the API.
-COPY --from=builder /usr/src/app/target/release/keycloak_migration /app/keycloak-migration
+COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/keycloak_migration /app/keycloak-migration
 
-# Runs as root until MAIR-229 adds a non-root user.
-# nosemgrep: dockerfile.security.missing-user.missing-user
+# Numeric uid/gid, so Kubernetes `runAsNonRoot: true` can verify it without resolving a name.
+USER 65532:65532
+
 CMD ["/app/core-api"]
