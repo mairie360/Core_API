@@ -6,6 +6,7 @@ use crate::endpoints::v1::admin::users::id::password::view::{
 };
 use crate::session_revocation::publish_revoked_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
