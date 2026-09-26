@@ -14,7 +14,7 @@
 //   created, so the handlers do not depend on their order. Deleted accounts are archived by the
 //   API (soft delete), the only rows left behind.
 //
-// The authentication flows run end to end on throwaway accounts: register → login (412, first
+// The authentication flows run end to end on throwaway accounts: admin creates the account → login (412, first
 // connection) → force_change_password → login → refresh → revoke, and forgot_password → reset
 // through the token the API e-mails to Mailpit (read through its HTTP API).
 import http from 'k6/http';
@@ -104,10 +104,10 @@ function deleteUser(userId) {
   fixture('DELETE', `/api/v1/admin/users/${userId}/`);
 }
 
-/** Registered account still in first connection: its login answers 412 with a token. */
+/** Account created by the admin, still in first connection: its login answers 412 with a token. */
 function registerAccount(tag) {
   const email = `k6.${tag}.${unique()}@mairie360.fr`;
-  fixture('POST', '/api/v1/auth/register', {
+  fixture('POST', '/api/v1/admin/users/', {
     first_name: 'Agent',
     last_name: 'Charge',
     email,
@@ -224,13 +224,7 @@ const readHandlers = {
 const writeHandlers = {
   'POST /': ({ request }) => check(request(), { 'hello 200': (r) => r.status === 200 }),
 
-  // Authentication: register → login (412) → force_change_password → login → refresh → revoke.
-  'POST /api/v1/auth/register': ({ request }) => {
-    const email = `k6.register.${unique()}@mairie360.fr`;
-    const res = request({ body: { first_name: 'Agent', last_name: 'Inscrit', email, password: FIRST_PASSWORD } });
-    check(res, { 'register 201': (r) => r.status === 201 });
-    if (res.status === 201) deleteUser(userIdByEmail(email));
-  },
+  // Authentication: account created by an admin → login (412) → force_change_password → login → refresh → revoke.
   'POST /api/v1/auth/force_change_password': ({ request }) => {
     const account = registerAccount('force');
     check(request({ body: { token: firstConnectionToken(account), new_password: PASSWORD } }), {
