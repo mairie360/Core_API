@@ -19,6 +19,8 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
+# One-shot job: migrates the accounts and roles to Keycloak (MAIR-141), same env vars as the API.
+COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/keycloak_migration /app/keycloak-migration
 
 # Numeric uid/gid, so Kubernetes `runAsNonRoot: true` can verify it without resolving a name.
 USER 65532:65532

@@ -116,10 +116,7 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
         redis_key(&format!("{user_id}/first_connection_token")),
     ] {
         if let Err(error) = redis.secure_delete(&key).await {
-            eprintln!(
-                "Suppression du jeton de première connexion impossible : {:?}",
-                error
-            );
+            eprintln!("Could not delete the first-connection token: {error:?}");
         }
     }
 }
