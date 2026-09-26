@@ -6,6 +6,7 @@ use core_api::database::users::patch_user::PatchUserQueryView;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 async fn register_fresh_user(pool: &SmartDatabase, tag: &str) -> u64 {
@@ -15,7 +16,7 @@ async fn register_fresh_user(pool: &SmartDatabase, tag: &str) -> u64 {
             "Patch",
             "User",
             &email,
-            "password",
+            seed_password_hash(),
             Some("0102030405"),
         ))
         .await
@@ -115,7 +116,7 @@ async fn patch_user_password_only() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "password").await;
 
-    let view = PatchUserQueryView::new(user_id, None, None, None, None, Some("new_password"));
+    let view = PatchUserQueryView::new(user_id, None, None, None, None, Some(seed_password_hash()));
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
 }
@@ -133,7 +134,7 @@ async fn patch_user_multiple_fields() {
         Some("Patched"),
         None,
         Some("0699887766"),
-        Some("new_password"),
+        Some(seed_password_hash()),
     );
     println!("{view}");
     println!("{view:?}");
@@ -142,7 +143,7 @@ async fn patch_user_multiple_fields() {
     assert_eq!(view.last_name(), Some("Patched"));
     assert_eq!(view.email(), None);
     assert_eq!(view.phone_number(), Some("0699887766"));
-    assert_eq!(view.password(), Some("new_password"));
+    assert_eq!(view.password(), Some(seed_password_hash()));
     assert!(!view.is_noop());
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
