@@ -2,6 +2,7 @@ pub mod admin;
 pub mod auth;
 pub mod get_user_id;
 pub mod groups;
+pub mod pg_url;
 pub mod ressources;
 pub mod rights;
 pub mod roles;
