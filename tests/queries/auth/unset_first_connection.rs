@@ -4,6 +4,7 @@ use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
@@ -21,7 +22,7 @@ async fn unset_first_connection_success() {
             "Unset",
             "FirstConnection",
             &email,
-            "password",
+            seed_password_hash(),
             None,
         ))
         .await
@@ -31,7 +32,7 @@ async fn unset_first_connection_success() {
         .await
         .unwrap();
 
-    let view = UnsetFirstConnectionQueryView::new(user_id as u64, "new_password");
+    let view = UnsetFirstConnectionQueryView::new(user_id as u64, seed_password_hash());
     let result = pool.execute(view).await;
 
     assert!(result.is_ok(), "{result:?}");
@@ -41,7 +42,7 @@ async fn unset_first_connection_success() {
         .fetch_one(&LoginUserQueryView::new(email, String::new()))
         .await
         .unwrap();
-    assert_eq!(stored.password(), "new_password");
+    assert_eq!(stored.password(), seed_password_hash());
     assert!(!stored.first_connect());
 }
 
@@ -51,7 +52,7 @@ async fn unset_first_connection_bad_user_id() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
 
-    let view = UnsetFirstConnectionQueryView::new(999_999, "new_password");
+    let view = UnsetFirstConnectionQueryView::new(999_999, seed_password_hash());
     let result = pool.execute(view).await;
 
     assert!(result.is_ok(), "{result:?}");

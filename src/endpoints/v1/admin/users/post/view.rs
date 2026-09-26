@@ -50,11 +50,14 @@ impl CreateUserView {
 }
 
 impl Display for CreateUserView {
+    // The e-mail, password and phone number never reach the logs (MAIR-225).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "CreateUserView {{ first_name: {}, last_name: {}, email: {}, password: {}, phone_number: {:?} }}",
-            self.first_name, self.last_name, self.email, self.password, self.phone_number
+            "CreateUserView {{ first_name: {}, last_name: {}, email: [PROTECTED], password: [PROTECTED], phone_number: {} }}",
+            self.first_name,
+            self.last_name,
+            if self.phone_number.is_some() { "[PROTECTED]" } else { "none" }
         )
     }
 }

@@ -1,2 +1,2 @@
 mod view;
-pub use view::AdminResetPasswordQueryView;
+pub use view::{AdminResetPasswordQueryView, AdminResetPasswordResult};

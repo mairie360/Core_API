@@ -1,8 +1,9 @@
 pub mod add_access;
+pub mod authorization;
 pub mod doc;
-mod get_access;
+pub mod get_access;
 pub use get_access::view::GetAccessResultView;
-mod remove_access;
+pub mod remove_access;
 pub use add_access::view::AccessType;
 
 use actix_web::web;

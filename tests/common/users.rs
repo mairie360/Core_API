@@ -3,6 +3,7 @@ use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use sqlx::PgPool;
 
 /// Crée un utilisateur dont le nom de famille et l'email contiennent `marker`, et renvoie son id.
@@ -15,7 +16,11 @@ pub async fn create_user(pool: &SmartDatabase, first_name: &str, marker: &str) -
     );
     let _: bool = pool
         .fetch_scalar(&RegisterUserQueryView::new(
-            first_name, marker, &email, "password", None,
+            first_name,
+            marker,
+            &email,
+            seed_password_hash(),
+            None,
         ))
         .await
         .unwrap();

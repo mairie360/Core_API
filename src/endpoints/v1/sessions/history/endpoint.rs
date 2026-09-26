@@ -39,8 +39,7 @@ async fn get_user_info(
 ) -> Result<HistoryResponseView, HistoryError> {
     let user_id = user.id;
 
-    // Le cache Redis est désormais géré par `SmartDatabase` (cache-aside), via
-    // `GetSessionsByUserQueryView::cache_key`.
+    // Not cached (MAIR-267): see the query view.
     let query_result: Vec<crate::database::sessions::Session> = state
         .get_smart_db()
         .fetch_all(&GetSessionsByUserQueryView::new(user_id))
