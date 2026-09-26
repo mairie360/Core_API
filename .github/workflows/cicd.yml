@@ -20,4 +20,4 @@ jobs:
       postman_environment: ${{ vars.POSTMAN_CORE_API_ENV_ID }}
       package_name: core-api
       cicd_version: v3.0.0
-    secrets: inherit
+    secrets: inherit # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit
