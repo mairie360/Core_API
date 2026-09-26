@@ -38,6 +38,15 @@ The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` 
 `database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
 `DB_PASSWORD` may contain any character.
 
+Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
+`get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
+(confidential client) and `KEYCLOAK_ISSUER` (public issuer when Core reaches Keycloak through an
+internal URL) are optional. Without them the route answers `503` and only the password login
+works. Core redeems the authorization code, verifies the ID token against the realm JWKS and opens
+the same Core session (JWT + refresh token) as a password login for the account whose e-mail
+matches the token's verified e-mail; no account is created. Tests use a local fake realm
+(`tests/common/keycloak_mock.rs`, throwaway RSA keys in `tests/fixtures/`), no Keycloak needed.
+
 Tests:
 
 ```bash

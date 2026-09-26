@@ -3,4 +3,5 @@ mod injection;
 mod is_first_time;
 mod login;
 mod register;
+mod sso_login;
 mod unset_first_connection;

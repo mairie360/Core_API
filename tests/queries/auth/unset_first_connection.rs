@@ -34,7 +34,7 @@ async fn unset_first_connection_success() {
     let view = UnsetFirstConnectionQueryView::new(user_id as u64, "new_password");
     let result = pool.execute(view).await;
 
-    assert!(result.is_ok(), "{:?}", result);
+    assert!(result.is_ok(), "{result:?}");
 
     // Le mot de passe doit réellement être remplacé et la première connexion levée.
     let stored: LoginUserQueryResultView = pool

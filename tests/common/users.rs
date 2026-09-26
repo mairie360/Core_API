@@ -27,7 +27,7 @@ pub fn unique_marker(prefix: &str) -> String {
         .simple()
         .to_string()
         .chars()
-        .filter(|c| c.is_ascii_alphabetic())
+        .filter(char::is_ascii_alphabetic)
         .take(8)
         .collect();
     format!("{prefix}{suffix}")
