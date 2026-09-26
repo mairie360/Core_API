@@ -1,6 +1,7 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
@@ -91,11 +92,16 @@ async fn register_user(
 ) -> Result<(), RegisterError> {
     can_be_registered(register_view, state.get_smart_db()).await?;
 
+    let hashed_password = hash_password(register_view.password()).map_err(|e| {
+        eprintln!("Password hashing error: {e}");
+        RegisterError::DatabaseError
+    })?;
+
     let view = RegisterUserQueryView::new(
         register_view.first_name(),
         register_view.last_name(),
         register_view.email(),
-        register_view.password(),
+        &hashed_password,
         register_view.phone_number(),
     );
 
