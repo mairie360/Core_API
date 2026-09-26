@@ -1,7 +1,10 @@
-use crate::database::admin::reset_password::AdminResetPasswordQueryView;
+use crate::database::admin::reset_password::{
+    AdminResetPasswordQueryView, AdminResetPasswordResult,
+};
 use crate::endpoints::v1::admin::users::id::password::view::{
     AdminResetPasswordView, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH,
 };
+use crate::session_revocation::publish_revoked_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::state::AppState;
@@ -55,16 +58,18 @@ async fn reset_password(
         ResetPasswordError::DatabaseError
     })?;
 
-    let updated: bool = state
+    let result: AdminResetPasswordResult = state
         .get_smart_db()
-        .fetch_scalar(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
+        .fetch_one(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
         .map_err(|error| {
             eprintln!("{error:?}");
             ResetPasswordError::DatabaseError
         })?;
 
-    if updated {
+    if result.updated() {
+        // The reset revoked every session of the user: other APIs refuse their JWTs too.
+        publish_revoked_sessions(state.get_redis(), result.revoked_sessions()).await;
         Ok(())
     } else {
         Err(ResetPasswordError::UnknownUser)

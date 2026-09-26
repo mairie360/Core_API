@@ -1,7 +1,9 @@
 use crate::common::users::{create_user, unique_marker};
 use crate::common::{get_pool, get_raw_pool};
-use core_api::database::admin::reset_password::AdminResetPasswordQueryView;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use core_api::database::admin::reset_password::{
+    AdminResetPasswordQueryView, AdminResetPasswordResult,
+};
+use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, seed_password_hash};
 use serial_test::serial;
 
 #[tokio::test]
@@ -21,22 +23,23 @@ async fn admin_reset_password_updates_password_and_revokes_sessions() {
     .await
     .unwrap();
 
-    let updated: bool = pool
-        .fetch_scalar(&AdminResetPasswordQueryView::new(
+    let result: AdminResetPasswordResult = pool
+        .fetch_one(&AdminResetPasswordQueryView::new(
             user_id as u64,
-            "a-new-password",
+            seed_password_hash(),
         ))
         .await
         .unwrap();
 
-    assert!(updated);
+    assert!(result.updated());
+    assert_eq!(result.revoked_sessions().len(), 1, "{result:?}");
     let (password, first_connect): (String, bool) =
         sqlx::query_as("SELECT password, first_connect FROM users WHERE id = $1")
             .bind(user_id)
             .fetch_one(&raw)
             .await
             .unwrap();
-    assert_eq!(password, "a-new-password");
+    assert_eq!(password, seed_password_hash());
     assert!(!first_connect);
     let active_sessions: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM sessions WHERE user_id = $1 AND revoked_at IS NULL",
@@ -54,10 +57,14 @@ async fn admin_reset_password_unknown_user() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
 
-    let updated: bool = pool
-        .fetch_scalar(&AdminResetPasswordQueryView::new(999_999, "a-new-password"))
+    let result: AdminResetPasswordResult = pool
+        .fetch_one(&AdminResetPasswordQueryView::new(
+            999_999,
+            seed_password_hash(),
+        ))
         .await
         .unwrap();
 
-    assert!(!updated);
+    assert!(!result.updated());
+    assert!(result.revoked_sessions().is_empty());
 }

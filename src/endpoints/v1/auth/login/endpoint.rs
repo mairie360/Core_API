@@ -2,16 +2,16 @@ use super::view::{LoginResponseView, LoginView};
 use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
-use crate::endpoints::v1::auth::create_new_session;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
+use crate::session_jwt::generate_session_jwt;
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
 use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
@@ -84,12 +84,23 @@ pub async fn generate_session(
     state: web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
     let refresh_token = generate_refresh_token();
-    let view = CreateSessionQueryView::new(user_id, &refresh_token, device_info, ip_adress);
-    create_new_session(state.get_smart_db(), view).await;
-    // TODO: le rôle n'est pas encore exploité par la lib (ni AdminMiddleware, ni check_jwt_validity
-    // ne le lisent depuis les claims), donc on ne fait pas d'aller-retour DB supplémentaire ici pour
-    // le récupérer. À brancher sur un vrai rôle utilisateur si/quand la lib s'en sert.
-    let jwt = generate_jwt(user_id.to_string().as_str(), "").map_err(|e| {
+    // The session id is chosen here so the JWT can carry it (`sid` claim): logout revokes exactly
+    // this session, and the JWT stops working once it is revoked (MAIR-226). Each login keeps its
+    // own session: other devices' sessions stay active.
+    let session_id = Uuid::new_v4();
+    let view = CreateSessionQueryView::with_id(
+        session_id,
+        user_id,
+        &refresh_token,
+        device_info,
+        ip_adress,
+    );
+    state.get_smart_db().execute(view).await.map_err(|e| {
+        eprintln!("Create Session DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    // The role claim stays empty: neither the lib nor Core reads it.
+    let jwt = generate_session_jwt(user_id, session_id).map_err(|e| {
         eprintln!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
@@ -109,23 +120,28 @@ async fn generate_first_connection_token(
         return Ok(token);
     }
     let token = Uuid::new_v4().to_string();
-    redis
-        .secure_set(&format!("{user_id}/first_connection_token"), &token)
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            LoginError::RedisError
-        })?;
-    redis
-        .secure_set(
-            &format!("{token}/first_connection_id"),
-            &format!("{user_id}"),
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            LoginError::RedisError
-        })?;
+    set_token(
+        redis,
+        &format!("{user_id}/first_connection_token"),
+        &token,
+        FIRST_CONNECTION_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        LoginError::RedisError
+    })?;
+    set_token(
+        redis,
+        &format!("{token}/first_connection_id"),
+        &user_id.to_string(),
+        FIRST_CONNECTION_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        LoginError::RedisError
+    })?;
     Ok(token)
 }
 

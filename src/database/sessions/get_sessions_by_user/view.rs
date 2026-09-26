@@ -22,6 +22,9 @@ impl GetSessionsByUserQueryView {
     }
 }
 
+// No `cache_key` (MAIR-267): the list must reflect logins and revocations at once, but no write
+// path invalidated the cached list and it had no TTL, so a Redis without ACL (local stacks)
+// served a stale list forever. Under the chart's ACL its unprefixed key was refused anyway.
 impl ApiRequestDto for GetSessionsByUserQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (SELECT * FROM sessions WHERE user_id = $1) t"
@@ -29,12 +32,6 @@ impl ApiRequestDto for GetSessionsByUserQueryView {
 
     fn query_params(&self) -> &[QueryParam] {
         &self.params
-    }
-
-    // Reprend la clé du cache Redis manuel que l'endpoint gérait lui-même auparavant, désormais
-    // pris en charge par le cache-aside intégré de `SmartDatabase`.
-    fn cache_key(&self) -> Option<String> {
-        Some(format!("user:{}:history", self.user_id))
     }
 }
 

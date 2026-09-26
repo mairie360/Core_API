@@ -68,8 +68,8 @@ impl Display for RevokeSessionQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "RevokeSessionQueryView: user_id = {}, id = {}, token_hash = {}",
-            self.user_id, self.id, self.token_hash,
+            "RevokeSessionQueryView: user_id = {}, id = {}, token_hash = [PROTECTED]",
+            self.user_id, self.id,
         )
     }
 }

@@ -197,7 +197,7 @@ schema, not the source of truth.
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
-push; the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
+push, with no input other than the package name and the CICD version; the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
