@@ -4,7 +4,6 @@
 volumes:
   postgres-data:
   redis-data:
-  core-target:
 
 networks:
   backend:
@@ -77,14 +76,13 @@ services:
 
   core:
     container_name: core-api-integration
-    build:
-      context: .
-      dockerfile: development.Dockerfile
+    # The API under test: the published ghcr.io/mairie360/core-api:dev-<sha> image in CI, or
+    # core-api:local built by the *_test.sh script from development.Dockerfile. No build: block,
+    # so CI tests the artifact that gets promoted instead of recompiling the sources.
+    image: ${IMAGE_REF:?IMAGE_REF must name the API image under test, run the matching *_test.sh script}
     restart: always
     expose:
       - "3000"
-    volumes:
-      - core-target:/usr/src/core/target
     networks:
       - backend
     dns:
@@ -105,13 +103,20 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://core:3000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      # `cargo run` compiles the crate at container start: leave room for a cold CI runner.
-      start_period: 300s
+
+  # The published image is distroless (no shell, no curl), so the API cannot carry its own
+  # healthcheck: this sidecar polls /health and the services that need the API wait for it to
+  # complete instead.
+  core-ready:
+    image: curlimages/curl:latest
+    depends_on:
+      core:
+        condition: service_started
+    command: >
+      sh -c 'until curl -fsS http://core:3000/health >/dev/null; do
+      echo "waiting for core..."; sleep 2; done; echo "core ready"'
+    networks:
+      - backend
 
   mailpit:
     image: axllent/mailpit:v1.31
@@ -133,8 +138,8 @@ services:
     volumes:
       - ./tests/postman:/etc/newman:ro
     depends_on:
-      core:
-        condition: service_healthy
+      core-ready:
+        condition: service_completed_successfully
       mailpit:
         condition: service_started
     command: >
