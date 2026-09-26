@@ -1,8 +1,13 @@
 use super::view::KeycloakLoginView;
+use crate::database::auth::link_identity::LinkUserIdentityQueryView;
+use crate::database::auth::resolve_identity::{
+    ResolveUserIdentityQueryResultView, ResolveUserIdentityQueryView,
+};
 use crate::database::auth::sso_login::{SsoLoginUserQueryResultView, SsoLoginUserQueryView};
 use crate::endpoints::v1::auth::login::endpoint::{generate_session, LoginError};
 use crate::endpoints::v1::auth::login::view::LoginResponseView;
-use crate::keycloak::{AuthorizationCode, KeycloakClient, KeycloakError};
+use crate::keycloak::migration::KEYCLOAK_PROVIDER;
+use crate::keycloak::{AuthorizationCode, KeycloakClient, KeycloakError, KeycloakIdentity};
 use actix_web::{
     dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
 };
@@ -15,6 +20,7 @@ pub enum KeycloakLoginError {
     AccountArchived,
     DatabaseError,
     EmailNotVerified,
+    IdentityConflict,
     InvalidGrant,
     InvalidIdToken,
     KeycloakUnavailable,
@@ -31,6 +37,10 @@ impl std::fmt::Display for KeycloakLoginError {
             Self::EmailNotVerified => {
                 write!(f, "{}", KeycloakError::EmailNotVerified)
             }
+            Self::IdentityConflict => write!(
+                f,
+                "This Keycloak account is linked to another Mairie 360 account."
+            ),
             Self::InvalidGrant => write!(f, "{}", KeycloakError::InvalidGrant),
             Self::InvalidIdToken => write!(f, "{}", KeycloakError::InvalidIdToken),
             Self::KeycloakUnavailable => write!(f, "{}", KeycloakError::Unavailable),
@@ -48,9 +58,10 @@ impl ResponseError for KeycloakLoginError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::InvalidGrant | Self::InvalidIdToken => StatusCode::UNAUTHORIZED,
-            Self::AccountArchived | Self::EmailNotVerified | Self::UnknownAccount => {
-                StatusCode::FORBIDDEN
-            }
+            Self::AccountArchived
+            | Self::EmailNotVerified
+            | Self::IdentityConflict
+            | Self::UnknownAccount => StatusCode::FORBIDDEN,
             Self::KeycloakUnavailable => StatusCode::BAD_GATEWAY,
             Self::NotConfigured => StatusCode::SERVICE_UNAVAILABLE,
             Self::DatabaseError | Self::TokenGenerationError => StatusCode::INTERNAL_SERVER_ERROR,
@@ -97,6 +108,50 @@ async fn find_account(
     }
 }
 
+/// Maps a verified Keycloak identity to the id of an active Mairie 360 account.
+///
+/// The link recorded in `user_identities` (by the migration job or a previous sign-in) wins:
+/// the e-mail can change on either side. An identity without a link falls back to the verified
+/// e-mail and is linked on the spot, so the next sign-in no longer depends on the e-mail. The
+/// schema refuses to move a subject already linked to another account.
+async fn resolve_account(
+    identity: &KeycloakIdentity,
+    state: &web::Data<AppState>,
+) -> Result<i32, KeycloakLoginError> {
+    let smart_db = state.get_smart_db();
+    let resolved = smart_db
+        .fetch_one::<ResolveUserIdentityQueryResultView, _>(&ResolveUserIdentityQueryView::new(
+            KEYCLOAK_PROVIDER,
+            &identity.subject,
+        ))
+        .await
+        .map_err(|e| {
+            eprintln!("Keycloak login DB Error: {e}");
+            KeycloakLoginError::DatabaseError
+        })?;
+    if let Some(user_id) = resolved.user_id() {
+        return Ok(user_id);
+    }
+
+    let user = find_account(&identity.email, state).await?;
+    let link = LinkUserIdentityQueryView::new(user.user_id(), KEYCLOAK_PROVIDER, &identity.subject);
+    match smart_db.fetch_scalar::<i32, _>(&link).await {
+        Ok(_) => Ok(user.user_id()),
+        Err(ApiLibError::Database(DbError::UniqueViolation(_))) => {
+            eprintln!(
+                "Keycloak login refused: subject {} is linked to another account than {}",
+                identity.subject,
+                user.user_id()
+            );
+            Err(KeycloakLoginError::IdentityConflict)
+        }
+        Err(e) => {
+            eprintln!("Keycloak login DB Error: {e}");
+            Err(KeycloakLoginError::DatabaseError)
+        }
+    }
+}
+
 #[utoipa::path(
     post,
     path = "",
@@ -105,8 +160,14 @@ async fn find_account(
                    flow): Core redeems `code` at the realm's token endpoint, verifies the \
                    returned ID token (signature against the realm keys, issuer, audience = \
                    Core's client id, expiry, and `nonce` when one is sent), then opens a \
-                   session for the Mairie 360 account whose e-mail matches the token's verified \
-                   e-mail (case-insensitive).\n\n\
+                   session for the matching Mairie 360 account.\n\n\
+                   The account is found by the Keycloak user id (`sub`) recorded in \
+                   `user_identities` by the account migration (`POST \
+                   /api/v1/admin/keycloak/migration`) or by a previous sign-in. An identity \
+                   not linked yet is matched by the token's verified e-mail (case-insensitive) \
+                   and linked on the spot, so later sign-ins survive an e-mail change on either \
+                   side. A Keycloak user id already linked to another account is refused: an \
+                   identity is never moved between accounts.\n\n\
                    The response is the same as `POST /api/v1/auth/login`: a Core JWT in the \
                    `Authorization` header and a refresh token in the body, so the session cookie, \
                    the refresh route and every API keep working unchanged, and the user keeps the \
@@ -159,18 +220,19 @@ async fn find_account(
         ),
         (
             status = 403,
-            description = "The Keycloak identity cannot be mapped to an active Mairie 360 account: its e-mail is missing or not verified in Keycloak, no account has this e-mail, or the account is archived.",
+            description = "The Keycloak identity cannot be mapped to an active Mairie 360 account: its e-mail is missing or not verified in Keycloak, no linked account and no account with this e-mail, the account is archived, or the Keycloak user id is already linked to another account.",
             body = String,
             content_type = "text/plain",
             examples(
                 ("E-mail not verified" = (value = json!("The Keycloak account has no verified e-mail address."))),
                 ("Unknown account" = (value = json!("No Mairie 360 account matches this Keycloak e-mail address."))),
-                ("Archived account" = (value = json!("This Mairie 360 account is archived.")))
+                ("Archived account" = (value = json!("This Mairie 360 account is archived."))),
+                ("Identity conflict" = (value = json!("This Keycloak account is linked to another Mairie 360 account.")))
             )
         ),
         (
             status = 500,
-            description = "Internal error: database or JWT generation.",
+            description = "Internal error: database (account lookup or link) or JWT generation.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -214,19 +276,15 @@ pub async fn keycloak_login(
             nonce: login_view.nonce(),
         })
         .await?;
-    let user = find_account(&identity.email, &state).await?;
+    let user_id = resolve_account(&identity, &state).await?;
 
-    let (jwt, refresh_token) = generate_session(
-        user.user_id() as u64,
-        login_view.device_info(),
-        ip_address,
-        state,
-    )
-    .await
-    .map_err(|e| match e {
-        LoginError::TokenGenerationError => KeycloakLoginError::TokenGenerationError,
-        _ => KeycloakLoginError::DatabaseError,
-    })?;
+    let (jwt, refresh_token) =
+        generate_session(user_id as u64, login_view.device_info(), ip_address, state)
+            .await
+            .map_err(|e| match e {
+                LoginError::TokenGenerationError => KeycloakLoginError::TokenGenerationError,
+                _ => KeycloakLoginError::DatabaseError,
+            })?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

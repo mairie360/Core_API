@@ -99,4 +99,21 @@ impl KeycloakConfig {
     pub fn jwks_uri(&self) -> String {
         format!("{}/protocol/openid-connect/certs", self.realm_url)
     }
+
+    /// Base URL of the realm's Admin REST API, derived from the realm URL: its last `/realms/`
+    /// segment becomes `/admin/realms/` (`http://keycloak:8080/realms/mairie360` gives
+    /// `http://keycloak:8080/admin/realms/mairie360`).
+    ///
+    /// `None` when the realm URL has no `/realms/` segment: the account migration cannot run,
+    /// the sign-in itself is unaffected.
+    #[must_use]
+    pub fn admin_url(&self) -> Option<String> {
+        const REALMS: &str = "/realms/";
+        let index = self.realm_url.rfind(REALMS)?;
+        let realm = &self.realm_url[index + REALMS.len()..];
+        if realm.is_empty() {
+            return None;
+        }
+        Some(format!("{}/admin/realms/{realm}", &self.realm_url[..index]))
+    }
 }

@@ -1,6 +1,13 @@
-use crate::common::keycloak_mock::{id_token_claims, sign, KeycloakMock, TestKey, REDIRECT_URI};
+use crate::common::get_raw_pool;
+use crate::common::keycloak_mock::{
+    id_token_claims, sign, subject_for, KeycloakMock, TestKey, REDIRECT_URI,
+};
+use crate::common::users::{
+    archive_user, create_user, link_identity, unique_marker, user_identities,
+};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
+use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use mairie360_api_lib::jwt_manager::get_user_id_from_jwt;
 use mairie360_api_lib::{
@@ -251,4 +258,113 @@ async fn test_keycloak_login_optional_fields_can_be_omitted() {
 
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!mock.token_requests()[0].contains_key("code_verifier"));
+}
+
+/// User id carried by the JWT of a successful sign-in.
+fn signed_in_user(authorization: Option<&str>) -> i32 {
+    let jwt = authorization
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .expect("Bearer JWT in the Authorization header");
+    get_user_id_from_jwt(jwt).unwrap().parse().unwrap()
+}
+
+#[tokio::test]
+#[serial]
+async fn test_keycloak_login_links_the_identity_on_first_sign_in() {
+    let state = app_state().await;
+    let (_container, host) = get_shared_db().await;
+    let raw = get_raw_pool(host.clone()).await;
+    let marker = unique_marker("kclink");
+    let user_id = create_user(state.get_smart_db(), "Linked", &marker).await;
+    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    assert!(user_identities(&raw, user_id).await.is_empty());
+    let mock = realm_signing_in(&email, |_| {});
+
+    let (status, body, authorization) = post_keycloak(&state, Some(mock.client()), &body()).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(signed_in_user(authorization.as_deref()), user_id);
+    assert_eq!(
+        user_identities(&raw, user_id).await,
+        vec![(KEYCLOAK_PROVIDER.to_string(), subject_for(&email))]
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_keycloak_login_prefers_the_recorded_identity_over_the_email() {
+    let state = app_state().await;
+    let (_container, host) = get_shared_db().await;
+    let raw = get_raw_pool(host.clone()).await;
+    let marker = unique_marker("kcsubject");
+    let user_id = create_user(state.get_smart_db(), "Renamed", &marker).await;
+    // The user changed their e-mail in Keycloak: the token no longer matches any account by
+    // e-mail, but its subject is linked.
+    let new_email = format!("renamed.{marker}@mairie360.test");
+    link_identity(state.get_smart_db(), user_id, &subject_for(&new_email)).await;
+    let mock = realm_signing_in(&new_email, |_| {});
+
+    let (status, body, authorization) = post_keycloak(&state, Some(mock.client()), &body()).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(signed_in_user(authorization.as_deref()), user_id);
+    assert_eq!(user_identities(&raw, user_id).await.len(), 1);
+}
+
+#[tokio::test]
+#[serial]
+async fn test_keycloak_login_never_moves_an_identity_to_another_account() {
+    let state = app_state().await;
+    let (_container, host) = get_shared_db().await;
+    let raw = get_raw_pool(host.clone()).await;
+    let marker = unique_marker("kcconflict");
+    let owner = create_user(state.get_smart_db(), "Owner", &marker).await;
+    let other = create_user(state.get_smart_db(), "Other", &marker).await;
+    let other_email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(other)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    // The subject belongs to `owner`, now archived, while Keycloak presents `other`'s e-mail.
+    link_identity(state.get_smart_db(), owner, &subject_for(&other_email)).await;
+    archive_user(&raw, owner).await;
+    let mock = realm_signing_in(&other_email, |_| {});
+
+    let (status, body, authorization) = post_keycloak(&state, Some(mock.client()), &body()).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        body,
+        "This Keycloak account is linked to another Mairie 360 account."
+    );
+    assert_eq!(authorization, None);
+    assert!(user_identities(&raw, other).await.is_empty());
+}
+
+#[tokio::test]
+#[serial]
+async fn test_keycloak_login_linked_archived_account_returns_403() {
+    let state = app_state().await;
+    let (_container, host) = get_shared_db().await;
+    let raw = get_raw_pool(host.clone()).await;
+    let marker = unique_marker("kcarchived");
+    let user_id = create_user(state.get_smart_db(), "Gone", &marker).await;
+    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    link_identity(state.get_smart_db(), user_id, &subject_for(&email)).await;
+    archive_user(&raw, user_id).await;
+    let mock = realm_signing_in(&email, |_| {});
+
+    let (status, body, _) = post_keycloak(&state, Some(mock.client()), &body()).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body, "This Mairie 360 account is archived.");
+    assert_eq!(user_identities(&raw, user_id).await.len(), 1, "link kept");
 }

@@ -1,7 +1,9 @@
 mod change_password;
 mod injection;
 mod is_first_time;
+mod link_identity;
 mod login;
 mod register;
+mod resolve_identity;
 mod sso_login;
 mod unset_first_connection;

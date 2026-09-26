@@ -137,3 +137,38 @@ fn test_from_env_with_partial_configuration_disables_keycloak() {
         || assert_eq!(KeycloakConfig::from_env(), None),
     );
 }
+
+#[test]
+fn test_admin_url_is_derived_from_realm_url() {
+    let config = KeycloakConfig::new(
+        "https://auth.mairie360.test/realms/mairie360/",
+        None,
+        "core-api",
+        Some("secret"),
+    );
+    assert_eq!(
+        config.admin_url().as_deref(),
+        Some("https://auth.mairie360.test/admin/realms/mairie360")
+    );
+
+    // Legacy `/auth` context path: the segment is inserted before the last `/realms/`.
+    let legacy = KeycloakConfig::new(
+        "http://keycloak:8080/auth/realms/mairie360",
+        None,
+        "core-api",
+        None,
+    );
+    assert_eq!(
+        legacy.admin_url().as_deref(),
+        Some("http://keycloak:8080/auth/admin/realms/mairie360")
+    );
+}
+
+#[test]
+fn test_admin_url_requires_a_realm_segment() {
+    let no_segment = KeycloakConfig::new("https://auth.mairie360.test/mairie360", None, "c", None);
+    assert_eq!(no_segment.admin_url(), None);
+
+    let no_realm = KeycloakConfig::new("https://auth.mairie360.test/realms/", None, "c", None);
+    assert_eq!(no_realm.admin_url(), None);
+}
