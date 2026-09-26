@@ -7,4 +7,5 @@
 
 mod common; // Accès à ton pool
 mod endpoints;
+mod keycloak;
 mod queries;

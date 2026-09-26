@@ -1,4 +1,5 @@
 use super::view::{LoginResponseView, LoginView};
+use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::create_new_session;
@@ -11,6 +12,8 @@ use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
+use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use rand::fill;
 use uuid::Uuid;
@@ -126,6 +129,25 @@ async fn generate_first_connection_token(
     Ok(token)
 }
 
+/// Rehashes a legacy plaintext password into an argon2id hash once its owner has proven they
+/// know it. A failure here (hashing or write) is logged and swallowed: the login itself already
+/// succeeded and must not fail because the opportunistic migration didn't.
+async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plaintext: &str) {
+    let hashed = match hash_password(plaintext) {
+        Ok(hashed) => hashed,
+        Err(e) => {
+            eprintln!("Failed to hash password while migrating user {user_id}: {e}");
+            return;
+        }
+    };
+    if let Err(e) = smart_db
+        .execute(ChangePasswordQueryView::new(&hashed, user_id))
+        .await
+    {
+        eprintln!("Failed to persist migrated password for user {user_id}: {e}");
+    }
+}
+
 async fn login_user(
     login_view: &LoginView,
     state: web::Data<AppState>,
@@ -146,27 +168,61 @@ async fn login_user(
         }
     };
 
-    match user_record {
-        Some(user) if user.first_connect() => Err(LoginError::FirstConnectError(
+    let Some(user) = user_record else {
+        eprintln!(
+            "Login failed: Invalid credentials for {}",
+            login_view.email()
+        );
+        return Err(LoginError::InvalidCredentials);
+    };
+
+    if user.first_connect() {
+        return Err(LoginError::FirstConnectError(
             generate_first_connection_token(user.user_id() as u64, state).await?,
-        )),
-        Some(user) if login_view.password() == user.password().trim() => {
-            generate_session(
-                user.user_id() as u64,
-                &login_view.device_info(),
-                ip_adress,
-                state,
-            )
-            .await
-        }
-        _ => {
+        ));
+    }
+
+    let stored_password = user.password();
+    // Accounts created before this migration still hold a plaintext password: compare it
+    // directly and, on success, replace it with a hash so the plaintext value is never read
+    // again. Everything hashed already goes through `verify_password`, which only accepts a
+    // value `is_hashed` agrees is an argon2id PHC string.
+    let credentials_valid = if is_hashed(stored_password) {
+        verify_password(&login_view.password(), stored_password).unwrap_or_else(|e| {
             eprintln!(
-                "Login failed: Invalid credentials for {}",
+                "Failed to verify password hash for {}: {e}",
                 login_view.email()
             );
-            Err(LoginError::InvalidCredentials)
-        }
+            false
+        })
+    } else {
+        login_view.password() == stored_password.trim()
+    };
+
+    if !credentials_valid {
+        eprintln!(
+            "Login failed: Invalid credentials for {}",
+            login_view.email()
+        );
+        return Err(LoginError::InvalidCredentials);
     }
+
+    if !is_hashed(stored_password) {
+        migrate_plaintext_password(
+            state.get_smart_db(),
+            user.user_id() as u64,
+            &login_view.password(),
+        )
+        .await;
+    }
+
+    generate_session(
+        user.user_id() as u64,
+        &login_view.device_info(),
+        ip_adress,
+        state,
+    )
+    .await
 }
 
 #[utoipa::path(

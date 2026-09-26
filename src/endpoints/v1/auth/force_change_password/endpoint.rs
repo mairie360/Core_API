@@ -4,6 +4,7 @@ use crate::endpoints::v1::auth::force_change_password::view::ForceChangePassword
 use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
@@ -67,8 +68,15 @@ async fn change_password(
     user_id: u64,
     new_password: &str,
 ) -> Result<(), ForceChanhePasswordError> {
+    let hashed_password = hash_password(new_password).map_err(|e| {
+        eprintln!("Password hashing error: {e}");
+        ForceChanhePasswordError::DatabaseError
+    })?;
     smart_db
-        .execute(UnsetFirstConnectionQueryView::new(user_id, new_password))
+        .execute(UnsetFirstConnectionQueryView::new(
+            user_id,
+            &hashed_password,
+        ))
         .await
         .map_err(|_| ForceChanhePasswordError::DatabaseError)
 }
@@ -98,14 +106,11 @@ async fn force_change_password_trigger(
 async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
     let redis = state.get_redis();
     for key in [
-        format!("{}/first_connection_id", token),
-        format!("{}/first_connection_token", user_id),
+        format!("{token}/first_connection_id"),
+        format!("{user_id}/first_connection_token"),
     ] {
         if let Err(error) = redis.secure_delete(&key).await {
-            eprintln!(
-                "Suppression du jeton de première connexion impossible : {:?}",
-                error
-            );
+            eprintln!("Could not delete the first-connection token: {error:?}");
         }
     }
 }

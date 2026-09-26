@@ -17,9 +17,9 @@ enum PatchGroupError {
 impl std::fmt::Display for PatchGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchGroupError::BadRequest => write!(f, "Bad request."),
-            PatchGroupError::UnknownGroup => write!(f, "Unknow group"),
-            PatchGroupError::DatabaseError => {
+            Self::BadRequest => write!(f, "Bad request."),
+            Self::UnknownGroup => write!(f, "Unknow group"),
+            Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
         }
@@ -29,9 +29,9 @@ impl std::fmt::Display for PatchGroupError {
 impl ResponseError for PatchGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            PatchGroupError::BadRequest => StatusCode::BAD_REQUEST,
-            PatchGroupError::UnknownGroup => StatusCode::NOT_FOUND,
-            PatchGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::UnknownGroup => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -62,7 +62,7 @@ async fn trigger_patch_group(
         ))
         .await
         .map_err(|error| {
-            eprintln!("{:?}", error);
+            eprintln!("{error:?}");
             PatchGroupError::DatabaseError
         })?;
 

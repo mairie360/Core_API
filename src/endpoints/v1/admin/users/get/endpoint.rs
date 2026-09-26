@@ -17,8 +17,8 @@ enum ListUsersError {
 impl std::fmt::Display for ListUsersError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ListUsersError::InvalidPagination => write!(f, "Invalid pagination"),
-            ListUsersError::DatabaseError => write!(f, "Database error occurred"),
+            Self::InvalidPagination => write!(f, "Invalid pagination"),
+            Self::DatabaseError => write!(f, "Database error occurred"),
         }
     }
 }
@@ -26,8 +26,8 @@ impl std::fmt::Display for ListUsersError {
 impl ResponseError for ListUsersError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ListUsersError::InvalidPagination => StatusCode::BAD_REQUEST,
-            ListUsersError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidPagination => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -55,7 +55,7 @@ async fn list_users(
         smart_db.fetch_scalar::<i64, _>(&count_view),
     )
     .map_err(|error| {
-        eprintln!("{:?}", error);
+        eprintln!("{error:?}");
         ListUsersError::DatabaseError
     })?;
 
