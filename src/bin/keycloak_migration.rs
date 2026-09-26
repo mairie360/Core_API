@@ -21,6 +21,9 @@ const SEND_PASSWORD_SETUP_EMAIL_FLAG: &str = "--send-password-setup-email";
 #[tokio::main]
 async fn main() -> ExitCode {
     let mut options = MigrationOptions::default();
+    // Only the command-line flag is read here (the executable name is skipped), never a
+    // security decision: `args` is safe for that.
+    // nosemgrep: rust.lang.security.args.args
     for argument in std::env::args().skip(1) {
         if argument == SEND_PASSWORD_SETUP_EMAIL_FLAG {
             options.send_password_setup_email = true;
