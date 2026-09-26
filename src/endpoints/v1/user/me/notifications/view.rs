@@ -3,8 +3,9 @@ use crate::endpoints::v1::user::me::nullable::double_option;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Partial update of the notification settings. For every field: absent keeps the stored value,
-/// `null` resets it to the application default, `true` / `false` stores it. Any other type is
+/// Partial update of the notification settings.
+///
+/// For every field: absent keeps the stored value, `null` resets it to the application default, `true` / `false` stores it. Any other type is
 /// refused with `400` by the JSON extractor.
 #[allow(clippy::option_option)]
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, ToSchema)]
