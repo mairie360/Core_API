@@ -111,14 +111,11 @@ async fn force_change_password_trigger(
 async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
     let redis = state.get_redis();
     for key in [
-        format!("{}/first_connection_id", token),
-        format!("{}/first_connection_token", user_id),
+        format!("{token}/first_connection_id"),
+        format!("{user_id}/first_connection_token"),
     ] {
         if let Err(error) = redis.secure_delete(&key).await {
-            eprintln!(
-                "Suppression du jeton de première connexion impossible : {:?}",
-                error
-            );
+            eprintln!("Could not delete the first-connection token: {error:?}");
         }
     }
 }

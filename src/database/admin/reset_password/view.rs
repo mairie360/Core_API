@@ -32,6 +32,7 @@ pub struct AdminResetPasswordQueryView {
 }
 
 impl AdminResetPasswordQueryView {
+    #[must_use]
     pub fn new(user_id: u64, new_password: &str) -> Self {
         Self {
             user_id,
@@ -42,7 +43,8 @@ impl AdminResetPasswordQueryView {
         }
     }
 
-    pub fn user_id(&self) -> u64 {
+    #[must_use]
+    pub const fn user_id(&self) -> u64 {
         self.user_id
     }
 }
