@@ -1,6 +1,5 @@
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
-use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::{
     password::is_hashed, security::JwtMiddleware, state::AppState,
@@ -38,31 +37,44 @@ async fn fetch_stored_password(pool: &sqlx::PgPool, email: &str) -> String {
         .get("password")
 }
 
-/// Insère un utilisateur comme le ferait un compte créé avant cette migration : mot de passe en
-/// clair en base, plus de première connexion. `RegisterUserQueryView` n'ajoute plus de hachage
-/// (celui-ci est appliqué par l'endpoint), donc elle écrit bien la valeur brute qu'on lui donne.
+/// Inserts a user as an account created before the password hashing (MAIR-169) would be: a
+/// clear-text password in the database, no first connection.
+///
+/// `chk_users_password_hashed` is `NOT VALID`: it grandfathers those old rows but refuses any new
+/// clear-text write, so the row can only be created with the constraint lifted. That happens in
+/// one transaction, and the constraint is put back (still `NOT VALID`) before it commits.
 async fn create_legacy_plaintext_user(
-    smart_db: &mairie360_api_lib::smart_db::SmartDatabase,
     raw_pool: &sqlx::PgPool,
     email: &str,
     plaintext_password: &str,
 ) {
-    let _: bool = smart_db
-        .fetch_scalar(&RegisterUserQueryView::new(
-            "Legacy",
-            "User",
-            email,
-            plaintext_password,
-            None,
-        ))
+    let mut transaction = raw_pool.begin().await.unwrap();
+    sqlx::query("ALTER TABLE users DROP CONSTRAINT chk_users_password_hashed")
+        .execute(&mut *transaction)
         .await
         .unwrap();
-
-    sqlx::query("UPDATE users SET first_connect = false WHERE email = $1")
-        .bind(email)
-        .execute(raw_pool)
+    sqlx::query(
+        "INSERT INTO users (first_name, last_name, email, password, status, first_connect) \
+         VALUES ('Legacy', 'User', $1, $2, 'active', false)",
+    )
+    .bind(email)
+    .bind(plaintext_password)
+    .execute(&mut *transaction)
+    .await
+    .unwrap();
+    // The insert queued deferred foreign-key checks, which forbid altering the table.
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *transaction)
         .await
         .unwrap();
+    sqlx::query(
+        "ALTER TABLE users ADD CONSTRAINT chk_users_password_hashed CHECK (password ~ \
+         '^\\$argon2id\\$v=\\d+\\$m=\\d+,t=\\d+,p=\\d+\\$[A-Za-z0-9+/]+\\$[A-Za-z0-9+/]+$') NOT VALID",
+    )
+    .execute(&mut *transaction)
+    .await
+    .unwrap();
+    transaction.commit().await.unwrap();
 }
 
 #[tokio::test]
@@ -100,11 +112,10 @@ async fn login_migrates_legacy_plaintext_password_to_a_hash() {
     let state =
         web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await);
     let app = init_app!(state);
-    let pool = get_pool(host.clone()).await;
     let raw_pool = get_raw_pool(host.clone()).await;
 
     let email = format!("legacy_login_{}@example.com", uuid::Uuid::new_v4());
-    create_legacy_plaintext_user(&pool, &raw_pool, &email, "legacy_plaintext_pw").await;
+    create_legacy_plaintext_user(&raw_pool, &email, "legacy_plaintext_pw").await;
 
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/login")
@@ -130,11 +141,10 @@ async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migra
     let state =
         web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await);
     let app = init_app!(state);
-    let pool = get_pool(host.clone()).await;
     let raw_pool = get_raw_pool(host.clone()).await;
 
     let email = format!("legacy_wrong_{}@example.com", uuid::Uuid::new_v4());
-    create_legacy_plaintext_user(&pool, &raw_pool, &email, "legacy_plaintext_pw").await;
+    create_legacy_plaintext_user(&raw_pool, &email, "legacy_plaintext_pw").await;
 
     let req = test::TestRequest::post()
         .uri("/api/v1/auth/login")
@@ -160,11 +170,10 @@ async fn login_works_after_a_hashed_login_migration() {
     let state =
         web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await);
     let app = init_app!(state);
-    let pool = get_pool(host.clone()).await;
     let raw_pool = get_raw_pool(host.clone()).await;
 
     let email = format!("legacy_twice_{}@example.com", uuid::Uuid::new_v4());
-    create_legacy_plaintext_user(&pool, &raw_pool, &email, "legacy_plaintext_pw").await;
+    create_legacy_plaintext_user(&raw_pool, &email, "legacy_plaintext_pw").await;
 
     // First login: plaintext comparison, then migration to a hash.
     let first_req = test::TestRequest::post()

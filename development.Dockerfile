@@ -18,4 +18,6 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 3000
+# Development image only (hot reload, bind mounts): it runs as root on purpose.
+# nosemgrep: dockerfile.security.missing-user.missing-user
 CMD ["/usr/local/bin/entrypoint.sh"]

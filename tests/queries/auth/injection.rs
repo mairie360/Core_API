@@ -5,6 +5,7 @@ use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 use sqlx::PgPool;
 
@@ -62,7 +63,7 @@ async fn test_injection_register_fields() {
             malicious_name,
             "Doe",
             &unique_email,
-            "pass",
+            seed_password_hash(),
             None,
         ))
         .await
