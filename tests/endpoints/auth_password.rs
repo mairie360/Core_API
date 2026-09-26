@@ -3,8 +3,11 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::{
-    password::is_hashed, security::JwtMiddleware, state::AppState,
-    test_setup::queries_setup::get_shared_db,
+    jwt_manager::generate_jwt,
+    password::is_hashed,
+    security::JwtMiddleware,
+    state::AppState,
+    test_setup::queries_setup::{get_shared_db, ADMIN_ID},
 };
 use serde_json::json;
 use serial_test::serial;
@@ -65,9 +68,17 @@ async fn create_legacy_plaintext_user(
         .unwrap();
 }
 
+/// `Authorization` header of an administrator (`/admin` is guarded by `AdminMiddleware`).
+fn admin_auth_header() -> (&'static str, String) {
+    let admin_id = *ADMIN_ID.get().unwrap();
+    let token = generate_jwt(&admin_id.to_string(), "user").unwrap();
+    ("Authorization", format!("Bearer {token}"))
+}
+
 #[tokio::test]
 #[serial]
-async fn register_stores_a_hash_not_the_plaintext_password() {
+async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
+    std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
     let state =
         web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await);
@@ -76,7 +87,8 @@ async fn register_stores_a_hash_not_the_plaintext_password() {
 
     let email = format!("hash_register_{}@example.com", uuid::Uuid::new_v4());
     let req = test::TestRequest::post()
-        .uri("/api/v1/auth/register")
+        .uri("/api/v1/admin/users/")
+        .insert_header(admin_auth_header())
         .set_json(json!({
             "first_name": "Hash",
             "last_name": "Test",
