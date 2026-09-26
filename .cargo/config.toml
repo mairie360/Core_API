@@ -14,8 +14,8 @@ open_api = "run --example generate_openapi"
 
 cov_test = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|main\\.rs|lib\\.rs", "--fail-under-lines", "60"]
 
+
 cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|main\\.rs|lib\\.rs", "--fail-under-lines", "60", "--codecov", "--output-path", "codecov.json"]
-# Version of the ghcr.io/mairie360/database and liquibase-migrations images the integration tests
 # Version of the ghcr.io/mairie360/database and liquibase-migrations images the integration tests
 # run against (read by mairie360_api_lib::test_setup). Pinned to the latest published dev-<sha> image of Devops/Database (no release has the
 # v1.4.0 schema the Keycloak features (user_identities, MAIR-141) need yet).
