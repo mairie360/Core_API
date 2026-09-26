@@ -3,6 +3,7 @@ use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use mairie360_api_lib::{
     security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
 };
@@ -36,7 +37,11 @@ async fn fresh_user_jwt(state: &web::Data<AppState>) -> String {
     let db = state.get_smart_db();
     let _: bool = db
         .fetch_scalar(&RegisterUserQueryView::new(
-            "Prefs", "Endpoint", &email, "password", None,
+            "Prefs",
+            "Endpoint",
+            &email,
+            seed_password_hash(),
+            None,
         ))
         .await
         .unwrap();

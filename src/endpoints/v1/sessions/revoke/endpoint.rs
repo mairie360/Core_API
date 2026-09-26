@@ -1,5 +1,9 @@
+use crate::database::sessions::get_active_session_by_token::{
+    ActiveSession, GetActiveSessionByTokenQueryView,
+};
 use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
+use crate::session_revocation::publish_revoked_sessions;
 use mairie360_api_lib::security::AuthenticatedUser;
 
 use actix_web::http::StatusCode;
@@ -59,23 +63,39 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    match state.get_smart_db().execute(db_view).await {
-        Ok(()) => Ok(()),
-        Err(_) => Err(RevokeError::DatabaseError),
+    // Session id, to publish the revocation to the other APIs (MAIR-264).
+    let session: Option<ActiveSession> = state
+        .get_smart_db()
+        .fetch_one(&GetActiveSessionByTokenQueryView::new(
+            &view.refresh_token(),
+        ))
+        .await
+        .ok();
+
+    state
+        .get_smart_db()
+        .execute(db_view)
+        .await
+        .map_err(|_| RevokeError::DatabaseError)?;
+
+    if let Some(session) = session {
+        publish_revoked_sessions(state.get_redis(), &[session.id()]).await;
     }
+    Ok(())
 }
 
 #[utoipa::path(
     post,
     path = "revoke",
-    summary = "Révoquer une de ses sessions",
-    description = "Révoque la session identifiée par son jeton de rafraîchissement : c'est la \
-                   déconnexion. Le jeton ne peut plus servir à `POST /api/v1/sessions/refresh`, et \
-                   la session bascule dans l'historique avec un `revoked_at` renseigné.\n\n\
-                   Un utilisateur ne peut révoquer que ses propres sessions : le jeton est validé \
-                   pour le couple (utilisateur du JWT, adresse IP d'origine) avant la révocation. \
-                   Révoquer la session courante n'invalide pas immédiatement le JWT déjà émis, qui \
-                   reste refusé à la prochaine vérification de session.",
+    summary = "Revoke one of your sessions",
+    description = "Revokes the session identified by its refresh token (for example another \
+                   device). The token no longer works with `POST /api/v1/sessions/refresh`, the \
+                   session moves to the history with `revoked_at` set, and the JWTs of that \
+                   session are refused by Core right away. The session is also written to the \
+                   Redis revocation list (`revoked:<session id>`, for `JWT_TIMEOUT`), so the other \
+                   APIs refuse its JWTs once they run a `mairie360_api_lib` version that checks it.\n\n\
+                   A user can only revoke their own sessions. To end the current session from \
+                   its JWT alone, use `POST /api/v1/sessions/logout`.",
     request_body(
         content = RevokeRequestView,
         description = "Jeton de rafraîchissement de la session à révoquer.",

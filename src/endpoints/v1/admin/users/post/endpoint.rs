@@ -219,14 +219,14 @@ async fn register_user(
     post,
     path = "",
     summary = "Create a user account (administration)",
-    description = "Creates an account on behalf of an administrator, without the person having \
-                   to register. Reserved to administrators.\n\n\
-                   Same validation rules as `POST /api/v1/auth/register`: e-mail of the form \
-                   `local@domain.tld`, password of at least 8 characters, optional phone number \
-                   of at least 10 digits. They all share the same `400`.\n\n\
-                   The password given here is provisional: the account is flagged as first \
-                   connection, and the user's first `POST /api/v1/auth/login` answers `412` to \
-                   make them choose their own.\n\n\
+    description = "Creates an account on behalf of an administrator. Reserved to administrators: \
+                   this is the only way to create an account, there is no public sign-up route.\n\n\
+                   Validation: e-mail of the form `local@domain.tld`, password of at least 8 \
+                   characters, optional phone number of at least 10 digits. All share the same \
+                   `400`.\n\n\
+                   The password given here is temporary: the account is flagged as first \
+                   connection, and the user's first `POST /api/v1/auth/login` answers `412` so \
+                   they choose their own.\n\n\
                    **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client, \
                    the account is mirrored in the realm **before** it is written to Core: an \
                    account with the same e-mail is adopted (profile overwritten), otherwise one is \
