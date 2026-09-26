@@ -18,6 +18,7 @@ pub mod database;
 pub mod endpoints;
 pub mod keycloak;
 pub mod session_jwt;
+pub mod session_revocation;
 
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
