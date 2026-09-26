@@ -16,6 +16,7 @@
 
 pub mod database;
 pub mod endpoints;
+pub mod keycloak;
 
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,

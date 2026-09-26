@@ -1,4 +1,8 @@
+mod admin_users_keycloak;
 mod auth_password;
 mod forgot_password;
+mod keycloak_login;
+mod keycloak_migration;
 mod ressources_access;
 mod sessions_refresh;
+mod user_preferences;
