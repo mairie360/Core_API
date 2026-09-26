@@ -4,6 +4,8 @@ use crate::endpoints::v1::groups::id::patch::view::{PatchGroupView, MAX_GROUP_NA
 use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
@@ -11,6 +13,7 @@ use mairie360_api_lib::state::AppState;
 enum PatchGroupError {
     BadRequest,
     UnknownGroup,
+    Duplicate,
     DatabaseError,
 }
 
@@ -19,6 +22,7 @@ impl std::fmt::Display for PatchGroupError {
         match self {
             PatchGroupError::BadRequest => write!(f, "Bad request."),
             PatchGroupError::UnknownGroup => write!(f, "Unknow group"),
+            PatchGroupError::Duplicate => write!(f, "A group with this name already exists."),
             PatchGroupError::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -31,6 +35,7 @@ impl ResponseError for PatchGroupError {
         match self {
             PatchGroupError::BadRequest => StatusCode::BAD_REQUEST,
             PatchGroupError::UnknownGroup => StatusCode::NOT_FOUND,
+            PatchGroupError::Duplicate => StatusCode::CONFLICT,
             PatchGroupError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -61,9 +66,13 @@ async fn trigger_patch_group(
             view.description(),
         ))
         .await
-        .map_err(|error| {
-            eprintln!("{:?}", error);
-            PatchGroupError::DatabaseError
+        .map_err(|error| match error {
+            // `groups.name` is UNIQUE.
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchGroupError::Duplicate,
+            error => {
+                eprintln!("{:?}", error);
+                PatchGroupError::DatabaseError
+            }
         })?;
 
     groups
@@ -124,6 +133,13 @@ async fn trigger_patch_group(
             body = String,
             content_type = "text/plain",
             example = json!("Unknow group")
+        ),
+        (
+            status = 409,
+            description = "`name` is already used by another group (group names are unique).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("A group with this name already exists.")
         ),
         (
             status = 500,
