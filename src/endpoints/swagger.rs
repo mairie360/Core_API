@@ -60,6 +60,7 @@ Statuts renvoyés de façon transverse par les intergiciels, avant même d'attei
         (name = "Groups", description = "Groupes d'utilisateurs et gestion de leurs membres."),
         (name = "Admin - Users", description = "Administration des comptes utilisateurs. Réservé aux administrateurs."),
         (name = "Admin - Roles", description = "Administration des rôles et de leurs permissions. Réservé aux administrateurs."),
+        (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on). Reserved to administrators."),
         (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
     ),
     nest(
@@ -88,6 +89,6 @@ impl Modify for SecurityAddon {
                     ))
                     .build(),
             ),
-        )
+        );
     }
 }
