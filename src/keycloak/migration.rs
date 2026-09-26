@@ -7,6 +7,7 @@
 //! missing, and re-linking the same subject is a no-op in the schema.
 
 use super::admin::{KeycloakAdminClient, KeycloakAdminError, KeycloakRole, KeycloakUserProfile};
+use super::sync::{sync_roles, SyncError};
 use crate::database::admin::sso_export::{ListSsoExportQueryView, SsoExportUser};
 use crate::database::auth::link_identity::LinkUserIdentityQueryView;
 use mairie360_api_lib::database::error::DbError;
@@ -19,9 +20,6 @@ use utoipa::ToSchema;
 
 /// Provider name under which Keycloak identities are stored in `user_identities`.
 pub const KEYCLOAK_PROVIDER: &str = "keycloak";
-
-/// Description given to the realm roles the job creates.
-const ROLE_DESCRIPTION: &str = "Mairie 360 role, migrated from Core";
 
 /// Knobs of a migration run.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -68,6 +66,17 @@ impl From<KeycloakAdminError> for MigrationError {
             KeycloakAdminError::NotFound
             | KeycloakAdminError::AlreadyExists
             | KeycloakAdminError::Unavailable => Self::KeycloakUnavailable,
+        }
+    }
+}
+
+impl From<SyncError> for MigrationError {
+    fn from(error: SyncError) -> Self {
+        match error {
+            SyncError::NotConfigured => Self::NotConfigured,
+            SyncError::KeycloakForbidden => Self::KeycloakForbidden,
+            SyncError::KeycloakUnavailable | SyncError::EmailTaken => Self::KeycloakUnavailable,
+            SyncError::LinkedToAnotherUser | SyncError::Database => Self::Database,
         }
     }
 }
@@ -287,52 +296,4 @@ async fn provision(
         }
         Err(error) => Err(error.into()),
     }
-}
-
-/// Maps the Core roles `names` to Keycloak user `keycloak_id` as realm roles, creating the
-/// roles the realm lacks. Roles already mapped, and roles the user holds only in Keycloak
-/// (`default-roles-<realm>`, `offline_access`, ...), are left untouched. Returns the names
-/// mapped by this call.
-async fn sync_roles(
-    admin: &KeycloakAdminClient,
-    cache: &mut HashMap<String, KeycloakRole>,
-    keycloak_id: &str,
-    names: &[String],
-) -> Result<Vec<String>, MigrationError> {
-    if names.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut wanted = Vec::with_capacity(names.len());
-    for name in names {
-        if let Some(role) = cache.get(name) {
-            wanted.push(role.clone());
-        } else {
-            let role = ensure_realm_role(admin, name).await?;
-            cache.insert(name.clone(), role.clone());
-            wanted.push(role);
-        }
-    }
-    let current = admin.user_realm_roles(keycloak_id).await?;
-    let missing: Vec<KeycloakRole> = wanted
-        .into_iter()
-        .filter(|role| !current.iter().any(|mapped| mapped.name == role.name))
-        .collect();
-    if !missing.is_empty() {
-        admin.add_user_realm_roles(keycloak_id, &missing).await?;
-    }
-    Ok(missing.into_iter().map(|role| role.name).collect())
-}
-
-async fn ensure_realm_role(
-    admin: &KeycloakAdminClient,
-    name: &str,
-) -> Result<KeycloakRole, MigrationError> {
-    if let Some(role) = admin.realm_role(name).await? {
-        return Ok(role);
-    }
-    admin.create_realm_role(name, ROLE_DESCRIPTION).await?;
-    admin.realm_role(name).await?.ok_or_else(|| {
-        eprintln!("Keycloak migration: realm role {name} missing right after its creation");
-        MigrationError::KeycloakUnavailable
-    })
 }

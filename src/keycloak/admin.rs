@@ -365,6 +365,56 @@ impl KeycloakAdminClient {
         .map(|_| ())
     }
 
+    /// Enables or disables user `id`, leaving the rest of its profile untouched. A disabled
+    /// account cannot sign in, its existing sessions are not ended (see
+    /// [`KeycloakAdminClient::logout_user`]).
+    ///
+    /// # Errors
+    ///
+    /// [`KeycloakAdminError::NotFound`] if the user vanished, plus
+    /// [`KeycloakAdminError::NotConfigured`], [`KeycloakAdminError::Forbidden`] or
+    /// [`KeycloakAdminError::Unavailable`].
+    pub async fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), KeycloakAdminError> {
+        self.send(
+            Method::PUT,
+            self.endpoint(&["users", id])?,
+            Some(&json!({ "enabled": enabled })),
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Deletes user `id` from the realm, with its credentials, sessions and role mappings.
+    /// Deleting a user that no longer exists succeeds.
+    ///
+    /// # Errors
+    ///
+    /// [`KeycloakAdminError::NotConfigured`], [`KeycloakAdminError::Forbidden`] or
+    /// [`KeycloakAdminError::Unavailable`].
+    pub async fn delete_user(&self, id: &str) -> Result<(), KeycloakAdminError> {
+        match self
+            .send(Method::DELETE, self.endpoint(&["users", id])?, None)
+            .await
+        {
+            Ok(_) | Err(KeycloakAdminError::NotFound) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Ends every session of user `id` in the realm (and, through the back-channel logout,
+    /// in the clients that support it). A user without any session is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// [`KeycloakAdminError::NotFound`] if the user vanished, plus
+    /// [`KeycloakAdminError::NotConfigured`], [`KeycloakAdminError::Forbidden`] or
+    /// [`KeycloakAdminError::Unavailable`].
+    pub async fn logout_user(&self, id: &str) -> Result<(), KeycloakAdminError> {
+        self.send(Method::POST, self.endpoint(&["users", id, "logout"])?, None)
+            .await
+            .map(|_| ())
+    }
+
     /// Returns the realm role named `name`, `None` if the realm has none.
     ///
     /// # Errors
@@ -441,6 +491,27 @@ impl KeycloakAdminClient {
     ) -> Result<(), KeycloakAdminError> {
         self.send(
             Method::POST,
+            self.endpoint(&["users", id, "role-mappings", "realm"])?,
+            Some(&json!(roles)),
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Unmaps realm `roles` from user `id`; roles not mapped to the user are ignored.
+    ///
+    /// # Errors
+    ///
+    /// [`KeycloakAdminError::NotFound`] if the user or a role vanished, plus
+    /// [`KeycloakAdminError::NotConfigured`], [`KeycloakAdminError::Forbidden`] or
+    /// [`KeycloakAdminError::Unavailable`].
+    pub async fn remove_user_realm_roles(
+        &self,
+        id: &str,
+        roles: &[KeycloakRole],
+    ) -> Result<(), KeycloakAdminError> {
+        self.send(
+            Method::DELETE,
             self.endpoint(&["users", id, "role-mappings", "realm"])?,
             Some(&json!(roles)),
         )

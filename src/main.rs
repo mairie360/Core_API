@@ -7,7 +7,7 @@ use core_api::database::pg_url::build_pg_url;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
-use core_api::keycloak::{KeycloakClient, KeycloakConfig};
+use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
@@ -30,8 +30,26 @@ async fn main() -> std::io::Result<()> {
     let data = web::Data::new(state);
     // Keycloak sign-in is optional during the transition: without its env vars, only the
     // password login is available and `POST /api/v1/auth/keycloak` answers 503.
-    let keycloak =
-        KeycloakConfig::from_env().map(|config| web::Data::new(KeycloakClient::new(config)));
+    let keycloak_config = KeycloakConfig::from_env();
+    let keycloak = keycloak_config
+        .clone()
+        .map(|config| web::Data::new(KeycloakClient::new(config)));
+    // The administration endpoints mirror the accounts they change into the realm through the
+    // Admin API (MAIR-142), which needs a confidential client: with a public client (or without
+    // Keycloak) they only write to Core.
+    let keycloak_admin = keycloak_config
+        .map(KeycloakAdminClient::new)
+        .filter(|admin| {
+            if admin.is_configured() {
+                true
+            } else {
+                eprintln!(
+                    "Keycloak account synchronisation disabled: KEYCLOAK_CLIENT_SECRET is not set or KEYCLOAK_REALM_URL has no /realms/ segment."
+                );
+                false
+            }
+        })
+        .map(web::Data::new);
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{host}:{port}");
@@ -39,6 +57,10 @@ async fn main() -> std::io::Result<()> {
         let app = App::new().app_data(data.clone());
         let app = match &keycloak {
             Some(keycloak) => app.app_data(keycloak.clone()),
+            None => app,
+        };
+        let app = match &keycloak_admin {
+            Some(admin) => app.app_data(admin.clone()),
             None => app,
         };
         app.wrap(middleware::Logger::default())

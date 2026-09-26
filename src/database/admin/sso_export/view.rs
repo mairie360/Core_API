@@ -46,6 +46,51 @@ impl Display for ListSsoExportQueryView {
     }
 }
 
+/// One account, in the same shape as [`ListSsoExportQueryView`] (MAIR-142).
+///
+/// Read by the Keycloak synchronisation of the administration endpoints. Fetch it with
+/// `fetch_all`: the list is empty for an unknown user.
+#[derive(serde::Deserialize)]
+pub struct GetSsoExportUserQueryView {
+    user_id: i32,
+    params: Vec<QueryParam>,
+}
+
+impl GetSsoExportUserQueryView {
+    #[must_use]
+    pub fn new(user_id: i32) -> Self {
+        Self {
+            user_id,
+            params: vec![QueryParam::I32(user_id)],
+        }
+    }
+
+    #[must_use]
+    pub const fn user_id(&self) -> i32 {
+        self.user_id
+    }
+}
+
+impl ApiRequestDto for GetSsoExportUserQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT row_to_json(t) FROM ( \
+            SELECT id, email, first_name, last_name, enabled, has_local_password, roles, identities \
+            FROM v_users_sso_export \
+            WHERE id = $1 \
+        ) t"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
+    }
+}
+
+impl Display for GetSsoExportUserQueryView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GetSsoExportUserQueryView: user_id = {}", self.user_id)
+    }
+}
+
 /// One account as the Keycloak migration job sees it.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct SsoExportUser {

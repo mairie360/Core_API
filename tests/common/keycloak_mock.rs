@@ -1,6 +1,8 @@
 //! Minimal Keycloak realm for tests: an OIDC token endpoint, a JWKS endpoint and the subset of
 //! the Admin REST API the account migration uses, served by a real HTTP server on a random
-//! local port, with ID tokens signed by throwaway RSA keys.
+//! local port, with ID tokens signed by throwaway RSA keys. The Admin API subset also covers
+//! what the administration endpoints mirror (MAIR-142): user deletion, logout and role
+//! unmapping.
 
 // Fake-realm handlers: actix handlers are `!Send` (they hold an `HttpRequest`), the realm state
 // is a plain mutex held for the whole synchronous handler body, and the early-return
@@ -156,6 +158,10 @@ struct AdminRealm {
     roles: Vec<MockRole>,
     /// Ids of the users Keycloak was asked to e-mail a password set-up link.
     password_emails: Vec<String>,
+    /// Ids of the users whose sessions Keycloak was asked to end, oldest first.
+    logouts: Vec<String>,
+    /// Ids of the users deleted from the realm, oldest first.
+    deletions: Vec<String>,
     /// Service-account token currently accepted by the Admin API (`None`: every token expired).
     valid_token: Option<String>,
     issued_tokens: usize,
@@ -212,6 +218,8 @@ impl KeycloakMock {
                         .route("/users", web::post().to(admin_create_user))
                         .route("/users/{id}", web::get().to(admin_get_user))
                         .route("/users/{id}", web::put().to(admin_update_user))
+                        .route("/users/{id}", web::delete().to(admin_delete_user))
+                        .route("/users/{id}/logout", web::post().to(admin_logout_user))
                         .route(
                             "/users/{id}/execute-actions-email",
                             web::put().to(admin_execute_actions_email),
@@ -223,6 +231,10 @@ impl KeycloakMock {
                         .route(
                             "/users/{id}/role-mappings/realm",
                             web::post().to(admin_add_user_realm_roles),
+                        )
+                        .route(
+                            "/users/{id}/role-mappings/realm",
+                            web::delete().to(admin_remove_user_realm_roles),
                         )
                         .route("/roles", web::post().to(admin_create_role))
                         .route("/roles/{name}", web::get().to(admin_get_role)),
@@ -386,6 +398,32 @@ impl KeycloakMock {
     pub fn password_emails(&self) -> Vec<String> {
         self.state.admin.lock().unwrap().password_emails.clone()
     }
+
+    /// Ids of the users whose sessions Keycloak was asked to end, oldest first.
+    pub fn logouts(&self) -> Vec<String> {
+        self.state.admin.lock().unwrap().logouts.clone()
+    }
+
+    /// Ids of the users deleted from the realm through the Admin API, oldest first.
+    pub fn deletions(&self) -> Vec<String> {
+        self.state.admin.lock().unwrap().deletions.clone()
+    }
+
+    /// Maps the realm role `name` (seeded first when missing) to user `id`.
+    pub fn map_role(&self, id: &str, name: &str) {
+        if !self.roles().iter().any(|role| role.name == name) {
+            self.seed_role(name);
+        }
+        let mut admin = self.state.admin.lock().unwrap();
+        let user = admin
+            .users
+            .iter_mut()
+            .find(|user| user.id == id)
+            .expect("mapped user exists");
+        if !user.realm_roles.iter().any(|mapped| mapped == name) {
+            user.realm_roles.push(name.to_string());
+        }
+    }
 }
 
 async fn token(
@@ -547,6 +585,36 @@ async fn admin_update_user(
     HttpResponse::NoContent().finish()
 }
 
+async fn admin_delete_user(
+    req: HttpRequest,
+    state: web::Data<MockState>,
+    id: web::Path<String>,
+) -> HttpResponse {
+    let mut admin = state.admin.lock().unwrap();
+    admin_guard!(req, admin);
+    let before = admin.users.len();
+    admin.users.retain(|user| user.id != *id);
+    if admin.users.len() == before {
+        return HttpResponse::NotFound().json(json!({ "error": "User not found" }));
+    }
+    admin.deletions.push(id.into_inner());
+    HttpResponse::NoContent().finish()
+}
+
+async fn admin_logout_user(
+    req: HttpRequest,
+    state: web::Data<MockState>,
+    id: web::Path<String>,
+) -> HttpResponse {
+    let mut admin = state.admin.lock().unwrap();
+    admin_guard!(req, admin);
+    if !admin.users.iter().any(|user| user.id == *id) {
+        return HttpResponse::NotFound().json(json!({ "error": "User not found" }));
+    }
+    admin.logouts.push(id.into_inner());
+    HttpResponse::NoContent().finish()
+}
+
 async fn admin_execute_actions_email(
     req: HttpRequest,
     state: web::Data<MockState>,
@@ -613,6 +681,32 @@ async fn admin_add_user_realm_roles(
             user.realm_roles.push(name);
         }
     }
+    HttpResponse::NoContent().finish()
+}
+
+async fn admin_remove_user_realm_roles(
+    req: HttpRequest,
+    state: web::Data<MockState>,
+    id: web::Path<String>,
+    body: web::Json<Vec<Value>>,
+) -> HttpResponse {
+    let mut admin = state.admin.lock().unwrap();
+    admin_guard!(req, admin);
+    let mut names = Vec::new();
+    for role in body.iter() {
+        let known = admin.roles.iter().find(|known| {
+            Some(known.id.as_str()) == role["id"].as_str()
+                && Some(known.name.as_str()) == role["name"].as_str()
+        });
+        match known {
+            Some(known) => names.push(known.name.clone()),
+            None => return HttpResponse::NotFound().json(json!({ "error": "Role not found" })),
+        }
+    }
+    let Some(user) = admin.users.iter_mut().find(|user| user.id == *id) else {
+        return HttpResponse::NotFound().json(json!({ "error": "User not found" }));
+    };
+    user.realm_roles.retain(|mapped| !names.contains(mapped));
     HttpResponse::NoContent().finish()
 }
 
