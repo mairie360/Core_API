@@ -10,6 +10,7 @@ pub struct UpdateGroupQueryView {
 }
 
 impl UpdateGroupQueryView {
+    #[must_use]
     pub fn new(group_id: u64, name: Option<&str>, description: Option<&str>) -> Self {
         Self {
             group_id,
@@ -23,7 +24,8 @@ impl UpdateGroupQueryView {
         }
     }
 
-    pub fn group_id(&self) -> u64 {
+    #[must_use]
+    pub const fn group_id(&self) -> u64 {
         self.group_id
     }
 }

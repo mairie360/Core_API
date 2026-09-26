@@ -15,7 +15,7 @@ async fn every_published_operation_is_routed() {
     // AdminMiddleware exige un AppState. Sans base joignable, la lib retente la connexion pendant 30 s :
     // on réutilise la base de test partagée (Redis absent, ses échecs sont silencieux).
     let (_container, pg_url) = get_shared_db().await;
-    let state = AppState::new("redis://127.0.0.1:6379".to_string(), pg_url.to_string()).await;
+    let state = AppState::new("redis://127.0.0.1:6379".to_string(), pg_url.clone()).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(state))
