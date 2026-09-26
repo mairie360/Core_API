@@ -134,10 +134,24 @@ impl ApiRequestDto for PatchUserQueryView {
 }
 
 impl Display for PatchUserQueryView {
+    // Only say which fields change: the e-mail, phone number and password never reach the logs.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.phone_number {
-            Some(_) => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}, phone_number = {:?}, password = {:?}", self.id(), self.first_name(), self.last_name(), self.email(), self.phone_number(), self.password()),
-            None => write!(f, "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {:?}, password = {:?}", self.id(), self.first_name(), self.last_name(), self.email(), self.password()),
+        const fn changed(set: bool) -> &'static str {
+            if set {
+                "[PROTECTED]"
+            } else {
+                "unchanged"
+            }
         }
+        write!(
+            f,
+            "PatchUserQueryView: id = {:?}, first_name = {:?}, last_name = {:?}, email = {}, phone_number = {}, password = {}",
+            self.id(),
+            self.first_name(),
+            self.last_name(),
+            changed(self.email().is_some()),
+            changed(self.phone_number().is_some()),
+            changed(self.password().is_some()),
+        )
     }
 }

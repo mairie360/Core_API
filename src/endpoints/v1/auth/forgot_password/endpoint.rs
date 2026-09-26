@@ -1,6 +1,7 @@
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
+use crate::redis_keys::{set_token, FORGOT_PASSWORD_TTL_SECONDS};
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -9,36 +10,26 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq)]
+/// Only infrastructure failures are reported: whether the e-mail matches an account, is already
+/// waiting for a reset or is not eligible never changes the response (no account enumeration).
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ResetPasswordError {
-    AlreadyRequested,
-    DatabaseError,
-    MailError,
-    RedisError,
-    UserFirstTimeError,
-    UserNotFound,
+    Database,
+    Mail,
+    Redis,
 }
 
 impl std::fmt::Display for ResetPasswordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AlreadyRequested => {
-                write!(f, "Password reset already requested.")
-            }
-            Self::DatabaseError => {
+            Self::Database => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            Self::MailError => {
+            Self::Mail => {
                 write!(f, "An error occurred while sending the email.")
             }
-            Self::RedisError => {
+            Self::Redis => {
                 write!(f, "An error occurred while accessing Redis.")
-            }
-            Self::UserFirstTimeError => {
-                write!(f, "User not valid.")
-            }
-            Self::UserNotFound => {
-                write!(f, "User not found.")
             }
         }
     }
@@ -46,14 +37,7 @@ impl std::fmt::Display for ResetPasswordError {
 
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
-        match self {
-            Self::AlreadyRequested => StatusCode::CONFLICT,
-            Self::DatabaseError | Self::MailError | Self::RedisError => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-            Self::UserFirstTimeError => StatusCode::UNAUTHORIZED,
-            Self::UserNotFound => StatusCode::NOT_FOUND,
-        }
+        StatusCode::INTERNAL_SERVER_ERROR
     }
 
     fn error_response(&self) -> HttpResponse {
@@ -61,27 +45,28 @@ impl ResponseError for ResetPasswordError {
     }
 }
 
-async fn check_user(smart_db: &SmartDatabase, email: &str) -> Result<(), ResetPasswordError> {
-    println!("email: {email}");
+/// Whether a reset e-mail may be sent to `email`: an account exists and is eligible.
+async fn is_eligible(smart_db: &SmartDatabase, email: &str) -> Result<bool, ResetPasswordError> {
     let view = DoesUserExistByEmailQueryView::new(email.to_string());
-    let result: Result<bool, _> = smart_db.fetch_scalar(&view).await;
-    match result {
-        Ok(true) => {}
-        _ => return Err(ResetPasswordError::UserNotFound),
+    let exists: bool = smart_db
+        .fetch_scalar(&view)
+        .await
+        .map_err(|_| ResetPasswordError::Database)?;
+    if !exists {
+        return Ok(false);
     }
 
     let view = GetUserIdQueryView::new(email);
-    let Ok(user_id) = smart_db.fetch_scalar::<i32, _>(&view).await else {
-        return Err(ResetPasswordError::DatabaseError);
-    };
+    let user_id = smart_db
+        .fetch_scalar::<i32, _>(&view)
+        .await
+        .map_err(|_| ResetPasswordError::Database)?;
+    let user_id = u64::try_from(user_id).map_err(|_| ResetPasswordError::Database)?;
 
-    let view = IsFirstTimeQueryView::new(user_id as u64);
-    let result = smart_db.fetch_scalar(&view).await.unwrap();
-    if result {
-        Ok(())
-    } else {
-        Err(ResetPasswordError::UserFirstTimeError)
-    }
+    smart_db
+        .fetch_scalar::<bool, _>(&IsFirstTimeQueryView::new(user_id))
+        .await
+        .map_err(|_| ResetPasswordError::Database)
 }
 
 async fn handle_forgot_password(
@@ -94,7 +79,7 @@ async fn handle_forgot_password(
             Ok(sender) => sender,
             Err(e) => {
                 eprintln!("Email Sender Error: {e}");
-                return Err(ResetPasswordError::MailError);
+                return Err(ResetPasswordError::Mail);
             }
         },
         to: dest.to_string(),
@@ -109,7 +94,7 @@ async fn handle_forgot_password(
         Ok(email) => email,
         Err(e) => {
             eprintln!("Email Build Error: {e}");
-            return Err(ResetPasswordError::MailError);
+            return Err(ResetPasswordError::Mail);
         }
     };
 
@@ -118,7 +103,7 @@ async fn handle_forgot_password(
         Ok(()) => Ok(()),
         Err(e) => {
             eprintln!("Mail Error: {e}");
-            Err(ResetPasswordError::MailError)
+            Err(ResetPasswordError::Mail)
         }
     }
 }
@@ -126,26 +111,31 @@ async fn handle_forgot_password(
 async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError> {
     let token = Uuid::new_v4().to_string();
     let redis = state.get_redis();
-    redis
-        .secure_set(&format!("{email}/forgot_password_token"), &token)
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            ResetPasswordError::RedisError
-        })?;
-    redis
-        .secure_set(
-            &format!("{token}/forgot_password_email"),
-            &email.to_string(),
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("Redis Error: {e}");
-            ResetPasswordError::RedisError
-        })?;
+    set_token(
+        redis,
+        &format!("{email}/forgot_password_token"),
+        &token,
+        FORGOT_PASSWORD_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        ResetPasswordError::Redis
+    })?;
+    set_token(
+        redis,
+        &format!("{token}/forgot_password_email"),
+        email,
+        FORGOT_PASSWORD_TTL_SECONDS,
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Redis Error: {e}");
+        ResetPasswordError::Redis
+    })?;
     match handle_forgot_password(token, email).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(ResetPasswordError::MailError),
+        Err(_) => Err(ResetPasswordError::Mail),
     }
 }
 
@@ -153,74 +143,54 @@ async fn forgot_password_trigger(
     state: web::Data<AppState>,
     view: ForgotPasswordView,
 ) -> Result<(), ResetPasswordError> {
-    let smart_db = state.get_smart_db();
-
     let token = state
         .get_redis()
         .secure_get::<String>(&format!("{}/forgot_password_token", view.email()))
         .await;
+    // A reset is already waiting for this address: answer as if a new e-mail had been sent.
     if matches!(token, Ok(Some(_))) {
-        return Err(ResetPasswordError::AlreadyRequested);
+        return Ok(());
     }
 
-    match check_user(smart_db, view.email()).await {
-        Err(err) => Err(err),
-        _ => trigger(&state, view.email()).await,
+    if is_eligible(state.get_smart_db(), view.email()).await? {
+        trigger(&state, view.email()).await?;
     }
+    Ok(())
 }
 
 #[utoipa::path(
     post,
     path = "",
-    summary = "Demander la réinitialisation d'un mot de passe",
-    description = "Génère un jeton de réinitialisation à usage unique, le stocke dans Redis et \
-                   l'envoie par e-mail à l'utilisateur. Le jeton est ensuite à présenter à \
+    summary = "Request a password reset",
+    description = "If the e-mail matches an account, generates a one-time reset token, stores it \
+                   in Redis and e-mails it to the user. The token is then sent to \
                    `POST /api/v1/auth/reset_password`.\n\n\
-                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.\n\n\
-                   Le jeton n'est **jamais** renvoyé dans la réponse : un `200` signifie seulement \
-                   que l'e-mail a été remis au serveur SMTP. Une demande déjà en cours pour cette \
-                   adresse est refusée en `409` tant que le jeton précédent n'a pas été consommé.",
+                   Public route: `JwtMiddleware` lets everything under `/auth` through.\n\n\
+                   To avoid revealing which e-mails have an account, the answer is **always the \
+                   same empty `200`**, whether the address is unknown, already has a pending \
+                   reset (no second e-mail is sent until the first token is used) or matches an \
+                   account. The token is never returned in the response. Only infrastructure \
+                   failures answer `500`.",
     request_body(
         content = ForgotPasswordView,
-        description = "Adresse e-mail du compte à réinitialiser.",
+        description = "E-mail address of the account to reset.",
         example = json!({ "email": "jean.dupont@mairie360.fr" })
     ),
     responses(
         (
             status = 200,
-            description = "E-mail de réinitialisation envoyé. Corps vide.",
+            description = "Request accepted. Empty body. Does not tell whether an e-mail was sent.",
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ `email` absent.",
+            description = "Malformed JSON body or missing `email` field.",
             body = String,
             content_type = "text/plain",
             example = json!("Json deserialize error: missing field `email`")
         ),
         (
-            status = 401,
-            description = "Le compte n'est pas éligible à la réinitialisation dans son état actuel.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("User not valid.")
-        ),
-        (
-            status = 404,
-            description = "Aucun compte ne correspond à cette adresse e-mail.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("User not found.")
-        ),
-        (
-            status = 409,
-            description = "Une demande de réinitialisation est déjà en cours pour cette adresse.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Password reset already requested.")
-        ),
-        (
             status = 500,
-            description = "Erreur de base de données, de Redis, ou échec de l'envoi de l'e-mail.",
+            description = "Database or Redis failure, or the e-mail could not be sent.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while sending the email.")

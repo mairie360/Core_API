@@ -34,6 +34,6 @@ impl ApiRequestDto for GetSessionByTokenQueryView {
 
 impl Display for GetSessionByTokenQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetSessionByTokenQueryView: token = {}", self.token)
+        write!(f, "GetSessionByTokenQueryView: token = [PROTECTED]")
     }
 }

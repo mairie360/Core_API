@@ -34,6 +34,6 @@ impl ApiRequestDto for GetUserIdQueryView {
 
 impl Display for GetUserIdQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetUserIdQueryView: email = {}", self.email)
+        write!(f, "GetUserIdQueryView: email = [PROTECTED]")
     }
 }

@@ -31,3 +31,6 @@ node_modules
 package*.json
 generated
 codecov.json
+
+# Local checkout of mairie360/CICD, never committed
+cicd-repo/
