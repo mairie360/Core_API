@@ -2,11 +2,13 @@ use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::state::AppState;
 
-use crate::database::sessions::get_active_session_user_id::GetActiveSessionUserIdQueryView;
+use crate::database::sessions::get_active_session_by_token::{
+    ActiveSession, GetActiveSessionByTokenQueryView,
+};
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
+use crate::session_jwt::generate_session_jwt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
@@ -44,10 +46,10 @@ async fn refresh_request(
 ) -> Result<String, RefreshError> {
     // Le JWT est typiquement expiré à ce stade : l'utilisateur est identifié par son refresh
     // token, pas par un `AuthenticatedUser`.
-    let db_view = GetActiveSessionUserIdQueryView::new(&view.refresh_token());
+    let db_view = GetActiveSessionByTokenQueryView::new(&view.refresh_token());
 
-    let user_id: i32 = match state.get_smart_db().fetch_scalar(&db_view).await {
-        Ok(user_id) => user_id,
+    let session: ActiveSession = match state.get_smart_db().fetch_one(&db_view).await {
+        Ok(session) => session,
         Err(ApiLibError::Database(DbError::NotFound)) => return Err(RefreshError::InvalidToken),
         Err(e) => {
             eprintln!("Refresh DB Error: {e}");
@@ -55,8 +57,9 @@ async fn refresh_request(
         }
     };
 
-    // TODO: cf. login/endpoint.rs::generate_session — rôle non encore exploité par la lib.
-    generate_jwt(&user_id.to_string(), "").map_err(|e| {
+    let user_id = u64::try_from(session.user_id()).map_err(|_| RefreshError::InvalidToken)?;
+    // The new JWT stays bound to the same session (`sid` claim), see `session_jwt`.
+    generate_session_jwt(user_id, session.id()).map_err(|e| {
         eprintln!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })

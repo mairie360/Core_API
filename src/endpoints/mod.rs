@@ -1,5 +1,6 @@
 pub mod health;
 pub mod hello;
+pub mod session_guard;
 pub mod swagger;
 pub mod v1;
 
