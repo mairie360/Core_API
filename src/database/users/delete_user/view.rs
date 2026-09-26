@@ -1,6 +1,14 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+/// Archives a user through the schema's soft-delete view `v_users_active`.
+///
+/// Its `INSTEAD OF DELETE` trigger flags the row archived, which ends the user's sessions.
+/// Users are never hard-deleted: `core_api` has no `DELETE` grant on `users`.
+///
+/// Deleting an unknown or already archived user matches no row and succeeds silently: check
+/// the account first when that must be told apart. A user owning groups, events or projects
+/// is refused by the schema (`restrict_violation`).
 #[derive(serde::Deserialize)]
 pub struct DeleteUserQueryView {
     user_id: u64,
@@ -24,7 +32,7 @@ impl DeleteUserQueryView {
 
 impl ApiRequestDto for DeleteUserQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT delete_user($1)"
+        "DELETE FROM v_users_active WHERE id = $1"
     }
 
     fn query_params(&self) -> &[QueryParam] {
