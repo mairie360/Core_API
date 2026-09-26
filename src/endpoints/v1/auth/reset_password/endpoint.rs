@@ -8,6 +8,7 @@ use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
@@ -62,7 +63,11 @@ async fn reset_pwd(
     new_password: &str,
     user_id: u64,
 ) -> Result<(), ResetPasswordError> {
-    let view = ChangePasswordQueryView::new(new_password, user_id);
+    let hashed_password = hash_password(new_password).map_err(|e| {
+        eprintln!("Password hashing error: {e}");
+        ResetPasswordError::DatabaseError
+    })?;
+    let view = ChangePasswordQueryView::new(&hashed_password, user_id);
     smart_db
         .execute(view)
         .await
