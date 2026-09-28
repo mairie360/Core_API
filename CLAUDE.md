@@ -210,6 +210,33 @@ schema, not the source of truth.
 - `API.md` — informal endpoint list (partial/stale in places, e.g. missing rows).
 - `DATABASE.md` — schema sketch, see caveat above.
 
+### Observability (MAIR-131)
+
+`src/telemetry.rs` exports traces over OTLP/HTTP (protobuf), opt-in and driven by the standard
+`OTEL_*` variables: nothing changes unless `OTEL_EXPORTER_OTLP_ENDPOINT` (or
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, and `OTEL_SDK_DISABLED=true` forces it off. The
+endpoint is an agent that relays to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
+`http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
+`OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one. When enabled, `RUST_LOG`
+(default `info`) also filters the stdout logs, which are otherwise not initialised. A failure to
+build the exporter is printed and never stops the API.
+
+- `main.rs` wraps the app in `tracing_actix_web::TracingLogger` (outermost, so requests refused by
+  the JWT / session guards get a span too; it replaces `middleware::Logger`). Root spans are named
+  `<METHOD> <route pattern>`, carry `http.*` attributes and continue an incoming `traceparent`.
+  `http.target` includes the query string (directory search terms): do not put secrets in query
+  strings.
+- The SQL of `mairie360_api_lib` (sqlx) appears as span **events** (`db.statement` with `$n`
+  placeholders, never the bound values, plus `elapsed` and the row counts), not as child spans:
+  sqlx reports statements as `tracing` events of the `sqlx::query` target. Real `db` spans need a
+  change in `API_lib`.
+- The `opentelemetry*`, `opentelemetry-otlp`, `opentelemetry_sdk`, `tracing-opentelemetry` and
+  `tracing-actix-web` versions are coupled (`tracing-actix-web` 0.7 supports OpenTelemetry up to
+  0.32, `tracing-opentelemetry` 0.33): bump them together, never one alone.
+- CPU/RAM of the pod are not app metrics: they come from the cluster agent, not from this crate.
+- `tests/endpoints/telemetry.rs` asserts the span, the continued trace id and the SQL events
+  against an in-memory exporter (Docker needed like the other integration tests).
+
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
