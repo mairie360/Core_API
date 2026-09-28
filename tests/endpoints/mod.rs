@@ -8,4 +8,5 @@ mod ressources_access;
 mod revocation_list;
 mod sessions_logout;
 mod sessions_refresh;
+mod telemetry;
 mod user_preferences;

@@ -9,10 +9,12 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
+use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::get_critical_env_var;
 use mairie360_api_lib::state::AppState;
+use tracing_actix_web::TracingLogger;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -20,6 +22,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Exports the traces when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (MAIR-131); flushed on drop.
+    let _telemetry = telemetry::init();
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
     let db_password = get_critical_env_var("DB_PASSWORD");
@@ -64,7 +68,8 @@ async fn main() -> std::io::Result<()> {
             Some(admin) => app.app_data(admin.clone()),
             None => app,
         };
-        app.wrap(middleware::Logger::default())
+        // Outermost: one root span per request, including the ones the JWT / session guards refuse.
+        app.wrap(TracingLogger::default())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             // post requests

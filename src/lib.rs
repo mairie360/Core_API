@@ -20,6 +20,7 @@ pub mod keycloak;
 pub mod redis_keys;
 pub mod session_jwt;
 pub mod session_revocation;
+pub mod telemetry;
 
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,

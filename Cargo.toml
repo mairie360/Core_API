@@ -18,6 +18,13 @@ jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "ring", "webpki-roots", "builder"] }
 mairie360_api_lib = "1.4.1"
 percent-encoding = "2.3"
+# OpenTelemetry (MAIR-131). `tracing-actix-web` only supports OpenTelemetry up to 0.32 and
+# `tracing-opentelemetry` 0.33 is the release paired with it: bump all of them together.
+opentelemetry = "0.32"
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
+opentelemetry_sdk = "0.32"
+tracing-actix-web = { version = "0.7.25", features = ["opentelemetry_0_32"] }
+tracing-opentelemetry = "0.33"
 rand = "0.10"
 reqwest = { version = "0.13.4", features = ["json", "form"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -26,11 +33,15 @@ serde_json = "1.0.140"
 sqlx = { version = "0.9.0", default-features = false }
 tokio = { version = "1.50.1", features = ["full"] }
 tokio-postgres = "0.7.17"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 utoipa = { version = "6", features = ["actix_extras", "yaml"] }
 utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
+# In-memory span exporter to assert on the exported spans (MAIR-131).
+opentelemetry_sdk = { version = "0.32", features = ["testing"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
 redis = "1.0.3"
 # Redis enforcing the chart's ACL in tests (same version as mairie360_api_lib's test_setup).
