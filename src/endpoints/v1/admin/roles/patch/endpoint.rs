@@ -53,9 +53,12 @@ impl ResponseError for PatchError {
     }
 }
 
-async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> Result<bool, PatchError> {
     let view = DoesRoleExistQueryView::new(id);
-    smart_db.fetch_scalar(&view).await.unwrap()
+    smart_db
+        .fetch_scalar(&view)
+        .await
+        .map_err(|_| PatchError::DatabaseError)
 }
 
 async fn patch_role(
@@ -64,7 +67,7 @@ async fn patch_role(
     state: web::Data<AppState>,
 ) -> Result<(), PatchError> {
     let smart_db = state.get_smart_db();
-    if !does_role_exist(id, smart_db).await {
+    if !does_role_exist(id, smart_db).await? {
         return Err(PatchError::NotFound);
     }
     if let Some(name) = payload.name().as_deref() {

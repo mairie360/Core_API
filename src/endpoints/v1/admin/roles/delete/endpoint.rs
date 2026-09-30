@@ -43,22 +43,28 @@ impl ResponseError for DeleteError {
     }
 }
 
-async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> Result<bool, DeleteError> {
     let view = DoesRoleExistQueryView::new(id);
-    smart_db.fetch_scalar(&view).await.unwrap()
+    smart_db
+        .fetch_scalar(&view)
+        .await
+        .map_err(|_| DeleteError::DatabaseError)
 }
 
-async fn can_delete_role(id: u64, smart_db: &SmartDatabase) -> bool {
+async fn can_delete_role(id: u64, smart_db: &SmartDatabase) -> Result<bool, DeleteError> {
     let view = CanDeleteRoleQueryView::new(id);
-    smart_db.fetch_scalar(&view).await.unwrap()
+    smart_db
+        .fetch_scalar(&view)
+        .await
+        .map_err(|_| DeleteError::DatabaseError)
 }
 
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
     let smart_db = state.get_smart_db();
-    if !does_role_exist(id, smart_db).await {
+    if !does_role_exist(id, smart_db).await? {
         return Err(DeleteError::NotFound);
     }
-    if !can_delete_role(id, smart_db).await {
+    if !can_delete_role(id, smart_db).await? {
         return Err(DeleteError::Forbidden);
     }
     let view = DeleteRoleQueryView::new(id);
