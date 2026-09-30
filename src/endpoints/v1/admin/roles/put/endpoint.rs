@@ -53,9 +53,12 @@ impl ResponseError for PutError {
     }
 }
 
-async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> bool {
+async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> Result<bool, PutError> {
     let view = DoesRoleExistQueryView::new(id);
-    smart_db.fetch_scalar(&view).await.unwrap()
+    smart_db
+        .fetch_scalar(&view)
+        .await
+        .map_err(|_| PutError::DatabaseError)
 }
 
 async fn put_role(
@@ -66,7 +69,7 @@ async fn put_role(
     let smart_db = state.get_smart_db();
     // L'existence du rôle vient d'être vérifiée juste au-dessus : pas besoin de la
     // revérifier une deuxième fois avant d'exécuter la mise à jour.
-    if !does_role_exist(id, smart_db).await {
+    if !does_role_exist(id, smart_db).await? {
         return Err(PutError::NotFound);
     }
     if let Some(name) = Some(payload.name()) {

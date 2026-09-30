@@ -24,7 +24,7 @@ impl IsFirstTimeQueryView {
 
 impl ApiRequestDto for IsFirstTimeQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1) AS first_connect"
+        "SELECT COALESCE((SELECT first_connect FROM users WHERE id = $1), FALSE) AS first_connect"
     }
 
     fn query_params(&self) -> &[QueryParam] {
