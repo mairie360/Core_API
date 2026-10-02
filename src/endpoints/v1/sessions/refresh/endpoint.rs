@@ -113,7 +113,7 @@ async fn refresh_request(
             headers(
                 ("Authorization" = String, description = "New access JWT, prefixed with `Bearer `.")
             ),
-            example = json!({ "refresh_token": "q3Vt9ZcX1yLw0aB7nE5kR2mH8sJ4dF6gP0uT3oI9vYc" })
+            example = json!({ "refresh_token": "example-rotated-refresh-token" })
         ),
         (
             status = 400,

@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 pub struct RefreshResponseView {
     /// New refresh token of the same session. The token sent in the request no longer works: the
     /// next call to `POST /api/v1/sessions/refresh` (or `/sessions/revoke`) must use this one.
-    #[schema(example = "q3Vt9ZcX1yLw0aB7nE5kR2mH8sJ4dF6gP0uT3oI9vYc")]
+    #[schema(example = "example-rotated-refresh-token")]
     refresh_token: String,
 }
 

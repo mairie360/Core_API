@@ -73,9 +73,12 @@ services:
       LIQUIBASE_COMMAND_USERNAME: ${DB_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${DB_PASSWORD:-password}
       LIQUIBASE_SEARCH_PATH: /migrations
+    # Database >= MAIR-413 refuses to seed the admin (users.id = 1) without credentials: this
+    # throwaway stack uses the public template admin. Never pass the flag on a real instance.
     command: >
       --changelog-file=changelog.xml
       update
+      -Dallow_template_admin=true
     networks:
       - backend
 
