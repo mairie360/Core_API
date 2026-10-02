@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -19,7 +20,7 @@ impl UpdateGroupQueryView {
                 QueryParam::Text(name.unwrap_or_default().to_string()),
                 QueryParam::Bool(description.is_some()),
                 QueryParam::Text(description.unwrap_or_default().to_string()),
-                QueryParam::I32(group_id as i32),
+                QueryParam::I32(id_to_sql(group_id)),
             ],
         }
     }

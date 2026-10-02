@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -105,7 +106,7 @@ impl GetAccessByRessourceQueryView {
             resource_id,
             ressource_type: ressource_type.to_string(),
             params: vec![
-                QueryParam::I64(resource_id as i64),
+                QueryParam::I64(id_to_sql_i64(resource_id)),
                 QueryParam::Text(ressource_type.to_string()),
             ],
         }

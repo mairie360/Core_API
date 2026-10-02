@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
@@ -124,7 +125,7 @@ async fn delete_user(
     let Some(admin) = admin else {
         return archive_in_core(&state, user_id).await;
     };
-    let Some(user) = export_user(smart_db, user_id as i32)
+    let Some(user) = export_user(smart_db, id_to_sql(user_id))
         .await
         .map_err(DeleteUserError::Keycloak)?
     else {

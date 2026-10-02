@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -21,7 +22,7 @@ impl RevokeSessionByTokenQueryView {
             revoked_at,
             params: vec![
                 QueryParam::DateTime(revoked_at),
-                QueryParam::I64(user_id as i64),
+                QueryParam::I64(id_to_sql_i64(user_id)),
                 QueryParam::Text(token_hash.to_string()),
             ],
         }

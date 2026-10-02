@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::database::users::nullable_patch::push_bool;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
@@ -26,7 +27,7 @@ pub struct PatchNotificationSettingsQueryView {
 impl PatchNotificationSettingsQueryView {
     #[must_use]
     pub fn new(user_id: u64, patch: NotificationSettingsPatch) -> Self {
-        let mut params = vec![QueryParam::I32(user_id as i32)];
+        let mut params = vec![QueryParam::I32(id_to_sql(user_id))];
         for field in [
             patch.email,
             patch.push,

@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -24,10 +25,10 @@ impl AddAccessToUserQueryView {
             ressource_instance_id,
             access_type_id,
             params: vec![
-                QueryParam::I64(user_id as i64),
-                QueryParam::I64(ressource_type_id as i64),
-                QueryParam::I64(ressource_instance_id as i64),
-                QueryParam::I64(access_type_id as i64),
+                QueryParam::I64(id_to_sql_i64(user_id)),
+                QueryParam::I64(id_to_sql_i64(ressource_type_id)),
+                QueryParam::I64(id_to_sql_i64(ressource_instance_id)),
+                QueryParam::I64(id_to_sql_i64(access_type_id)),
             ],
         }
     }

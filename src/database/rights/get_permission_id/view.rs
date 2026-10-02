@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
@@ -65,7 +66,7 @@ impl GetPermissionIdQueryView {
             resource_id,
             action,
             params: vec![
-                QueryParam::I32(resource_id as i32),
+                QueryParam::I32(id_to_sql(resource_id)),
                 QueryParam::Text(action.to_string().to_owned()),
             ],
         }

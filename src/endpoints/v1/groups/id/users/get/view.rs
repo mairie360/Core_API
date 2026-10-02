@@ -1,3 +1,4 @@
+use crate::database::ids::id_from_sql;
 use utoipa::ToSchema;
 
 /// Membres d'un groupe.
@@ -17,6 +18,6 @@ impl GetGroupUsersResultView {
 
 impl From<Vec<i32>> for GetGroupUsersResultView {
     fn from(users: Vec<i32>) -> Self {
-        Self::new(users.into_iter().map(|u| u as u64).collect())
+        Self::new(users.into_iter().map(id_from_sql).collect())
     }
 }

@@ -1,3 +1,4 @@
+use crate::database::ids::id_from_sql;
 use crate::database::roles::get_roles::RoleQueryResult;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -19,7 +20,7 @@ struct Role {
 impl From<RoleQueryResult> for Role {
     fn from(result: RoleQueryResult) -> Self {
         Self {
-            id: result.id() as u64,
+            id: id_from_sql(result.id()),
             name: result.name().to_string(),
             description: result.description().unwrap_or_default().to_string(),
         }
