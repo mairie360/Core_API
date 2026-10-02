@@ -127,7 +127,10 @@ services:
     environment:
       <<: *common-env
       PUBLIC_URL: http://core.development.mairie360.fr
+      # Well-known dev value: mairie360_api_lib >= 2.0.0 refuses it at startup unless
+      # JWT_ALLOW_WEAK_SECRET is set (MAIR-428). Never set that flag in a real deployment.
       JWT_SECRET: b"secret"
+      JWT_ALLOW_WEAK_SECRET: "true"
       JWT_TIMEOUT: 3600
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
