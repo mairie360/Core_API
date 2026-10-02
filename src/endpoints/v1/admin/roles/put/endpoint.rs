@@ -1,6 +1,6 @@
 use crate::database::roles::change_role::ChangeRoleQueryView;
-use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
+use crate::database::roles::lock_role::LockRoleQueryView;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
@@ -9,7 +9,6 @@ use actix_web::http::StatusCode;
 use actix_web::{put, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,46 +53,47 @@ impl ResponseError for PutError {
     }
 }
 
-async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> Result<bool, PutError> {
-    let view = DoesRoleExistQueryView::new(id);
-    smart_db
-        .fetch_scalar(&view)
-        .await
-        .map_err(|_| PutError::DatabaseError)
-}
-
+/// Checks and writes the role in one transaction, the role locked from the first read
+/// (MAIR-420): a concurrent write cannot slip between the checks and this one.
 async fn put_role(
     id: u64,
     payload: RoleWriteView,
     state: web::Data<AppState>,
 ) -> Result<(), PutError> {
-    let smart_db = state.get_smart_db();
-    // L'existence du rôle vient d'être vérifiée juste au-dessus : pas besoin de la
-    // revérifier une deuxième fois avant d'exécuter la mise à jour.
-    if !does_role_exist(id, smart_db).await? {
+    let database_error = |e: ApiLibError| match e {
+        ApiLibError::Database(DbError::UniqueViolation(_)) => PutError::Duplicate,
+        e => {
+            eprintln!("Put role DB Error: {e}");
+            PutError::DatabaseError
+        }
+    };
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    let role: Vec<bool> = tx
+        .fetch_all(&LockRoleQueryView::new(id))
+        .await
+        .map_err(database_error)?;
+    if role.is_empty() {
         return Err(PutError::NotFound);
     }
     if let Some(name) = Some(payload.name()) {
         // Checked here: the `protect_role_names` trigger would otherwise abort the update (500).
-        let forbidden: bool = smart_db
+        let forbidden: bool = tx
             .fetch_scalar(&IsRenameForbiddenQueryView::new(id, name))
             .await
-            .map_err(|_| PutError::DatabaseError)?;
+            .map_err(database_error)?;
         if forbidden {
             return Err(PutError::ProtectedName);
         }
     }
-    let view = ChangeRoleQueryView::new(
+    tx.execute(&ChangeRoleQueryView::new(
         id,
         payload.name(),
         payload.description(),
         payload.can_be_deleted(),
-    );
-    smart_db.execute(view).await.map_err(|e| match e {
-        ApiLibError::Database(DbError::UniqueViolation(_)) => PutError::Duplicate,
-        _ => PutError::DatabaseError,
-    })?;
-    Ok(())
+    ))
+    .await
+    .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)
 }
 
 #[utoipa::path(

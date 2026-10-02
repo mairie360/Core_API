@@ -15,6 +15,7 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::jwt_manager::{get_jwt_timeout, revoke_session};
 use mairie360_api_lib::redis::error::RedisError;
 use mairie360_api_lib::redis::redis_interface::Redis;
+use mairie360_api_lib::smart_db::SmartTransaction;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
 
@@ -88,4 +89,20 @@ pub async fn revoke_all_user_sessions(
         .await?;
     publish_revoked_sessions(state.get_redis(), &revoked).await;
     Ok(revoked)
+}
+
+/// Revokes every active session of `user_id` inside `tx` and returns their ids.
+///
+/// Publish them with [`publish_revoked_sessions`] once `tx` is committed (MAIR-420): the password
+/// change (or the archiving) and the revocation then succeed or fail together.
+///
+/// # Errors
+///
+/// Returns an [`ApiLibError`] when the sessions cannot be revoked; `tx` must then be dropped.
+pub async fn revoke_all_user_sessions_in(
+    tx: &mut SmartTransaction,
+    user_id: u64,
+) -> Result<Vec<Uuid>, ApiLibError> {
+    tx.fetch_all(&RevokeUserSessionsQueryView::all(user_id))
+        .await
 }

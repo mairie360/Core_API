@@ -55,7 +55,8 @@ impl ApiRequestDto for GetAccessEntryQueryView {
         "SELECT row_to_json(t) FROM (\
             SELECT ac.id, res.name AS ressource_type, ac.resource_instance_id \
             FROM access_control ac JOIN resources res ON res.id = ac.resource_id \
-            WHERE ac.id = $1\
+            WHERE ac.id = $1 \
+            FOR UPDATE OF ac\
         ) t"
     }
 
