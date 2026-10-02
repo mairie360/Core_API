@@ -12,7 +12,7 @@ pub const MAX_GROUP_NAME_LENGTH: usize = crate::endpoints::validation::MAX_NAME_
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct PatchGroupView {
     /// New group name. Absent or `null` to leave it unchanged. Once trimmed, 1 to 64 characters,
-    /// no control character, no `<` or `>`.
+    /// no control character.
     #[schema(min_length = 1, max_length = 64, example = "Service urbanisme")]
     name: Option<String>,
     /// Nouvelle description. Absent ou `null` pour ne pas y toucher.

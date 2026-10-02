@@ -18,7 +18,7 @@ where
     Option::<T>::deserialize(deserializer).map(Some)
 }
 
-/// Checks a free text setting: 1 to `max` characters, no control character, no `<` or `>`.
+/// Checks a free text setting: 1 to `max` characters, no control character.
 ///
 /// # Errors
 ///
@@ -37,9 +37,6 @@ pub fn check_text(field: &str, value: Option<Option<&str>>, max: usize) -> Resul
         return Err(format!(
             "Invalid `{field}`: must not contain control characters"
         ));
-    }
-    if value.contains(['<', '>']) {
-        return Err(format!("Invalid `{field}`: must not contain `<` or `>`"));
     }
     Ok(())
 }

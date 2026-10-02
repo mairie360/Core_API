@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 /// Groupe à créer ; l'appelant en devient propriétaire.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupView {
-    /// Group name. Required, 1 to 64 characters, no control character, no `<` or `>`.
+    /// Group name. Required, 1 to 64 characters, no control character.
     #[schema(min_length = 1, max_length = 64, example = "Service urbanisme")]
     name: String,
     /// Description du groupe. Obligatoire à la création ; passer une chaîne vide s'il n'y en a pas.
