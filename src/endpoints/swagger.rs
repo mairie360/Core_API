@@ -1,5 +1,4 @@
 use crate::endpoints::health::HealthDoc;
-use crate::endpoints::hello::HelloDoc;
 use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
@@ -76,11 +75,26 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
         (path = "/", api = ReadyDoc),
-        (path = "/", api = HelloDoc),
     ),
     modifiers(&SecurityAddon) // On ajoute le modifier ici
 )]
 pub struct ApiDoc;
+
+/// Environment variable serving Swagger UI and `/api-docs/openapi.json` when `true` (or `1`).
+pub const SWAGGER_ENABLED_ENV: &str = "SWAGGER_ENABLED";
+
+/// Whether Swagger UI and the spec are served (MAIR-424), given a variable lookup.
+///
+/// Off unless [`SWAGGER_ENABLED_ENV`] says otherwise: a production deployment does not publish
+/// its full contract to whoever reaches it. The dev, ZAP and k6 stacks turn it on; the published
+/// contract (`@mairie360/core-api-openapi`) is built from `cargo open_api`, not from this route.
+#[must_use]
+pub fn is_swagger_enabled(lookup: impl Fn(&str) -> Option<String>) -> bool {
+    lookup(SWAGGER_ENABLED_ENV).is_some_and(|value| {
+        let value = value.trim();
+        value == "1" || value.eq_ignore_ascii_case("true")
+    })
+}
 
 struct SecurityAddon;
 
@@ -100,5 +114,20 @@ impl Modify for SecurityAddon {
                     .build(),
             ),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_swagger_enabled;
+
+    #[test]
+    fn swagger_is_off_unless_enabled() {
+        assert!(!is_swagger_enabled(|_| None));
+        assert!(!is_swagger_enabled(|_| Some("false".to_string())));
+        assert!(!is_swagger_enabled(|_| Some("yes".to_string())));
+        assert!(is_swagger_enabled(|_| Some("true".to_string())));
+        assert!(is_swagger_enabled(|_| Some(" TRUE ".to_string())));
+        assert!(is_swagger_enabled(|_| Some("1".to_string())));
     }
 }

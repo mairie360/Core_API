@@ -5,9 +5,9 @@ use actix_web::{middleware, web, App, HttpServer};
 
 use core_api::database::pg_url::build_pg_url;
 use core_api::endpoints::session_guard::session_guard;
-use core_api::endpoints::swagger::ApiDoc;
+use core_api::endpoints::swagger::{is_swagger_enabled, ApiDoc};
 use core_api::endpoints::{config, public_config};
-use core_api::endpoints::{health, hello, ready};
+use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
 use core_api::telemetry;
@@ -91,6 +91,8 @@ async fn main() -> std::io::Result<()> {
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
+    // Swagger UI and the spec are only served where SWAGGER_ENABLED=true (MAIR-424).
+    let swagger = is_swagger_enabled(get_env_var).then(ApiDoc::openapi);
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{host}:{port}");
@@ -108,18 +110,18 @@ async fn main() -> std::io::Result<()> {
             Some(limits) => app.app_data(limits.clone()),
             None => app,
         };
+        let app = match &swagger {
+            Some(spec) => app.service(
+                SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", spec.clone()),
+            ),
+            None => app,
+        };
         // Outermost: one root span per request, including the ones the JWT / session guards refuse.
         app.wrap(TracingLogger::default())
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
-            // post requests
-            .service(
-                SwaggerUi::new("/swagger-ui/{_:.*}")
-                    .url("/api-docs/openapi.json", ApiDoc::openapi()),
-            )
             .service(health::health)
             .service(ready::ready)
-            .service(hello::hello)
             // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
             .configure(public_config)
             // 3. Endpoints Protégés par JWT
