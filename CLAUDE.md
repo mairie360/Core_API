@@ -126,6 +126,12 @@ committed default (`http://localhost:3000`) stays usable from a host shell. The 
 slashes, and utoipa replaces (does not merge) two `nest` entries that end on the same path, so operations sharing
 a path must be merged into one document first (see `admin/users/doc.rs`).
 
+`cargo cov` (what CI runs) fails under 60 % of lines covered, `src/endpoints/` included (MAIR-419): the
+authorization and validation logic lives there, so a refusal path needs an integration test.
+`tests/endpoints/access_denials.rs` walks the published contract and asserts that every `/admin` operation
+refuses a non-admin (plain and percent-encoded path) and that every `jwt`-secured operation refuses a missing or
+forged token, so a new operation is covered as soon as it is documented.
+
 Integration tests need **Docker running** — `get_shared_db()` (from `mairie360_api_lib::test_setup`) spins up a
 shared Postgres testcontainer on first use and hands back a pool. Tests that touch shared/seeded rows are
 annotated `#[serial]` (the `serial_test` crate) to avoid interference between tests running against the same
