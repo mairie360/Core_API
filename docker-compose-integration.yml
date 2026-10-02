@@ -108,7 +108,7 @@ services:
         condition: service_healthy
 
   # The published image is distroless (no shell, no curl), so the API cannot carry its own
-  # healthcheck: this sidecar polls /health and the services that need the API wait for it to
+  # healthcheck: this sidecar polls /ready (Postgres and Redis reachable) and the services that need the API wait for it to
   # complete instead.
   core-ready:
     image: curlimages/curl:latest
@@ -116,7 +116,7 @@ services:
       core:
         condition: service_started
     command: >
-      sh -c 'until curl -fsS http://core:3000/health >/dev/null; do
+      sh -c 'until curl -fsS http://core:3000/ready >/dev/null; do
       echo "waiting for core..."; sleep 2; done; echo "core ready"'
     networks:
       - backend

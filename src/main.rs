@@ -7,17 +7,46 @@ use core_api::database::pg_url::build_pg_url;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
-use core_api::endpoints::{health, hello};
+use core_api::endpoints::{health, hello, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
 use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
-use mairie360_api_lib::env_manager::get_critical_env_var;
+use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
 use mairie360_api_lib::state::AppState;
+use std::time::{Duration, Instant};
 use tracing_actix_web::TracingLogger;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+/// How long `main` waits for Postgres before giving up, overridable with
+/// `DB_STARTUP_TIMEOUT_SECONDS`.
+const DEFAULT_DB_STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Waits until Postgres answers, at most `DB_STARTUP_TIMEOUT_SECONDS` (60 by default).
+///
+/// # Errors
+///
+/// When Postgres still does not answer once the timeout is over: the process then exits with an
+/// error, and the orchestrator restarts it.
+async fn wait_for_postgres(state: &AppState) -> std::io::Result<()> {
+    let timeout = get_env_var("DB_STARTUP_TIMEOUT_SECONDS")
+        .and_then(|value| value.trim().parse().ok())
+        .map_or(DEFAULT_DB_STARTUP_TIMEOUT, Duration::from_secs);
+    let deadline = Instant::now() + timeout;
+    loop {
+        if ready::postgres_ready(state).await {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            tracing::error!("Postgres did not answer within {timeout:?}: refusing to start.");
+            return Err(std::io::Error::other("Postgres is unreachable"));
+        }
+        tracing::warn!("Waiting for Postgres...");
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}
 
 //                                        -- MAIN FUNCTION --
 
@@ -33,6 +62,9 @@ async fn main() -> std::io::Result<()> {
     let db_name = get_critical_env_var("DB_NAME");
     let pg_url = build_pg_url(&db_user, &db_password, &db_host, &db_port, &db_name);
     let state = AppState::new(redis_url, pg_url).await;
+    // The lib starts without a database (its pool stays empty): refuse to serve rather than
+    // answer every request with a 500 (MAIR-423).
+    wait_for_postgres(&state).await?;
     let data = web::Data::new(state);
     // Keycloak sign-in is optional during the transition: without its env vars, only the
     // password login is available and `POST /api/v1/auth/keycloak` answers 503.
@@ -86,6 +118,7 @@ async fn main() -> std::io::Result<()> {
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
             )
             .service(health::health)
+            .service(ready::ready)
             .service(hello::hello)
             // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
             .configure(public_config)
