@@ -47,19 +47,18 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
     delete,
     path = "",
     summary = "Supprimer un groupe",
-    description = "Supprime un groupe et les liens d'appartenance de ses membres. Les comptes \
-                   utilisateurs eux-mêmes ne sont pas touchés.\n\n\
-                   Opération idempotente : supprimer un groupe déjà supprimé ou inexistant répond \
-                   également `204`, sans erreur.\n\n\
-                   Attention : cet endpoint ne vérifie pas que l'appelant est propriétaire du \
-                   groupe. Tout utilisateur authentifié peut supprimer n'importe quel groupe.",
+    description = "Deletes a group and the memberships of its members. The user accounts \
+                   themselves are untouched.\n\n\
+                   Requires the `update` right on the group (owner, `update_all`, or an ACL): \
+                   any other caller gets `403` and the group is kept. An unknown group answers \
+                   `404` from the rights check.",
     params(
         ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
     responses(
         (
             status = 204,
-            description = "Groupe supprimé, ou déjà absent. Corps vide.",
+            description = "Group deleted. Empty body.",
         ),
         (
             status = 400,
@@ -74,6 +73,20 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "The caller has no `update` right on the group (owner, `update_all` such as administrators, or an ACL), checked by `access_guard_middleware` before the handler runs.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Insufficient permissions")
+        ),
+        (
+            status = 404,
+            description = "No group has this id (`Resource not found`, from the rights check).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Resource not found")
         ),
     ),
     tag = "Groups",
