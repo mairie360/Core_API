@@ -70,7 +70,7 @@ async fn trigger_patch_group(
             // `groups.name` is UNIQUE.
             ApiLibError::Database(DbError::UniqueViolation(_)) => PatchGroupError::Duplicate,
             error => {
-                eprintln!("{error:?}");
+                tracing::error!("{error:?}");
                 PatchGroupError::DatabaseError
             }
         })?;

@@ -63,7 +63,7 @@ async fn is_eligible(smart_db: &SmartDatabase, email: &str) -> Result<bool, Rese
         .await
         .map(|user_id| user_id > 0)
         .map_err(|e| {
-            eprintln!("Forgot password DB Error: {e}");
+            tracing::error!("Forgot password DB Error: {e}");
             ResetPasswordError::Database
         })
 }
@@ -77,7 +77,7 @@ async fn handle_forgot_password(
         from: match get_email_sender() {
             Ok(sender) => sender,
             Err(e) => {
-                eprintln!("Email Sender Error: {e}");
+                tracing::error!("Email Sender Error: {e}");
                 return Err(ResetPasswordError::Mail);
             }
         },
@@ -92,7 +92,7 @@ async fn handle_forgot_password(
     let email = match build_email(&destination, subject, &body) {
         Ok(email) => email,
         Err(e) => {
-            eprintln!("Email Build Error: {e}");
+            tracing::error!("Email Build Error: {e}");
             return Err(ResetPasswordError::Mail);
         }
     };
@@ -101,7 +101,7 @@ async fn handle_forgot_password(
     match send_email(email).await {
         Ok(()) => Ok(()),
         Err(e) => {
-            eprintln!("Mail Error: {e}");
+            tracing::error!("Mail Error: {e}");
             Err(ResetPasswordError::Mail)
         }
     }
@@ -118,7 +118,7 @@ async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError
     )
     .await
     .map_err(|e| {
-        eprintln!("Redis Error: {e}");
+        tracing::error!("Redis Error: {e}");
         ResetPasswordError::Redis
     })?;
     set_token(
@@ -129,12 +129,15 @@ async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError
     )
     .await
     .map_err(|e| {
-        eprintln!("Redis Error: {e}");
+        tracing::error!("Redis Error: {e}");
         ResetPasswordError::Redis
     })?;
     match handle_forgot_password(token, email).await {
         Ok(()) => Ok(()),
-        Err(_) => Err(ResetPasswordError::Mail),
+        Err(e) => {
+            tracing::error!("Forgot password: the e-mail could not be sent: {e}");
+            Err(ResetPasswordError::Mail)
+        }
     }
 }
 

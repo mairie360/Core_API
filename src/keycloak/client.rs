@@ -133,7 +133,7 @@ impl KeycloakClient {
             .send()
             .await
             .map_err(|e| {
-                eprintln!("Keycloak token endpoint unreachable: {e}");
+                tracing::error!("Keycloak token endpoint unreachable: {e}");
                 KeycloakError::Unavailable
             })?;
 
@@ -144,12 +144,12 @@ impl KeycloakClient {
             return Err(KeycloakError::InvalidGrant);
         }
         if !status.is_success() {
-            eprintln!("Keycloak token endpoint answered {status}");
+            tracing::error!("Keycloak token endpoint answered {status}");
             return Err(KeycloakError::Unavailable);
         }
 
         let body: TokenResponse = response.json().await.map_err(|e| {
-            eprintln!("Unreadable Keycloak token response: {e}");
+            tracing::error!("Unreadable Keycloak token response: {e}");
             KeycloakError::Unavailable
         })?;
         // No ID token means the authorization request was sent without the `openid` scope.
@@ -187,7 +187,7 @@ impl KeycloakClient {
 
         let claims = decode::<IdTokenClaims>(id_token, &key, &validation)
             .map_err(|e| {
-                eprintln!("Keycloak ID token rejected: {e}");
+                tracing::error!("Keycloak ID token rejected: {e}");
                 KeycloakError::InvalidIdToken
             })?
             .claims;
@@ -238,11 +238,11 @@ impl KeycloakClient {
             .await
             .and_then(reqwest::Response::error_for_status)
             .map_err(|e| {
-                eprintln!("Keycloak key set unreachable: {e}");
+                tracing::error!("Keycloak key set unreachable: {e}");
                 KeycloakError::Unavailable
             })?;
         response.json().await.map_err(|e| {
-            eprintln!("Unreadable Keycloak key set: {e}");
+            tracing::error!("Unreadable Keycloak key set: {e}");
             KeycloakError::Unavailable
         })
     }

@@ -1,5 +1,6 @@
 use crate::client_ip::client_ip;
 use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
 use crate::refresh_token;
 use crate::session_revocation::publish_revoked_sessions;
@@ -62,7 +63,10 @@ async fn revoke_request(
     let db_view = match is_valid {
         Ok(true) => RevokeSessionByTokenQueryView::new(user_id, &token_hash),
         Ok(false) => return Err(RevokeError::InvalidToken),
-        Err(_) => return Err(RevokeError::DatabaseError),
+        Err(e) => {
+            db_error::log("revoke session: token check", &e);
+            return Err(RevokeError::DatabaseError);
+        }
     };
 
     // The revocation returns the ids it revoked, to publish to the other APIs (MAIR-264): no
@@ -72,7 +76,7 @@ async fn revoke_request(
         .fetch_all(&db_view)
         .await
         .map_err(|e| {
-            eprintln!("Revoke session DB Error: {e}");
+            tracing::error!("Revoke session DB Error: {e}");
             RevokeError::DatabaseError
         })?;
     publish_revoked_sessions(state.get_redis(), &revoked).await;

@@ -47,7 +47,7 @@ impl ResponseError for DeleteError {
 /// (MAIR-420): its `can_be_deleted` flag cannot change between the check and the deletion.
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
     let database_error = |e: ApiLibError| {
-        eprintln!("Delete role DB Error: {e}");
+        tracing::error!("Delete role DB Error: {e}");
         DeleteError::DatabaseError
     };
     let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;

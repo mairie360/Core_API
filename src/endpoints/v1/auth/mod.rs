@@ -34,7 +34,7 @@ pub async fn create_new_session(smart_db: &SmartDatabase, view: CreateSessionQue
         .execute(view)
         .await
         .map_err(|e| {
-            eprintln!("Create Session DB Error: {e}");
+            tracing::error!("Create Session DB Error: {e}");
         })
         .ok();
 }

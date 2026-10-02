@@ -1,6 +1,7 @@
 use crate::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use crate::database::users::add_role::AddRolesQueryView;
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::endpoints::v1::admin::users::id::roles::post::view::AddRoleToUserView;
 use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
 use crate::keycloak::KeycloakAdminClient;
@@ -13,6 +14,8 @@ use mairie360_api_lib::state::AppState;
 enum AddRoleToUserError {
     UserMismatch,
     NotFound,
+    AlreadyGranted,
+    DatabaseError,
     Keycloak(SyncError),
 }
 
@@ -25,6 +28,10 @@ impl std::fmt::Display for AddRoleToUserError {
             Self::NotFound => {
                 write!(f, "User or role not found.")
             }
+            Self::AlreadyGranted => write!(f, "The user already holds this role."),
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
+            }
             Self::Keycloak(error) => write!(f, "{error}"),
         }
     }
@@ -35,8 +42,9 @@ impl ResponseError for AddRoleToUserError {
         match self {
             Self::UserMismatch => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
-            Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
-            Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
+            Self::AlreadyGranted | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::DatabaseError
+            | Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
@@ -57,10 +65,15 @@ async fn grant_in_core(
     view: &AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
     let view = AddRolesQueryView::new(view.role_id(), user_id);
-    smart_db.execute(view).await.map_err(|e| {
-        eprintln!("Grant role DB Error: {e}");
-        AddRoleToUserError::NotFound
-    })?;
+    smart_db
+        .execute(view)
+        .await
+        .map_err(|e| match db_error::log("grant role", &e) {
+            // `user_id` or `role_id` matches nothing (foreign key).
+            DbFailure::NotFound => AddRoleToUserError::NotFound,
+            DbFailure::Conflict => AddRoleToUserError::AlreadyGranted,
+            _ => AddRoleToUserError::DatabaseError,
+        })?;
 
     Ok(())
 }
@@ -78,7 +91,7 @@ pub(in crate::endpoints::v1::admin::users::id::roles) async fn role_name(
         .fetch_all(&GetRolesByIdQueryView::new(vec![role_id as i32]))
         .await
         .map_err(|e| {
-            eprintln!("Keycloak sync: cannot read role {role_id}: {e}");
+            tracing::error!("Keycloak sync: cannot read role {role_id}: {e}");
             SyncError::Database
         })?;
     Ok(roles.first().map(|role| role.name().to_string()))
@@ -127,7 +140,7 @@ async fn add_role_to_user(
     if let Err(error) = grant_in_core(smart_db, user_id, &view).await {
         if mapped {
             if let Err(restore) = unmap_role(admin, &keycloak_id, &name).await {
-                eprintln!(
+                tracing::error!(
                     "Keycloak sync: Core refused role {name} for user {user_id} and it could not be unmapped from {keycloak_id}: {restore}"
                 );
             }
@@ -190,14 +203,21 @@ async fn add_role_to_user(
         ),
         (
             status = 404,
-            description = "`user_id` or `role_id` matches nothing, or the user already holds the role. The Keycloak mapping, if it had been added, is removed.",
+            description = "`user_id` or `role_id` matches nothing. The Keycloak mapping, if it had been added, is removed.",
             body = String,
             content_type = "text/plain",
             example = json!("User or role not found.")
         ),
         (
+            status = 409,
+            description = "The user already holds the role. The Keycloak mapping, if it had been added, is removed.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The user already holds this role.")
+        ),
+        (
             status = 500,
-            description = "The role or the account could not be read, or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            description = "The role or the account could not be read, the Keycloak account found by e-mail is already linked to another Core account (nothing is changed), or the write failed (the Keycloak mapping, if it had been added, is removed). The cause is logged by the server.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

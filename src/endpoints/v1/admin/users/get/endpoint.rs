@@ -56,7 +56,7 @@ async fn list_users(
         smart_db.fetch_scalar::<i64, _>(&count_view),
     )
     .map_err(|error| {
-        eprintln!("{error:?}");
+        tracing::error!("{error:?}");
         ListUsersError::DatabaseError
     })?;
 

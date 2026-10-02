@@ -99,7 +99,9 @@ pub async fn export_user(
         .fetch_all(&GetSsoExportUserQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("Keycloak sync: cannot read user {user_id} from v_users_sso_export: {e}");
+            tracing::error!(
+                "Keycloak sync: cannot read user {user_id} from v_users_sso_export: {e}"
+            );
             SyncError::Database
         })?;
     Ok(users.pop())
@@ -159,13 +161,13 @@ pub async fn link_account(
     match db.fetch_scalar::<i32, _>(&link).await {
         Ok(_) => Ok(()),
         Err(ApiLibError::Database(DbError::UniqueViolation(_))) => {
-            eprintln!(
+            tracing::error!(
                 "Keycloak sync: account {keycloak_id} is already linked to another user than {user_id}"
             );
             Err(SyncError::LinkedToAnotherUser)
         }
         Err(e) => {
-            eprintln!("Keycloak sync: cannot link user {user_id} to {keycloak_id}: {e}");
+            tracing::error!("Keycloak sync: cannot link user {user_id} to {keycloak_id}: {e}");
             Err(SyncError::Database)
         }
     }
@@ -203,7 +205,7 @@ pub async fn discard_account(admin: &KeycloakAdminClient, account: &ReservedAcco
         return;
     }
     if let Err(e) = admin.delete_user(&account.keycloak_id).await {
-        eprintln!(
+        tracing::error!(
             "Keycloak sync: cannot delete the account {} reserved for a user whose creation failed: {e}",
             account.keycloak_id
         );
@@ -368,7 +370,7 @@ pub async fn ensure_realm_role(
     }
     admin.create_realm_role(name, ROLE_DESCRIPTION).await?;
     admin.realm_role(name).await?.ok_or_else(|| {
-        eprintln!("Keycloak sync: realm role {name} missing right after its creation");
+        tracing::error!("Keycloak sync: realm role {name} missing right after its creation");
         SyncError::KeycloakUnavailable
     })
 }

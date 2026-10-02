@@ -11,7 +11,8 @@
 //! - `OTEL_SERVICE_NAME` (default `core-api`), `OTEL_RESOURCE_ATTRIBUTES`,
 //!   `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, `OTEL_TRACES_SAMPLER`: read by the
 //!   SDK itself.
-//! - `RUST_LOG`: filter of the stdout logs (default `info`), started with the export.
+//! - `RUST_LOG`: filter of the stdout logs (default `info`). The logs are always on (MAIR-421):
+//!   the handlers report their database errors through `tracing`, export or not.
 //!
 //! Each HTTP request gets a root span from `tracing_actix_web::TracingLogger` (it continues the
 //! `traceparent` sent by a BFF). The SQL statements run by `mairie360_api_lib` through `sqlx` are
@@ -84,43 +85,48 @@ where
         .with_filter(EnvFilter::new(TRACE_FILTER))
 }
 
-/// Starts the export when the environment asks for it and returns the guard to keep until exit.
+/// Starts the stdout logs, and the trace export when the environment asks for it. Returns the
+/// guard to keep until exit (`None` without export).
 ///
 /// Observability must never take the API down: when the exporter cannot be built, the reason is
-/// printed and the API runs without traces.
+/// logged and the API runs without traces.
 #[must_use]
 pub fn init() -> Option<TelemetryGuard> {
-    if !is_enabled(|name| std::env::var(name).ok()) {
-        return None;
-    }
-    let exporter = match SpanExporter::builder()
-        .with_http()
-        .with_protocol(Protocol::HttpBinary)
-        .build()
-    {
-        Ok(exporter) => exporter,
-        Err(error) => {
-            eprintln!("OpenTelemetry disabled: cannot build the OTLP exporter: {error}");
-            return None;
+    let provider = if is_enabled(|name| std::env::var(name).ok()) {
+        match SpanExporter::builder()
+            .with_http()
+            .with_protocol(Protocol::HttpBinary)
+            .build()
+        {
+            Ok(exporter) => Some(
+                SdkTracerProvider::builder()
+                    .with_resource(resource())
+                    .with_batch_exporter(exporter)
+                    .build(),
+            ),
+            Err(error) => {
+                eprintln!("OpenTelemetry disabled: cannot build the OTLP exporter: {error}");
+                None
+            }
         }
+    } else {
+        None
     };
-    let provider = SdkTracerProvider::builder()
-        .with_resource(resource())
-        .with_batch_exporter(exporter)
-        .build();
-    global::set_tracer_provider(provider.clone());
-    global::set_text_map_propagator(TraceContextPropagator::new());
 
     let logs = tracing_subscriber::fmt::layer()
         .with_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")));
+    let traces = provider.as_ref().map(trace_layer);
     if let Err(error) = tracing_subscriber::registry()
         .with(logs)
-        .with(trace_layer(&provider))
+        .with(traces)
         .try_init()
     {
-        eprintln!("OpenTelemetry disabled: a tracing subscriber is already installed: {error}");
+        eprintln!("Logs and traces disabled: a tracing subscriber is already installed: {error}");
         return None;
     }
+    let provider = provider?;
+    global::set_tracer_provider(provider.clone());
+    global::set_text_map_propagator(TraceContextPropagator::new());
     Some(TelemetryGuard { provider })
 }
 

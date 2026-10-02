@@ -1,4 +1,5 @@
 pub mod admin_guard;
+pub mod db_error;
 pub mod health;
 pub mod hello;
 pub mod session_guard;
