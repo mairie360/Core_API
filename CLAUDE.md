@@ -200,6 +200,15 @@ Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitive
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 
+### Multi-statement writes (MAIR-420)
+
+A handler that checks then writes, or writes several rows, runs them in one transaction
+(`state.get_smart_db().begin()`, committed explicitly; dropping it rolls back) or in one CTE
+statement. The first read of a transaction locks what the checks depend on (`LockRoleQueryView`,
+`IsUserActiveQueryView::locked`, `FOR UPDATE OF ac` in `GetAccessEntryQueryView`). Password changes
+revoke the sessions in the same transaction through `session_revocation::revoke_all_user_sessions_in`
+and publish them to Redis only after the commit. `tests/endpoints/transactions.rs` checks the rollbacks.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

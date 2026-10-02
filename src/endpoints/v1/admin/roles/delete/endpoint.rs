@@ -1,10 +1,9 @@
-use crate::database::roles::can_delete_role::CanDeleteRoleQueryView;
 use crate::database::roles::delete_role::DeleteRoleQueryView;
-use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::database::roles::lock_role::LockRoleQueryView;
 use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,35 +43,27 @@ impl ResponseError for DeleteError {
     }
 }
 
-async fn does_role_exist(id: u64, smart_db: &SmartDatabase) -> Result<bool, DeleteError> {
-    let view = DoesRoleExistQueryView::new(id);
-    smart_db
-        .fetch_scalar(&view)
-        .await
-        .map_err(|_| DeleteError::DatabaseError)
-}
-
-async fn can_delete_role(id: u64, smart_db: &SmartDatabase) -> Result<bool, DeleteError> {
-    let view = CanDeleteRoleQueryView::new(id);
-    smart_db
-        .fetch_scalar(&view)
-        .await
-        .map_err(|_| DeleteError::DatabaseError)
-}
-
+/// Checks and deletes the role in one transaction, the role locked from the first read
+/// (MAIR-420): its `can_be_deleted` flag cannot change between the check and the deletion.
 async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteError> {
-    let smart_db = state.get_smart_db();
-    if !does_role_exist(id, smart_db).await? {
-        return Err(DeleteError::NotFound);
-    }
-    if !can_delete_role(id, smart_db).await? {
-        return Err(DeleteError::Forbidden);
-    }
-    let view = DeleteRoleQueryView::new(id);
-    smart_db
-        .execute(view)
+    let database_error = |e: ApiLibError| {
+        eprintln!("Delete role DB Error: {e}");
+        DeleteError::DatabaseError
+    };
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    let can_be_deleted: Vec<bool> = tx
+        .fetch_all(&LockRoleQueryView::new(id))
         .await
-        .map_err(|_| DeleteError::DatabaseError)
+        .map_err(database_error)?;
+    match can_be_deleted.first() {
+        None => return Err(DeleteError::NotFound),
+        Some(false) => return Err(DeleteError::Forbidden),
+        Some(true) => {}
+    }
+    tx.execute(&DeleteRoleQueryView::new(id))
+        .await
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)
 }
 
 #[utoipa::path(

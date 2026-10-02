@@ -44,16 +44,21 @@ impl ResponseError for RemoveAccessError {
     }
 }
 
+/// Reads, checks and removes the entry in one transaction (MAIR-420): the entry is locked from
+/// the first read, so the entry removed is the one whose resource was checked.
 async fn remove_access_to_ressource(
     smart_db: &SmartDatabase,
     caller_id: u64,
     view: &RemoveAccessView,
 ) -> Result<(), RemoveAccessError> {
-    let caller_is_admin = is_admin(smart_db, caller_id)
-        .await
-        .map_err(|_| RemoveAccessError::Internal)?;
+    let internal = |e: ApiLibError| {
+        eprintln!("Remove access DB Error: {e}");
+        RemoveAccessError::Internal
+    };
+    let caller_is_admin = is_admin(smart_db, caller_id).await.map_err(internal)?;
 
-    let entry: AccessEntry = match smart_db
+    let mut tx = smart_db.begin().await.map_err(internal)?;
+    let entry: AccessEntry = match tx
         .fetch_one(&GetAccessEntryQueryView::new(view.access_id()))
         .await
     {
@@ -64,7 +69,7 @@ async fn remove_access_to_ressource(
             return Err(RemoveAccessError::NotFound)
         }
         Err(ApiLibError::Database(DbError::NotFound)) => return Err(RemoveAccessError::Forbidden),
-        Err(_) => return Err(RemoveAccessError::Internal),
+        Err(e) => return Err(internal(e)),
     };
 
     if !caller_is_admin {
@@ -72,16 +77,16 @@ async fn remove_access_to_ressource(
             .map_err(|_| RemoveAccessError::Forbidden)?;
         let owner = is_owner(smart_db, caller_id, entry.ressource_type(), instance_id)
             .await
-            .map_err(|_| RemoveAccessError::Internal)?;
+            .map_err(internal)?;
         if !owner {
             return Err(RemoveAccessError::Forbidden);
         }
     }
 
-    smart_db
-        .execute(RemoveAccessQueryView::new(view.access_id()))
+    tx.execute(&RemoveAccessQueryView::new(view.access_id()))
         .await
-        .map_err(|_| RemoveAccessError::Internal)
+        .map_err(internal)?;
+    tx.commit().await.map_err(internal)
 }
 
 #[utoipa::path(

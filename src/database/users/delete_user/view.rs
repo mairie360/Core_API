@@ -51,6 +51,7 @@ impl Display for DeleteUserQueryView {
 #[derive(serde::Deserialize)]
 pub struct IsUserActiveQueryView {
     user_id: u64,
+    locked: bool,
     params: Vec<QueryParam>,
 }
 
@@ -59,14 +60,31 @@ impl IsUserActiveQueryView {
     pub fn new(user_id: u64) -> Self {
         Self {
             user_id,
+            locked: false,
             params: vec![QueryParam::I32(user_id as i32)],
+        }
+    }
+
+    /// Same check, locking the user's row until the end of the transaction (MAIR-420): no
+    /// session can be opened for the account (its foreign key waits for the lock) until the
+    /// archiving is committed.
+    #[must_use]
+    pub fn locked(user_id: u64) -> Self {
+        Self {
+            locked: true,
+            ..Self::new(user_id)
         }
     }
 }
 
 impl ApiRequestDto for IsUserActiveQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT EXISTS(SELECT 1 FROM v_users_active WHERE id = $1)"
+        if self.locked {
+            "SELECT EXISTS(SELECT 1 FROM users \
+             WHERE id = $1 AND COALESCE(is_archived, false) = false FOR UPDATE)"
+        } else {
+            "SELECT EXISTS(SELECT 1 FROM v_users_active WHERE id = $1)"
+        }
     }
 
     fn query_params(&self) -> &[QueryParam] {

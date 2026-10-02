@@ -67,31 +67,36 @@ fn is_restrict_violation(error: &ApiLibError) -> bool {
     )
 }
 
+/// Archives the account in one transaction (MAIR-420): the user's row is locked first, so no
+/// session can be opened between reading the active sessions and the archiving, which drops
+/// them. The sessions read are published to the revocation list once committed (MAIR-264).
 async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUserError> {
-    let smart_db = state.get_smart_db();
-    // The database drops the user's sessions with the account: read them first, to publish them
-    // to the revocation list once the deletion succeeded (MAIR-264).
+    let database_error = |e: ApiLibError| {
+        if is_restrict_violation(&e) {
+            DeleteUserError::OwnsResources
+        } else {
+            eprintln!("Admin delete user {user_id} DB Error: {e}");
+            DeleteUserError::DatabaseError
+        }
+    };
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    let active: bool = tx
+        .fetch_scalar(&IsUserActiveQueryView::locked(user_id))
+        .await
+        .map_err(database_error)?;
+    if !active {
+        return Err(DeleteUserError::UnknownUser);
+    }
     // A failure here is reported rather than ignored: archiving without publishing the sessions
     // would leave their JWTs valid in the other APIs (MAIR-390).
-    let sessions: Vec<Uuid> = smart_db
+    let sessions: Vec<Uuid> = tx
         .fetch_all(&GetActiveSessionIdsQueryView::new(user_id))
         .await
-        .map_err(|e| {
-            eprintln!("Admin delete user: could not read the sessions of {user_id}: {e}");
-            DeleteUserError::DatabaseError
-        })?;
-
-    smart_db
-        .execute(DeleteUserQueryView::new(user_id))
+        .map_err(database_error)?;
+    tx.execute(&DeleteUserQueryView::new(user_id))
         .await
-        .map_err(|e| {
-            if is_restrict_violation(&e) {
-                DeleteUserError::OwnsResources
-            } else {
-                eprintln!("Error: {e}");
-                DeleteUserError::DatabaseError
-            }
-        })?;
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
 
     publish_revoked_sessions(state.get_redis(), &sessions).await;
 
