@@ -7,6 +7,7 @@ mod forgot_password;
 mod id_aliases;
 mod keycloak_login;
 mod keycloak_migration;
+mod readiness;
 mod redis_acl;
 mod ressources_access;
 mod revocation_list;
