@@ -2,18 +2,6 @@
 // versions de certains crates (base64, bitflags, ...) ; on ne maîtrise pas ces versions depuis ce
 // repo, donc ce lint clippy::cargo est désactivé plutôt que laissé en échec permanent.
 #![allow(clippy::multiple_crate_versions)]
-// Revue au cas par cas (2026-09) : tous les casts u64<->i32/i64 de ce crate concernent des
-// identifiants (user_id, group_id, role_id, ...) allant et venant de colonnes Postgres
-// int4/int8 via `QueryParam` — jamais un calcul ou une donnée numérique arbitraire. Les ids
-// Postgres (SERIAL/BIGSERIAL) sont toujours positifs et largement sous i32::MAX/i64::MAX en
-// pratique, donc ces casts sont sûrs par construction ; les désactiver un par un aurait juste
-// dupliqué cette même justification des dizaines de fois.
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
-)]
-
 pub mod client_ip;
 pub mod database;
 pub mod endpoints;

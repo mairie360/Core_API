@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -23,7 +24,7 @@ impl ChangeRoleQueryView {
                     vec![
                         QueryParam::Text(name.to_string()),
                         QueryParam::Text(description.to_string()),
-                        QueryParam::I64(id as i64),
+                        QueryParam::I64(id_to_sql_i64(id)),
                     ]
                 },
                 |can_be_deleted| {
@@ -31,7 +32,7 @@ impl ChangeRoleQueryView {
                         QueryParam::Text(name.to_string()),
                         QueryParam::Text(description.to_string()),
                         QueryParam::Bool(can_be_deleted),
-                        QueryParam::I64(id as i64),
+                        QueryParam::I64(id_to_sql_i64(id)),
                     ]
                 },
             ),

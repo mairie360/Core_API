@@ -200,6 +200,12 @@ Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitive
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 
+### Ids (MAIR-422)
+
+API ids are `u64`, Postgres ids `INT4`. Convert with `database::ids::{id_to_sql, id_to_sql_i64, id_from_sql}`,
+never with `as`: an `as i32` wraps (`/user/4294967298/` read user 2), the helpers saturate so an out-of-range id
+answers `404`. The `cast_possible_truncation` / `cast_possible_wrap` / `cast_sign_loss` lints are on.
+
 ### Database errors and logs (MAIR-421)
 
 Never `map_err(|_| …)` a database error. `endpoints::db_error::log("<what the handler was doing>", &e)`

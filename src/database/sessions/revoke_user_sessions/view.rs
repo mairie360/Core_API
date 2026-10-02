@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 use uuid::Uuid;
@@ -18,7 +19,7 @@ impl RevokeUserSessionsQueryView {
         Self {
             user_id,
             except: None,
-            params: vec![QueryParam::I64(user_id as i64)],
+            params: vec![QueryParam::I64(id_to_sql_i64(user_id))],
         }
     }
 
@@ -29,7 +30,7 @@ impl RevokeUserSessionsQueryView {
             user_id,
             except: Some(session_id),
             params: vec![
-                QueryParam::I64(user_id as i64),
+                QueryParam::I64(id_to_sql_i64(user_id)),
                 QueryParam::Uuid(session_id),
             ],
         }

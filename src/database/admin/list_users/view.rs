@@ -1,3 +1,4 @@
+use crate::database::ids::{id_to_sql, id_to_sql_i64};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -22,7 +23,7 @@ macro_rules! admin_users_filter {
 fn filter_params(search: Option<&str>, group_id: Option<u64>) -> Vec<QueryParam> {
     vec![
         QueryParam::Text(search.map(str::trim).unwrap_or_default().to_string()),
-        QueryParam::OptionI32(group_id.map(|id| id as i32)),
+        QueryParam::OptionI32(group_id.map(id_to_sql)),
     ]
 }
 
@@ -36,8 +37,10 @@ impl AdminListUsersQueryView {
     #[must_use]
     pub fn new(search: Option<&str>, group_id: Option<u64>, page: u64, page_size: u64) -> Self {
         let mut params = filter_params(search, group_id);
-        params.push(QueryParam::I64(page_size as i64));
-        params.push(QueryParam::I64((page.saturating_sub(1) * page_size) as i64));
+        params.push(QueryParam::I64(id_to_sql_i64(page_size)));
+        params.push(QueryParam::I64(id_to_sql_i64(
+            page.saturating_sub(1).saturating_mul(page_size),
+        )));
         Self { params }
     }
 }

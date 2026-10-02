@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -12,7 +13,7 @@ impl DoesRoleExistQueryView {
     pub fn new(id: u64) -> Self {
         Self {
             id,
-            params: vec![QueryParam::I64(id as i64)],
+            params: vec![QueryParam::I64(id_to_sql_i64(id))],
         }
     }
 }

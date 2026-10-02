@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -40,8 +41,8 @@ impl IsOwnerQueryView {
     pub fn new(owner_id: u64, ressource_id: u64, ressource_type: &str) -> Self {
         let params = if Self::supports(ressource_type) {
             vec![
-                QueryParam::I64(ressource_id as i64),
-                QueryParam::I64(owner_id as i64),
+                QueryParam::I64(id_to_sql_i64(ressource_id)),
+                QueryParam::I64(id_to_sql_i64(owner_id)),
             ]
         } else {
             Vec::new()

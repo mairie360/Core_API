@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -33,7 +34,7 @@ impl PatchRoleQueryView {
             // `QueryParam` cannot bind a NULL bool: a separate flag asks for NULL.
             QueryParam::Bool(matches!(can_be_deleted, Some(None))),
             QueryParam::Bool(can_be_deleted.flatten().unwrap_or_default()),
-            QueryParam::I64(id as i64),
+            QueryParam::I64(id_to_sql_i64(id)),
         ];
 
         Self {

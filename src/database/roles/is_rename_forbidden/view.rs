@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -18,7 +19,7 @@ impl IsRenameForbiddenQueryView {
             name: name.to_string(),
             params: vec![
                 QueryParam::Text(name.to_string()),
-                QueryParam::I64(id as i64),
+                QueryParam::I64(id_to_sql_i64(id)),
             ],
         }
     }

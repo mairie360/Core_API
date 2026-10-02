@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -16,7 +17,7 @@ impl ChangePasswordQueryView {
             user_id,
             params: vec![
                 QueryParam::Text(password.to_string()),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }

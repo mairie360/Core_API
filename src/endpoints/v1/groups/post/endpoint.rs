@@ -1,4 +1,5 @@
 use crate::database::groups::create_group::CreateGroupQueryView;
+use crate::database::ids::id_from_sql;
 use crate::endpoints::v1::groups::post::view::{PostGroupResultView, PostGroupView};
 use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
@@ -57,7 +58,7 @@ async fn create_group(
                 _ => PostGroupError::BadRequest,
             })?;
 
-    Ok(PostGroupResultView::new(id as u64))
+    Ok(PostGroupResultView::new(id_from_sql(id)))
 }
 
 #[utoipa::path(
