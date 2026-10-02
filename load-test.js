@@ -245,7 +245,6 @@ const readHandlers = {
 };
 
 const writeHandlers = {
-  'POST /': ({ request }) => check(request(), { 'hello 200': (r) => r.status === 200 }),
 
   // Authentication: account created by an admin → login (412) → force_change_password → login → refresh → revoke.
   'POST /api/v1/auth/force_change_password': ({ request }) => {
