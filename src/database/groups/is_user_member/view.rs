@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
@@ -16,8 +17,8 @@ impl IsUserMemberQueryView {
             group_id,
             user_id,
             params: vec![
-                QueryParam::I32(group_id as i32),
-                QueryParam::I32(user_id as i32),
+                QueryParam::I32(id_to_sql(group_id)),
+                QueryParam::I32(id_to_sql(user_id)),
             ],
         }
     }

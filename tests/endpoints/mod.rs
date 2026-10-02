@@ -4,6 +4,7 @@ mod auth_hardening;
 mod auth_password;
 mod db_errors;
 mod forgot_password;
+mod id_aliases;
 mod keycloak_login;
 mod keycloak_migration;
 mod redis_acl;

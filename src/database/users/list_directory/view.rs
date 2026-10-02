@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -18,7 +19,7 @@ impl ListDirectoryUsersQueryView {
                 QueryParam::Text(search.map(str::trim).unwrap_or_default().to_string()),
                 QueryParam::Text(join_ids(ids)),
                 QueryParam::Text(join_ids(group_ids)),
-                QueryParam::I64(limit as i64),
+                QueryParam::I64(id_to_sql_i64(limit)),
             ],
         }
     }

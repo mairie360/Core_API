@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::database::users::nullable_patch::{push_bool, push_i32, push_text};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
@@ -28,7 +29,7 @@ pub struct PatchPreferencesQueryView {
 impl PatchPreferencesQueryView {
     #[must_use]
     pub fn new(user_id: u64, patch: &PreferencesPatch<'_>) -> Self {
-        let mut params = vec![QueryParam::I32(user_id as i32)];
+        let mut params = vec![QueryParam::I32(id_to_sql(user_id))];
         push_text(&mut params, patch.theme);
         push_text(&mut params, patch.font_family);
         push_i32(&mut params, patch.font_size);

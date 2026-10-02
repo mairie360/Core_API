@@ -60,7 +60,7 @@ async fn list_users(
         ListUsersError::DatabaseError
     })?;
 
-    let total = total.max(0) as u64;
+    let total = u64::try_from(total).unwrap_or_default();
     Ok(AdminListUsersResultView {
         users,
         page,

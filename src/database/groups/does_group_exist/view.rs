@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -12,7 +13,7 @@ impl DoesGroupExistQuerView {
     pub fn new(group_id: u64) -> Self {
         Self {
             group_id,
-            params: vec![QueryParam::I32(group_id as i32)],
+            params: vec![QueryParam::I32(id_to_sql(group_id))],
         }
     }
 

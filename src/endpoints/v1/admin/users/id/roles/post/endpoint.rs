@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use crate::database::users::add_role::AddRolesQueryView;
 use crate::endpoints::admin_guard::AdminUser;
@@ -88,7 +89,7 @@ pub(in crate::endpoints::v1::admin::users::id::roles) async fn role_name(
     role_id: u64,
 ) -> Result<Option<String>, SyncError> {
     let roles: Vec<Role> = smart_db
-        .fetch_all(&GetRolesByIdQueryView::new(vec![role_id as i32]))
+        .fetch_all(&GetRolesByIdQueryView::new(vec![id_to_sql(role_id)]))
         .await
         .map_err(|e| {
             tracing::error!("Keycloak sync: cannot read role {role_id}: {e}");
@@ -121,7 +122,7 @@ async fn add_role_to_user(
     else {
         return grant_in_core(smart_db, user_id, &view).await;
     };
-    let Some(user) = export_user(smart_db, user_id as i32)
+    let Some(user) = export_user(smart_db, id_to_sql(user_id))
         .await
         .map_err(AddRoleToUserError::Keycloak)?
     else {

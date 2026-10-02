@@ -5,6 +5,7 @@ use crate::database::auth::resolve_identity::{
     ResolveUserIdentityQueryResultView, ResolveUserIdentityQueryView,
 };
 use crate::database::auth::sso_login::{SsoLoginUserQueryResultView, SsoLoginUserQueryView};
+use crate::database::ids::id_from_sql;
 use crate::endpoints::v1::auth::login::endpoint::{generate_session, LoginError};
 use crate::endpoints::v1::auth::login::view::LoginResponseView;
 use crate::keycloak::migration::KEYCLOAK_PROVIDER;
@@ -301,13 +302,17 @@ pub async fn keycloak_login(
         .await?;
     let user_id = resolve_account(&identity, &state).await?;
 
-    let (jwt, refresh_token) =
-        generate_session(user_id as u64, login_view.device_info(), ip_address, state)
-            .await
-            .map_err(|e| match e {
-                LoginError::TokenGenerationError => KeycloakLoginError::TokenGenerationError,
-                _ => KeycloakLoginError::DatabaseError,
-            })?;
+    let (jwt, refresh_token) = generate_session(
+        id_from_sql(user_id),
+        login_view.device_info(),
+        ip_address,
+        state,
+    )
+    .await
+    .map_err(|e| match e {
+        LoginError::TokenGenerationError => KeycloakLoginError::TokenGenerationError,
+        _ => KeycloakLoginError::DatabaseError,
+    })?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

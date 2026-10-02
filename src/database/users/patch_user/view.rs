@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -38,7 +39,7 @@ impl PatchUserQueryView {
         let params = [first_name, last_name, email, phone_number, password]
             .into_iter()
             .flat_map(column_params)
-            .chain(std::iter::once(QueryParam::I32(id as i32)))
+            .chain(std::iter::once(QueryParam::I32(id_to_sql(id))))
             .collect();
 
         Self {
