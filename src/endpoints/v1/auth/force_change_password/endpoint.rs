@@ -1,15 +1,16 @@
 use crate::client_ip::client_ip;
-use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
-use crate::session_revocation::revoke_all_user_sessions;
+use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ForceChanhePasswordError {
@@ -65,51 +66,52 @@ async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
     }
 }
 
-async fn is_first_time(smart_db: &SmartDatabase, user_id: u64) -> bool {
-    smart_db
-        .fetch_scalar(&IsFirstTimeQueryView::new(user_id))
-        .await
-        .unwrap_or(false)
-}
-
+/// Sets the new password and revokes the previous sessions in one transaction (MAIR-420). The
+/// update itself checks that the first connection is still pending, so two requests racing
+/// with the same token cannot both change the password.
 async fn change_password(
     smart_db: &SmartDatabase,
     user_id: u64,
     new_password: &str,
-) -> Result<(), ForceChanhePasswordError> {
+) -> Result<Vec<Uuid>, ForceChanhePasswordError> {
     let hashed_password = hash_password(new_password).map_err(|e| {
         eprintln!("Password hashing error: {e}");
         ForceChanhePasswordError::DatabaseError
     })?;
-    smart_db
-        .execute(UnsetFirstConnectionQueryView::new(
+    let database_error = |e: ApiLibError| {
+        eprintln!("Force change password DB Error: {e}");
+        ForceChanhePasswordError::DatabaseError
+    };
+    let mut tx = smart_db.begin().await.map_err(database_error)?;
+    let changed: i64 = tx
+        .fetch_scalar(&UnsetFirstConnectionQueryView::pending_only(
             user_id,
             &hashed_password,
         ))
         .await
-        .map_err(|_| ForceChanhePasswordError::DatabaseError)
+        .map_err(database_error)?;
+    if changed == 0 {
+        return Err(ForceChanhePasswordError::Unauthorized);
+    }
+    // A password change ends the sessions opened with the previous password, in every API
+    // (MAIR-264). Usually none: a first-connection login opens no session.
+    let revoked = revoke_all_user_sessions_in(&mut tx, user_id)
+        .await
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
+    Ok(revoked)
 }
 
 async fn force_change_password_trigger(
     state: web::Data<AppState>,
     view: ForceChangePasswordView,
 ) -> Result<(), ForceChanhePasswordError> {
-    let smart_db = state.get_smart_db();
-
     let Some(user_id) = get_user_id(&state, view.token()).await else {
         return Err(ForceChanhePasswordError::Forbidden);
     };
 
-    if !is_first_time(smart_db, user_id).await {
-        return Err(ForceChanhePasswordError::Unauthorized);
-    }
-
-    change_password(smart_db, user_id, view.new_password()).await?;
-    // A password change ends the sessions opened with the previous password, in every API
-    // (MAIR-264). Usually none: a first-connection login opens no session.
-    revoke_all_user_sessions(&state, user_id)
-        .await
-        .map_err(|_| ForceChanhePasswordError::DatabaseError)?;
+    let revoked = change_password(state.get_smart_db(), user_id, view.new_password()).await?;
+    publish_revoked_sessions(state.get_redis(), &revoked).await;
     consume_first_connection_token(&state, view.token(), user_id).await;
 
     Ok(())

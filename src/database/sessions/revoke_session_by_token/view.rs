@@ -1,6 +1,8 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
+/// Revokes the active session of `user_id` whose refresh token digest is `token_hash`, and
+/// returns its id as one JSON string (`fetch_all::<Uuid>`, empty when nothing was revoked).
 #[derive(serde::Deserialize)]
 pub struct RevokeSessionByTokenQueryView {
     user_id: u64,
@@ -43,7 +45,10 @@ impl RevokeSessionByTokenQueryView {
 
 impl ApiRequestDto for RevokeSessionByTokenQueryView {
     fn query_sql(&self) -> &'static str {
-        "UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND token_hash = $3"
+        "WITH revoked AS (\
+            UPDATE sessions SET revoked_at = $1 \
+            WHERE user_id = $2 AND token_hash = $3 AND revoked_at IS NULL RETURNING id\
+        ) SELECT to_json(id) FROM revoked"
     }
 
     fn query_params(&self) -> &[QueryParam] {

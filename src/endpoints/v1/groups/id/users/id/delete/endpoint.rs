@@ -4,7 +4,6 @@ use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::groups::delete_user_from_group::DeleteUserFromGroupQueryView;
-use crate::database::groups::is_user_member::IsUserMemberQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserFromGroupError {
@@ -43,23 +42,17 @@ async fn delete_user_from_group(
     group_id: u64,
     user_id: u64,
 ) -> Result<(), DeleteUserFromGroupError> {
-    let smart_db = state.get_smart_db();
-
-    let user_check_view = IsUserMemberQueryView::new(group_id, user_id);
-    let result: bool = smart_db
-        .fetch_scalar(&user_check_view)
+    let removed: i64 = state
+        .get_smart_db()
+        .fetch_scalar(&DeleteUserFromGroupQueryView::new(group_id, user_id))
         .await
-        .map_err(|_| DeleteUserFromGroupError::UnknowUser)?;
-    if !result {
+        .map_err(|e| {
+            eprintln!("Remove user from group DB Error: {e}");
+            DeleteUserFromGroupError::BadRequest
+        })?;
+    if removed == 0 {
         return Err(DeleteUserFromGroupError::UnknowUser);
     }
-
-    let db_view = DeleteUserFromGroupQueryView::new(group_id, user_id);
-    smart_db
-        .execute(db_view)
-        .await
-        .map_err(|_| DeleteUserFromGroupError::BadRequest)?;
-
     Ok(())
 }
 

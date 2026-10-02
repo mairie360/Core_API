@@ -1,7 +1,4 @@
 use crate::client_ip::client_ip;
-use crate::database::sessions::get_active_session_by_token::{
-    ActiveSession, GetActiveSessionByTokenQueryView,
-};
 use crate::database::sessions::revoke_session_by_token::RevokeSessionByTokenQueryView;
 use crate::endpoints::v1::sessions::revoke::request_view::RevokeRequestView;
 use crate::refresh_token;
@@ -14,6 +11,7 @@ use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use crate::endpoints::validation::ValidatedJson;
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
 use mairie360_api_lib::state::AppState;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
 enum RevokeError {
@@ -67,22 +65,17 @@ async fn revoke_request(
         Err(_) => return Err(RevokeError::DatabaseError),
     };
 
-    // Session id, to publish the revocation to the other APIs (MAIR-264).
-    let session: Option<ActiveSession> = state
+    // The revocation returns the ids it revoked, to publish to the other APIs (MAIR-264): no
+    // separate read that could see another state (MAIR-420).
+    let revoked: Vec<Uuid> = state
         .get_smart_db()
-        .fetch_one(&GetActiveSessionByTokenQueryView::new(&token_hash))
+        .fetch_all(&db_view)
         .await
-        .ok();
-
-    state
-        .get_smart_db()
-        .execute(db_view)
-        .await
-        .map_err(|_| RevokeError::DatabaseError)?;
-
-    if let Some(session) = session {
-        publish_revoked_sessions(state.get_redis(), &[session.id()]).await;
-    }
+        .map_err(|e| {
+            eprintln!("Revoke session DB Error: {e}");
+            RevokeError::DatabaseError
+        })?;
+    publish_revoked_sessions(state.get_redis(), &revoked).await;
     Ok(())
 }
 

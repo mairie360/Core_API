@@ -1,12 +1,13 @@
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::validation::ValidatedJson;
-use crate::session_revocation::revoke_all_user_sessions;
+use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
+use uuid::Uuid;
 
 use crate::keycloak::sync::{export_user, find_account, profile_of, write_profile, SyncError};
 use crate::keycloak::{KeycloakAdminClient, KeycloakUserProfile};
@@ -54,11 +55,13 @@ impl ResponseError for PatchUserError {
     }
 }
 
+/// Writes the patch to Core. A new password also revokes every session of the user, in the same
+/// transaction (MAIR-420): the sessions to publish to the revocation list are returned.
 async fn patch_in_core(
     smart_db: &SmartDatabase,
     user_id: u64,
     view: &PatchUserView,
-) -> Result<(), PatchUserError> {
+) -> Result<Vec<Uuid>, PatchUserError> {
     let hashed_password = view
         .password()
         .map(hash_password)
@@ -68,7 +71,7 @@ async fn patch_in_core(
             PatchUserError::DatabaseError
         })?;
 
-    let view = PatchUserQueryView::new(
+    let query = PatchUserQueryView::new(
         user_id,
         view.first_name(),
         view.last_name(),
@@ -76,17 +79,29 @@ async fn patch_in_core(
         view.phone_number(),
         hashed_password.as_deref(),
     );
-    if !view.is_noop() {
-        smart_db.execute(view).await.map_err(|e| match e {
-            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchUserError::EmailAlreadyUsed,
-            e => {
-                eprintln!("Admin patch user DB Error: {e}");
-                PatchUserError::DatabaseError
-            }
-        })?;
+    if query.is_noop() {
+        return Ok(Vec::new());
     }
-
-    Ok(())
+    let database_error = |e: ApiLibError| match e {
+        ApiLibError::Database(DbError::UniqueViolation(_)) => PatchUserError::EmailAlreadyUsed,
+        e => {
+            eprintln!("Admin patch user DB Error: {e}");
+            PatchUserError::DatabaseError
+        }
+    };
+    let mut tx = smart_db.begin().await.map_err(database_error)?;
+    tx.execute(&query).await.map_err(database_error)?;
+    // A new password ends the sessions opened with the previous one, in every API, like
+    // `PATCH /admin/users/{userId}/password` (MAIR-390).
+    let revoked = if hashed_password.is_some() {
+        revoke_all_user_sessions_in(&mut tx, user_id)
+            .await
+            .map_err(database_error)?
+    } else {
+        Vec::new()
+    };
+    tx.commit().await.map_err(database_error)?;
+    Ok(revoked)
 }
 
 /// The Keycloak profile of `current` once `view` is applied, `None` when the patch changes
@@ -111,7 +126,7 @@ async fn patch_user(
     admin: Option<&KeycloakAdminClient>,
     user_id: u64,
     view: PatchUserView,
-) -> Result<(), PatchUserError> {
+) -> Result<Vec<Uuid>, PatchUserError> {
     let smart_db = state.get_smart_db();
     let Some(admin) = admin else {
         return patch_in_core(smart_db, user_id, &view).await;
@@ -138,15 +153,17 @@ async fn patch_user(
     write_profile(admin, &keycloak_id, &patched)
         .await
         .map_err(PatchUserError::Keycloak)?;
-    if let Err(error) = patch_in_core(smart_db, user_id, &view).await {
-        if let Err(restore) = write_profile(admin, &keycloak_id, &current).await {
-            eprintln!(
-                "Keycloak sync: Core refused the patch of user {user_id} and the former Keycloak profile of {keycloak_id} could not be restored: {restore}"
-            );
+    match patch_in_core(smart_db, user_id, &view).await {
+        Ok(revoked) => Ok(revoked),
+        Err(error) => {
+            if let Err(restore) = write_profile(admin, &keycloak_id, &current).await {
+                eprintln!(
+                    "Keycloak sync: Core refused the patch of user {user_id} and the former Keycloak profile of {keycloak_id} could not be restored: {restore}"
+                );
+            }
+            Err(error)
         }
-        return Err(error);
     }
-    Ok(())
 }
 
 #[utoipa::path(
@@ -252,24 +269,14 @@ pub async fn admin_patch_user(
 ) -> Result<impl Responder, PatchUserError> {
     let user_id = path.into_inner();
     let view = view.into_inner();
-    let password_changed = view.password().is_some();
-    patch_user(
+    let revoked = patch_user(
         state.clone(),
         admin.as_ref().map(web::Data::get_ref),
         user_id,
         view,
     )
     .await?;
-    if password_changed {
-        // A new password ends the sessions opened with the previous one, in every API, like
-        // `PATCH /admin/users/{userId}/password` (MAIR-390).
-        revoke_all_user_sessions(&state, user_id)
-            .await
-            .map_err(|e| {
-                eprintln!("Admin patch user: could not revoke the sessions of {user_id}: {e}");
-                PatchUserError::DatabaseError
-            })?;
-    }
+    publish_revoked_sessions(state.get_redis(), &revoked).await;
 
     Ok(HttpResponse::Ok().body("User patched successfully!"))
 }
