@@ -5,21 +5,22 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::users::remove_role::RemoveRolesQueryView;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::admin::users::id::roles::post::endpoint::role_name;
 use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
 use crate::keycloak::KeycloakAdminClient;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RemoveUserRoleError {
-    NotFound,
+    DatabaseError,
     Keycloak(SyncError),
 }
 
 impl std::fmt::Display for RemoveUserRoleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotFound => {
-                write!(f, "The requested resource was not found.")
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
             }
             Self::Keycloak(error) => write!(f, "{error}"),
         }
@@ -29,7 +30,7 @@ impl std::fmt::Display for RemoveUserRoleError {
 impl ResponseError for RemoveUserRoleError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -52,10 +53,10 @@ async fn revoke_in_core(
     role_id: u64,
 ) -> Result<(), RemoveUserRoleError> {
     let view = RemoveRolesQueryView::new(role_id, user_id);
-    smart_db
-        .execute(view)
-        .await
-        .map_err(|_| RemoveUserRoleError::NotFound)?;
+    smart_db.execute(view).await.map_err(|e| {
+        db_error::log("revoke role", &e);
+        RemoveUserRoleError::DatabaseError
+    })?;
 
     Ok(())
 }
@@ -96,7 +97,7 @@ async fn remove_role_from_user(
     if let Err(error) = revoke_in_core(smart_db, user_id, role_id).await {
         if unmapped {
             if let Err(restore) = map_role(admin, &keycloak_id, &name).await {
-                eprintln!(
+                tracing::error!(
                     "Keycloak sync: Core refused to revoke role {name} from user {user_id} and it could not be re-mapped to {keycloak_id}: {restore}"
                 );
             }
@@ -153,15 +154,8 @@ async fn remove_role_from_user(
             example = json!("Forbidden: User is not an admin.")
         ),
         (
-            status = 404,
-            description = "The write failed (database outage). The Keycloak mapping, if it had been removed, is restored.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("The requested resource was not found.")
-        ),
-        (
             status = 500,
-            description = "The role or the account could not be read, or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            description = "The role or the account could not be read, the Keycloak account found by e-mail is already linked to another Core account (nothing is changed), or the write failed (the Keycloak mapping, if it had been removed, is restored). The cause is logged by the server.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

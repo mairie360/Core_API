@@ -1,4 +1,5 @@
 use crate::database::sessions::get_sessions_by_user::GetSessionsByUserQueryView;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::sessions::history::response_view::HistoryResponseView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
@@ -44,7 +45,10 @@ async fn get_user_info(
         .get_smart_db()
         .fetch_all(&GetSessionsByUserQueryView::new(user_id))
         .await
-        .map_err(|_| HistoryError::DatabaseError)?;
+        .map_err(|e| {
+            db_error::log("session history", &e);
+            HistoryError::DatabaseError
+        })?;
 
     Ok(HistoryResponseView::new(
         query_result

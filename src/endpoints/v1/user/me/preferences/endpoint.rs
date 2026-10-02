@@ -90,7 +90,7 @@ pub async fn get_my_preferences(
         .fetch_one(&GetPreferencesQueryView::new(auth_user.id))
         .await
         .map_err(|e| {
-            eprintln!("Error: {e:?}");
+            tracing::error!("Error: {e:?}");
             PreferencesError::DatabaseError
         })?;
     Ok(HttpResponse::Ok().json(preferences))
@@ -169,7 +169,7 @@ pub async fn patch_my_preferences(
         ))
         .await
         .map_err(|e| {
-            eprintln!("Error: {e:?}");
+            tracing::error!("Error: {e:?}");
             PreferencesError::DatabaseError
         })?;
     stored

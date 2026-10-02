@@ -59,7 +59,7 @@ async fn trigger_list_directory_users(
         ))
         .await
         .map_err(|error| {
-            eprintln!("{error:?}");
+            tracing::error!("{error:?}");
             DirectoryError::DatabaseError
         })?;
 

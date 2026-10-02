@@ -41,7 +41,7 @@ impl ResponseError for GetUsersGroupError {
 }
 
 fn database_error(error: &impl std::fmt::Display) -> GetUsersGroupError {
-    eprintln!("Get group members DB Error: {error}");
+    tracing::error!("Get group members DB Error: {error}");
     GetUsersGroupError::DatabaseError
 }
 

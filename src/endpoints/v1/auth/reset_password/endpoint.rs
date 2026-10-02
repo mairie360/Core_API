@@ -68,7 +68,7 @@ async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, Reset
         .fetch_scalar::<i32, _>(&GetActiveUserIdByEmailQueryView::new(email))
         .await
         .map_err(|e| {
-            eprintln!("Reset password DB Error: {e}");
+            tracing::error!("Reset password DB Error: {e}");
             ResetPasswordError::DatabaseError
         })?;
     u64::try_from(user_id)
@@ -85,11 +85,11 @@ async fn reset_pwd(
     user_id: u64,
 ) -> Result<Vec<Uuid>, ResetPasswordError> {
     let hashed_password = hash_password(new_password).map_err(|e| {
-        eprintln!("Password hashing error: {e}");
+        tracing::error!("Password hashing error: {e}");
         ResetPasswordError::DatabaseError
     })?;
     let database_error = |e: ApiLibError| {
-        eprintln!("Reset password DB Error: {e}");
+        tracing::error!("Reset password DB Error: {e}");
         ResetPasswordError::DatabaseError
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
@@ -123,7 +123,7 @@ async fn reset_password_trigger(
     let email: String = match redis.secure_get::<String>(&key).await {
         Ok(Some(email)) => email,
         other => {
-            eprintln!("Failed to get email from Redis: {other:?}");
+            tracing::error!("Failed to get email from Redis: {other:?}");
             return Err(ResetPasswordError::UnknownToken);
         }
     };
@@ -131,11 +131,11 @@ async fn reset_password_trigger(
 
     let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
-        eprintln!("Failed to delete reversed key: {e:?}");
+        tracing::error!("Failed to delete reversed key: {e:?}");
         return Err(ResetPasswordError::RedisError);
     }
     if let Err(e) = redis.delete(&key).await {
-        eprintln!("Failed to delete key: {e:?}");
+        tracing::error!("Failed to delete key: {e:?}");
         return Err(ResetPasswordError::RedisError);
     }
 
@@ -145,7 +145,7 @@ async fn reset_password_trigger(
     match generate_session(user_id, &view.device_info(), ip_adress, state).await {
         Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),
         Err(e) => {
-            eprintln!("Failed to generate session: {e:?}");
+            tracing::error!("Failed to generate session: {e:?}");
             Err(ResetPasswordError::TokenGenerationError)
         }
     }

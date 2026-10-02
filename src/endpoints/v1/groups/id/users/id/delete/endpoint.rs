@@ -1,3 +1,4 @@
+use crate::endpoints::db_error;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -7,15 +8,15 @@ use crate::database::groups::delete_user_from_group::DeleteUserFromGroupQueryVie
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteUserFromGroupError {
-    BadRequest,
+    DatabaseError,
     UnknowUser,
 }
 
 impl std::fmt::Display for DeleteUserFromGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest => {
-                write!(f, "Bad request.")
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
             }
             Self::UnknowUser => {
                 write!(f, "Unknow user.")
@@ -27,7 +28,7 @@ impl std::fmt::Display for DeleteUserFromGroupError {
 impl ResponseError for DeleteUserFromGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::UnknowUser => StatusCode::NOT_FOUND,
         }
     }
@@ -47,8 +48,8 @@ async fn delete_user_from_group(
         .fetch_scalar(&DeleteUserFromGroupQueryView::new(group_id, user_id))
         .await
         .map_err(|e| {
-            eprintln!("Remove user from group DB Error: {e}");
-            DeleteUserFromGroupError::BadRequest
+            db_error::log("remove user from group", &e);
+            DeleteUserFromGroupError::DatabaseError
         })?;
     if removed == 0 {
         return Err(DeleteUserFromGroupError::UnknowUser);
@@ -76,13 +77,6 @@ async fn delete_user_from_group(
             description = "Utilisateur retiré du groupe. Corps vide.",
         ),
         (
-            status = 400,
-            description = "Échec de la suppression du lien une fois l'appartenance confirmée. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Bad request.")
-        ),
-        (
             status = 401,
             description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
             body = String,
@@ -102,6 +96,13 @@ async fn delete_user_from_group(
             body = String,
             content_type = "text/plain",
             example = json!("Unknow user.")
+        ),
+        (
+            status = 500,
+            description = "Database error, logged by the server.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",

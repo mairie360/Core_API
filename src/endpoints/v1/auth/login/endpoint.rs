@@ -93,12 +93,12 @@ pub async fn generate_session(
         ip_adress,
     );
     state.get_smart_db().execute(view).await.map_err(|e| {
-        eprintln!("Create Session DB Error: {e}");
+        tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
     // The role claim stays empty: neither the lib nor Core reads it.
     let jwt = generate_session_jwt(user_id, session_id).map_err(|e| {
-        eprintln!("JWT Generation Error: {e}");
+        tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
     Ok((jwt, refresh_token))
@@ -125,7 +125,7 @@ async fn generate_first_connection_token(
     )
     .await
     .map_err(|e| {
-        eprintln!("Redis Error: {e}");
+        tracing::error!("Redis Error: {e}");
         LoginError::RedisError
     })?;
     set_token(
@@ -136,7 +136,7 @@ async fn generate_first_connection_token(
     )
     .await
     .map_err(|e| {
-        eprintln!("Redis Error: {e}");
+        tracing::error!("Redis Error: {e}");
         LoginError::RedisError
     })?;
     Ok(token)
@@ -149,7 +149,7 @@ async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plai
     let hashed = match hash_password(plaintext) {
         Ok(hashed) => hashed,
         Err(e) => {
-            eprintln!("Failed to hash password while migrating user {user_id}: {e}");
+            tracing::error!("Failed to hash password while migrating user {user_id}: {e}");
             return;
         }
     };
@@ -157,7 +157,7 @@ async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plai
         .execute(ChangePasswordQueryView::new(&hashed, user_id))
         .await
     {
-        eprintln!("Failed to persist migrated password for user {user_id}: {e}");
+        tracing::error!("Failed to persist migrated password for user {user_id}: {e}");
     }
 }
 
@@ -180,7 +180,7 @@ pub(crate) fn is_password_valid(user_id: i32, password: &str, stored_password: &
     // `verify_password`, which only accepts a value `is_hashed` agrees is an argon2id PHC string.
     if is_hashed(stored_password) {
         verify_password(password, stored_password).unwrap_or_else(|e| {
-            eprintln!("Failed to verify the password hash of user {user_id}: {e}");
+            tracing::error!("Failed to verify the password hash of user {user_id}: {e}");
             false
         })
     } else {
@@ -203,7 +203,7 @@ async fn login_user(
         Ok(result) => Some(result),
         Err(ApiLibError::Database(DbError::NotFound)) => None,
         Err(e) => {
-            eprintln!("Login DB Error: {e}");
+            tracing::error!("Login DB Error: {e}");
             return Err(LoginError::DatabaseError);
         }
     };
@@ -221,7 +221,7 @@ async fn login_user(
     // The password is checked before anything else, the first-connection token included: knowing
     // the e-mail of a new account must not be enough to choose its password (MAIR-390).
     if !is_password_valid(user.user_id(), &login_view.password(), &stored_password) {
-        eprintln!(
+        tracing::error!(
             "Login failed: invalid credentials for user {}",
             user.user_id()
         );

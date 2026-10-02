@@ -104,11 +104,11 @@ async fn find_account(
         Ok(user) if user.is_archived() => Err(KeycloakLoginError::AccountArchived),
         Ok(user) => Ok(user),
         Err(ApiLibError::Database(DbError::NotFound)) => {
-            eprintln!("Keycloak login refused: no Core account for this verified e-mail");
+            tracing::error!("Keycloak login refused: no Core account for this verified e-mail");
             Err(KeycloakLoginError::UnknownAccount)
         }
         Err(e) => {
-            eprintln!("Keycloak login DB Error: {e}");
+            tracing::error!("Keycloak login DB Error: {e}");
             Err(KeycloakLoginError::DatabaseError)
         }
     }
@@ -132,7 +132,7 @@ async fn resolve_account(
         ))
         .await
         .map_err(|e| {
-            eprintln!("Keycloak login DB Error: {e}");
+            tracing::error!("Keycloak login DB Error: {e}");
             KeycloakLoginError::DatabaseError
         })?;
     if let Some(user_id) = resolved.user_id() {
@@ -144,7 +144,7 @@ async fn resolve_account(
     match smart_db.fetch_scalar::<i32, _>(&link).await {
         Ok(_) => Ok(user.user_id()),
         Err(ApiLibError::Database(DbError::UniqueViolation(_))) => {
-            eprintln!(
+            tracing::error!(
                 "Keycloak login refused: subject {} is linked to another account than {}",
                 identity.subject,
                 user.user_id()
@@ -152,7 +152,7 @@ async fn resolve_account(
             Err(KeycloakLoginError::IdentityConflict)
         }
         Err(e) => {
-            eprintln!("Keycloak login DB Error: {e}");
+            tracing::error!("Keycloak login DB Error: {e}");
             Err(KeycloakLoginError::DatabaseError)
         }
     }

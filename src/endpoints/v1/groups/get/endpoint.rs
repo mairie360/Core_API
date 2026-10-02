@@ -1,4 +1,5 @@
 use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::groups::get::view::GetGroupsResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -7,14 +8,14 @@ use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum GetGroupsError {
-    BadRequest,
+    DatabaseError,
 }
 
 impl std::fmt::Display for GetGroupsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest => {
-                write!(f, "Bad request.")
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
             }
         }
     }
@@ -23,7 +24,7 @@ impl std::fmt::Display for GetGroupsError {
 impl ResponseError for GetGroupsError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -40,7 +41,10 @@ async fn trigger_get_groups(
         .get_smart_db()
         .fetch_all(&GetUserGroupsQuerView::new(user.id))
         .await
-        .map_err(|_| GetGroupsError::BadRequest)?;
+        .map_err(|e| {
+            db_error::log("list the caller's groups", &e);
+            GetGroupsError::DatabaseError
+        })?;
 
     Ok(groups.into())
 }
@@ -66,18 +70,18 @@ async fn trigger_get_groups(
             })
         ),
         (
-            status = 400,
-            description = "Échec de la lecture en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Bad request.")
-        ),
-        (
             status = 401,
             description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 500,
+            description = "Database error, logged by the server.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",

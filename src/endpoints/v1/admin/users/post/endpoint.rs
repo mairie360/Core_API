@@ -1,6 +1,7 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::keycloak::sync::{
@@ -95,7 +96,10 @@ async fn can_be_registered(
             register_view.email().to_string(),
         ))
         .await
-        .map_err(|_| CreateUserError::DatabaseError)?;
+        .map_err(|e| {
+            db_error::log("create user: e-mail check", &e);
+            CreateUserError::DatabaseError
+        })?;
 
     if exists {
         return Err(CreateUserError::UserAlreadyExists);
@@ -115,7 +119,7 @@ async fn insert_user(
     smart_db: &SmartDatabase,
 ) -> Result<(), CreateUserError> {
     let hashed_password = hash_password(register_view.password()).map_err(|e| {
-        eprintln!("Password hashing error: {e}");
+        tracing::error!("Password hashing error: {e}");
         CreateUserError::DatabaseError
     })?;
 
@@ -128,7 +132,7 @@ async fn insert_user(
     );
 
     let success: bool = smart_db.fetch_scalar(&view).await.map_err(|e| {
-        eprintln!("Database error: {e}");
+        tracing::error!("Database error: {e}");
         CreateUserError::DatabaseError
     })?;
 
@@ -176,7 +180,7 @@ async fn complete_keycloak_account(
         .fetch_scalar(&GetUserIdQueryView::new(email))
         .await
         .map_err(|e| {
-            eprintln!("Database error: {e}");
+            tracing::error!("Database error: {e}");
             SyncError::Database
         })?;
     link_account(smart_db, user_id, &account.keycloak_id).await?;
@@ -208,7 +212,7 @@ async fn register_user(
     complete_keycloak_account(admin, smart_db, register_view.email(), &account)
         .await
         .map_err(|error| {
-            eprintln!(
+            tracing::error!(
                 "Keycloak sync: account {} created for {} but not completed: {error}",
                 account.keycloak_id,
                 register_view.email()

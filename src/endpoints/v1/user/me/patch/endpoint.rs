@@ -58,7 +58,7 @@ async fn check_current_password(
         .fetch_one(&GetUserPasswordQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("Patch me DB Error: {e}");
+            tracing::error!("Patch me DB Error: {e}");
             PatchMeError::DatabaseError
         })?;
     match stored.password() {
@@ -94,7 +94,7 @@ async fn trigger_patch_me(
                     PatchMeError::EmailAlreadyUsed
                 }
                 e => {
-                    eprintln!("Error: {e:?}");
+                    tracing::error!("Error: {e:?}");
                     PatchMeError::DatabaseError
                 }
             })?;

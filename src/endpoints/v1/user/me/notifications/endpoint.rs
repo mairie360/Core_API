@@ -87,7 +87,7 @@ pub async fn get_my_notification_settings(
         .fetch_one(&GetNotificationSettingsQueryView::new(auth_user.id))
         .await
         .map_err(|e| {
-            eprintln!("Error: {e:?}");
+            tracing::error!("Error: {e:?}");
             NotificationSettingsError::DatabaseError
         })?;
     Ok(HttpResponse::Ok().json(settings))
@@ -161,7 +161,7 @@ pub async fn patch_my_notification_settings(
         ))
         .await
         .map_err(|e| {
-            eprintln!("Error: {e:?}");
+            tracing::error!("Error: {e:?}");
             NotificationSettingsError::DatabaseError
         })?;
     stored

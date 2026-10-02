@@ -67,7 +67,7 @@ async fn patch_in_core(
         .map(hash_password)
         .transpose()
         .map_err(|e| {
-            eprintln!("Password hashing error: {e}");
+            tracing::error!("Password hashing error: {e}");
             PatchUserError::DatabaseError
         })?;
 
@@ -85,7 +85,7 @@ async fn patch_in_core(
     let database_error = |e: ApiLibError| match e {
         ApiLibError::Database(DbError::UniqueViolation(_)) => PatchUserError::EmailAlreadyUsed,
         e => {
-            eprintln!("Admin patch user DB Error: {e}");
+            tracing::error!("Admin patch user DB Error: {e}");
             PatchUserError::DatabaseError
         }
     };
@@ -157,7 +157,7 @@ async fn patch_user(
         Ok(revoked) => Ok(revoked),
         Err(error) => {
             if let Err(restore) = write_profile(admin, &keycloak_id, &current).await {
-                eprintln!(
+                tracing::error!(
                     "Keycloak sync: Core refused the patch of user {user_id} and the former Keycloak profile of {keycloak_id} could not be restored: {restore}"
                 );
             }

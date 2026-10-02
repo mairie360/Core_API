@@ -60,7 +60,7 @@ impl KeycloakConfig {
             )),
             (None, None) => None,
             _ => {
-                eprintln!(
+                tracing::warn!(
                     "Keycloak sign-in disabled: KEYCLOAK_REALM_URL and KEYCLOAK_CLIENT_ID must both be set."
                 );
                 None

@@ -63,7 +63,7 @@ async fn put_role(
     let database_error = |e: ApiLibError| match e {
         ApiLibError::Database(DbError::UniqueViolation(_)) => PutError::Duplicate,
         e => {
-            eprintln!("Put role DB Error: {e}");
+            tracing::error!("Put role DB Error: {e}");
             PutError::DatabaseError
         }
     };

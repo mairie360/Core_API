@@ -75,7 +75,7 @@ async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUse
         if is_restrict_violation(&e) {
             DeleteUserError::OwnsResources
         } else {
-            eprintln!("Admin delete user {user_id} DB Error: {e}");
+            tracing::error!("Admin delete user {user_id} DB Error: {e}");
             DeleteUserError::DatabaseError
         }
     };
@@ -113,7 +113,7 @@ async fn delete_user(
         .fetch_scalar(&IsUserActiveQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("Error: {e}");
+            tracing::error!("Error: {e}");
             DeleteUserError::DatabaseError
         })?;
     if !active {
@@ -142,7 +142,7 @@ async fn delete_user(
         .map_err(DeleteUserError::Keycloak)?;
     if let Err(error) = archive_in_core(&state, user_id).await {
         if let Err(restore) = enable_account(admin, &keycloak_id).await {
-            eprintln!(
+            tracing::error!(
                 "Keycloak sync: Core refused to archive user {user_id} and the Keycloak account {keycloak_id} could not be re-enabled: {restore}"
             );
         }

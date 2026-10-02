@@ -56,7 +56,7 @@ async fn reset_password(
     }
 
     let hashed_password = hash_password(view.new_password()).map_err(|error| {
-        eprintln!("{error:?}");
+        tracing::error!("{error:?}");
         ResetPasswordError::DatabaseError
     })?;
 
@@ -65,7 +65,7 @@ async fn reset_password(
         .fetch_one(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
         .map_err(|error| {
-            eprintln!("{error:?}");
+            tracing::error!("{error:?}");
             ResetPasswordError::DatabaseError
         })?;
 

@@ -1,4 +1,5 @@
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::{
     database::{
         admin::get_user::view::{
@@ -17,12 +18,14 @@ use mairie360_api_lib::state::AppState;
 #[derive(Debug, Clone, PartialEq)]
 enum GetUserError {
     UnknownUser,
+    DatabaseError,
 }
 
 impl std::fmt::Display for GetUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnknownUser => write!(f, "Unknown user"),
+            Self::DatabaseError => write!(f, "An error occurred while accessing the database."),
         }
     }
 }
@@ -31,6 +34,7 @@ impl ResponseError for GetUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -48,24 +52,24 @@ async fn get_user(
     let user: User = smart_db
         .fetch_one(&AdminGetUserQueryView::new(user_id))
         .await
-        .map_err(|e| {
-            eprintln!("{e:?}");
-            GetUserError::UnknownUser
+        .map_err(|e| match db_error::log("admin get user", &e) {
+            DbFailure::NotFound => GetUserError::UnknownUser,
+            _ => GetUserError::DatabaseError,
         })?;
 
     let roles_id: Vec<i32> = smart_db
         .fetch_all(&GetUserRolesQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{e:?}");
-            GetUserError::UnknownUser
+            db_error::log("admin get user", &e);
+            GetUserError::DatabaseError
         })?;
     let roles_result: Vec<Role> = smart_db
         .fetch_all(&GetRolesByIdQueryView::new(roles_id))
         .await
         .map_err(|e| {
-            eprintln!("{e:?}");
-            GetUserError::UnknownUser
+            db_error::log("admin get user", &e);
+            GetUserError::DatabaseError
         })?;
     // Each role carries its own id: no pairing of two lists by index (MAIR-390).
     let roles: Vec<RoleQueryResult> = roles_result
@@ -77,16 +81,16 @@ async fn get_user(
         .fetch_all(&GetSessionsByUserQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{e:?}");
-            GetUserError::UnknownUser
+            db_error::log("admin get user", &e);
+            GetUserError::DatabaseError
         })?;
 
     let groups = smart_db
         .fetch_all(&GetUserGroupsQuerView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("{e:?}");
-            GetUserError::UnknownUser
+            db_error::log("admin get user", &e);
+            GetUserError::DatabaseError
         })?;
 
     let result = AdminGetUserQueryResultView::new(user, roles, groups, sessions);
@@ -161,10 +165,17 @@ async fn get_user(
         ),
         (
             status = 404,
-            description = "Aucun utilisateur ne porte cet identifiant — ou la lecture de ses rôles, groupes ou sessions a échoué.",
+            description = "No user has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown user")
+        ),
+        (
+            status = 500,
+            description = "The user, or its roles, groups or sessions, could not be read. The cause is logged by the server.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Admin - Users",

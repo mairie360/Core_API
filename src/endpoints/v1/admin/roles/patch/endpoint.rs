@@ -63,7 +63,7 @@ async fn patch_role(
     let database_error = |e: ApiLibError| match e {
         ApiLibError::Database(DbError::UniqueViolation(_)) => PatchError::Duplicate,
         e => {
-            eprintln!("Patch role DB Error: {e}");
+            tracing::error!("Patch role DB Error: {e}");
             PatchError::DatabaseError
         }
     };

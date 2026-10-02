@@ -1,4 +1,5 @@
 use crate::database::groups::add_user_to_group::AddUserToGroupQueryView;
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::endpoints::v1::groups::id::users::post::view::PostUserGroupView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
@@ -9,6 +10,8 @@ use mairie360_api_lib::state::AppState;
 enum PostUserGroupError {
     GroupMismatch,
     UnknowUser,
+    AlreadyMember,
+    DatabaseError,
 }
 
 impl std::fmt::Display for PostUserGroupError {
@@ -21,6 +24,10 @@ impl std::fmt::Display for PostUserGroupError {
             Self::UnknowUser => {
                 write!(f, "Unknow user.")
             }
+            Self::AlreadyMember => write!(f, "The user is already a member of the group."),
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
+            }
         }
     }
 }
@@ -30,6 +37,8 @@ impl ResponseError for PostUserGroupError {
         match self {
             Self::GroupMismatch => StatusCode::BAD_REQUEST,
             Self::UnknowUser => StatusCode::NOT_FOUND,
+            Self::AlreadyMember => StatusCode::CONFLICT,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -53,8 +62,12 @@ async fn trigger_add_user_to_group(
     }
     let db_view = AddUserToGroupQueryView::new(group_id, view.user_id());
     state.get_smart_db().execute(db_view).await.map_err(|e| {
-        eprintln!("Add user to group DB Error: {e}");
-        PostUserGroupError::UnknowUser
+        match db_error::log("add user to group", &e) {
+            // `user_id` matches no user (foreign key).
+            DbFailure::NotFound => PostUserGroupError::UnknowUser,
+            DbFailure::Conflict => PostUserGroupError::AlreadyMember,
+            _ => PostUserGroupError::DatabaseError,
+        }
     })?;
 
     Ok(())
@@ -110,10 +123,24 @@ async fn trigger_add_user_to_group(
         ),
         (
             status = 404,
-            description = "The group does not exist (`Resource not found`, from the rights check), `user_id` matches no user, or the user is already a member of the group (`Unknow user.`).",
+            description = "The group does not exist (`Resource not found`, from the rights check), or `user_id` matches no user (`Unknow user.`).",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow user.")
+        ),
+        (
+            status = 409,
+            description = "The user is already a member of the group.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The user is already a member of the group.")
+        ),
+        (
+            status = 500,
+            description = "Database error, logged by the server.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",

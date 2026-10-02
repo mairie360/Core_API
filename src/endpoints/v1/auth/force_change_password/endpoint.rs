@@ -75,11 +75,11 @@ async fn change_password(
     new_password: &str,
 ) -> Result<Vec<Uuid>, ForceChanhePasswordError> {
     let hashed_password = hash_password(new_password).map_err(|e| {
-        eprintln!("Password hashing error: {e}");
+        tracing::error!("Password hashing error: {e}");
         ForceChanhePasswordError::DatabaseError
     })?;
     let database_error = |e: ApiLibError| {
-        eprintln!("Force change password DB Error: {e}");
+        tracing::error!("Force change password DB Error: {e}");
         ForceChanhePasswordError::DatabaseError
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
@@ -126,7 +126,7 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
         format!("{user_id}/first_connection_token"),
     ] {
         if let Err(error) = redis.secure_delete(&key).await {
-            eprintln!("Could not delete the first-connection token: {error:?}");
+            tracing::warn!("Could not delete the first-connection token: {error:?}");
         }
     }
 }
