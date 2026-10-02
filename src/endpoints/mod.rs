@@ -1,6 +1,7 @@
 pub mod admin_guard;
 pub mod db_error;
 pub mod health;
+pub mod pagination;
 pub mod ready;
 pub mod session_guard;
 pub mod swagger;

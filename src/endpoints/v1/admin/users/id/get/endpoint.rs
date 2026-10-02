@@ -107,8 +107,9 @@ async fn get_user(
                    sessions** (révoquées et expirées comprises). Réservé aux administrateurs.\n\n\
                    C'est la vue la plus large sur un compte ; `GET /api/v1/user/{id}/`, ouverte à \
                    tous, ne renvoie ni les sessions ni le détail des rôles.\n\n\
-                   Tout échec de lecture, y compris une panne de base, est rapporté en `404` : ce \
-                   endpoint ne renvoie jamais `500`.",
+                   `sessions` holds the latest 100 sessions of the account, newest first \
+                   (MAIR-425), and `groups` its first 100 groups by name.\n\n\
+                   An unknown `userId` answers `404`; a database failure answers `500`.",
     params(
         ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
     ),
