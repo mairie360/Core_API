@@ -265,7 +265,7 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` 10 to 15 digits. The body names the first invalid field.",
+            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` 10 to 15 digits. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `password`: must be at least 8 characters")

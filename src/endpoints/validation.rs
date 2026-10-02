@@ -77,15 +77,11 @@ fn check_no_control(field: &str, value: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-fn check_no_markup(field: &str, value: &str) -> Result<(), ValidationError> {
-    if value.contains(['<', '>']) {
-        return Err(ValidationError::new(field, "must not contain `<` or `>`"));
-    }
-    Ok(())
-}
-
-/// A short label displayed as-is by the fronts (person name, role or group name): not blank, at
-/// most `max` characters, no control character and no `<` / `>`.
+/// A short label (person name, role or group name): not blank, at most `max` characters, no
+/// control character.
+///
+/// `<` and `>` are accepted (MAIR-426): the API serves JSON with `nosniff`, and escaping text for
+/// HTML is the fronts' job (React escapes it), so "budget > 10 000 €" or "<3" are valid names.
 ///
 /// # Errors
 ///
@@ -95,12 +91,11 @@ pub fn check_label(field: &str, value: &str, max: usize) -> Result<(), Validatio
         return Err(ValidationError::new(field, "must not be empty"));
     }
     check_length(field, value, max)?;
-    check_no_control(field, value)?;
-    check_no_markup(field, value)
+    check_no_control(field, value)
 }
 
 /// A free-text description: may be empty, at most `max` characters, line breaks and tabs
-/// allowed, no other control character and no `<` / `>`.
+/// allowed, no other control character.
 ///
 /// # Errors
 ///
@@ -116,7 +111,7 @@ pub fn check_description(field: &str, value: &str, max: usize) -> Result<(), Val
             "must not contain control characters other than line breaks and tabs",
         ));
     }
-    check_no_markup(field, value)
+    Ok(())
 }
 
 /// An e-mail address that can be written to `users.email` and used as a mail recipient.
@@ -255,12 +250,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn label_rejects_blank_long_control_and_markup() {
+    fn label_rejects_blank_long_and_control() {
         assert!(check_label("name", "Jean", MAX_NAME_LENGTH).is_ok());
         assert!(check_label("name", "  ", MAX_NAME_LENGTH).is_err());
         assert!(check_label("name", &"a".repeat(65), MAX_NAME_LENGTH).is_err());
         assert!(check_label("name", "Je\0an", MAX_NAME_LENGTH).is_err());
-        assert!(check_label("name", "<script>alert(1);</script>", MAX_NAME_LENGTH).is_err());
+        assert!(check_label("name", "Budget > 10 000 € <3", MAX_NAME_LENGTH).is_ok());
     }
 
     #[test]
@@ -273,7 +268,12 @@ mod tests {
         assert!(check_description("description", "", MAX_DESCRIPTION_LENGTH).is_ok());
         assert!(check_description("description", "a\nb\tc", MAX_DESCRIPTION_LENGTH).is_ok());
         assert!(check_description("description", "a\0b", MAX_DESCRIPTION_LENGTH).is_err());
-        assert!(check_description("description", "<b>", MAX_DESCRIPTION_LENGTH).is_err());
+        assert!(check_description(
+            "description",
+            "Budget > 10 000 € -> <b>",
+            MAX_DESCRIPTION_LENGTH
+        )
+        .is_ok());
     }
 
     #[test]

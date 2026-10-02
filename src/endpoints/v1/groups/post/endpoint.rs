@@ -88,7 +88,7 @@ async fn create_group(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, a field breaking its rules (`name` 1 to 64 characters once trimmed, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs), or failed insert. This endpoint answers `400` where others would answer `500`.",
+            description = "Malformed JSON body, missing field, a field breaking its rules (`name` 1 to 64 characters once trimmed, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs), or failed insert. This endpoint answers `400` where others would answer `500`.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `name`: must be at most 64 characters")

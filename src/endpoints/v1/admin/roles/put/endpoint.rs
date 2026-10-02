@@ -122,7 +122,7 @@ async fn put_role(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `id` in the path that is not an integer, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
+            description = "Malformed JSON body, missing field, `id` in the path that is not an integer, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `name`: must be at most 64 characters")

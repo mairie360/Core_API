@@ -9,3 +9,7 @@
 10023	OUTOFSCOPE	.*/api-docs/openapi\.json
 100000	OUTOFSCOPE	.*/(auth|admin)/keycloak.*
 100001	OUTOFSCOPE	.*/swagger-ui/.*
+40012	IGNORE	Cross Site Scripting (Reflected): JSON / text API served with nosniff, escaping is the fronts job (MAIR-426)
+40014	IGNORE	Cross Site Scripting (Persistent): same reason (MAIR-426)
+40016	IGNORE	Cross Site Scripting (Persistent) - Prime: same reason (MAIR-426)
+40017	IGNORE	Cross Site Scripting (Persistent) - Spider: same reason (MAIR-426)
