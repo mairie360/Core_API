@@ -2,6 +2,7 @@ mod delete;
 pub mod doc;
 mod get;
 mod patch;
+pub mod read_access;
 mod users;
 
 use actix_web::middleware::from_fn;

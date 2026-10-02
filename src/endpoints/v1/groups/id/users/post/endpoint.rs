@@ -5,18 +5,19 @@ use actix_web::{post, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum PostUserGroupError {
-    // BadRequest,
+    GroupMismatch,
     UnknowUser,
 }
 
 impl std::fmt::Display for PostUserGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            // PostUserGroupError::BadRequest => {
-            //     write!(f, "Bad request.")
-            // }
+            Self::GroupMismatch => write!(
+                f,
+                "The body `group_id` does not match the group of the path."
+            ),
             Self::UnknowUser => {
                 write!(f, "Unknow user.")
             }
@@ -27,7 +28,7 @@ impl std::fmt::Display for PostUserGroupError {
 impl ResponseError for PostUserGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            // PostUserGroupError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::GroupMismatch => StatusCode::BAD_REQUEST,
             Self::UnknowUser => StatusCode::NOT_FOUND,
         }
     }
@@ -37,16 +38,24 @@ impl ResponseError for PostUserGroupError {
     }
 }
 
+/// Adds the user to `group_id`, the group of the path: the one `access_guard_middleware` checked
+/// the `update` right on. The body cannot name another group (MAIR-390).
 async fn trigger_add_user_to_group(
     state: web::Data<AppState>,
+    group_id: u64,
     view: PostUserGroupView,
 ) -> Result<(), PostUserGroupError> {
-    let db_view = AddUserToGroupQueryView::new(view.group_id(), view.user_id());
-    state
-        .get_smart_db()
-        .execute(db_view)
-        .await
-        .map_err(|_| PostUserGroupError::UnknowUser)?;
+    if view
+        .body_group_id()
+        .is_some_and(|body_group| body_group != group_id)
+    {
+        return Err(PostUserGroupError::GroupMismatch);
+    }
+    let db_view = AddUserToGroupQueryView::new(group_id, view.user_id());
+    state.get_smart_db().execute(db_view).await.map_err(|e| {
+        eprintln!("Add user to group DB Error: {e}");
+        PostUserGroupError::UnknowUser
+    })?;
 
     Ok(())
 }
@@ -54,46 +63,54 @@ async fn trigger_add_user_to_group(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Ajouter un utilisateur à un groupe",
-    description = "Rattache un utilisateur à un groupe. À partir de là, le groupe apparaît dans le \
-                   `GET /api/v1/groups/` de cet utilisateur.\n\n\
-                   Attention : le groupe visé est celui du champ `group_id` du **corps**, pas celui \
-                   du chemin. Le `group_id` de l'URL est ignoré par le handler ; renseigner les \
-                   deux avec la même valeur pour éviter toute ambiguïté.\n\n\
-                   Cet endpoint ne vérifie pas non plus que l'appelant est propriétaire du groupe.",
+    summary = "Add a user to a group",
+    description = "Adds a user to the group of the path. From then on, the group appears in that \
+                   user's `GET /api/v1/groups/`, and the user inherits the group's access rights \
+                   in every API.\n\n\
+                   Requires the `update` right on the group (owner, `update_all`, or an ACL).\n\n\
+                   The group is always the `group_id` of the **path**, the one the right is \
+                   checked on. The body `group_id` is deprecated and optional: when sent, it must \
+                   equal the path's, otherwise the answer is `400`.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe. **Ignoré** : c'est le `group_id` du corps qui fait foi.", example = 3)
+        ("group_id" = u64, Path, description = "Id of the group to add the user to.", example = 3)
     ),
     request_body(
         content = PostUserGroupView,
-        description = "Utilisateur à rattacher et groupe de destination.",
-        example = json!({ "user_id": 42, "group_id": 3 })
+        description = "User to add.",
+        example = json!({ "user_id": 42 })
     ),
     responses(
         (
             status = 200,
-            description = "Utilisateur rattaché au groupe.",
+            description = "User added to the group.",
             body = String,
             content_type = "text/plain",
             example = json!("User added to group successfully")
         ),
         (
             status = 400,
-            description = "Corps JSON malformé ou champ obligatoire absent.",
+            description = "Malformed JSON body, missing `user_id`, or body `group_id` different from the path's `group_id`.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `user_id`")
+            example = json!("The body `group_id` does not match the group of the path.")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
-            example = json!("Jeton expiré")
+            example = json!("Unauthorized")
+        ),
+        (
+            status = 403,
+            description = "The caller has no `update` right on the group.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Insufficient permissions")
         ),
         (
             status = 404,
-            description = "`user_id` ou `group_id` ne correspond à rien, ou l'utilisateur est déjà membre du groupe.",
+            description = "The group does not exist (`Resource not found`, from the rights check), `user_id` matches no user, or the user is already a member of the group (`Unknow user.`).",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow user.")
@@ -108,8 +125,9 @@ async fn trigger_add_user_to_group(
 pub async fn add_user_to_group(
     _: AuthenticatedUser,
     state: web::Data<AppState>,
+    path: web::Path<u64>,
     view: web::Json<PostUserGroupView>,
 ) -> Result<impl Responder, PostUserGroupError> {
-    trigger_add_user_to_group(state, view.into_inner()).await?;
+    trigger_add_user_to_group(state, path.into_inner(), view.into_inner()).await?;
     Ok(HttpResponse::Ok().body("User added to group successfully"))
 }

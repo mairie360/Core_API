@@ -23,22 +23,28 @@ pub struct GetMeResponseView {
     /// Statut du compte tel qu'il est stocké en base.
     #[schema(example = "active")]
     status: String,
-    /// Nom du rôle principal de l'utilisateur. Chaîne vide s'il n'en a pas.
+    /// Deprecated: the first of `roles` (lowest role id), empty string when the user has none.
+    /// Read `roles` instead, a user can hold several roles.
     #[schema(example = "agent")]
+    #[deprecated(note = "read `roles`")]
     role: String,
+    /// Names of every role the user holds, ordered by role id. Empty when the user has none.
+    #[schema(example = json!(["agent", "manager"]))]
+    roles: Vec<String>,
     /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
 }
 
 impl GetMeResponseView {
     #[must_use]
+    #[allow(deprecated)]
     pub fn new(
         first_name: &str,
         last_name: &str,
         email: &str,
         phone: Option<&str>,
         status: &str,
-        role: &str,
+        roles: Vec<String>,
         groups: Vec<Group>,
     ) -> Self {
         Self {
@@ -47,7 +53,8 @@ impl GetMeResponseView {
             email: email.to_string(),
             phone: phone.map(std::string::ToString::to_string),
             status: status.to_string(),
-            role: role.to_string(),
+            role: roles.first().cloned().unwrap_or_default(),
+            roles,
             groups,
         }
     }
@@ -78,8 +85,14 @@ impl GetMeResponseView {
     }
 
     #[must_use]
+    #[allow(deprecated)]
     pub fn role(&self) -> &str {
         &self.role
+    }
+
+    #[must_use]
+    pub fn roles(&self) -> &[String] {
+        &self.roles
     }
 
     #[must_use]
@@ -89,6 +102,7 @@ impl GetMeResponseView {
 }
 
 impl Display for GetMeResponseView {
+    #[allow(deprecated)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -105,6 +119,7 @@ impl Display for GetMeResponseView {
 }
 
 impl From<GetUserByIdQueryResultView> for GetMeResponseView {
+    #[allow(deprecated)]
     fn from(query_result: GetUserByIdQueryResultView) -> Self {
         Self {
             first_name: query_result.first_name().to_string(),
@@ -115,6 +130,7 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
                 .map(std::string::ToString::to_string),
             status: query_result.status().to_string(),
             role: String::new(),
+            roles: Vec::new(),
             groups: Vec::new(),
         }
     }

@@ -1,6 +1,7 @@
 use crate::database::roles::can_delete_role::CanDeleteRoleQueryView;
 use crate::database::roles::delete_role::DeleteRoleQueryView;
 use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -136,6 +137,7 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
 )]
 #[delete("/{id}")]
 pub async fn admin_delete_role(
+    _: AdminUser,
     id: web::Path<u64>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, DeleteError> {

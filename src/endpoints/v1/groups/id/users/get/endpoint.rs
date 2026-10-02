@@ -1,23 +1,24 @@
 use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
 use crate::database::groups::get_group_members::GetGroupUsersQueryView;
+use crate::endpoints::v1::groups::id::read_access::can_read_group;
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum GetUsersGroupError {
-    BadRequest,
+    DatabaseError,
+    Forbidden,
     UnknowGroup,
 }
 
 impl std::fmt::Display for GetUsersGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest => {
-                write!(f, "Bad request")
-            }
+            Self::DatabaseError => write!(f, "An error occurred while accessing the database."),
+            Self::Forbidden => write!(f, "Insufficient permissions"),
             Self::UnknowGroup => {
                 write!(f, "Unknow group")
             }
@@ -28,7 +29,8 @@ impl std::fmt::Display for GetUsersGroupError {
 impl ResponseError for GetUsersGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::UnknowGroup => StatusCode::NOT_FOUND,
         }
     }
@@ -38,26 +40,36 @@ impl ResponseError for GetUsersGroupError {
     }
 }
 
+fn database_error(error: &impl std::fmt::Display) -> GetUsersGroupError {
+    eprintln!("Get group members DB Error: {error}");
+    GetUsersGroupError::DatabaseError
+}
+
 async fn trigger_get_group_members(
     state: web::Data<AppState>,
-    group_id: i32,
+    user_id: u64,
+    group_id: u64,
 ) -> Result<GetGroupUsersResultView, GetUsersGroupError> {
     let smart_db = state.get_smart_db();
 
-    let check_view = DoesGroupExistQuerView::new(group_id as u64);
-    let result: bool = smart_db
-        .fetch_scalar(&check_view)
+    let exists: bool = smart_db
+        .fetch_scalar(&DoesGroupExistQuerView::new(group_id))
         .await
-        .map_err(|_| GetUsersGroupError::UnknowGroup)?;
-    if !result {
+        .map_err(|e| database_error(&e))?;
+    if !exists {
         return Err(GetUsersGroupError::UnknowGroup);
     }
-
-    let view = GetGroupUsersQueryView::new(group_id as u64);
-    let result: Vec<i32> = smart_db
-        .fetch_all(&view)
+    if !can_read_group(smart_db, user_id, group_id)
         .await
-        .map_err(|_| GetUsersGroupError::BadRequest)?;
+        .map_err(|e| database_error(&e))?
+    {
+        return Err(GetUsersGroupError::Forbidden);
+    }
+
+    let result: Vec<i32> = smart_db
+        .fetch_all(&GetGroupUsersQueryView::new(group_id))
+        .await
+        .map_err(|e| database_error(&e))?;
 
     Ok(result.into())
 }
@@ -65,42 +77,49 @@ async fn trigger_get_group_members(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Lister les membres d'un groupe",
-    description = "Renvoie les identifiants des utilisateurs membres du groupe. Seuls les \
-                   identifiants sont renvoyés : pour obtenir leurs noms et adresses, les repasser \
-                   à `GET /api/v1/user/?ids=1,2,3`.\n\n\
-                   La liste est vide si le groupe n'a aucun membre — ce qui est le cas juste après \
-                   sa création, le propriétaire n'étant pas ajouté automatiquement.",
+    summary = "List the members of a group",
+    description = "Returns the ids of the group's members. Only ids are returned: pass them to \
+                   `GET /api/v1/user/?ids=1,2,3` for their names and addresses.\n\n\
+                   Restricted to the group's members (the owner is one, added when the group is \
+                   created) and to whoever holds the `read` right on it: a global `read_all` \
+                   (administrators, mayor) or an ACL. Anyone else gets `403`.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
+        ("group_id" = u64, Path, description = "Group id.", example = 3)
     ),
     responses(
         (
             status = 200,
-            description = "Identifiants des membres du groupe.",
+            description = "Ids of the group's members.",
             body = GetGroupUsersResultView,
             example = json!({ "users": [1, 2, 5] })
         ),
         (
-            status = 400,
-            description = "Échec de la lecture des membres une fois le groupe trouvé. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            status = 401,
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request")
+            example = json!("Unauthorized")
         ),
         (
-            status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            status = 403,
+            description = "The caller is not a member of the group and holds no `read` right on it.",
             body = String,
             content_type = "text/plain",
-            example = json!("Jeton expiré")
+            example = json!("Insufficient permissions")
         ),
         (
             status = 404,
-            description = "Aucun groupe ne porte cet identifiant.",
+            description = "No group has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow group")
+        ),
+        (
+            status = 500,
+            description = "Database failure while checking the rights or reading the members.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",
@@ -110,10 +129,10 @@ async fn trigger_get_group_members(
 )]
 #[get("/")]
 pub async fn get_group_members(
-    _: AuthenticatedUser,
+    user: AuthenticatedUser,
     state: web::Data<AppState>,
-    group_id: web::Path<i32>,
+    group_id: web::Path<u64>,
 ) -> Result<impl Responder, GetUsersGroupError> {
-    let result = trigger_get_group_members(state, group_id.into_inner()).await?;
+    let result = trigger_get_group_members(state, user.id, group_id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

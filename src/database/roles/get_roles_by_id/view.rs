@@ -3,15 +3,29 @@ use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+/// Roles whose id is in the list, ordered by id. Each row carries its id, so callers never pair
+/// two lists by index (MAIR-390).
 #[derive(serde::Deserialize)]
 pub struct GetRolesByIdQueryView {
     id: Vec<i32>,
+    params: Vec<QueryParam>,
 }
 
 impl GetRolesByIdQueryView {
     #[must_use]
-    pub const fn new(id: Vec<i32>) -> Self {
-        Self { id }
+    pub fn new(id: Vec<i32>) -> Self {
+        // `QueryParam` has no array variant: the ids travel as one comma-separated text parameter
+        // split back into an `int[]` by Postgres, so the SQL text stays a single static literal
+        // (it used to be rebuilt and leaked on every call).
+        let joined = id
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        Self {
+            id,
+            params: vec![QueryParam::Text(joined)],
+        }
     }
 
     #[must_use]
@@ -22,33 +36,15 @@ impl GetRolesByIdQueryView {
 
 impl ApiRequestDto for GetRolesByIdQueryView {
     fn query_sql(&self) -> &'static str {
-        // La liste d'IDs varie à chaque appel : `ANY($1)` n'est pas exprimable avec les variantes
-        // actuelles de `QueryParam` (pas de type "tableau"), donc on construit le tableau Postgres
-        // directement dans le texte (IDs entiers uniquement, donc pas d'injection possible) et on
-        // "leak" pour obtenir un &'static str, comme l'exige `ApiRequestDto`.
-        let ids = if self.id.is_empty() {
-            "ARRAY[]::int[]".to_string()
-        } else {
-            format!(
-                "ARRAY[{}]",
-                self.id
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
-        };
-
-        Box::leak(
-            format!(
-                "SELECT row_to_json(t) FROM (SELECT name, description, created_at, updated_at, can_be_deleted FROM roles WHERE id = ANY({ids})) t"
-            )
-            .into_boxed_str(),
-        )
+        "SELECT row_to_json(t) FROM (\
+            SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles \
+            WHERE id = ANY(string_to_array(NULLIF($1, ''), ',')::int[]) \
+            ORDER BY id\
+        ) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
-        &[]
+        &self.params
     }
 }
 
@@ -60,6 +56,7 @@ impl Display for GetRolesByIdQueryView {
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Role {
+    id: i32,
     name: String,
     description: Option<String>,
     created_at: DateTime<Utc>,
@@ -70,6 +67,7 @@ pub struct Role {
 impl Role {
     #[must_use]
     pub const fn new(
+        id: i32,
         name: String,
         description: Option<String>,
         created_at: DateTime<Utc>,
@@ -77,6 +75,7 @@ impl Role {
         can_be_deleted: bool,
     ) -> Self {
         Self {
+            id,
             name,
             description,
             created_at,
@@ -84,6 +83,11 @@ impl Role {
             can_be_deleted,
         }
     }
+    #[must_use]
+    pub const fn id(&self) -> i32 {
+        self.id
+    }
+
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
@@ -114,7 +118,8 @@ impl Display for Role {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Role: name={}, description={:?}, created_at={}, updated_at={:?}, can_be_deleted={}",
+            "Role: id={}, name={}, description={:?}, created_at={}, updated_at={:?}, can_be_deleted={}",
+            self.id,
             self.name, self.description, self.created_at, self.updated_at, self.can_be_deleted
         )
     }

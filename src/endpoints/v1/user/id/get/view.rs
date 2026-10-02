@@ -27,9 +27,14 @@ pub struct GetUserResponseView {
     /// `GET /api/v1/user/`, et ne peut plus se connecter.
     #[schema(example = false)]
     is_archived: bool,
-    /// Nom du rôle principal de l'utilisateur. Chaîne vide s'il n'en a pas.
+    /// Deprecated: the first of `roles` (lowest role id), empty string when the user has none.
+    /// Read `roles` instead, a user can hold several roles.
     #[schema(example = "agent")]
+    #[deprecated(note = "read `roles`")]
     role: String,
+    /// Names of every role the user holds, ordered by role id. Empty when the user has none.
+    #[schema(example = json!(["agent", "manager"]))]
+    roles: Vec<String>,
     /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
 }
@@ -37,6 +42,7 @@ pub struct GetUserResponseView {
 impl GetUserResponseView {
     #[allow(clippy::too_many_arguments)]
     #[must_use]
+    #[allow(deprecated)]
     pub fn new(
         first_name: &str,
         last_name: &str,
@@ -44,7 +50,7 @@ impl GetUserResponseView {
         phone: Option<&str>,
         status: &str,
         is_archived: bool,
-        role: &str,
+        roles: Vec<String>,
         groups: Vec<Group>,
     ) -> Self {
         Self {
@@ -54,7 +60,8 @@ impl GetUserResponseView {
             phone: phone.map(std::string::ToString::to_string),
             status: status.to_string(),
             is_archived,
-            role: role.to_string(),
+            role: roles.first().cloned().unwrap_or_default(),
+            roles,
             groups,
         }
     }
@@ -90,12 +97,19 @@ impl GetUserResponseView {
     }
 
     #[must_use]
+    #[allow(deprecated)]
     pub fn role(&self) -> &str {
         &self.role
+    }
+
+    #[must_use]
+    pub fn roles(&self) -> &[String] {
+        &self.roles
     }
 }
 
 impl Display for GetUserResponseView {
+    #[allow(deprecated)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -112,6 +126,7 @@ impl Display for GetUserResponseView {
 }
 
 impl From<GetUserByIdQueryResultView> for GetUserResponseView {
+    #[allow(deprecated)]
     fn from(query_result: GetUserByIdQueryResultView) -> Self {
         Self {
             first_name: query_result.first_name().to_string(),
@@ -123,6 +138,7 @@ impl From<GetUserByIdQueryResultView> for GetUserResponseView {
             status: query_result.status().to_string(),
             is_archived: query_result.is_archived(),
             role: String::new(),
+            roles: Vec::new(),
             groups: vec![],
         }
     }

@@ -5,7 +5,6 @@ pub mod get_active_session_ids;
 pub mod get_active_session_user_id;
 pub mod get_active_sessions;
 pub mod get_session_by_token;
-pub mod get_sessions;
 pub mod get_sessions_by_user;
 pub mod is_session_active;
 pub mod revoke_current_session;
@@ -13,6 +12,7 @@ pub mod revoke_session;
 pub mod revoke_session_by_id;
 pub mod revoke_session_by_token;
 pub mod revoke_user_sessions;
+pub mod rotate_refresh_token;
 
 mod view;
 pub use view::Session;

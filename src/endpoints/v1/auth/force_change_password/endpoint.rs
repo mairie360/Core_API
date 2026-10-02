@@ -1,10 +1,12 @@
+use crate::client_ip::client_ip;
 use crate::database::auth::is_first_time::IsFirstTimeQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::http::StatusCode;
-use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
@@ -13,6 +15,7 @@ use mairie360_api_lib::state::AppState;
 enum ForceChanhePasswordError {
     DatabaseError,
     Forbidden,
+    TooManyRequests(u64),
     Unauthorized,
 }
 
@@ -25,6 +28,7 @@ impl std::fmt::Display for ForceChanhePasswordError {
             Self::Forbidden => {
                 write!(f, "Unknown user token")
             }
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::Unauthorized => {
                 write!(f, "Unauthorized")
             }
@@ -37,11 +41,15 @@ impl ResponseError for ForceChanhePasswordError {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
+        if let Self::TooManyRequests(retry_after) = self {
+            return too_many_requests_response(*retry_after);
+        }
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
 }
@@ -124,17 +132,19 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
 #[utoipa::path(
     post,
     path = "",
-    summary = "Changer le mot de passe imposé à la première connexion",
-    description = "Termine le parcours de première connexion : `POST /api/v1/auth/login` répond \
-                   `412` avec un jeton à usage unique tant que l'utilisateur n'a pas choisi son \
-                   propre mot de passe. Cet endpoint consomme ce jeton et enregistre le nouveau \
-                   mot de passe ; l'utilisateur peut ensuite se connecter normalement.\n\n\
-                   Contrairement à `reset_password`, aucune session n'est ouverte ici : la réponse \
-                   a un corps vide et il faut rappeler `POST /api/v1/auth/login`.\n\n\
-                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.",
+    summary = "Change the password imposed at the first connection",
+    description = "Ends the first-connection flow: `POST /api/v1/auth/login` answers `412` with a \
+                   one-time token when the correct initial password is given and the user has not \
+                   chosen their own password yet. This endpoint consumes that token and stores the \
+                   new password; the user can then log in normally.\n\n\
+                   Unlike `reset_password`, no session is opened here: the response body is empty \
+                   and `POST /api/v1/auth/login` must be called again.\n\n\
+                   Public route: `JwtMiddleware` lets everything under `/auth` through. Rate \
+                   limited together with `reset_password`: 10 requests per 15 minutes per client \
+                   address, `429` beyond.",
     request_body(
         content = ForceChangePasswordView,
-        description = "Jeton de première connexion renvoyé par le `412` du login, et nouveau mot de passe.",
+        description = "First-connection token returned by the login `412`, and the new password.",
         example = json!({
             "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35",
             "new_password": "NouveauMotDePasse!123"
@@ -143,32 +153,42 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
     responses(
         (
             status = 200,
-            description = "Mot de passe enregistré et jeton de première connexion consommé. Corps vide.",
+            description = "Password stored and first-connection token consumed. Empty body.",
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `token` longer than 512 characters or containing a control character, or `new_password` empty, longer than 255 characters or containing a control character.",
+            description = "Malformed JSON body, missing field, `token` longer than 512 characters or containing a control character, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must not contain control characters")
+            example = json!("Invalid `new_password`: must be at least 8 characters")
         ),
         (
             status = 401,
-            description = "Le jeton est valide mais le compte n'est plus en première connexion : le mot de passe a déjà été changé.",
+            description = "The token is valid but the account is no longer in its first connection: the password was already changed.",
             body = String,
             content_type = "text/plain",
             example = json!("Unauthorized")
         ),
         (
             status = 403,
-            description = "Jeton de première connexion inconnu, expiré ou déjà consommé.",
+            description = "Unknown, expired or already consumed first-connection token.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown user token")
         ),
         (
+            status = 429,
+            description = "Too many requests from this client address. The `Retry-After` header gives the number of seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Retry-After" = u64, description = "Seconds to wait before the next request.")
+            ),
+            example = json!("Too many requests, please try again later.")
+        ),
+        (
             status = 500,
-            description = "Erreur de base de données lors de l'enregistrement du mot de passe.",
+            description = "Database failure while storing the password.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -177,10 +197,23 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
     tag = "Auth"
 )]
 #[post("/force_change_password")]
+// actix-web runs each handler on a single-threaded runtime per worker: the future does not need
+// to be Send even though it holds an HttpRequest across an .await.
+#[allow(clippy::future_not_send)]
 pub async fn force_change_password(
     state: web::Data<AppState>,
     body: ValidatedJson<ForceChangePasswordView>,
+    limits: Option<web::Data<RateLimits>>,
+    request: HttpRequest,
 ) -> Result<impl Responder, ForceChanhePasswordError> {
+    if let Some(limits) = limits {
+        limits
+            .password_token_per_ip
+            .hit(&ip_key(client_ip(&request)))
+            .map_err(|refused| {
+                ForceChanhePasswordError::TooManyRequests(refused.retry_after_seconds)
+            })?;
+    }
     force_change_password_trigger(state, body.into_inner()).await?;
     Ok(HttpResponse::Ok())
 }

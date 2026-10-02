@@ -133,6 +133,8 @@ services:
       SMTP_PORT: "1025" # Port SMTP de mailpit
       SMTP_USERNAME: "" # Pas besoin d'authentification en local
       SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      # k6 logs in, refreshes and resets passwords far beyond the auth rate limits (MAIR-390).
+      RATE_LIMIT_ENABLED: "false"
       EMAIL_FROM: "noreply.mairie360@dev.local"
     depends_on:
       liquibase:

@@ -21,7 +21,7 @@ async fn test_login_user_success() {
 
     assert_eq!(
         result,
-        LoginUserQueryResultView::new(1, seed_password_hash().to_string(), true)
+        LoginUserQueryResultView::new(1, Some(seed_password_hash().to_string()), true)
     );
 }
 

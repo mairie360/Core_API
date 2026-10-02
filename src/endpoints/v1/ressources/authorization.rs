@@ -1,6 +1,6 @@
 //! Who may manage the accesses (ACL entries) of a resource instance.
 //!
-//! An administrator (same `is_admin()` rule as `AdminMiddleware` on `/admin`) may manage any
+//! An administrator (same `is_admin()` rule as `admin_guard` on `/admin`) may manage any
 //! instance. Anybody else must own the instance: its `owner_id` equals the caller's id. Only the
 //! resource types listed in `IsOwnerQueryView` have an owner; the others are admin-only.
 

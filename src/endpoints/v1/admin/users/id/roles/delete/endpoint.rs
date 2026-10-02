@@ -1,3 +1,4 @@
+use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -183,6 +184,7 @@ async fn remove_role_from_user(
 )]
 #[delete("/{roleId}")]
 pub async fn admin_delete_user_role(
+    _: AdminUser,
     state: web::Data<AppState>,
     admin: Option<web::Data<KeycloakAdminClient>>,
     params: web::Path<(u64, u64)>,

@@ -42,8 +42,8 @@ impl Display for LoginView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "LoginView {{ email: {}, password: {}, device_info: {} }}",
-            self.email, self.password, self.device_info
+            "LoginView {{ email: [PROTECTED], password: [PROTECTED], device_info: {} }}",
+            self.device_info
         )
     }
 }
@@ -71,11 +71,7 @@ impl LoginResponseView {
 
 impl Display for LoginResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "LoginResponseView {{ refresh_token: {} }}",
-            self.refresh_token
-        )
+        write!(f, "LoginResponseView {{ refresh_token: [PROTECTED] }}")
     }
 }
 
@@ -113,7 +109,7 @@ impl LoginFirstConnectionResponseView {
 
 impl Display for LoginFirstConnectionResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ \"token\": {} }}", self.token)
+        write!(f, "{{ \"token\": [PROTECTED] }}")
     }
 }
 

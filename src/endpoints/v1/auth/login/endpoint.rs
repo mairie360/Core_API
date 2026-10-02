@@ -1,21 +1,21 @@
 use super::view::{LoginResponseView, LoginView};
+use crate::client_ip::client_ip;
 use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
+use crate::refresh_token;
 use crate::session_jwt::generate_session_jwt;
-use actix_web::{
-    dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
-};
-use base64::{engine::general_purpose, Engine as _};
+use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
-use rand::fill;
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub enum LoginError {
     InvalidCredentials,
     RedisError,
     TokenGenerationError,
+    TooManyRequests(u64),
 }
 
 impl std::fmt::Display for LoginError {
@@ -35,10 +36,12 @@ impl std::fmt::Display for LoginError {
                 write!(f, "An error occurred while accessing the database.")
             }
             Self::TokenGenerationError => write!(f, "Failed to generate JWT token."),
-            Self::FirstConnectError(token) => {
-                write!(f, "{token}")
+            // Never the token itself: the error message ends up in logs and traces.
+            Self::FirstConnectError(_) => {
+                write!(f, "First connection: the password must be changed.")
             }
             Self::RedisError => write!(f, "Internal Redis error."),
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
         }
     }
 }
@@ -51,27 +54,20 @@ impl ResponseError for LoginError {
             }
             Self::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
             Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
-        if self.status_code() == StatusCode::PRECONDITION_FAILED {
+        if let Self::TooManyRequests(retry_after) = self {
+            return too_many_requests_response(*retry_after);
+        }
+        if let Self::FirstConnectError(token) = self {
             return HttpResponse::build(self.status_code())
-                .json(LoginFirstConnectionResponseView::new(self.to_string()));
+                .json(LoginFirstConnectionResponseView::new(token.clone()));
         }
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
-}
-
-fn generate_refresh_token() -> String {
-    // 32 octets (256 bits) est un standard de sécurité solide
-    let mut buffer = [0u8; 32];
-
-    // Remplissage avec des données aléatoires sécurisées
-    fill(&mut buffer);
-
-    // Encodage en Base64 pour avoir une String lisible
-    general_purpose::URL_SAFE_NO_PAD.encode(buffer)
 }
 
 /// # Errors
@@ -83,15 +79,16 @@ pub async fn generate_session(
     ip_adress: std::net::IpAddr,
     state: web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
-    let refresh_token = generate_refresh_token();
+    let refresh_token = refresh_token::generate();
     // The session id is chosen here so the JWT can carry it (`sid` claim): logout revokes exactly
     // this session, and the JWT stops working once it is revoked (MAIR-226). Each login keeps its
     // own session: other devices' sessions stay active.
     let session_id = Uuid::new_v4();
+    // Only the digest is stored: the token itself never reaches the database (MAIR-390).
     let view = CreateSessionQueryView::with_id(
         session_id,
         user_id,
-        &refresh_token,
+        &refresh_token::hash(&refresh_token),
         device_info,
         ip_adress,
     );
@@ -164,6 +161,33 @@ async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plai
     }
 }
 
+/// Argon2id hash of a random value, verified against when the e-mail matches no account (or a
+/// passwordless one) so the answer takes as long as for a real account: the response time does
+/// not tell which addresses have an account.
+static DUMMY_PASSWORD_HASH: LazyLock<Option<String>> =
+    LazyLock::new(|| hash_password(&refresh_token::generate()).ok());
+
+fn burn_password_verification(password: &str) {
+    if let Some(dummy) = DUMMY_PASSWORD_HASH.as_deref() {
+        let _ = verify_password(password, dummy);
+    }
+}
+
+/// Checks `password` against the stored value, hashed or legacy plaintext.
+pub(crate) fn is_password_valid(user_id: i32, password: &str, stored_password: &str) -> bool {
+    // Accounts created before the password migration still hold a plaintext password: compare it
+    // directly (the caller then replaces it with a hash). Everything hashed already goes through
+    // `verify_password`, which only accepts a value `is_hashed` agrees is an argon2id PHC string.
+    if is_hashed(stored_password) {
+        verify_password(password, stored_password).unwrap_or_else(|e| {
+            eprintln!("Failed to verify the password hash of user {user_id}: {e}");
+            false
+        })
+    } else {
+        password == stored_password.trim()
+    }
+}
+
 async fn login_user(
     login_view: &LoginView,
     state: web::Data<AppState>,
@@ -184,52 +208,39 @@ async fn login_user(
         }
     };
 
-    let Some(user) = user_record else {
-        eprintln!(
-            "Login failed: Invalid credentials for {}",
-            login_view.email()
-        );
+    // Unknown, archived and passwordless (Keycloak-only) accounts all answer `401`, after the
+    // same password verification work as a real account.
+    let Some((user, stored_password)) = user_record.and_then(|user| {
+        let stored_password = user.password()?.to_string();
+        Some((user, stored_password))
+    }) else {
+        burn_password_verification(&login_view.password());
         return Err(LoginError::InvalidCredentials);
     };
 
-    if user.first_connect() {
-        return Err(LoginError::FirstConnectError(
-            generate_first_connection_token(user.user_id() as u64, state).await?,
-        ));
-    }
-
-    let stored_password = user.password();
-    // Accounts created before this migration still hold a plaintext password: compare it
-    // directly and, on success, replace it with a hash so the plaintext value is never read
-    // again. Everything hashed already goes through `verify_password`, which only accepts a
-    // value `is_hashed` agrees is an argon2id PHC string.
-    let credentials_valid = if is_hashed(stored_password) {
-        verify_password(&login_view.password(), stored_password).unwrap_or_else(|e| {
-            eprintln!(
-                "Failed to verify password hash for {}: {e}",
-                login_view.email()
-            );
-            false
-        })
-    } else {
-        login_view.password() == stored_password.trim()
-    };
-
-    if !credentials_valid {
+    // The password is checked before anything else, the first-connection token included: knowing
+    // the e-mail of a new account must not be enough to choose its password (MAIR-390).
+    if !is_password_valid(user.user_id(), &login_view.password(), &stored_password) {
         eprintln!(
-            "Login failed: Invalid credentials for {}",
-            login_view.email()
+            "Login failed: invalid credentials for user {}",
+            user.user_id()
         );
         return Err(LoginError::InvalidCredentials);
     }
 
-    if !is_hashed(stored_password) {
+    if !is_hashed(&stored_password) {
         migrate_plaintext_password(
             state.get_smart_db(),
             user.user_id() as u64,
             &login_view.password(),
         )
         .await;
+    }
+
+    if user.first_connect() {
+        return Err(LoginError::FirstConnectError(
+            generate_first_connection_token(user.user_id() as u64, state).await?,
+        ));
     }
 
     generate_session(
@@ -241,36 +252,55 @@ async fn login_user(
     .await
 }
 
+/// Counts the attempt against the per-address and per-account budgets.
+fn check_rate_limits(
+    limits: Option<&RateLimits>,
+    ip_address: std::net::IpAddr,
+    email: &str,
+) -> Result<(), LoginError> {
+    let Some(limits) = limits else {
+        return Ok(());
+    };
+    limits
+        .login_per_ip
+        .hit(&ip_key(ip_address))
+        .and_then(|()| limits.login_per_email.hit(&email_key(email)))
+        .map_err(|refused| LoginError::TooManyRequests(refused.retry_after_seconds))
+}
+
 #[utoipa::path(
     post,
     path = "",
-    summary = "Se connecter",
-    description = "Authentifie un utilisateur par e-mail et mot de passe, ouvre une session et \
-                   renvoie un JWT dans l'en-tête `Authorization` ainsi qu'un jeton de \
-                   rafraîchissement dans le corps. Route publique : le `JwtMiddleware` laisse \
-                   passer tout ce qui est sous `/auth`.\n\n\
-                   La session est liée à l'adresse IP d'origine : le rafraîchissement et la \
-                   révocation devront repasser par la même adresse.\n\n\
-                   Tant que l'utilisateur n'a pas choisi son propre mot de passe, la réponse est \
-                   `412` et non `200` : elle porte alors un jeton de première connexion à \
-                   présenter à `POST /api/v1/auth/force_change_password`. C'est le seul statut \
-                   d'erreur de cette opération dont le corps est du JSON et non du texte brut.",
+    summary = "Log in",
+    description = "Authenticates a user by e-mail and password, opens a session and returns a JWT \
+                   in the `Authorization` header plus a refresh token in the body. Public route: \
+                   `JwtMiddleware` lets everything under `/auth` through.\n\n\
+                   The password is always checked first: an unknown address, an archived account, \
+                   an account without a password (Keycloak only) and a wrong password all answer \
+                   the same `401`, in the same time.\n\n\
+                   Until the user has chosen their own password, a **correct** password answers \
+                   `412` instead of `200`: its JSON body carries a first-connection token to \
+                   present to `POST /api/v1/auth/force_change_password`, and no session is \
+                   opened. It is the only error status of this operation whose body is JSON and \
+                   not plain text.\n\n\
+                   Rate limited: 30 attempts per minute per client address and 10 per 15 minutes \
+                   per e-mail address, successful or not; beyond that the answer is `429`.",
     request_body(
         content = LoginView,
-        description = "Identifiants de l'utilisateur et description de l'appareil utilisé.",
+        description = "Credentials of the user and description of the device used.",
         example = json!({
             "email": "jean.dupont@mairie360.fr",
             "password": "MotDePasse!123",
-            "device_info": "Chrome 140 sur Windows 11"
+            "device_info": "Chrome 140 on Windows 11"
         })
     ),
     responses(
         (
             status = 200,
-            description = "Connexion réussie. Le JWT est renvoyé dans l'en-tête `Authorization`, le jeton de rafraîchissement dans le corps.",
+            description = "Logged in. The JWT is returned in the `Authorization` header, the refresh token in the body.",
             body = LoginResponseView,
             headers(
-                ("Authorization" = String, description = "JWT d'accès, préfixé par `Bearer `.")
+                ("Authorization" = String, description = "Access JWT, prefixed with `Bearer `.")
             ),
             example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
         ),
@@ -283,20 +313,30 @@ async fn login_user(
         ),
         (
             status = 401,
-            description = "Adresse e-mail inconnue ou mot de passe incorrect.",
+            description = "Unknown e-mail address, archived account, account without a password, or wrong password. The cases are not told apart.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid credentials provided.")
         ),
         (
             status = 412,
-            description = "Première connexion : le mot de passe doit être changé via `/api/v1/auth/force_change_password` en utilisant le jeton renvoyé.",
+            description = "First connection, with the correct password: the password must be changed through `/api/v1/auth/force_change_password` with the returned token. No session is opened.",
             body = LoginFirstConnectionResponseView,
             example = json!({ "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35" })
         ),
         (
+            status = 429,
+            description = "Too many attempts from this client address or for this e-mail address. The `Retry-After` header gives the number of seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Retry-After" = u64, description = "Seconds to wait before the next attempt.")
+            ),
+            example = json!("Too many requests, please try again later.")
+        ),
+        (
             status = 500,
-            description = "Erreur interne : base de données, Redis ou génération du JWT.",
+            description = "Internal error: database, Redis or JWT generation.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -305,16 +345,22 @@ async fn login_user(
     tag = "Auth"
 )]
 #[post("/login")]
+// actix-web runs each handler on a single-threaded runtime per worker: the future does not need
+// to be Send even though it holds an HttpRequest across an .await.
+#[allow(clippy::future_not_send)]
 pub async fn login(
     payload: ValidatedJson<LoginView>,
     state: web::Data<AppState>,
-    conn: ConnectionInfo,
+    limits: Option<web::Data<RateLimits>>,
+    request: HttpRequest,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
-    let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
-    let ip_address = ip_str
-        .parse::<std::net::IpAddr>()
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    let ip_address = client_ip(&request);
+    check_rate_limits(
+        limits.as_ref().map(web::Data::get_ref),
+        ip_address,
+        &login_view.email(),
+    )?;
 
     let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
 

@@ -1,8 +1,12 @@
 name: CoreAPI CI/CD
 
+# Pull requests run lint, build and tests; a push to `main` also runs the releases and the
+# integration, ZAP and k6 stacks (the reusable workflow gates them on `refs/heads/main`).
 on:
   workflow_dispatch:
+  pull_request:
   push:
+    branches: [main]
 
 permissions:
   contents: read

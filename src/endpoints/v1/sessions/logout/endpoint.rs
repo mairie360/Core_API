@@ -1,6 +1,6 @@
 use crate::database::sessions::revoke_current_session::RevokeCurrentSessionQueryView;
-use crate::session_jwt::decode_session_jwt;
-use crate::session_revocation::publish_revoked_session;
+use crate::session_jwt::{decode_session_jwt, SessionClaims};
+use crate::session_revocation::{max_jwt_lifetime, publish_revoked_session};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::jwt_manager::get_jwt_from_request;
@@ -86,11 +86,9 @@ pub async fn logout(
     state: web::Data<AppState>,
 ) -> Result<impl Responder, LogoutError> {
     let claims = get_jwt_from_request(&request).and_then(|jwt| decode_session_jwt(&jwt).ok());
-    let session = claims
-        .as_ref()
-        .and_then(|claims| Some((claims.session_id()?, claims.remaining_lifetime())));
+    let session_id = claims.as_ref().and_then(SessionClaims::session_id);
 
-    if let Some((session_id, remaining_lifetime)) = session {
+    if let Some(session_id) = session_id {
         state
             .get_smart_db()
             .execute(RevokeCurrentSessionQueryView::new(session_id, user.id))
@@ -101,7 +99,9 @@ pub async fn logout(
             })?;
         // Other APIs refuse the JWT through the shared revocation list (MAIR-264). A failure is
         // reported: logging out again retries the write.
-        publish_revoked_session(state.get_redis(), session_id, remaining_lifetime)
+        // For the full `JWT_TIMEOUT`, not the remaining lifetime of the presented JWT: a refresh
+        // may have issued a newer JWT of the same session that outlives it (MAIR-390).
+        publish_revoked_session(state.get_redis(), session_id, max_jwt_lifetime())
             .await
             .map_err(|e| {
                 eprintln!("Logout Redis Error: {e}");

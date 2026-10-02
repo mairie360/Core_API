@@ -1,7 +1,12 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
-#[derive(Debug)]
+/// Partial update of an account: only the fields given as `Some` are written.
+///
+/// The SQL text is one static literal (MAIR-390): each column is paired with a boolean telling
+/// whether it changes, `CASE WHEN <flag> THEN <value> ELSE <column> END`. It used to be rebuilt
+/// for every call and leaked to get a `&'static str`.
+#[derive(Debug, serde::Deserialize)]
 pub struct PatchUserQueryView {
     id: u64,
     first_name: Option<String>,
@@ -9,13 +14,15 @@ pub struct PatchUserQueryView {
     email: Option<String>,
     phone_number: Option<String>,
     password: Option<String>,
-    // Cf. PatchRoleQueryView : le nombre/l'ordre des colonnes patchées varie selon les champs
-    // fournis, donc le texte SQL ne peut pas être un unique littéral statique. On le construit une
-    // fois dans `new()` (en ne liant que les valeurs réellement fournies, via des paramètres
-    // positionnés — donc sans l'interpolation de chaînes non paramétrée qu'utilisait l'ancienne
-    // implémentation de `get_request()`) et on le "leak" pour obtenir un &'static str.
-    sql: &'static str,
     params: Vec<QueryParam>,
+}
+
+/// Flag and value parameters of an optional column (empty text when unchanged, never written).
+fn column_params(value: Option<&str>) -> [QueryParam; 2] {
+    [
+        QueryParam::Bool(value.is_some()),
+        QueryParam::Text(value.unwrap_or_default().to_string()),
+    ]
 }
 
 impl PatchUserQueryView {
@@ -28,43 +35,11 @@ impl PatchUserQueryView {
         phone_number: Option<&str>,
         password: Option<&str>,
     ) -> Self {
-        let mut set_clauses: Vec<String> = Vec::new();
-        let mut params: Vec<QueryParam> = Vec::new();
-
-        if let Some(first_name) = first_name {
-            params.push(QueryParam::Text(first_name.to_string()));
-            set_clauses.push(format!("first_name = ${}", params.len()));
-        }
-        if let Some(last_name) = last_name {
-            params.push(QueryParam::Text(last_name.to_string()));
-            set_clauses.push(format!("last_name = ${}", params.len()));
-        }
-        if let Some(email) = email {
-            params.push(QueryParam::Text(email.to_string()));
-            set_clauses.push(format!("email = ${}", params.len()));
-        }
-        if let Some(phone_number) = phone_number {
-            params.push(QueryParam::Text(phone_number.to_string()));
-            set_clauses.push(format!("phone_number = ${}", params.len()));
-        }
-        if let Some(password) = password {
-            params.push(QueryParam::Text(password.to_string()));
-            set_clauses.push(format!("password = ${}", params.len()));
-        }
-
-        let sql: &'static str = if set_clauses.is_empty() {
-            ""
-        } else {
-            params.push(QueryParam::I32(id as i32));
-            Box::leak(
-                format!(
-                    "UPDATE users SET {} WHERE id = ${}",
-                    set_clauses.join(", "),
-                    params.len()
-                )
-                .into_boxed_str(),
-            )
-        };
+        let params = [first_name, last_name, email, phone_number, password]
+            .into_iter()
+            .flat_map(column_params)
+            .chain(std::iter::once(QueryParam::I32(id as i32)))
+            .collect();
 
         Self {
             id,
@@ -73,7 +48,6 @@ impl PatchUserQueryView {
             email: email.map(std::string::ToString::to_string),
             phone_number: phone_number.map(std::string::ToString::to_string),
             password: password.map(std::string::ToString::to_string),
-            sql,
             params,
         }
     }
@@ -104,28 +78,26 @@ impl PatchUserQueryView {
         self.password.as_deref()
     }
 
-    /// Vrai si aucun champ n'a été fourni : il n'y a alors rien à écrire en base.
+    /// True when no field was given: there is nothing to write.
     #[must_use]
     pub const fn is_noop(&self) -> bool {
-        self.sql.is_empty()
-    }
-}
-
-// Cf. PatchRoleQueryView : impl manuelle nécessaire à cause du champ `&'static str`.
-impl<'de> serde::Deserialize<'de> for PatchUserQueryView {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Err(serde::de::Error::custom(
-            "PatchUserQueryView is not deserializable",
-        ))
+        self.first_name.is_none()
+            && self.last_name.is_none()
+            && self.email.is_none()
+            && self.phone_number.is_none()
+            && self.password.is_none()
     }
 }
 
 impl ApiRequestDto for PatchUserQueryView {
     fn query_sql(&self) -> &'static str {
-        self.sql
+        "UPDATE users SET \
+            first_name = CASE WHEN $1 THEN $2 ELSE first_name END, \
+            last_name = CASE WHEN $3 THEN $4 ELSE last_name END, \
+            email = CASE WHEN $5 THEN $6 ELSE email END, \
+            phone_number = CASE WHEN $7 THEN $8 ELSE phone_number END, \
+            password = CASE WHEN $9 THEN $10 ELSE password END \
+         WHERE id = $11"
     }
 
     fn query_params(&self) -> &[QueryParam] {

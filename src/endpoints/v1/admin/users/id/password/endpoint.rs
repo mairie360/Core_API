@@ -1,9 +1,11 @@
 use crate::database::admin::reset_password::{
     AdminResetPasswordQueryView, AdminResetPasswordResult,
 };
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::users::id::password::view::{
     AdminResetPasswordView, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH,
 };
+use crate::endpoints::validation::ValidatedJson;
 use crate::session_revocation::publish_revoked_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::password::hash_password;
@@ -100,10 +102,10 @@ async fn reset_password(
         ),
         (
             status = 400,
-            description = "Corps JSON malformé, ou mot de passe de moins de 8 ou de plus de 255 caractères.",
+            description = "Malformed JSON body, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("The password must contain between 8 and 255 characters")
+            example = json!("Invalid `new_password`: must be at least 8 characters")
         ),
         (
             status = 401,
@@ -141,9 +143,10 @@ async fn reset_password(
 )]
 #[patch("/password")]
 pub async fn admin_reset_user_password(
+    _: AdminUser,
     state: web::Data<AppState>,
     path: web::Path<u64>,
-    view: web::Json<AdminResetPasswordView>,
+    view: ValidatedJson<AdminResetPasswordView>,
 ) -> Result<impl Responder, ResetPasswordError> {
     reset_password(state, path.into_inner(), view.into_inner()).await?;
 

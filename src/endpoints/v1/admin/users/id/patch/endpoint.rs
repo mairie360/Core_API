@@ -1,4 +1,9 @@
+use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::validation::ValidatedJson;
+use crate::session_revocation::revoke_all_user_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
@@ -12,7 +17,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PatchUserError {
-    UnknownUser,
+    EmailAlreadyUsed,
     DatabaseError,
     Keycloak(SyncError),
 }
@@ -20,7 +25,9 @@ enum PatchUserError {
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownUser => write!(f, "Unknown user"),
+            Self::EmailAlreadyUsed => {
+                write!(f, "Another account already uses this e-mail address.")
+            }
             Self::DatabaseError => write!(f, "Database error occurred"),
             Self::Keycloak(error) => write!(f, "{error}"),
         }
@@ -30,9 +37,8 @@ impl std::fmt::Display for PatchUserError {
 impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::UnknownUser => StatusCode::NOT_FOUND,
+            Self::EmailAlreadyUsed | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
@@ -71,10 +77,13 @@ async fn patch_in_core(
         hashed_password.as_deref(),
     );
     if !view.is_noop() {
-        smart_db
-            .execute(view)
-            .await
-            .map_err(|_| PatchUserError::UnknownUser)?;
+        smart_db.execute(view).await.map_err(|e| match e {
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchUserError::EmailAlreadyUsed,
+            e => {
+                eprintln!("Admin patch user DB Error: {e}");
+                PatchUserError::DatabaseError
+            }
+        })?;
     }
 
     Ok(())
@@ -147,9 +156,8 @@ async fn patch_user(
     description = "Partially updates an account: only the fields present in the body are \
                    written. Reserved to administrators.\n\n\
                    Unlike `PATCH /api/v1/user/me/`, an administrator can also change the \
-                   password here. For a reset that enforces the length rules, prefer \
-                   `PATCH /api/v1/admin/users/{userId}/password`, which checks them: the \
-                   `password` field of this endpoint is written without validation.\n\n\
+                   password here (same rules as `PATCH /api/v1/admin/users/{userId}/password`); \
+                   every session of the user is then revoked.\n\n\
                    An empty body is accepted and writes nothing. As the account's existence is \
                    not checked beforehand, an unknown `userId` then answers `200`.\n\n\
                    **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client \
@@ -158,7 +166,7 @@ async fn patch_user(
                    by the recorded link, then by e-mail; an account unknown to Keycloak is left \
                    to the migration and only Core is written). A new e-mail is written verified \
                    and does not change the Keycloak username. If Core then refuses the patch \
-                   (`404`), the former Keycloak profile is restored. `phone_number` and \
+                   (`409` or `500`), the former Keycloak profile is restored. `phone_number` and \
                    `password` are Core-only. Without Keycloak, or with a public client, only Core \
                    is written.",
     params(
@@ -182,17 +190,17 @@ async fn patch_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or `userId` in the path is not an integer.",
+            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `phone_number` 10 to 15 digits; `password` 8 to 255 characters without control character. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: invalid type: integer `42`, expected a string")
+            example = json!("Invalid `password`: must be at least 8 characters")
         ),
         (
             status = 401,
             description = "`Authorization` header missing, JWT invalid or expired, or session revoked.",
             body = String,
             content_type = "text/plain",
-            example = json!("Jeton expiré")
+            example = json!("Unauthorized")
         ),
         (
             status = 403,
@@ -202,22 +210,18 @@ async fn patch_user(
             example = json!("Forbidden: User is not an admin.")
         ),
         (
-            status = 404,
-            description = "The write failed: unknown `userId`, or e-mail already used by another account. The Keycloak profile, if it had been updated, is restored.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Unknown user")
-        ),
-        (
             status = 409,
-            description = "Another Keycloak account already uses the new e-mail. Nothing is changed.",
+            description = "Another Core account, or another Keycloak account, already uses the new e-mail. Nothing is changed (the Keycloak profile, if it had been updated, is restored).",
             body = String,
             content_type = "text/plain",
-            example = json!("Another Keycloak account already uses this e-mail address.")
+            examples(
+                ("Core" = (value = json!("Another account already uses this e-mail address."))),
+                ("Keycloak" = (value = json!("Another Keycloak account already uses this e-mail address.")))
+            )
         ),
         (
             status = 500,
-            description = "The account could not be read, its new password could not be hashed (internal argon2 error), or the Keycloak account found by e-mail is already linked to another Core account. Nothing is changed.",
+            description = "The account could not be read or written, its new password could not be hashed (internal argon2 error), its sessions could not be revoked after a password change, or the Keycloak account found by e-mail is already linked to another Core account.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -240,18 +244,32 @@ async fn patch_user(
 )]
 #[patch("/")]
 pub async fn admin_patch_user(
+    _: AdminUser,
     state: web::Data<AppState>,
     admin: Option<web::Data<KeycloakAdminClient>>,
     path: web::Path<u64>,
-    view: web::Json<PatchUserView>,
+    view: ValidatedJson<PatchUserView>,
 ) -> Result<impl Responder, PatchUserError> {
+    let user_id = path.into_inner();
+    let view = view.into_inner();
+    let password_changed = view.password().is_some();
     patch_user(
-        state,
+        state.clone(),
         admin.as_ref().map(web::Data::get_ref),
-        path.into_inner(),
-        view.into_inner(),
+        user_id,
+        view,
     )
     .await?;
+    if password_changed {
+        // A new password ends the sessions opened with the previous one, in every API, like
+        // `PATCH /admin/users/{userId}/password` (MAIR-390).
+        revoke_all_user_sessions(&state, user_id)
+            .await
+            .map_err(|e| {
+                eprintln!("Admin patch user: could not revoke the sessions of {user_id}: {e}");
+                PatchUserError::DatabaseError
+            })?;
+    }
 
     Ok(HttpResponse::Ok().body("User patched successfully!"))
 }

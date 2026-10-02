@@ -42,7 +42,10 @@ async fn change_password_success() {
         .await
         .unwrap();
 
-    assert_eq!(login_result.password().trim(), seed_password_hash());
+    assert_eq!(
+        login_result.password().map(str::trim),
+        Some(seed_password_hash())
+    );
 }
 
 #[tokio::test]

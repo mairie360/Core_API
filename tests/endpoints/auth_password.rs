@@ -80,7 +80,7 @@ async fn create_legacy_plaintext_user(
     transaction.commit().await.unwrap();
 }
 
-/// `Authorization` header of an administrator (`/admin` is guarded by `AdminMiddleware`).
+/// `Authorization` header of an administrator (`/admin` is guarded by `admin_guard`).
 fn admin_auth_header() -> (&'static str, String) {
     let admin_id = *ADMIN_ID.get().unwrap();
     let token = generate_jwt(&admin_id.to_string(), "user").unwrap();

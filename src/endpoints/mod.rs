@@ -1,3 +1,4 @@
+pub mod admin_guard;
 pub mod health;
 pub mod hello;
 pub mod session_guard;

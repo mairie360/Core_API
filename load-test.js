@@ -185,7 +185,7 @@ function deleteGroup(groupId) {
 }
 
 function addGroupMember(groupId, userId) {
-  fixture('POST', `/api/v1/groups/${groupId}/users/`, { group_id: groupId, user_id: userId });
+  fixture('POST', `/api/v1/groups/${groupId}/users/`, { user_id: userId });
 }
 
 /** Grants MEMBER_ID a `read` access on the group `groupId` (a resource instance of type `groups`). */
@@ -268,10 +268,16 @@ const writeHandlers = {
   'POST /api/v1/sessions/refresh': ({ request }) => {
     const account = activeAccount('refresh');
     const session = login(account);
-    check(request({ body: { refresh_token: session.refresh }, headers: bearer(session.jwt) }), {
-      'refresh 200': (r) => r.status === 200 && !!r.headers.Authorization,
+    const res = request({ body: { refresh_token: session.refresh }, headers: bearer(session.jwt) });
+    check(res, {
+      'refresh 200': (r) => r.status === 200 && !!r.headers.Authorization && !!r.json('refresh_token'),
     });
-    fixture('POST', '/api/v1/sessions/revoke', { refresh_token: session.refresh }, { headers: bearer(session.jwt) });
+    // The refresh token is rotated (MAIR-390): only the returned one still revokes the session.
+    if (res.status === 200) {
+      fixture('POST', '/api/v1/sessions/revoke', { refresh_token: res.json('refresh_token') }, {
+        headers: { Authorization: res.headers.Authorization },
+      });
+    }
     deleteUser(account.id);
   },
   'POST /api/v1/sessions/logout': ({ request }) => {
@@ -348,7 +354,7 @@ const writeHandlers = {
   'POST /api/v1/admin/users/{userId}/roles/': ({ request }) => {
     const account = registerAccount('grant');
     const roleId = createRole('grant');
-    check(request({ path: { userId: account.id }, body: { role_id: roleId, user_id: account.id } }), {
+    check(request({ path: { userId: account.id }, body: { role_id: roleId } }), {
       'grant role 200': (r) => r.status === 200,
     });
     fixture('DELETE', `/api/v1/admin/users/${account.id}/roles/${roleId}`);
@@ -358,7 +364,7 @@ const writeHandlers = {
   'DELETE /api/v1/admin/users/{userId}/roles/{roleId}': ({ request }) => {
     const account = registerAccount('revoke-role');
     const roleId = createRole('revoke');
-    fixture('POST', `/api/v1/admin/users/${account.id}/roles/`, { role_id: roleId, user_id: account.id });
+    fixture('POST', `/api/v1/admin/users/${account.id}/roles/`, { role_id: roleId });
     check(request({ path: { userId: account.id, roleId } }), { 'revoke role 204': (r) => r.status === 204 });
     deleteRole(roleId);
     deleteUser(account.id);
@@ -461,7 +467,7 @@ const writeHandlers = {
   },
   'POST /api/v1/groups/{group_id}/users/': ({ request }) => {
     const groupId = createGroup('add');
-    check(request({ path: { group_id: groupId }, body: { group_id: groupId, user_id: MEMBER_ID } }), {
+    check(request({ path: { group_id: groupId }, body: { user_id: MEMBER_ID } }), {
       'add group member 200': (r) => r.status === 200,
     });
     deleteGroup(groupId);

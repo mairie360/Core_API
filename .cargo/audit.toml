@@ -1,5 +1,14 @@
+# Advisories ignored on purpose. Re-check each entry when its crate is bumped and drop it as soon as
+# a fixed version is reachable (MAIR-390).
 [advisories]
 ignore = [
+    # rsa 0.9 (via jsonwebtoken `rust_crypto`), Marvin timing side channel. It leaks through
+    # private-key operations (decryption, signing); Core only signs HS256 JWTs and uses RSA to
+    # verify Keycloak tokens with the realm's public keys, so no private RSA key is ever used.
+    # No fixed rsa release exists yet.
     "RUSTSEC-2023-0071",
+    # h2 0.3 (via actix-http), unbounded empty DATA frames (HTTP/2 denial of service, fixed in
+    # h2 >= 0.4.16). actix-http 3 still pins h2 0.3, and Core only serves plain-text HTTP/1.1
+    # (`HttpServer::bind`, TLS ends at the ingress): its HTTP/2 code path is unreachable.
     "RUSTSEC-2026-0258"
 ]

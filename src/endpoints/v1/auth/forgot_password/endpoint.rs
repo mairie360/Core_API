@@ -1,12 +1,12 @@
-use crate::database::auth::is_first_time::IsFirstTimeQueryView;
-use crate::database::get_user_id::GetUserIdQueryView;
+use crate::client_ip::client_ip;
+use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FORGOT_PASSWORD_TTL_SECONDS};
 use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
-use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
@@ -18,6 +18,7 @@ enum ResetPasswordError {
     Database,
     Mail,
     Redis,
+    TooManyRequests(u64),
 }
 
 impl std::fmt::Display for ResetPasswordError {
@@ -32,42 +33,39 @@ impl std::fmt::Display for ResetPasswordError {
             Self::Redis => {
                 write!(f, "An error occurred while accessing Redis.")
             }
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
         }
     }
 }
 
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        match self {
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 
     fn error_response(&self) -> HttpResponse {
+        if let Self::TooManyRequests(retry_after) = self {
+            return too_many_requests_response(*retry_after);
+        }
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
 }
 
-/// Whether a reset e-mail may be sent to `email`: an account exists and is eligible.
+/// Whether a reset e-mail may be sent to `email`: a non-archived account uses it. Activated
+/// accounts are eligible too (MAIR-390): before, only accounts still waiting for their first
+/// connection were, so a user who forgot their password silently received nothing.
 async fn is_eligible(smart_db: &SmartDatabase, email: &str) -> Result<bool, ResetPasswordError> {
-    let view = DoesUserExistByEmailQueryView::new(email.to_string());
-    let exists: bool = smart_db
-        .fetch_scalar(&view)
-        .await
-        .map_err(|_| ResetPasswordError::Database)?;
-    if !exists {
-        return Ok(false);
-    }
-
-    let view = GetUserIdQueryView::new(email);
-    let user_id = smart_db
-        .fetch_scalar::<i32, _>(&view)
-        .await
-        .map_err(|_| ResetPasswordError::Database)?;
-    let user_id = u64::try_from(user_id).map_err(|_| ResetPasswordError::Database)?;
-
     smart_db
-        .fetch_scalar::<bool, _>(&IsFirstTimeQueryView::new(user_id))
+        .fetch_scalar::<i32, _>(&GetActiveUserIdByEmailQueryView::new(email))
         .await
-        .map_err(|_| ResetPasswordError::Database)
+        .map(|user_id| user_id > 0)
+        .map_err(|e| {
+            eprintln!("Forgot password DB Error: {e}");
+            ResetPasswordError::Database
+        })
 }
 
 async fn handle_forgot_password(
@@ -171,7 +169,11 @@ async fn forgot_password_trigger(
                    same empty `200`**, whether the address is unknown, already has a pending \
                    reset (no second e-mail is sent until the first token is used) or matches an \
                    account. The token is never returned in the response. Only infrastructure \
-                   failures answer `500`.",
+                   failures answer `500`.\n\n\
+                   Every non-archived account is eligible, whether it was activated or not; an \
+                   archived account is treated like an unknown address.\n\n\
+                   Rate limited: 10 requests per 15 minutes per client address and 3 per hour per \
+                   e-mail address; beyond that the answer is `429`.",
     request_body(
         content = ForgotPasswordView,
         description = "E-mail address of the account to reset.",
@@ -190,6 +192,16 @@ async fn forgot_password_trigger(
             example = json!("Invalid `email`: must be a valid e-mail address")
         ),
         (
+            status = 429,
+            description = "Too many requests from this client address or for this e-mail address. The `Retry-After` header gives the number of seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Retry-After" = u64, description = "Seconds to wait before the next request.")
+            ),
+            example = json!("Too many requests, please try again later.")
+        ),
+        (
             status = 500,
             description = "Database or Redis failure, or the e-mail could not be sent.",
             body = String,
@@ -200,10 +212,27 @@ async fn forgot_password_trigger(
     tag = "Auth"
 )]
 #[post("/forgot_password")]
+// actix-web runs each handler on a single-threaded runtime per worker: the future does not need
+// to be Send even though it holds an HttpRequest across an .await.
+#[allow(clippy::future_not_send)]
 pub async fn forgot_password(
     state: web::Data<AppState>,
     body: ValidatedJson<ForgotPasswordView>,
+    limits: Option<web::Data<RateLimits>>,
+    request: HttpRequest,
 ) -> Result<impl Responder, ResetPasswordError> {
-    forgot_password_trigger(state, body.into_inner()).await?;
+    let view = body.into_inner();
+    if let Some(limits) = limits {
+        limits
+            .forgot_password_per_ip
+            .hit(&ip_key(client_ip(&request)))
+            .and_then(|()| {
+                limits
+                    .forgot_password_per_email
+                    .hit(&email_key(view.email()))
+            })
+            .map_err(|refused| ResetPasswordError::TooManyRequests(refused.retry_after_seconds))?;
+    }
+    forgot_password_trigger(state, view).await?;
     Ok(HttpResponse::Ok())
 }

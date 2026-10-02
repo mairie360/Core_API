@@ -4,6 +4,7 @@ use core_api::database::sessions::{
 };
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
+use core_api::refresh_token;
 use mairie360_api_lib::{
     security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
 };
@@ -38,7 +39,7 @@ async fn create_session(state: &web::Data<AppState>, token: &str) {
         .get_smart_db()
         .execute(CreateSessionQueryView::new(
             1,
-            token,
+            &refresh_token::hash(token),
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ))
@@ -86,7 +87,10 @@ async fn test_refresh_revoked_token_returns_401() {
     create_session(&state, &token).await;
     state
         .get_smart_db()
-        .execute(RevokeSessionByTokenQueryView::new(1, &token))
+        .execute(RevokeSessionByTokenQueryView::new(
+            1,
+            &refresh_token::hash(&token),
+        ))
         .await
         .unwrap();
 

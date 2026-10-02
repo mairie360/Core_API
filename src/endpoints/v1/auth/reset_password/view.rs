@@ -1,5 +1,5 @@
 use crate::endpoints::validation::{
-    check_opaque, check_password, Validate, ValidationError, MAX_TOKEN_LENGTH,
+    check_opaque, check_password, Validate, ValidationError, MAX_TOKEN_LENGTH, MIN_PASSWORD_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -15,7 +15,7 @@ pub struct ResetPasswordView {
     )]
     token: String,
     /// Nouveau mot de passe en clair.
-    #[schema(min_length = 1, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
     /// Description libre de l'appareil, conservée sur la session ouverte par cet appel.
     #[schema(max_length = 512, example = "Chrome 140 sur Windows 11")]
@@ -63,8 +63,7 @@ impl Display for ResetPasswordResponseView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ResetPasswordResponseView {{ refresh_token: {} }}",
-            self.refresh_token
+            "ResetPasswordResponseView {{ refresh_token: [PROTECTED] }}"
         )
     }
 }
@@ -80,7 +79,7 @@ impl From<String> for ResetPasswordResponseView {
 impl Validate for ResetPasswordView {
     fn validate(&self) -> Result<(), ValidationError> {
         check_opaque("token", &self.token, MAX_TOKEN_LENGTH)?;
-        check_password("new_password", &self.new_password, 1)?;
+        check_password("new_password", &self.new_password, MIN_PASSWORD_LENGTH)?;
         check_opaque("device_info", &self.device_info, MAX_TOKEN_LENGTH)
     }
 }

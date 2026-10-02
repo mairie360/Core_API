@@ -1,6 +1,8 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::users::post::view::CreateUserView;
+use crate::endpoints::validation::ValidatedJson;
 use crate::keycloak::sync::{
     discard_account, export_user, invite, link_account, reserve_account, sync_roles,
     ReservedAccount, SyncError,
@@ -259,10 +261,10 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or e-mail, password or phone number breaking the rules above.",
+            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` 10 to 15 digits. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid data provided")
+            example = json!("Invalid `password`: must be at least 8 characters")
         ),
         (
             status = 401,
@@ -324,7 +326,8 @@ async fn register_user(
 )]
 #[post("/")]
 pub async fn admin_post_user(
-    payload: web::Json<CreateUserView>,
+    _: AdminUser,
+    payload: ValidatedJson<CreateUserView>,
     state: web::Data<AppState>,
     admin: Option<web::Data<KeycloakAdminClient>>,
 ) -> Result<impl Responder, CreateUserError> {

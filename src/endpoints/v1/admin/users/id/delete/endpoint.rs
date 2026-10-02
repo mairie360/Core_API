@@ -1,3 +1,4 @@
+use crate::endpoints::admin_guard::AdminUser;
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -70,10 +71,15 @@ async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUse
     let smart_db = state.get_smart_db();
     // The database drops the user's sessions with the account: read them first, to publish them
     // to the revocation list once the deletion succeeded (MAIR-264).
+    // A failure here is reported rather than ignored: archiving without publishing the sessions
+    // would leave their JWTs valid in the other APIs (MAIR-390).
     let sessions: Vec<Uuid> = smart_db
         .fetch_all(&GetActiveSessionIdsQueryView::new(user_id))
         .await
-        .unwrap_or_default();
+        .map_err(|e| {
+            eprintln!("Admin delete user: could not read the sessions of {user_id}: {e}");
+            DeleteUserError::DatabaseError
+        })?;
 
     smart_db
         .execute(DeleteUserQueryView::new(user_id))
@@ -222,6 +228,7 @@ async fn delete_user(
 )]
 #[delete("/")]
 pub async fn admin_delete_user(
+    _: AdminUser,
     state: web::Data<AppState>,
     admin: Option<web::Data<KeycloakAdminClient>>,
     path: web::Path<u64>,

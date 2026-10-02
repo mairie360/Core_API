@@ -1,4 +1,5 @@
 use crate::database::roles::get_roles::GetRolesQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::get::view::AdminGetRolesResultView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -89,7 +90,10 @@ async fn get_roles(state: web::Data<AppState>) -> Result<AdminGetRolesResultView
     tag = "Admin - Roles"
 )]
 #[get("/")]
-pub async fn admin_get_role(state: web::Data<AppState>) -> Result<impl Responder, GetError> {
+pub async fn admin_get_role(
+    _: AdminUser,
+    state: web::Data<AppState>,
+) -> Result<impl Responder, GetError> {
     let roles = get_roles(state).await?;
     Ok(HttpResponse::Ok().json(roles))
 }

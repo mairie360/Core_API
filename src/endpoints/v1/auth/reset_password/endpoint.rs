@@ -1,14 +1,15 @@
-use crate::database::auth::change_password::ChangePasswordQueryView;
-use crate::database::get_user_id::GetUserIdQueryView;
+use crate::client_ip::client_ip;
+use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
+use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
 };
 use crate::endpoints::validation::ValidatedJson;
+use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::session_revocation::revoke_all_user_sessions;
-use actix_web::dev::ConnectionInfo;
 use actix_web::http::StatusCode;
-use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
@@ -18,6 +19,7 @@ enum ResetPasswordError {
     DatabaseError,
     RedisError,
     TokenGenerationError,
+    TooManyRequests(u64),
     UnknownToken,
 }
 
@@ -30,6 +32,7 @@ impl std::fmt::Display for ResetPasswordError {
                     "The password could not be reset, please try again later."
                 )
             }
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::UnknownToken => {
                 write!(f, "Unknown token")
             }
@@ -43,23 +46,33 @@ impl ResponseError for ResetPasswordError {
             Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::UnknownToken => StatusCode::UNAUTHORIZED,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
+        if let Self::TooManyRequests(retry_after) = self {
+            return too_many_requests_response(*retry_after);
+        }
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
 }
 
+/// Id of the account the token was issued for. An account archived since the e-mail was sent
+/// answers like an unknown token.
 async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, ResetPasswordError> {
-    let view = GetUserIdQueryView::new(email);
-    smart_db
-        .fetch_scalar::<i32, _>(&view)
+    let user_id = smart_db
+        .fetch_scalar::<i32, _>(&GetActiveUserIdByEmailQueryView::new(email))
         .await
-        .map_or(Err(ResetPasswordError::DatabaseError), |user_id| {
-            Ok(user_id as u64)
-        })
+        .map_err(|e| {
+            eprintln!("Reset password DB Error: {e}");
+            ResetPasswordError::DatabaseError
+        })?;
+    u64::try_from(user_id)
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or(ResetPasswordError::UnknownToken)
 }
 
 async fn reset_pwd(
@@ -71,7 +84,9 @@ async fn reset_pwd(
         eprintln!("Password hashing error: {e}");
         ResetPasswordError::DatabaseError
     })?;
-    let view = ChangePasswordQueryView::new(&hashed_password, user_id);
+    // Proving ownership of the mailbox also completes a pending first connection: the account no
+    // longer asks for a password change at the next login (MAIR-390).
+    let view = UnsetFirstConnectionQueryView::new(user_id, &hashed_password);
     smart_db
         .execute(view)
         .await
@@ -95,13 +110,7 @@ async fn reset_password_trigger(
             return Err(ResetPasswordError::UnknownToken);
         }
     };
-    let user_id = match get_user_id(smart_db, &email).await {
-        Ok(user_id) => user_id,
-        Err(e) => {
-            eprintln!("Failed to get user ID: {e:?}");
-            return Err(e);
-        }
-    };
+    let user_id = get_user_id(smart_db, &email).await?;
 
     let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
@@ -136,44 +145,59 @@ async fn reset_password_trigger(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Réinitialiser un mot de passe avec un jeton",
-    description = "Consomme le jeton envoyé par `POST /api/v1/auth/forgot_password`, enregistre le \
-                   nouveau mot de passe et ouvre immédiatement une session : la réponse contient un \
-                   JWT dans l'en-tête `Authorization` et un jeton de rafraîchissement dans le corps, \
-                   comme un login. Un second appel avec le même jeton répond `401`.\n\n\
-                   Route publique : le `JwtMiddleware` laisse passer tout ce qui est sous `/auth`.",
+    summary = "Reset a password with a token",
+    description = "Consumes the token sent by `POST /api/v1/auth/forgot_password`, stores the new \
+                   password and immediately opens a session: the response carries a JWT in the \
+                   `Authorization` header and a refresh token in the body, like a login. A second \
+                   call with the same token answers `401`.\n\n\
+                   Every other session of the account is revoked, and an account still waiting \
+                   for its first connection is activated: the next login no longer answers \
+                   `412`.\n\n\
+                   Public route: `JwtMiddleware` lets everything under `/auth` through. Rate \
+                   limited together with `force_change_password`: 10 requests per 15 minutes per \
+                   client address, `429` beyond.",
     request_body(
         content = ResetPasswordView,
-        description = "Jeton reçu par e-mail, nouveau mot de passe et description de l'appareil.",
+        description = "Token received by e-mail, new password and description of the device.",
         example = json!({
             "token": "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35",
             "new_password": "NouveauMotDePasse!123",
-            "device_info": "Chrome 140 sur Windows 11"
+            "device_info": "Chrome 140 on Windows 11"
         })
     ),
     responses(
         (
             status = 200,
-            description = "Mot de passe réinitialisé et session ouverte.",
+            description = "Password reset and session opened.",
             body = ResetPasswordResponseView,
             headers(
-                ("Authorization" = String, description = "JWT d'accès, préfixé par `Bearer `.")
+                ("Authorization" = String, description = "Access JWT, prefixed with `Bearer `.")
             ),
             example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` empty, longer than 255 characters or containing a control character.",
+            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `token`: must not contain control characters")
+            example = json!("Invalid `new_password`: must be at least 8 characters")
         ),
         (
             status = 401,
-            description = "Jeton inconnu, expiré ou déjà consommé.",
+            description = "Unknown, expired or already consumed token, or account archived since the token was sent.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown token")
+        ),
+        (
+            status = 429,
+            description = "Too many requests from this client address. The `Retry-After` header gives the number of seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Retry-After" = u64, description = "Seconds to wait before the next request.")
+            ),
+            example = json!("Too many requests, please try again later.")
         ),
         (
             status = 500,
@@ -186,15 +210,22 @@ async fn reset_password_trigger(
     tag = "Auth",
 )]
 #[post("/reset_password")]
+// actix-web runs each handler on a single-threaded runtime per worker: the future does not need
+// to be Send even though it holds an HttpRequest across an .await.
+#[allow(clippy::future_not_send)]
 pub async fn reset_password(
     state: web::Data<AppState>,
     body: ValidatedJson<ResetPasswordView>,
-    conn: ConnectionInfo,
+    limits: Option<web::Data<RateLimits>>,
+    request: HttpRequest,
 ) -> Result<impl Responder, ResetPasswordError> {
-    let ip_str = conn.realip_remote_addr().unwrap_or("unknown").to_string();
-    let ip_address = ip_str
-        .parse::<std::net::IpAddr>()
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    let ip_address = client_ip(&request);
+    if let Some(limits) = limits {
+        limits
+            .password_token_per_ip
+            .hit(&ip_key(ip_address))
+            .map_err(|refused| ResetPasswordError::TooManyRequests(refused.retry_after_seconds))?;
+    }
     let (jwt, refresh_token) = reset_password_trigger(state, body.into_inner(), ip_address).await?;
 
     Ok(HttpResponse::Ok()

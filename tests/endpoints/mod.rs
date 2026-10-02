@@ -1,4 +1,5 @@
 mod admin_users_keycloak;
+mod auth_hardening;
 mod auth_password;
 mod forgot_password;
 mod keycloak_login;

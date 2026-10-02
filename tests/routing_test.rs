@@ -8,12 +8,12 @@ use utoipa::OpenApi;
 // Chaque opération publiée dans le contrat OpenAPI (celui dont est généré @mairie360/core-api-openapi) doit
 // correspondre à une route actix réellement montée (Core ne normalise pas le slash final). Aucune base ni JWT
 // n'est nécessaire : une route absente tombe sur le service par défaut (418), une route trouvée échoue plus loin
-// (JWT, droits, corps). Limite : AdminMiddleware répond 401 sans JWT avant le routage, les chemins /admin/ ne
-// sont donc vérifiés qu'en l'absence de 418.
+// (JWT, droits, corps). Limit: `admin_guard` answers 401 without a JWT, so the /admin/ paths are only checked for the
+// absence of a 418.
 #[actix_web::test]
 async fn every_published_operation_is_routed() {
-    // AdminMiddleware exige un AppState. Sans base joignable, la lib retente la connexion pendant 30 s :
-    // on réutilise la base de test partagée (Redis absent, ses échecs sont silencieux).
+    // The guards need an AppState. Without a reachable database the lib retries for 30 s: reuse the
+    // shared test database (Redis absent, its failures are silent).
     let (_container, pg_url) = get_shared_db().await;
     let state = AppState::new("redis://127.0.0.1:6379".to_string(), pg_url.clone()).await;
     let app = test::init_service(

@@ -68,7 +68,7 @@ async fn open_session(state: &web::Data<AppState>) -> (String, String) {
         .execute(CreateSessionQueryView::with_id(
             session_id,
             1,
-            &refresh_token,
+            &core_api::refresh_token::hash(&refresh_token),
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ))

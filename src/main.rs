@@ -9,6 +9,7 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, hello};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
+use core_api::rate_limit::RateLimits;
 use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
@@ -55,6 +56,9 @@ async fn main() -> std::io::Result<()> {
             }
         })
         .map(web::Data::new);
+    // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
+    // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
+    let rate_limits = RateLimits::from_env().map(web::Data::new);
     let host = get_critical_env_var("HOST");
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{host}:{port}");
@@ -66,6 +70,10 @@ async fn main() -> std::io::Result<()> {
         };
         let app = match &keycloak_admin {
             Some(admin) => app.app_data(admin.clone()),
+            None => app,
+        };
+        let app = match &rate_limits {
+            Some(limits) => app.app_data(limits.clone()),
             None => app,
         };
         // Outermost: one root span per request, including the ones the JWT / session guards refuse.

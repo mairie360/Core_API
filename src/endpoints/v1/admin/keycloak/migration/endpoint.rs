@@ -1,4 +1,5 @@
 use super::view::KeycloakMigrationView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::keycloak::migration::{
     migrate_users, MigrationError, MigrationOptions, MigrationReport,
 };
@@ -189,6 +190,7 @@ impl From<MigrationError> for KeycloakMigrationError {
 )]
 #[post("/migration")]
 pub async fn run_keycloak_migration(
+    _: AdminUser,
     payload: Option<web::Json<KeycloakMigrationView>>,
     state: web::Data<AppState>,
     keycloak: Option<web::Data<KeycloakClient>>,
