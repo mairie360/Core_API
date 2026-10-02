@@ -14,12 +14,17 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@v4.0.1
+    # Pinned by commit (a re-pushed tag cannot change what runs); the comment and `cicd_version`
+    # carry the tag, and Renovate bumps all three together (`mairie360/CICD` group, MAIR-427).
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@539847726d4058a9565c4f682c2d1d8302874b06 # v4.0.1
     permissions:
-          contents: write
-          packages: write
-          id-token: write
+      contents: write
+      packages: write
+      id-token: write
     with:
       package_name: core-api
       cicd_version: v4.0.1
-    secrets: inherit # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit
+    # Only the secrets the reusable workflow declares, instead of `secrets: inherit`.
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      N8N_WEBHOOK_SECRET: ${{ secrets.N8N_WEBHOOK_SECRET }}

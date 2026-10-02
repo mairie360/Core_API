@@ -303,7 +303,10 @@ printed and never stops the API.
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
-push, with no input other than the package name and the CICD version; the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
+push, with no input other than the package name and the CICD version. The `uses:` is pinned by commit SHA with the
+tag in a comment, `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
+the two secrets the workflow declares are passed (no `secrets: inherit`). Both Dockerfiles build on the template's
+Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
