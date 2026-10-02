@@ -1,6 +1,7 @@
 use crate::database::roles::change_role::ChangeRoleQueryView;
 use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use crate::endpoints::validation::ValidatedJson;
@@ -172,6 +173,7 @@ async fn put_role(
 )]
 #[put("/{id}")]
 pub async fn admin_put_role(
+    _: AdminUser,
     id: web::Path<u64>,
     payload: ValidatedJson<RoleWriteView>,
     state: web::Data<AppState>,

@@ -1,3 +1,4 @@
+use crate::endpoints::admin_guard::AdminUser;
 use crate::{
     database::{
         admin::get_user::view::{
@@ -60,20 +61,17 @@ async fn get_user(
             GetUserError::UnknownUser
         })?;
     let roles_result: Vec<Role> = smart_db
-        .fetch_all(&GetRolesByIdQueryView::new(roles_id.clone()))
+        .fetch_all(&GetRolesByIdQueryView::new(roles_id))
         .await
         .map_err(|e| {
             eprintln!("{e:?}");
             GetUserError::UnknownUser
         })?;
-    let mut roles: Vec<RoleQueryResult> = Vec::new();
-    for i in 0..roles_result.len() {
-        roles.push(RoleQueryResult::new(
-            roles_id[i],
-            roles_result[i].name(),
-            roles_result[i].description(),
-        ));
-    }
+    // Each role carries its own id: no pairing of two lists by index (MAIR-390).
+    let roles: Vec<RoleQueryResult> = roles_result
+        .iter()
+        .map(|role| RoleQueryResult::new(role.id(), role.name(), role.description()))
+        .collect();
 
     let sessions: Vec<Session> = smart_db
         .fetch_all(&GetSessionsByUserQueryView::new(user_id))
@@ -176,6 +174,7 @@ async fn get_user(
 )]
 #[get("/")]
 pub async fn admin_get_user(
+    _: AdminUser,
     state: web::Data<AppState>,
     path: web::Path<u64>,
 ) -> Result<impl Responder, GetUserError> {

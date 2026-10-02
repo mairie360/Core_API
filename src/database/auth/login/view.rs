@@ -31,7 +31,10 @@ impl LoginUserQueryView {
 
 impl ApiRequestDto for LoginUserQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT id, password, first_connect FROM users WHERE email = $1) t"
+        "SELECT row_to_json(t) FROM (\
+            SELECT id, password, first_connect FROM users \
+            WHERE email = $1 AND NOT COALESCE(is_archived, FALSE)\
+        ) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -52,15 +55,16 @@ impl Display for LoginUserQueryView {
 pub struct LoginUserQueryResultView {
     #[serde(rename = "id")]
     user_id: i32,
+    /// `None` for an account that only signs in through Keycloak.
     #[serde(rename = "password")]
-    password: String,
+    password: Option<String>,
     #[serde(rename = "first_connect")]
     first_connect: bool,
 }
 
 impl LoginUserQueryResultView {
     #[must_use]
-    pub const fn new(user_id: i32, password: String, first_connect: bool) -> Self {
+    pub const fn new(user_id: i32, password: Option<String>, first_connect: bool) -> Self {
         Self {
             user_id,
             password,
@@ -69,8 +73,8 @@ impl LoginUserQueryResultView {
     }
 
     #[must_use]
-    pub fn password(&self) -> &str {
-        &self.password
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
     }
 
     #[must_use]

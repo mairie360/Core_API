@@ -172,8 +172,11 @@ When adding a new endpoint, follow an existing sibling (e.g. `src/endpoints/v1/a
 ### Routing
 
 `endpoints::config()` mounts `health`/`hello`/swagger-ui unauthenticated, and `v1::config()`. In `main.rs`, the
-whole `/api` scope is wrapped in `mairie360_api_lib::security::JwtMiddleware`; within `v1::config()`, the
-`admin::config()` scope is additionally wrapped in `AdminMiddleware`. Each domain module (`auth`, `groups`,
+whole `/api` scope is wrapped in `mairie360_api_lib::security::JwtMiddleware`; the `/admin` scope is
+additionally wrapped in Core's own `endpoints::admin_guard` (MAIR-390), which checks the caller against the
+database for every route mounted there and stores an `AdminUser` that every admin handler takes as argument.
+Do not go back to the lib's `AdminMiddleware`: it decides from a regex on the raw path, which a
+percent-encoded path (`/api/v1/%61dmin/...`) bypasses. Each domain module (`auth`, `groups`,
 `roles`, `sessions`, `user`, `admin`, `ressources`, ...) exposes its own `config(cfg: &mut ServiceConfig)` that
 nests further scopes — follow the chain from `main.rs` → `endpoints/mod.rs` → `endpoints/v1/mod.rs` → domain
 `mod.rs` to see the full route tree for a path.
@@ -193,22 +196,33 @@ mid-refactor (see current branch), so don't be surprised if both appear for a wh
 
 ### Sessions / auth flow
 
-Login (`endpoints/v1/auth/login/endpoint.rs`) checks credentials, and on a user's first connection returns
-`412 Precondition Failed` with a one-time token (stored in Redis) instead of logging in, forcing a password
-change via `force_change_password`. On success it issues a JWT (`mairie360_api_lib::jwt_manager::generate_jwt`)
-plus an opaque refresh token persisted as a session row (`database::sessions::create_session`).
+Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and
+passwordless accounts answer the same `401`, after the same argon2 work). On a user's first connection a
+**correct** password returns `412 Precondition Failed` with a one-time token (stored in Redis) instead of
+logging in, forcing a password change via `force_change_password`. On success it issues a JWT
+(`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
+`sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
+the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
+
+Security knobs added by MAIR-390, all optional:
+
+- `TRUSTED_PROXIES` (`client_ip.rs`): comma-separated addresses / CIDR ranges whose `X-Forwarded-For` /
+  `Forwarded` is trusted; loopback + private ranges by default, empty string = trust none. Read client
+  addresses with `client_ip::client_ip`, never `realip_remote_addr()`.
+- `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
+  keycloak, forgot/reset/force_change_password and refresh (`429` + `Retry-After`). Handlers take
+  `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
+- `SMTP_INSECURE=true` allows a plaintext SMTP relay other than `mailpit` / `localhost`; otherwise STARTTLS.
 
 ### Database schema
 
 Postgres schema is **not** managed in this repo — it lives in a separate Liquibase migrations image
 (`ghcr.io/mairie360/liquibase-migrations`, run as the `liquibase` service in `docker-compose.yml`) applied
-against the `ghcr.io/mairie360/database` image. `DATABASE.md` is a (partial/stale) reference sketch of the
-schema, not the source of truth.
+against the `ghcr.io/mairie360/database` image; its source is `../../Devops/Database`.
 
 ### Docs referenced in this repo
 
 - `API.md` — informal endpoint list (partial/stale in places, e.g. missing rows).
-- `DATABASE.md` — schema sketch, see caveat above.
 
 ### Observability (MAIR-131)
 

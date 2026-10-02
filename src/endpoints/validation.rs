@@ -38,7 +38,7 @@ pub const MAX_SEARCH_LENGTH: usize = 255;
 pub struct ValidationError(String);
 
 impl ValidationError {
-    fn new(field: &str, reason: &str) -> Self {
+    pub(crate) fn new(field: &str, reason: &str) -> Self {
         Self(format!("Invalid `{field}`: {reason}"))
     }
 }

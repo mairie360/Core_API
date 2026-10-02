@@ -1,6 +1,7 @@
 use crate::database::roles::does_role_exist::DoesRoleExistQueryView;
 use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use crate::database::roles::patch_role::PatchRoleQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::patch::view::PatchView;
 
 use crate::endpoints::validation::ValidatedJson;
@@ -169,6 +170,7 @@ async fn patch_role(
 )]
 #[patch("/{id}")]
 pub async fn admin_patch_role(
+    _: AdminUser,
     id: web::Path<u64>,
     payload: ValidatedJson<PatchView>,
     state: web::Data<AppState>,

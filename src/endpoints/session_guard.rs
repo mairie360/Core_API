@@ -14,6 +14,7 @@ use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::middleware::Next;
 use actix_web::{web, Error};
 use mairie360_api_lib::jwt_manager::get_jwt_from_request;
+use mairie360_api_lib::security::is_public_path;
 use mairie360_api_lib::state::AppState;
 
 /// Full path of `POST /api/v1/sessions/logout`.
@@ -30,9 +31,11 @@ pub async fn session_guard(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
 ) -> Result<ServiceResponse<impl MessageBody>, Error> {
-    // Same public paths as `JwtMiddleware`: a stale header must not break login & co. Logout is
-    // let through too, so that logging out twice answers 204 instead of 401 (idempotent).
-    let skip = req.path().contains("/auth") || req.path() == LOGOUT_PATH;
+    // Exactly the public paths of `JwtMiddleware` (whole segments, no dot segment): a stale header
+    // must not break login & co, and no protected path skips the check because it merely
+    // contains `/auth` (MAIR-390). Logout is let through too, so that logging out twice answers
+    // 204 instead of 401 (idempotent).
+    let skip = is_public_path(req.path()) || req.path() == LOGOUT_PATH;
     let bound_session = if skip {
         None
     } else {

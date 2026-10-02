@@ -1,20 +1,18 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
-#[derive(Debug)]
+/// Partial update of a role: only the fields given are written.
+///
+/// Static SQL text, see `PatchUserQueryView` (MAIR-390).
+#[derive(Debug, serde::Deserialize)]
 pub struct PatchRoleQueryView {
     id: u64,
     name: Option<String>,
     description: Option<String>,
-    // Double Option volontaire : distingue "champ absent" (None), "champ fourni à null"
-    // (Some(None)) et "champ fourni avec une valeur" (Some(Some(_))), voir `new()` plus bas.
+    // Deliberate double Option: tells "absent" (None), "sent as null" (Some(None)) and "sent with
+    // a value" (Some(Some(_))) apart.
     #[allow(clippy::option_option)]
     can_be_deleted: Option<Option<bool>>,
-    // `query_sql` doit renvoyer un &'static str, mais les colonnes patchées (donc le texte SQL)
-    // varient à chaque appel selon les champs fournis. On construit la requête une fois dans
-    // `new()` et on la "leak" pour obtenir un &'static str, comme le fait déjà cette lib pour les
-    // cas de SQL dynamique (voir IsOwnerQueryView). Chaque appel fuit une petite allocation.
-    sql: &'static str,
     params: Vec<QueryParam>,
 }
 
@@ -26,49 +24,23 @@ impl PatchRoleQueryView {
         description: Option<String>,
         can_be_deleted: Option<Option<bool>>,
     ) -> Self {
-        let mut set_clauses: Vec<String> = Vec::new();
-        let mut params: Vec<QueryParam> = Vec::new();
-
-        if let Some(name) = &name {
-            params.push(QueryParam::Text(name.clone()));
-            set_clauses.push(format!("name = ${}", params.len()));
-        }
-        if let Some(description) = &description {
-            params.push(QueryParam::Text(description.clone()));
-            set_clauses.push(format!("description = ${}", params.len()));
-        }
-        match can_be_deleted {
-            Some(Some(value)) => {
-                params.push(QueryParam::Bool(value));
-                set_clauses.push(format!("can_be_deleted = ${}", params.len()));
-            }
-            // Le champ est fourni mais explicitement à null : on le met à NULL en dur (mot-clé
-            // fixe, aucune donnée appelante interpolée) plutôt que de tenter de bind un NULL, que
-            // `QueryParam` ne sait pas représenter pour un bool.
-            Some(None) => set_clauses.push("can_be_deleted = NULL".to_string()),
-            None => {}
-        }
-
-        let sql: &'static str = if set_clauses.is_empty() {
-            ""
-        } else {
-            params.push(QueryParam::I64(id as i64));
-            Box::leak(
-                format!(
-                    "UPDATE roles SET {} WHERE id = ${}",
-                    set_clauses.join(", "),
-                    params.len()
-                )
-                .into_boxed_str(),
-            )
-        };
+        let params = vec![
+            QueryParam::Bool(name.is_some()),
+            QueryParam::Text(name.clone().unwrap_or_default()),
+            QueryParam::Bool(description.is_some()),
+            QueryParam::Text(description.clone().unwrap_or_default()),
+            QueryParam::Bool(can_be_deleted.is_some()),
+            // `QueryParam` cannot bind a NULL bool: a separate flag asks for NULL.
+            QueryParam::Bool(matches!(can_be_deleted, Some(None))),
+            QueryParam::Bool(can_be_deleted.flatten().unwrap_or_default()),
+            QueryParam::I64(id as i64),
+        ];
 
         Self {
             id,
             name,
             description,
             can_be_deleted,
-            sql,
             params,
         }
     }
@@ -93,31 +65,20 @@ impl PatchRoleQueryView {
         self.can_be_deleted
     }
 
-    /// Vrai si aucun champ n'a été fourni : il n'y a alors rien à écrire en base.
+    /// True when no field was given: there is nothing to write.
     #[must_use]
     pub const fn is_noop(&self) -> bool {
-        self.sql.is_empty()
-    }
-}
-
-// Impl manuelle : un champ `&'static str` empêche `#[derive(Deserialize)]` de produire un
-// `impl<'de> Deserialize<'de>` valide pour *toute* durée de vie 'de (requis par `DeserializeOwned`
-// via `ApiRequestDto`). Cette vue n'est jamais réellement désérialisée, donc l'impl n'a pas besoin
-// de faire mieux qu'échouer proprement si elle l'était.
-impl<'de> serde::Deserialize<'de> for PatchRoleQueryView {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Err(serde::de::Error::custom(
-            "PatchRoleQueryView is not deserializable",
-        ))
+        self.name.is_none() && self.description.is_none() && self.can_be_deleted.is_none()
     }
 }
 
 impl ApiRequestDto for PatchRoleQueryView {
     fn query_sql(&self) -> &'static str {
-        self.sql
+        "UPDATE roles SET \
+            name = CASE WHEN $1 THEN $2 ELSE name END, \
+            description = CASE WHEN $3 THEN $4 ELSE description END, \
+            can_be_deleted = CASE WHEN NOT $5 THEN can_be_deleted WHEN $6 THEN NULL ELSE $7 END \
+         WHERE id = $8"
     }
 
     fn query_params(&self) -> &[QueryParam] {

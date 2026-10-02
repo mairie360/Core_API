@@ -22,11 +22,7 @@ impl RefreshRequestView {
 
 impl Display for RefreshRequestView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "RefreshRequestView {{ refresh_token: {} }}",
-            self.refresh_token
-        )
+        write!(f, "RefreshRequestView {{ refresh_token: [PROTECTED] }}")
     }
 }
 

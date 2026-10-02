@@ -1,3 +1,4 @@
+use crate::endpoints::validation::{check_password, Validate, ValidationError};
 use serde::Deserialize;
 use utoipa::ToSchema;
 
@@ -15,5 +16,11 @@ pub struct AdminResetPasswordView {
 impl AdminResetPasswordView {
     pub fn new_password(&self) -> &str {
         &self.new_password
+    }
+}
+
+impl Validate for AdminResetPasswordView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_password("new_password", &self.new_password, MIN_PASSWORD_LENGTH)
     }
 }

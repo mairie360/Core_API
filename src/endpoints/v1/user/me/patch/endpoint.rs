@@ -5,7 +5,9 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::auth::user_password::{GetUserPasswordQueryView, UserPassword};
 use crate::database::users::patch_user::PatchUserQueryView;
+use crate::endpoints::v1::auth::login::endpoint::is_password_valid;
 use crate::endpoints::v1::user::me::patch::view::PatchMeView;
 use crate::endpoints::validation::ValidatedJson;
 
@@ -13,6 +15,7 @@ use crate::endpoints::validation::ValidatedJson;
 enum PatchMeError {
     EmailAlreadyUsed,
     DatabaseError,
+    WrongPassword,
 }
 
 impl std::fmt::Display for PatchMeError {
@@ -24,6 +27,7 @@ impl std::fmt::Display for PatchMeError {
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
+            Self::WrongPassword => write!(f, "The current password is incorrect."),
         }
     }
 }
@@ -33,6 +37,7 @@ impl ResponseError for PatchMeError {
         match self {
             Self::EmailAlreadyUsed => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::WrongPassword => StatusCode::FORBIDDEN,
         }
     }
 
@@ -41,11 +46,36 @@ impl ResponseError for PatchMeError {
     }
 }
 
+/// Changing the e-mail address requires the current password (MAIR-390). Accounts without a
+/// password (Keycloak only) cannot change it here.
+async fn check_current_password(
+    state: &AppState,
+    user_id: u64,
+    password: &str,
+) -> Result<(), PatchMeError> {
+    let stored: UserPassword = state
+        .get_smart_db()
+        .fetch_one(&GetUserPasswordQueryView::new(user_id))
+        .await
+        .map_err(|e| {
+            eprintln!("Patch me DB Error: {e}");
+            PatchMeError::DatabaseError
+        })?;
+    match stored.password() {
+        Some(hash) if is_password_valid(user_id as i32, password, hash) => Ok(()),
+        _ => Err(PatchMeError::WrongPassword),
+    }
+}
+
 async fn trigger_patch_me(
     state: web::Data<AppState>,
     view: PatchMeView,
     user_id: u64,
 ) -> Result<(), PatchMeError> {
+    if view.email().is_some() {
+        check_current_password(&state, user_id, view.current_password().unwrap_or_default())
+            .await?;
+    }
     let db_view = PatchUserQueryView::new(
         user_id,
         view.first_name(),
@@ -100,7 +130,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, field of an unexpected type, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `phone` 10 to 15 digits. The body names the first invalid field.",
+            description = "Malformed JSON body, field of an unexpected type, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `email` a valid address of at most 320 characters; `phone` 10 to 15 digits; `current_password` missing while `email` is sent. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `phone`: must be 10 to 15 digits")
@@ -111,6 +141,13 @@ async fn trigger_patch_me(
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "`email` was sent with a wrong `current_password`, or the account has no password (Keycloak only). Nothing is changed.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The current password is incorrect.")
         ),
         (
             status = 409,

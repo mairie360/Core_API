@@ -1,19 +1,24 @@
 use crate::database::roles::create_role::CreateRoleQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
 use crate::endpoints::validation::ValidatedJson;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PostError {
+    DatabaseError,
     Duplicate,
 }
 
 impl std::fmt::Display for PostError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::DatabaseError => write!(f, "An error occurred while accessing the database."),
             Self::Duplicate => {
                 write!(f, "A role with this name already exists.")
             }
@@ -24,6 +29,7 @@ impl std::fmt::Display for PostError {
 impl ResponseError for PostError {
     fn status_code(&self) -> StatusCode {
         match self {
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Duplicate => StatusCode::CONFLICT,
         }
     }
@@ -44,7 +50,13 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         .get_smart_db()
         .execute(view)
         .await
-        .map_err(|_| PostError::Duplicate)?;
+        .map_err(|e| match e {
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PostError::Duplicate,
+            e => {
+                eprintln!("Create role DB Error: {e}");
+                PostError::DatabaseError
+            }
+        })?;
 
     Ok(())
 }
@@ -57,8 +69,8 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
                    administrateurs.\n\n\
                    La réponse a un corps vide et ne renvoie pas l'identifiant attribué : relire la \
                    liste avec `GET /api/v1/admin/roles/` pour le récupérer.\n\n\
-                   Tout échec d'écriture en base est rapporté en `409`, y compris une panne sans \
-                   rapport avec un doublon : ce endpoint ne renvoie jamais `500`.",
+                   Only a duplicate name answers `409`; any other database failure answers \
+                   `500`.",
     request_body(
         content = RoleWriteView,
         description = "Nom, description et caractère supprimable du rôle.",
@@ -96,10 +108,17 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         ),
         (
             status = 409,
-            description = "Un rôle porte déjà ce nom — ou, plus largement, l'insertion en base a échoué.",
+            description = "A role already has this name.",
             body = String,
             content_type = "text/plain",
             example = json!("A role with this name already exists.")
+        ),
+        (
+            status = 500,
+            description = "Database failure other than a duplicate name.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     security(
@@ -109,6 +128,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
 )]
 #[post("/")]
 pub async fn admin_post_role(
+    _: AdminUser,
     payload: ValidatedJson<RoleWriteView>,
     state: web::Data<AppState>,
 ) -> Result<impl Responder, PostError> {

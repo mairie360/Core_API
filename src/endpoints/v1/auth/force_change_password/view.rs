@@ -1,5 +1,5 @@
 use crate::endpoints::validation::{
-    check_opaque, check_password, Validate, ValidationError, MAX_TOKEN_LENGTH,
+    check_opaque, check_password, Validate, ValidationError, MAX_TOKEN_LENGTH, MIN_PASSWORD_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -14,7 +14,7 @@ pub struct ForceChangePasswordView {
     )]
     token: String,
     /// Mot de passe choisi par l'utilisateur, qui remplace celui attribué à la création du compte.
-    #[schema(min_length = 1, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
 }
 
@@ -33,6 +33,6 @@ impl ForceChangePasswordView {
 impl Validate for ForceChangePasswordView {
     fn validate(&self) -> Result<(), ValidationError> {
         check_opaque("token", &self.token, MAX_TOKEN_LENGTH)?;
-        check_password("new_password", &self.new_password, 1)
+        check_password("new_password", &self.new_password, MIN_PASSWORD_LENGTH)
     }
 }

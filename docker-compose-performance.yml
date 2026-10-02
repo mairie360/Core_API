@@ -42,7 +42,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-0aaede5
+    image: ghcr.io/mairie360/database:dev-fb7c223
     restart: always
     container_name: mairie360-db-core-api
     environment:
@@ -62,7 +62,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-0aaede5
+    image: ghcr.io/mairie360/liquibase-migrations:dev-fb7c223
     container_name: mairie360-liquibase-core-api
     depends_on:
       postgres:
@@ -73,9 +73,12 @@ services:
       LIQUIBASE_COMMAND_USERNAME: ${DB_USER:-postgres}
       LIQUIBASE_COMMAND_PASSWORD: ${DB_PASSWORD:-password}
       LIQUIBASE_SEARCH_PATH: /migrations
+    # Database >= MAIR-413 refuses to seed the admin (users.id = 1) without credentials: this
+    # throwaway stack uses the public template admin. Never pass the flag on a real instance.
     command: >
       --changelog-file=changelog.xml
       update
+      -Dallow_template_admin=true
     networks:
       - backend
 
@@ -133,6 +136,8 @@ services:
       SMTP_PORT: "1025" # Port SMTP de mailpit
       SMTP_USERNAME: "" # Pas besoin d'authentification en local
       SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      # k6 logs in, refreshes and resets passwords far beyond the auth rate limits (MAIR-390).
+      RATE_LIMIT_ENABLED: "false"
       EMAIL_FROM: "noreply.mairie360@dev.local"
     depends_on:
       liquibase:

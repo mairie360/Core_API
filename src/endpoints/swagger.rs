@@ -10,20 +10,24 @@ use utoipa::{Modify, OpenApi};
         title = "Core API — Mairie 360",
         version = "1.0.0",
         description = "\
-API centrale de la plateforme **Mairie 360**. Elle détient les utilisateurs, les sessions, \
-les rôles, les groupes et les droits d'accès aux ressources : les autres APIs (Project, Calendar, \
-Message, ELearning) s'appuient sur elle pour authentifier et autoriser leurs appels.
+Central API of the **Mairie 360** platform. It holds the users, sessions, roles, groups and \
+resource access rights: the other APIs (Project, Calendar, Message, ELearning) rely on it to \
+authenticate and authorize their calls.
 
-## Authentification
+## Authentication
 
-Toutes les routes sous `/api` sont protégées par `JwtMiddleware`. Le jeton s'obtient via \
-`POST /api/v1/auth/login`, qui le renvoie dans l'en-tête de réponse `Authorization` \
-(`Bearer <jwt>`) accompagné d'un jeton de rafraîchissement dans le corps. Il faut ensuite le \
-présenter sur chaque appel dans l'en-tête `Authorization`, et le renouveler via \
-`POST /api/v1/sessions/refresh` avant son expiration (`JWT_TIMEOUT`).
+Every route under `/api` is protected by `JwtMiddleware`. The token is obtained from \
+`POST /api/v1/auth/login`, which returns it in the `Authorization` response header \
+(`Bearer <jwt>`) together with a refresh token in the body. Send it on every call in the \
+`Authorization` header, and renew it with `POST /api/v1/sessions/refresh`, which also **rotates** the refresh token: keep the one it \
+returns, the previous one stops working.
 
-Les routes sous `/api/v1/admin` exigent en plus que l'utilisateur soit administrateur \
-(`AdminMiddleware`), sans quoi elles répondent `403 Forbidden`.
+Routes under `/api/v1/admin` also require the user to be an administrator, otherwise they \
+answer `403 Forbidden`.
+
+The public authentication routes (login, keycloak, forgot/reset/force_change_password, refresh) \
+are rate limited per client address (and per e-mail address where one is sent): beyond the \
+budget they answer `429 Too Many Requests` with a `Retry-After` header.
 
 ## Error format
 

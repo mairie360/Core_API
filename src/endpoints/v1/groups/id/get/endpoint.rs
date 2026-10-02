@@ -1,23 +1,24 @@
 use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
 use crate::database::groups::get_group::GetGroupQuerView;
 use crate::endpoints::v1::groups::id::get::view::GetGroupResultView;
+use crate::endpoints::v1::groups::id::read_access::can_read_group;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum GetGroupError {
-    BadRequest,
+    DatabaseError,
+    Forbidden,
     UnknowGroup,
 }
 
 impl std::fmt::Display for GetGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest => {
-                write!(f, "Bad request.")
-            }
+            Self::DatabaseError => write!(f, "An error occurred while accessing the database."),
+            Self::Forbidden => write!(f, "Insufficient permissions"),
             Self::UnknowGroup => {
                 write!(f, "Unknow group.")
             }
@@ -28,7 +29,8 @@ impl std::fmt::Display for GetGroupError {
 impl ResponseError for GetGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::UnknowGroup => StatusCode::NOT_FOUND,
         }
     }
@@ -38,26 +40,36 @@ impl ResponseError for GetGroupError {
     }
 }
 
+fn database_error(error: &impl std::fmt::Display) -> GetGroupError {
+    eprintln!("Get group DB Error: {error}");
+    GetGroupError::DatabaseError
+}
+
 async fn trigger_get_group(
     state: web::Data<AppState>,
+    user_id: u64,
     id: u64,
 ) -> Result<GetGroupResultView, GetGroupError> {
     let smart_db = state.get_smart_db();
 
-    let group_check_view = DoesGroupExistQuerView::new(id);
-    let result: bool = smart_db
-        .fetch_scalar(&group_check_view)
+    let exists: bool = smart_db
+        .fetch_scalar(&DoesGroupExistQuerView::new(id))
         .await
-        .map_err(|_| GetGroupError::UnknowGroup)?;
-    if !result {
+        .map_err(|e| database_error(&e))?;
+    if !exists {
         return Err(GetGroupError::UnknowGroup);
     }
-
-    let db_view = GetGroupQuerView::new(id);
-    let result = smart_db
-        .fetch_one(&db_view)
+    if !can_read_group(smart_db, user_id, id)
         .await
-        .map_err(|_| GetGroupError::BadRequest)?;
+        .map_err(|e| database_error(&e))?
+    {
+        return Err(GetGroupError::Forbidden);
+    }
+
+    let result = smart_db
+        .fetch_one(&GetGroupQuerView::new(id))
+        .await
+        .map_err(|e| database_error(&e))?;
 
     Ok(GetGroupResultView::new(result))
 }
@@ -65,42 +77,51 @@ async fn trigger_get_group(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Consulter un groupe",
-    description = "Renvoie le nom, la description et le propriétaire d'un groupe. Accessible à \
-                   tout utilisateur authentifié, y compris s'il n'est pas membre du groupe.\n\n\
-                   Pour la liste de ses membres, voir `GET /api/v1/groups/{group_id}/users/`.",
+    summary = "Read a group",
+    description = "Returns the name, description and owner of a group.\n\n\
+                   Restricted to the group's members (the owner is one) and to whoever holds the \
+                   `read` right on it: a global `read_all` (administrators, mayor) or an ACL. \
+                   Anyone else gets `403`.\n\n\
+                   For its member list, see `GET /api/v1/groups/{group_id}/users/`.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
+        ("group_id" = u64, Path, description = "Group id.", example = 3)
     ),
     responses(
         (
             status = 200,
-            description = "Le groupe demandé.",
+            description = "The requested group.",
             body = GetGroupResultView,
             example = json!({
                 "group": { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
             })
         ),
         (
-            status = 400,
-            description = "Échec de la lecture du groupe une fois son existence confirmée. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
+            status = 401,
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
-            example = json!("Bad request.")
+            example = json!("Unauthorized")
         ),
         (
-            status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            status = 403,
+            description = "The caller is not a member of the group and holds no `read` right on it.",
             body = String,
             content_type = "text/plain",
-            example = json!("Jeton expiré")
+            example = json!("Insufficient permissions")
         ),
         (
             status = 404,
-            description = "Aucun groupe ne porte cet identifiant.",
+            description = "No group has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow group.")
+        ),
+        (
+            status = 500,
+            description = "Database failure while checking the rights or reading the group.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",
@@ -110,10 +131,10 @@ async fn trigger_get_group(
 )]
 #[get("/")]
 pub async fn get_group(
-    _: AuthenticatedUser,
+    user: AuthenticatedUser,
     state: web::Data<AppState>,
     id: web::Path<u64>,
 ) -> Result<impl Responder, GetGroupError> {
-    let result = trigger_get_group(state, id.into_inner()).await?;
+    let result = trigger_get_group(state, user.id, id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

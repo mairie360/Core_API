@@ -1,6 +1,7 @@
 use crate::database::admin::list_users::{
     AdminCountUsersQueryView, AdminListUsersQueryView, AdminUserRow,
 };
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::users::get::view::{
     AdminListUsersQuery, AdminListUsersResultView, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
 };
@@ -141,6 +142,7 @@ async fn list_users(
 )]
 #[get("/")]
 pub async fn admin_list_users(
+    _: AdminUser,
     state: web::Data<AppState>,
     query: ValidatedQuery<AdminListUsersQuery>,
 ) -> Result<impl Responder, ListUsersError> {

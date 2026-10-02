@@ -14,10 +14,13 @@
     clippy::cast_sign_loss
 )]
 
+pub mod client_ip;
 pub mod database;
 pub mod endpoints;
 pub mod keycloak;
+pub mod rate_limit;
 pub mod redis_keys;
+pub mod refresh_token;
 pub mod session_jwt;
 pub mod session_revocation;
 pub mod telemetry;
@@ -75,22 +78,25 @@ pub async fn send_email(email: Message) -> Result<(), Box<dyn std::error::Error>
 
     let port: u16 = smtp_port.parse().unwrap_or(1025);
 
-    // 2. Configuration dynamique du transporteur
-    let mailer: SmtpMailer =
-        if smtp_host == "mailpit" || smtp_host == "localhost" || username.is_empty() {
-            // En développement local (Mailpit), on se connecte sans chiffrement TLS
-            // CORRECTION ICI : builder(...) au lieu de builder_some(...)
-            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&smtp_host)
-                .port(port)
-                .build()
+    // 2. Transport. Only a local relay (Mailpit) or an explicit `SMTP_INSECURE=true` gets a
+    // plaintext connection: an empty `SMTP_USERNAME` no longer turns TLS off (MAIR-390).
+    let local_relay = matches!(smtp_host.as_str(), "mailpit" | "localhost" | "127.0.0.1");
+    let insecure = env::var("SMTP_INSECURE").is_ok_and(|value| value.eq_ignore_ascii_case("true"));
+    let mailer: SmtpMailer = if local_relay || insecure {
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&smtp_host)
+            .port(port)
+            .build()
+    } else {
+        // STARTTLS, with credentials when the relay needs them.
+        let builder = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?.port(port);
+        if username.is_empty() {
+            builder.build()
         } else {
-            // En production (Resend, SendGrid...), on utilise STARTTLS avec authentification
-            let creds = Credentials::new(username, password);
-            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?
-                .credentials(creds)
-                .port(port)
+            builder
+                .credentials(Credentials::new(username, password))
                 .build()
-        };
+        }
+    };
 
     // 3. Envoi effectif
     mailer.send(email).await?;

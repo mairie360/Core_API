@@ -53,12 +53,12 @@ impl Display for PatchUserView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {:?}, password: {:?} }}",
+            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {}, password: {} }}",
             self.first_name.as_deref().unwrap_or(""),
             self.last_name.as_deref().unwrap_or(""),
-            self.email.as_deref().unwrap_or(""),
-            self.phone_number.as_deref().unwrap_or(""),
-            self.password.as_deref().unwrap_or("")
+            if self.email.is_some() { "[PROTECTED]" } else { "unchanged" },
+            if self.phone_number.is_some() { "[PROTECTED]" } else { "unchanged" },
+            if self.password.is_some() { "[PROTECTED]" } else { "unchanged" }
         )
     }
 }

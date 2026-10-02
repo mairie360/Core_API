@@ -3,15 +3,20 @@
     "github>mairie360/renovate-config"
   ],
   "packageRules": [
-      {
-        "matchPackageNames": ["sqlx"],
-        "allowedVersions": "0.8.0"
-      }
-    ],
+    {
+      "description": "sqlx must stay on the minor mairie360_api_lib uses (DbError::Sqlx is matched across the two crates): bump it together with the lib.",
+      "matchPackageNames": [
+        "sqlx"
+      ],
+      "allowedVersions": "0.9.x"
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^\\.github/workflows/cicd\\.yml$"],
+      "fileMatch": [
+        "^\\.github/workflows/cicd\\.yml$"
+      ],
       "matchStrings": [
         "cicd_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],

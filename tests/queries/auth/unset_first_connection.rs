@@ -42,7 +42,7 @@ async fn unset_first_connection_success() {
         .fetch_one(&LoginUserQueryView::new(email, String::new()))
         .await
         .unwrap();
-    assert_eq!(stored.password(), seed_password_hash());
+    assert_eq!(stored.password(), Some(seed_password_hash()));
     assert!(!stored.first_connect());
 }
 

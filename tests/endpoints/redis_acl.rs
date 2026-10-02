@@ -8,7 +8,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use core_api::redis_keys::{FIRST_CONNECTION_TTL_SECONDS, FORGOT_PASSWORD_TTL_SECONDS};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, SEED_PASSWORD};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::{json, Value};
@@ -158,7 +158,8 @@ async fn first_connection_flow_works_under_the_acl() {
         app,
         test::TestRequest::post()
             .uri("/api/v1/auth/login")
-            .set_json(json!({ "email": email, "password": "password", "device_info": "test" }))
+            // The first-connection token is only issued for the right password (MAIR-390).
+            .set_json(json!({ "email": email, "password": SEED_PASSWORD, "device_info": "test" }))
             .to_request()
     );
     assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{body}");

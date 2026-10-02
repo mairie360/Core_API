@@ -272,7 +272,7 @@
                   "    pm.response.to.have.status(400);",
                   "});",
                   "pm.test(\"Body matches the expected text\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"Invalid data provided\");",
+                  "    pm.expect(pm.response.text()).to.eql(\"Invalid `email`: must be a valid e-mail address\");",
                   "});"
                 ]
               }
@@ -798,6 +798,66 @@
                   "    pm.expect(auth, \"Authorization header\").to.be.a(\"string\");",
                   "    pm.expect(auth).to.match(/^Bearer [A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+$/);",
                   "    pm.environment.set(\"jwt\", auth.substring(\"Bearer \".length));",
+                  "});",
+                  "pm.test(\"Body carries the rotated refresh token\", function () {",
+                  "    const token = pm.response.json().refresh_token;",
+                  "    pm.expect(token, \"refresh_token\").to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(token).to.not.eql(pm.environment.get(\"refresh_token\"));",
+                  "    pm.environment.set(\"rotated_out_refresh_token\", pm.environment.get(\"refresh_token\"));",
+                  "    pm.environment.set(\"refresh_token\", token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Refreshing with a rotated-out token is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{rotated_out_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
                   "});"
                 ]
               }

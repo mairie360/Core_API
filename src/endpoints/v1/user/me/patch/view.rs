@@ -1,6 +1,6 @@
 use crate::endpoints::validation::{
-    check_email, check_label, check_optional, check_phone, Validate, ValidationError,
-    MAX_NAME_LENGTH,
+    check_email, check_label, check_opaque, check_optional, check_phone, Validate, ValidationError,
+    MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -21,6 +21,11 @@ pub struct PatchMeView {
     /// Nouveau numéro de téléphone. Absent ou `null` pour ne pas y toucher.
     #[schema(pattern = "^[0-9]{10,15}$", example = "0798765432")]
     phone: Option<String>,
+    /// Current password of the account. Required when `email` is sent (MAIR-390): a stolen
+    /// session must not be enough to move the account to another mailbox. Ignored otherwise.
+    #[schema(max_length = 255, format = Password, example = "MotDePasse!123")]
+    #[serde(default)]
+    current_password: Option<String>,
 }
 
 impl PatchMeView {
@@ -36,7 +41,13 @@ impl PatchMeView {
             last_name,
             email,
             phone,
+            current_password: None,
         }
+    }
+
+    #[must_use]
+    pub fn current_password(&self) -> Option<&str> {
+        self.current_password.as_deref()
     }
 
     #[must_use]
@@ -79,6 +90,15 @@ impl Validate for PatchMeView {
             check_label("last_name", name, MAX_NAME_LENGTH)
         })?;
         check_optional(self.email.as_deref(), |email| check_email("email", email))?;
-        check_optional(self.phone.as_deref(), |phone| check_phone("phone", phone))
+        check_optional(self.phone.as_deref(), |phone| check_phone("phone", phone))?;
+        if self.email.is_some() && self.current_password.is_none() {
+            return Err(ValidationError::new(
+                "current_password",
+                "is required to change the e-mail address",
+            ));
+        }
+        check_optional(self.current_password.as_deref(), |password| {
+            check_opaque("current_password", password, MAX_PASSWORD_LENGTH)
+        })
     }
 }

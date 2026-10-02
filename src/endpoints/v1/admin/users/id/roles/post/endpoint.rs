@@ -1,5 +1,6 @@
 use crate::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use crate::database::users::add_role::AddRolesQueryView;
+use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::users::id::roles::post::view::AddRoleToUserView;
 use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
 use crate::keycloak::KeycloakAdminClient;
@@ -10,6 +11,7 @@ use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AddRoleToUserError {
+    UserMismatch,
     NotFound,
     Keycloak(SyncError),
 }
@@ -17,6 +19,9 @@ enum AddRoleToUserError {
 impl std::fmt::Display for AddRoleToUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::UserMismatch => {
+                write!(f, "The body `user_id` does not match the user of the path.")
+            }
             Self::NotFound => {
                 write!(f, "User or role not found.")
             }
@@ -28,6 +33,7 @@ impl std::fmt::Display for AddRoleToUserError {
 impl ResponseError for AddRoleToUserError {
     fn status_code(&self) -> StatusCode {
         match self {
+            Self::UserMismatch => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
@@ -47,13 +53,14 @@ impl ResponseError for AddRoleToUserError {
 
 async fn grant_in_core(
     smart_db: &SmartDatabase,
+    user_id: u64,
     view: &AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
-    let view = AddRolesQueryView::new(view.role_id(), view.user_id());
-    smart_db
-        .execute(view)
-        .await
-        .map_err(|_| AddRoleToUserError::NotFound)?;
+    let view = AddRolesQueryView::new(view.role_id(), user_id);
+    smart_db.execute(view).await.map_err(|e| {
+        eprintln!("Grant role DB Error: {e}");
+        AddRoleToUserError::NotFound
+    })?;
 
     Ok(())
 }
@@ -80,41 +87,48 @@ pub(in crate::endpoints::v1::admin::users::id::roles) async fn role_name(
 async fn add_role_to_user(
     state: web::Data<AppState>,
     admin: Option<&KeycloakAdminClient>,
+    user_id: u64,
     view: AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
+    // The user is the one of the path (MAIR-390).
+    if view
+        .body_user_id()
+        .is_some_and(|body_user| body_user != user_id)
+    {
+        return Err(AddRoleToUserError::UserMismatch);
+    }
     let smart_db = state.get_smart_db();
     let Some(admin) = admin else {
-        return grant_in_core(smart_db, &view).await;
+        return grant_in_core(smart_db, user_id, &view).await;
     };
     // Unknown role or user (Core answers 404), or account unknown to Keycloak: Core alone.
     let Some(name) = role_name(smart_db, view.role_id())
         .await
         .map_err(AddRoleToUserError::Keycloak)?
     else {
-        return grant_in_core(smart_db, &view).await;
+        return grant_in_core(smart_db, user_id, &view).await;
     };
-    let Some(user) = export_user(smart_db, view.user_id() as i32)
+    let Some(user) = export_user(smart_db, user_id as i32)
         .await
         .map_err(AddRoleToUserError::Keycloak)?
     else {
-        return grant_in_core(smart_db, &view).await;
+        return grant_in_core(smart_db, user_id, &view).await;
     };
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
         .await
         .map_err(AddRoleToUserError::Keycloak)?
     else {
-        return grant_in_core(smart_db, &view).await;
+        return grant_in_core(smart_db, user_id, &view).await;
     };
 
     let mapped = map_role(admin, &keycloak_id, &name)
         .await
         .map_err(AddRoleToUserError::Keycloak)?;
-    if let Err(error) = grant_in_core(smart_db, &view).await {
+    if let Err(error) = grant_in_core(smart_db, user_id, &view).await {
         if mapped {
             if let Err(restore) = unmap_role(admin, &keycloak_id, &name).await {
                 eprintln!(
-                    "Keycloak sync: Core refused role {name} for user {} and it could not be unmapped from {keycloak_id}: {restore}",
-                    view.user_id()
+                    "Keycloak sync: Core refused role {name} for user {user_id} and it could not be unmapped from {keycloak_id}: {restore}"
                 );
             }
         }
@@ -128,9 +142,9 @@ async fn add_role_to_user(
     path = "/",
     summary = "Grant a role to a user",
     description = "Attaches a role to a user account. Reserved to administrators.\n\n\
-                   Beware: the target user is the `user_id` of the **body**, not the one of the \
-                   path. The handler ignores the `userId` of the URL; send the same value in \
-                   both to avoid any ambiguity.\n\n\
+                   The target user is always the `userId` of the **path**. The body `user_id` is \
+                   deprecated and optional: when sent, it must equal the path's, otherwise the \
+                   answer is `400`.\n\n\
                    The response has an empty body. Every Core write failure is reported as \
                    `404`.\n\n\
                    **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client \
@@ -142,11 +156,11 @@ async fn add_role_to_user(
                    only Core is written.",
     request_body(
         content = AddRoleToUserView,
-        description = "Role to grant and user receiving it.",
-        example = json!({ "role_id": 2, "user_id": 42 })
+        description = "Role to grant.",
+        example = json!({ "role_id": 2 })
     ),
     params(
-        ("userId" = u64, Path, description = "User id. **Ignored**: the `user_id` of the body is the one used.", example = 42)
+        ("userId" = u64, Path, description = "Id of the user receiving the role.", example = 42)
     ),
     responses(
         (
@@ -155,17 +169,17 @@ async fn add_role_to_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body or missing required field.",
+            description = "Malformed JSON body, missing `role_id`, or body `user_id` different from the path's `userId`.",
             body = String,
             content_type = "text/plain",
-            example = json!("Json deserialize error: missing field `role_id`")
+            example = json!("The body `user_id` does not match the user of the path.")
         ),
         (
             status = 401,
             description = "`Authorization` header missing, JWT invalid or expired, or session revoked.",
             body = String,
             content_type = "text/plain",
-            example = json!("Jeton expiré")
+            example = json!("Unauthorized")
         ),
         (
             status = 403,
@@ -206,13 +220,16 @@ async fn add_role_to_user(
 )]
 #[post("/")]
 pub async fn admin_add_role_to_user(
+    _: AdminUser,
     state: web::Data<AppState>,
     admin: Option<web::Data<KeycloakAdminClient>>,
+    path: web::Path<u64>,
     view: web::Json<AddRoleToUserView>,
 ) -> Result<impl Responder, AddRoleToUserError> {
     add_role_to_user(
         state,
         admin.as_ref().map(web::Data::get_ref),
+        path.into_inner(),
         view.into_inner(),
     )
     .await?;

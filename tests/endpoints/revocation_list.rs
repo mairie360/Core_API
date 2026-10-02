@@ -86,7 +86,7 @@ async fn open_session(state: &AppState, user_id: u64) -> (Uuid, String, String) 
         .execute(CreateSessionQueryView::with_id(
             session_id,
             user_id,
-            &refresh_token,
+            &core_api::refresh_token::hash(&refresh_token),
             "any_device",
             std::net::IpAddr::from([0, 0, 0, 0]),
         ))

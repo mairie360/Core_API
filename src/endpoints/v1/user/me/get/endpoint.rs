@@ -43,23 +43,23 @@ async fn trigger_get_me(
     let view = GetUserByIdQueryView::new(user_id);
     let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
         smart_db.fetch_one(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {e}");
+            eprintln!("Get user DB Error: {e}");
             GetMeError::DatabaseError
         })?;
     let view = GetUserGroupsQuerView::new(user_id);
     let groups = smart_db.fetch_all(&view).await.map_err(|e| {
-        eprintln!("Login DB Error: {e}");
+        eprintln!("Get user DB Error: {e}");
         GetMeError::DatabaseError
     })?;
     let role = GetUserRolesQueryView::new(user_id);
     let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
-        eprintln!("Login DB Error: {e}");
+        eprintln!("Get user DB Error: {e}");
         GetMeError::DatabaseError
     })?;
     let view = GetRolesByIdQueryView::new(role_id);
     let role: Vec<crate::database::roles::get_roles_by_id::Role> =
         smart_db.fetch_all(&view).await.map_err(|e| {
-            eprintln!("Login DB Error: {e}");
+            eprintln!("Get user DB Error: {e}");
             GetMeError::DatabaseError
         })?;
 
@@ -69,7 +69,7 @@ async fn trigger_get_me(
         result.email(),
         result.phone_number(),
         result.status(),
-        role.first().map_or("", |r| r.name()),
+        role.iter().map(|r| r.name().to_string()).collect(),
         groups,
     ))
 }
@@ -95,6 +95,7 @@ async fn trigger_get_me(
                 "phone": "0612345678",
                 "status": "active",
                 "role": "agent",
+                "roles": ["agent"],
                 "groups": [
                     { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
                 ]

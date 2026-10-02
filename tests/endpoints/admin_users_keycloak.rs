@@ -446,8 +446,8 @@ async fn test_patch_user_restores_the_keycloak_profile_when_core_refuses() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
-    assert_eq!(body, "Unknown user");
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body, "Another account already uses this e-mail address.");
     let keycloak_user = mock.user(&keycloak_id).unwrap();
     assert_eq!(
         keycloak_user.email,

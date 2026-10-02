@@ -1,15 +1,16 @@
 use utoipa::ToSchema;
 
-/// Ajout d'un utilisateur à un groupe.
+/// User to add to the group of the path.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostUserGroupView {
-    /// Identifiant de l'utilisateur à rattacher.
+    /// Id of the user to add.
     #[schema(example = 42)]
     user_id: u64,
-    /// Identifiant du groupe de destination. C'est cette valeur qui fait foi, pas le `group_id`
-    /// du chemin.
-    #[schema(example = 3)]
-    group_id: u64,
+    /// Deprecated, optional: the group is the `group_id` of the path. When sent, it must equal
+    /// the path's `group_id`, otherwise the request answers `400`.
+    #[schema(example = 3, nullable = false)]
+    #[deprecated(note = "the group is taken from the path")]
+    group_id: Option<u64>,
 }
 
 impl PostUserGroupView {
@@ -17,7 +18,9 @@ impl PostUserGroupView {
         self.user_id
     }
 
-    pub const fn group_id(&self) -> u64 {
+    /// The deprecated body `group_id`, only read to refuse a mismatch with the path.
+    #[allow(deprecated)]
+    pub const fn body_group_id(&self) -> Option<u64> {
         self.group_id
     }
 }

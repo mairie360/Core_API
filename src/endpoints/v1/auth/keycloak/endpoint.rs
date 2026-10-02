@@ -1,4 +1,5 @@
 use super::view::KeycloakLoginView;
+use crate::client_ip::client_ip;
 use crate::database::auth::link_identity::LinkUserIdentityQueryView;
 use crate::database::auth::resolve_identity::{
     ResolveUserIdentityQueryResultView, ResolveUserIdentityQueryView,
@@ -8,9 +9,8 @@ use crate::endpoints::v1::auth::login::endpoint::{generate_session, LoginError};
 use crate::endpoints::v1::auth::login::view::LoginResponseView;
 use crate::keycloak::migration::KEYCLOAK_PROVIDER;
 use crate::keycloak::{AuthorizationCode, KeycloakClient, KeycloakError, KeycloakIdentity};
-use actix_web::{
-    dev::ConnectionInfo, http::StatusCode, post, web, HttpResponse, Responder, ResponseError,
-};
+use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
+use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
@@ -26,6 +26,7 @@ pub enum KeycloakLoginError {
     KeycloakUnavailable,
     NotConfigured,
     TokenGenerationError,
+    TooManyRequests(u64),
     UnknownAccount,
 }
 
@@ -46,6 +47,7 @@ impl std::fmt::Display for KeycloakLoginError {
             Self::KeycloakUnavailable => write!(f, "{}", KeycloakError::Unavailable),
             Self::NotConfigured => write!(f, "Keycloak sign-in is not configured."),
             Self::TokenGenerationError => write!(f, "Failed to generate JWT token."),
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::UnknownAccount => write!(
                 f,
                 "No Mairie 360 account matches this Keycloak e-mail address."
@@ -65,10 +67,14 @@ impl ResponseError for KeycloakLoginError {
             Self::KeycloakUnavailable => StatusCode::BAD_GATEWAY,
             Self::NotConfigured => StatusCode::SERVICE_UNAVAILABLE,
             Self::DatabaseError | Self::TokenGenerationError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
+        if let Self::TooManyRequests(retry_after) = self {
+            return too_many_requests_response(*retry_after);
+        }
         HttpResponse::build(self.status_code())
             .content_type("text/plain; charset=utf-8")
             .body(self.to_string())
@@ -98,7 +104,7 @@ async fn find_account(
         Ok(user) if user.is_archived() => Err(KeycloakLoginError::AccountArchived),
         Ok(user) => Ok(user),
         Err(ApiLibError::Database(DbError::NotFound)) => {
-            eprintln!("Keycloak login refused: no account for {email}");
+            eprintln!("Keycloak login refused: no Core account for this verified e-mail");
             Err(KeycloakLoginError::UnknownAccount)
         }
         Err(e) => {
@@ -245,6 +251,16 @@ async fn resolve_account(
             example = json!("Keycloak is unavailable.")
         ),
         (
+            status = 429,
+            description = "Too many sign-in attempts from this client address (30 per minute, shared with `POST /api/v1/auth/login`). The `Retry-After` header gives the number of seconds to wait.",
+            body = String,
+            content_type = "text/plain",
+            headers(
+                ("Retry-After" = u64, description = "Seconds to wait before the next attempt.")
+            ),
+            example = json!("Too many requests, please try again later.")
+        ),
+        (
             status = 503,
             description = "Keycloak sign-in is disabled on this instance (`KEYCLOAK_REALM_URL` or `KEYCLOAK_CLIENT_ID` not set). Use `POST /api/v1/auth/login` instead.",
             body = String,
@@ -255,18 +271,25 @@ async fn resolve_account(
     tag = "Auth"
 )]
 #[post("/keycloak")]
+// actix-web runs each handler on a single-threaded runtime per worker: the future does not need
+// to be Send even though it holds an HttpRequest across an .await.
+#[allow(clippy::future_not_send)]
 pub async fn keycloak_login(
     payload: web::Json<KeycloakLoginView>,
     state: web::Data<AppState>,
     keycloak: Option<web::Data<KeycloakClient>>,
-    conn: ConnectionInfo,
+    limits: Option<web::Data<RateLimits>>,
+    request: HttpRequest,
 ) -> Result<impl Responder, KeycloakLoginError> {
     let keycloak = keycloak.ok_or(KeycloakLoginError::NotConfigured)?;
     let login_view = payload.into_inner();
-    let ip_address = conn
-        .realip_remote_addr()
-        .and_then(|ip| ip.parse::<std::net::IpAddr>().ok())
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    let ip_address = client_ip(&request);
+    if let Some(limits) = limits {
+        limits
+            .login_per_ip
+            .hit(&ip_key(ip_address))
+            .map_err(|refused| KeycloakLoginError::TooManyRequests(refused.retry_after_seconds))?;
+    }
 
     let identity = keycloak
         .authenticate(&AuthorizationCode {
