@@ -71,7 +71,8 @@ async fn delete_user_from_group(
                    conservés ; seul le lien d'appartenance disparaît.\n\n\
                    Contrairement à la suppression d'un groupe, cet appel n'est pas idempotent : \
                    retirer un utilisateur qui n'est pas membre répond `404`.\n\n\
-                   Cet endpoint ne vérifie pas que l'appelant est propriétaire du groupe.",
+                   Requires the `update` right on the group (owner, `update_all`, or an ACL): \
+                   any other caller gets `403` and the membership is kept.",
     params(
         ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3),
         ("user_id" = u64, Path, description = "Identifiant de l'utilisateur à retirer.", example = 42)
@@ -94,6 +95,13 @@ async fn delete_user_from_group(
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "The caller has no `update` right on the group (owner, `update_all` such as administrators, or an ACL), checked by `access_guard_middleware` before the handler runs.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Insufficient permissions")
         ),
         (
             status = 404,

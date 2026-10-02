@@ -91,8 +91,8 @@ async fn trigger_patch_group(
                    Au moins un des deux champs doit être fourni : un corps vide est refusé en \
                    `400`. Le nom, une fois nettoyé de ses espaces de bord, ne peut être ni vide ni \
                    plus long que 255 caractères.\n\n\
-                   Attention : cet endpoint ne vérifie pas que l'appelant est propriétaire du \
-                   groupe. Tout utilisateur authentifié peut modifier n'importe quel groupe.",
+                   Requires the `update` right on the group (owner, `update_all`, or an ACL): \
+                   any other caller gets `403` and the group is left untouched.",
     params(
         ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
     ),
@@ -128,8 +128,15 @@ async fn trigger_patch_group(
             example = json!("Jeton expiré")
         ),
         (
+            status = 403,
+            description = "The caller has no `update` right on the group (owner, `update_all` such as administrators, or an ACL), checked by `access_guard_middleware` before the handler runs.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Insufficient permissions")
+        ),
+        (
             status = 404,
-            description = "Aucun groupe ne porte cet identifiant.",
+            description = "No group has this id (`Resource not found`, from the rights check).",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow group")
