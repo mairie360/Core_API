@@ -208,6 +208,14 @@ Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitive
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 
+### Bounded lists (MAIR-425)
+
+Lists that grow with the data take `endpoints::pagination::PageQuery` (`limit` 1-500, default 100, `offset`
+0-1000000, `400` otherwise) through `ValidatedQuery`: `GET /sessions/history`, `GET /groups/`,
+`GET /groups/{id}/users/`. Their query views have `new` (first page) and `page(id, PageQuery)`, with a stable
+`ORDER BY`. The admin user list and the directory had their own bounds already (`page_size`, `limit`). Rate
+limiting covers the public authentication routes (MAIR-390); the authenticated routes rely on the ingress.
+
 ### Ids (MAIR-422)
 
 API ids are `u64`, Postgres ids `INT4`. Convert with `database::ids::{id_to_sql, id_to_sql_i64, id_from_sql}`,
