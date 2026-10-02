@@ -365,13 +365,10 @@ checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
  "bytes",
- "form_urlencoded",
  "futures-util",
  "http 1.5.0",
  "http-body",
  "http-body-util",
- "hyper",
- "hyper-util",
  "itoa",
  "matchit",
  "memchr",
@@ -379,15 +376,10 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
- "serde_json",
- "serde_path_to_error",
- "serde_urlencoded",
  "sync_wrapper",
- "tokio",
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -406,7 +398,6 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -2378,15 +2369,14 @@ dependencies = [
 
 [[package]]
 name = "mairie360_api_lib"
-version = "1.4.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baeab5a7b1faaf9fa44796e99d5f94f6f342c4de5d305707621805cd255a4057"
+checksum = "a8bd1a9f9f5090724879afec8dab6973a348a31fbcd9497ec1e57f956ba1111d"
 dependencies = [
  "actix-web",
  "anyhow",
  "argon2",
  "async-trait",
- "axum",
  "chrono",
  "deadpool-redis",
  "futures-util",
@@ -3412,9 +3402,9 @@ dependencies = [
 
 [[package]]
 name = "resend-rs"
-version = "0.32.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f8a0655605e032e97f50097eb69ba8bb129d3dec32f8d9d2f9c96aec558e8a"
+checksum = "9bf2e13eb4e42005789b633a6a008add0f8f4d5521e0482d8836398c8be9a3c1"
 dependencies = [
  "ecow",
  "getrandom 0.4.3",
@@ -3722,17 +3712,6 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
-]
-
-[[package]]
-name = "serde_path_to_error"
-version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
-dependencies = [
- "itoa",
- "serde",
- "serde_core",
 ]
 
 [[package]]
