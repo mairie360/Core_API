@@ -41,7 +41,7 @@ Statuses returned across the API, before the handler runs:
 | Status | Meaning |
 | --- | --- |
 | `400` | Malformed body or query string, or a field breaking its validation rules (length, \
-format, control characters, `<` / `>` in names and descriptions); the body names the first \
+format, control characters); the body names the first \
 invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
 | `401` | `Authorization` header missing or malformed, invalid or expired JWT, or revoked session. |
 | `403` | Valid JWT but insufficient rights (`admin` route or resource access control). |

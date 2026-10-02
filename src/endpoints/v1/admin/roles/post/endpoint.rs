@@ -87,10 +87,10 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character, no `<` or `>`; `description` at most 1000 characters, no `<` or `>`, no control character other than line breaks and tabs.",
+            description = "Malformed JSON body, missing field, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `name`: must not contain `<` or `>`")
+            example = json!("Invalid `name`: must not be empty")
         ),
         (
             status = 401,
