@@ -132,6 +132,8 @@ services:
       PUBLIC_URL: http://core.development.mairie360.fr
       JWT_SECRET: b"secret"
       JWT_TIMEOUT: 3600
+      # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
+      SWAGGER_ENABLED: "true"
       SMTP_HOST: "mailpit" # Nom du service docker
       SMTP_PORT: "1025" # Port SMTP de mailpit
       SMTP_USERNAME: "" # Pas besoin d'authentification en local

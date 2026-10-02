@@ -183,7 +183,9 @@ When adding a new endpoint, follow an existing sibling (e.g. `src/endpoints/v1/a
 
 ### Routing
 
-`endpoints::config()` mounts `health`/`hello`/swagger-ui unauthenticated, and `v1::config()`. In `main.rs`, the
+`main.rs` mounts `/health` and `/ready` unauthenticated, Swagger UI + `/api-docs/openapi.json` only when
+`SWAGGER_ENABLED=true` (MAIR-424: set in the dev, ZAP and k6 stacks, never in production), and `endpoints::config()`
+(`v1::config()`) under `/api`. The template's `POST /` "Hello, world!" route is gone. In `main.rs`, the
 whole `/api` scope is wrapped in `mairie360_api_lib::security::JwtMiddleware`; the `/admin` scope is
 additionally wrapped in Core's own `endpoints::admin_guard` (MAIR-390), which checks the caller against the
 database for every route mounted there and stores an `AdminUser` that every admin handler takes as argument.
