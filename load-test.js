@@ -25,11 +25,12 @@ import { createCoverage, loadSpec } from '/coverage.js';
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 const MAILPIT_URL = (__ENV.MAILPIT_URL || 'http://localhost:8025').replace(/\/+$/, '');
 
-// Static HS256 JWT (sub=1, the Admin seeded by liquibase, role=admin, exp=2100, signed with the
-// stack's JWT_SECRET=b"secret"), the same one ZAP injects: it passes AdminMiddleware.
-const TOKEN =
-  __ENV.JWT ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjo0MTAyNDQ0ODAwfQ.xCeBe_2QxRlXW8WXr3t6F69wbEHA93HbP_7l4OTJwjA';
+// Admin JWT (sub=1, the Admin seeded by liquibase, role=admin) signed with the stack's random
+// JWT_SECRET by stack_secrets.sh (MAIR-428): no token is committed any more.
+const TOKEN = __ENV.JWT;
+if (!TOKEN) {
+  throw new Error('JWT is not set: run performance_test.sh, which signs the admin token.');
+}
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
 
 // Plain `User` account seeded by init-test.sql.

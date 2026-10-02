@@ -46,7 +46,7 @@
     },
     {
       "key": "jwt_secret",
-      "value": "b\"secret\"",
+      "value": "",
       "type": "default",
       "enabled": true
     },

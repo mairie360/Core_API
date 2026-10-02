@@ -98,8 +98,13 @@ published `ghcr.io/mairie360/core-api:dev-<sha>` image; when it is empty the scr
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `core-ready` sidecar
 polling `/health`, and dependent services wait for it with `service_completed_successfully`.
 
-The ZAP scan is authenticated: `security-scan` injects a static admin JWT (`sub=1`, signed with
-`JWT_SECRET=b"secret"`, see the comment in `docker-compose-security.yml`) on every request, waits for the `seeder`
+The three test stacks get a random `JWT_SECRET` per run from `stack_secrets.sh` (sourced by the `*_test.sh`
+scripts, MAIR-428), which also signs `ADMIN_JWT` (`sub=1`, `role=admin`, 4 h): no secret or token is committed, and
+the compose files refuse to start without them. The API refuses a missing, short (< 32 bytes) or well-known
+`JWT_SECRET` at startup (mairie360_api_lib >= 2.0.0); only the dev `docker-compose.yml` keeps `b"secret"`, with
+`JWT_ALLOW_WEAK_SECRET=true`. To replay the Postman collection by hand, pass `--env-var jwt_secret=<the stack's secret>`.
+
+The ZAP scan is authenticated: `security-scan` injects `ADMIN_JWT` on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` accounts `id=2` and `id=42`, user `id=1` is the Admin created by liquibase) and fails on
 any alert not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://core:3000` is required: the
 spec's `servers` (localhost, development.mairie360.fr) are unreachable from the ZAP container. Keep `rules.tsv`
