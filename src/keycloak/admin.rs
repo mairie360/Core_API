@@ -191,7 +191,7 @@ impl KeycloakAdminClient {
             .send()
             .await
             .map_err(|e| {
-                eprintln!("Keycloak token endpoint unreachable: {e}");
+                tracing::error!("Keycloak token endpoint unreachable: {e}");
                 KeycloakAdminError::Unavailable
             })?;
 
@@ -202,18 +202,18 @@ impl KeycloakAdminClient {
             status,
             StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
         ) {
-            eprintln!(
+            tracing::error!(
                 "Keycloak refused the service account of {}",
                 self.config.client_id()
             );
             return Err(KeycloakAdminError::Forbidden);
         }
         if !status.is_success() {
-            eprintln!("Keycloak token endpoint answered {status}");
+            tracing::error!("Keycloak token endpoint answered {status}");
             return Err(KeycloakAdminError::Unavailable);
         }
         let body: TokenResponse = response.json().await.map_err(|e| {
-            eprintln!("Unreadable Keycloak token response: {e}");
+            tracing::error!("Unreadable Keycloak token response: {e}");
             KeycloakAdminError::Unavailable
         })?;
         Ok(body.access_token)
@@ -239,20 +239,20 @@ impl KeycloakAdminClient {
                 request = request.json(body);
             }
             let response = request.send().await.map_err(|e| {
-                eprintln!("Keycloak Admin API unreachable: {e}");
+                tracing::error!("Keycloak Admin API unreachable: {e}");
                 KeycloakAdminError::Unavailable
             })?;
             match response.status() {
                 StatusCode::UNAUTHORIZED if !refresh => refresh = true,
                 StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                    eprintln!("Keycloak Admin API refused {method} {}", url.path());
+                    tracing::error!("Keycloak Admin API refused {method} {}", url.path());
                     return Err(KeycloakAdminError::Forbidden);
                 }
                 StatusCode::NOT_FOUND => return Err(KeycloakAdminError::NotFound),
                 StatusCode::CONFLICT => return Err(KeycloakAdminError::AlreadyExists),
                 status if status.is_success() => return Ok(response),
                 status => {
-                    eprintln!(
+                    tracing::error!(
                         "Keycloak Admin API answered {status} on {method} {}",
                         url.path()
                     );
@@ -266,7 +266,7 @@ impl KeycloakAdminClient {
         response: reqwest::Response,
     ) -> Result<T, KeycloakAdminError> {
         response.json().await.map_err(|e| {
-            eprintln!("Unreadable Keycloak Admin API response: {e}");
+            tracing::error!("Unreadable Keycloak Admin API response: {e}");
             KeycloakAdminError::Unavailable
         })
     }
@@ -339,7 +339,7 @@ impl KeycloakAdminClient {
             .filter(|id| !id.is_empty())
             .map(ToString::to_string)
             .ok_or_else(|| {
-                eprintln!("Keycloak created a user without a Location header");
+                tracing::error!("Keycloak created a user without a Location header");
                 KeycloakAdminError::Unavailable
             })
     }

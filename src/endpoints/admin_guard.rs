@@ -63,7 +63,7 @@ pub async fn admin_guard(
         .fetch_scalar(&IsAdminQueryView::new(user_id))
         .await
         .map_err(|e| {
-            eprintln!("Admin check DB Error: {e}");
+            tracing::error!("Admin check DB Error: {e}");
             actix_web::error::ErrorInternalServerError(
                 "An error occurred while accessing the database.",
             )

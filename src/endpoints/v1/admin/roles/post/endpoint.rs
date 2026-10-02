@@ -53,7 +53,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         .map_err(|e| match e {
             ApiLibError::Database(DbError::UniqueViolation(_)) => PostError::Duplicate,
             e => {
-                eprintln!("Create role DB Error: {e}");
+                tracing::error!("Create role DB Error: {e}");
                 PostError::DatabaseError
             }
         })?;

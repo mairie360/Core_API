@@ -62,7 +62,7 @@ pub async fn publish_revoked_sessions(redis: &Redis, session_ids: &[Uuid]) -> bo
     let mut all_written = true;
     for &session_id in session_ids {
         if let Err(e) = publish_revoked_session(redis, session_id, ttl).await {
-            eprintln!(
+            tracing::error!(
                 "[CRITICAL] Could not publish revoked session {session_id} to Redis: {e}. \
                  Other APIs accept its JWTs until they expire."
             );

@@ -52,7 +52,7 @@ async fn remove_access_to_ressource(
     view: &RemoveAccessView,
 ) -> Result<(), RemoveAccessError> {
     let internal = |e: ApiLibError| {
-        eprintln!("Remove access DB Error: {e}");
+        tracing::error!("Remove access DB Error: {e}");
         RemoveAccessError::Internal
     };
     let caller_is_admin = is_admin(smart_db, caller_id).await.map_err(internal)?;

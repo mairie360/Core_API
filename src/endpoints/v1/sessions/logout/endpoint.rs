@@ -94,7 +94,7 @@ pub async fn logout(
             .execute(RevokeCurrentSessionQueryView::new(session_id, user.id))
             .await
             .map_err(|e| {
-                eprintln!("Logout DB Error: {e}");
+                tracing::error!("Logout DB Error: {e}");
                 LogoutError::Database
             })?;
         // Other APIs refuse the JWT through the shared revocation list (MAIR-264). A failure is
@@ -104,7 +104,7 @@ pub async fn logout(
         publish_revoked_session(state.get_redis(), session_id, max_jwt_lifetime())
             .await
             .map_err(|e| {
-                eprintln!("Logout Redis Error: {e}");
+                tracing::error!("Logout Redis Error: {e}");
                 LogoutError::Redis
             })?;
     }

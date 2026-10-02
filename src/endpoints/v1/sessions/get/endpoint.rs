@@ -1,4 +1,5 @@
 use crate::database::sessions::get_active_sessions::GetActiveSessionsQueryView;
+use crate::endpoints::db_error;
 use crate::endpoints::v1::sessions::get::response_view::GetSessionsResultView;
 use mairie360_api_lib::security::AuthenticatedUser;
 
@@ -44,7 +45,10 @@ async fn get_user_info(
         .get_smart_db()
         .fetch_all(&GetActiveSessionsQueryView::new(user_id))
         .await
-        .map_err(|_| GetError::DatabaseError)?;
+        .map_err(|e| {
+            db_error::log("active sessions", &e);
+            GetError::DatabaseError
+        })?;
 
     Ok(GetSessionsResultView::new(
         query_result

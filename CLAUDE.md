@@ -200,6 +200,16 @@ Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitive
 leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
 mid-refactor (see current branch), so don't be surprised if both appear for a while.
 
+### Database errors and logs (MAIR-421)
+
+Never `map_err(|_| …)` a database error. `endpoints::db_error::log("<what the handler was doing>", &e)`
+logs it through `tracing` and returns its `DbFailure`: `Conflict` (unique constraint → `409`), `NotFound` (no row
+or foreign key → `404`), `Invalid` (SQLSTATE `22xxx` / `23xxx` → `400`), `Unavailable` (pool down → `503`),
+`Internal` (anything else → `500`). Map the kinds the endpoint documents, answer the others with its generic `500`,
+and never send the Postgres message to the client. Logs go through `tracing` (`tracing::error!` / `warn!`, no
+`eprintln!` outside `src/bin/`): `telemetry::init()` always installs the stdout layer (filtered by `RUST_LOG`,
+default `info`), with the OTLP export on top when it is enabled.
+
 ### Multi-statement writes (MAIR-420)
 
 A handler that checks then writes, or writes several rows, runs them in one transaction
@@ -246,9 +256,9 @@ against the `ghcr.io/mairie360/database` image; its source is `../../Devops/Data
 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, and `OTEL_SDK_DISABLED=true` forces it off. The
 endpoint is an agent that relays to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
 `http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
-`OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one. When enabled, `RUST_LOG`
-(default `info`) also filters the stdout logs, which are otherwise not initialised. A failure to
-build the exporter is printed and never stops the API.
+`OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one. `RUST_LOG` (default
+`info`) filters the stdout logs, always on since MAIR-421. A failure to build the exporter is
+printed and never stops the API.
 
 - `main.rs` wraps the app in `tracing_actix_web::TracingLogger` (outermost, so requests refused by
   the JWT / session guards get a span too; it replaces `middleware::Logger`). Root spans are named

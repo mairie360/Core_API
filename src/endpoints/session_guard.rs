@@ -55,7 +55,8 @@ pub async fn session_guard(
             .get_smart_db()
             .fetch_scalar(&IsSessionActiveQueryView::new(session_id, user_id))
             .await
-            .map_err(|_| {
+            .map_err(|e| {
+                crate::endpoints::db_error::log("session guard", &e);
                 actix_web::error::ErrorInternalServerError(
                     "An error occurred while accessing the database.",
                 )

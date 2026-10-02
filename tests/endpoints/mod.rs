@@ -2,6 +2,7 @@ mod access_denials;
 mod admin_users_keycloak;
 mod auth_hardening;
 mod auth_password;
+mod db_errors;
 mod forgot_password;
 mod keycloak_login;
 mod keycloak_migration;

@@ -696,7 +696,8 @@ async fn test_grant_role_unmaps_the_realm_role_when_core_refuses() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    // Already granted: the unique constraint answers 409 (MAIR-421).
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
     assert!(
         mock.user(&keycloak_id).unwrap().realm_roles.is_empty(),
         "the mapping added by the call is removed"

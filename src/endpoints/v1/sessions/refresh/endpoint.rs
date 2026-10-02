@@ -69,7 +69,7 @@ async fn refresh_request(
         Ok(session) => session,
         Err(ApiLibError::Database(DbError::NotFound)) => return Err(RefreshError::InvalidToken),
         Err(e) => {
-            eprintln!("Refresh DB Error: {e}");
+            tracing::error!("Refresh DB Error: {e}");
             return Err(RefreshError::DatabaseError);
         }
     };
@@ -77,7 +77,7 @@ async fn refresh_request(
     let user_id = u64::try_from(session.user_id()).map_err(|_| RefreshError::InvalidToken)?;
     // The new JWT stays bound to the same session (`sid` claim), see `session_jwt`.
     let jwt = generate_session_jwt(user_id, session.id()).map_err(|e| {
-        eprintln!("JWT Generation Error: {e}");
+        tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;
     Ok((jwt, new_refresh_token))
