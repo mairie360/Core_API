@@ -96,6 +96,8 @@ services:
       PUBLIC_URL: http://core.development.mairie360.fr
       JWT_SECRET: b"secret"
       JWT_TIMEOUT: 3600
+      # Serves /api-docs/openapi.json, read by the collection (MAIR-424), off in production.
+      SWAGGER_ENABLED: "true"
       SMTP_HOST: "mailpit"
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
