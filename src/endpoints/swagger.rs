@@ -1,5 +1,6 @@
 use crate::endpoints::health::HealthDoc;
 use crate::endpoints::hello::HelloDoc;
+use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
@@ -74,6 +75,7 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
+        (path = "/", api = ReadyDoc),
         (path = "/", api = HelloDoc),
     ),
     modifiers(&SecurityAddon) // On ajoute le modifier ici

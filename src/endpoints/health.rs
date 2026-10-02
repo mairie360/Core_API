@@ -7,15 +7,14 @@ use utoipa::OpenApi;
 #[utoipa::path(
     get,
     path = "health",
-    summary = "Sonde de vivacité",
-    description = "Répond `OK` dès que le processus accepte des connexions. Route non \
-                   authentifiée, utilisée comme healthcheck par Docker et Kubernetes. Elle ne \
-                   vérifie ni la base de données ni Redis : un `200` ne garantit donc pas que les \
-                   dépendances du service soient joignables.",
+    summary = "Liveness probe",
+    description = "Answers `OK` as soon as the process accepts connections. Unauthenticated, used \
+                   as the Kubernetes liveness probe. It checks neither Postgres nor Redis: use \
+                   `GET /ready` to know whether the replica can serve requests.",
     responses(
         (
             status = 200,
-            description = "Le service accepte des connexions.",
+            description = "The process accepts connections.",
             body = String,
             content_type = "text/plain",
             example = json!("OK")
