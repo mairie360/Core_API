@@ -21,4 +21,4 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "endpoints|main\\.r
 # v1.4.0 schema the Keycloak features (user_identities, MAIR-141) need yet).
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database
-TEST_DB_VERSION = "dev-0aaede5"
+TEST_DB_VERSION = "dev-fb7c223"
