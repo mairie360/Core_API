@@ -22,17 +22,17 @@ mairie360_api_lib = "3.0.0"
 percent-encoding = "2.3"
 # OpenTelemetry (MAIR-131). `tracing-actix-web` only supports OpenTelemetry up to 0.32 and
 # `tracing-opentelemetry` 0.33 is the release paired with it: bump all of them together.
-opentelemetry = "0.32"
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
-opentelemetry_sdk = "0.32"
+opentelemetry = "0.33"
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
+opentelemetry_sdk = "0.33"
 tracing-actix-web = { version = "0.7.25", features = ["opentelemetry_0_32"] }
-tracing-opentelemetry = "0.33"
+tracing-opentelemetry = "0.34"
 rand = "0.10"
 reqwest = { version = "0.13.4", features = ["json", "form"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 # Digest of the refresh tokens stored in `sessions.token_hash`.
-sha2 = "0.10"
+sha2 = "0.11"
 # Only to read the SQLSTATE of a `DbError::Sqlx` (same version as mairie360_api_lib).
 sqlx = { version = "0.9.0", default-features = false }
 tokio = { version = "1.50.1", features = ["full"] }
@@ -46,7 +46,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 [dev-dependencies]
 mairie360_api_lib = { version = "3.0.0", features = ["test-utils"] }
 # In-memory span exporter to assert on the exported spans (MAIR-131).
-opentelemetry_sdk = { version = "0.32", features = ["testing"] }
+opentelemetry_sdk = { version = "0.33", features = ["testing"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
 redis = "1.0.3"
 # Redis enforcing the chart's ACL in tests (same version as mairie360_api_lib's test_setup).
