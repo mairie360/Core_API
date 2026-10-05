@@ -1,6 +1,8 @@
 use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
 use crate::endpoints::db_error;
+use crate::endpoints::pagination::PageQuery;
 use crate::endpoints::v1::groups::get::view::GetGroupsResultView;
+use crate::endpoints::validation::ValidatedQuery;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -36,10 +38,11 @@ impl ResponseError for GetGroupsError {
 async fn trigger_get_groups(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
+    page: PageQuery,
 ) -> Result<GetGroupsResultView, GetGroupsError> {
     let groups = state
         .get_smart_db()
-        .fetch_all(&GetUserGroupsQuerView::new(user.id))
+        .fetch_all(&GetUserGroupsQuerView::page(user.id, page))
         .await
         .map_err(|e| {
             db_error::log("list the caller's groups", &e);
@@ -53,10 +56,12 @@ async fn trigger_get_groups(
     get,
     path = "",
     summary = "Lister ses groupes",
-    description = "Renvoie les groupes dont l'utilisateur porté par le JWT est membre, qu'il en \
-                   soit propriétaire ou simple participant. Il n'existe pas d'endpoint listant \
-                   tous les groupes de la plateforme.\n\n\
-                   La liste est vide si l'utilisateur n'appartient à aucun groupe.",
+    description = "Returns the groups the JWT's user is a member of, as owner or participant, \
+                   sorted by name. No endpoint lists every group of the platform.\n\n\
+                   Paginated (MAIR-425): `limit` groups (100 by default, 500 at most) from \
+                   `offset`; a page shorter than `limit` is the last one. The list is empty when \
+                   the user belongs to no group.",
+    params(PageQuery),
     responses(
         (
             status = 200,
@@ -68,6 +73,13 @@ async fn trigger_get_groups(
                     { "id": 7, "owner_id": 5, "name": "Astreinte week-end", "description": null }
                 ]
             })
+        ),
+        (
+            status = 400,
+            description = "`limit` outside 1 to 500, or `offset` outside 0 to 1000000.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid `limit`: must be between 1 and 500")
         ),
         (
             status = 401,
@@ -93,7 +105,8 @@ async fn trigger_get_groups(
 pub async fn get_groups(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
+    page: ValidatedQuery<PageQuery>,
 ) -> Result<impl Responder, GetGroupsError> {
-    let result = trigger_get_groups(user, state).await?;
+    let result = trigger_get_groups(user, state, page.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

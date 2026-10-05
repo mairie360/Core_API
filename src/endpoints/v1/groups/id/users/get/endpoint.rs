@@ -1,7 +1,9 @@
 use crate::database::groups::does_group_exist::DoesGroupExistQuerView;
 use crate::database::groups::get_group_members::GetGroupUsersQueryView;
+use crate::endpoints::pagination::PageQuery;
 use crate::endpoints::v1::groups::id::read_access::can_read_group;
 use crate::endpoints::v1::groups::id::users::get::view::GetGroupUsersResultView;
+use crate::endpoints::validation::ValidatedQuery;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -49,6 +51,7 @@ async fn trigger_get_group_members(
     state: web::Data<AppState>,
     user_id: u64,
     group_id: u64,
+    page: PageQuery,
 ) -> Result<GetGroupUsersResultView, GetUsersGroupError> {
     let smart_db = state.get_smart_db();
 
@@ -67,7 +70,7 @@ async fn trigger_get_group_members(
     }
 
     let result: Vec<i32> = smart_db
-        .fetch_all(&GetGroupUsersQueryView::new(group_id))
+        .fetch_all(&GetGroupUsersQueryView::page(group_id, page))
         .await
         .map_err(|e| database_error(&e))?;
 
@@ -82,9 +85,12 @@ async fn trigger_get_group_members(
                    `GET /api/v1/user/?ids=1,2,3` for their names and addresses.\n\n\
                    Restricted to the group's members (the owner is one, added when the group is \
                    created) and to whoever holds the `read` right on it: a global `read_all` \
-                   (administrators, mayor) or an ACL. Anyone else gets `403`.",
+                   (administrators, mayor) or an ACL. Anyone else gets `403`.\n\n\
+                   Paginated (MAIR-425): `limit` ids (100 by default, 500 at most) from `offset`, \
+                   sorted by id; a page shorter than `limit` is the last one.",
     params(
-        ("group_id" = u64, Path, description = "Group id.", example = 3)
+        ("group_id" = u64, Path, description = "Group id.", example = 3),
+        PageQuery
     ),
     responses(
         (
@@ -92,6 +98,13 @@ async fn trigger_get_group_members(
             description = "Ids of the group's members.",
             body = GetGroupUsersResultView,
             example = json!({ "users": [1, 2, 5] })
+        ),
+        (
+            status = 400,
+            description = "`limit` outside 1 to 500, or `offset` outside 0 to 1000000.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid `limit`: must be between 1 and 500")
         ),
         (
             status = 401,
@@ -132,7 +145,9 @@ pub async fn get_group_members(
     user: AuthenticatedUser,
     state: web::Data<AppState>,
     group_id: web::Path<u64>,
+    page: ValidatedQuery<PageQuery>,
 ) -> Result<impl Responder, GetUsersGroupError> {
-    let result = trigger_get_group_members(state, user.id, group_id.into_inner()).await?;
+    let result =
+        trigger_get_group_members(state, user.id, group_id.into_inner(), page.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }
