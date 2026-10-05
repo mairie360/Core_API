@@ -31,6 +31,12 @@ cargo build --release
 docker compose up --build --watch   # full stack: postgres, liquibase migrations, redis, core (hot reload), mailpit, nginx
 ```
 
+Probes (MAIR-423): `GET /health` is the liveness probe (the process answers), `GET /ready` the readiness probe
+(Postgres `SELECT 1` and a Redis round trip, 2 s each, `503 Not ready: <deps>` otherwise). Both live at the root
+only, not under `/api`. At startup `main` waits for Postgres up to `DB_STARTUP_TIMEOUT_SECONDS` (default 60) and
+exits with an error if it never answers, instead of serving `500`s. The compose stacks wait on `/ready`; the
+chart's readiness probe (`Devops/Deploiment`) must point at it too.
+
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
 `REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET`, `JWT_TIMEOUT` and
 `SMTP_*`/`EMAIL_FROM` env vars — all fetched with `get_critical_env_var` (panics on missing var), see
