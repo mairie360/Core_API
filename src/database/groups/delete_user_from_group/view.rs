@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 
+/// Removes `user_id` from `group_id`. Run with `fetch_scalar`, it returns the number of
+/// memberships removed (`i64`, 0 or 1): the check and the removal are one statement (MAIR-420).
 #[derive(serde::Deserialize)]
 pub struct DeleteUserFromGroupQueryView {
     group_id: u64,
@@ -35,7 +37,9 @@ impl DeleteUserFromGroupQueryView {
 
 impl ApiRequestDto for DeleteUserFromGroupQueryView {
     fn query_sql(&self) -> &'static str {
-        "DELETE FROM group_members WHERE group_id = $1 AND user_id = $2"
+        "WITH removed AS (\
+            DELETE FROM group_members WHERE group_id = $1 AND user_id = $2 RETURNING user_id\
+        ) SELECT COUNT(*) FROM removed"
     }
 
     fn query_params(&self) -> &[QueryParam] {

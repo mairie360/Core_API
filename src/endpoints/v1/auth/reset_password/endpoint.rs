@@ -7,12 +7,14 @@ use crate::endpoints::v1::auth::reset_password::view::{
 };
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
-use crate::session_revocation::revoke_all_user_sessions;
+use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
@@ -75,23 +77,38 @@ async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, Reset
         .ok_or(ResetPasswordError::UnknownToken)
 }
 
+/// Sets the new password and revokes every session opened with the previous one, in one
+/// transaction (MAIR-420). Returns the revoked sessions, to publish once committed.
 async fn reset_pwd(
     smart_db: &SmartDatabase,
     new_password: &str,
     user_id: u64,
-) -> Result<(), ResetPasswordError> {
+) -> Result<Vec<Uuid>, ResetPasswordError> {
     let hashed_password = hash_password(new_password).map_err(|e| {
         eprintln!("Password hashing error: {e}");
         ResetPasswordError::DatabaseError
     })?;
+    let database_error = |e: ApiLibError| {
+        eprintln!("Reset password DB Error: {e}");
+        ResetPasswordError::DatabaseError
+    };
+    let mut tx = smart_db.begin().await.map_err(database_error)?;
     // Proving ownership of the mailbox also completes a pending first connection: the account no
     // longer asks for a password change at the next login (MAIR-390).
-    let view = UnsetFirstConnectionQueryView::new(user_id, &hashed_password);
-    smart_db
-        .execute(view)
+    let _: i64 = tx
+        .fetch_scalar(&UnsetFirstConnectionQueryView::new(
+            user_id,
+            &hashed_password,
+        ))
         .await
-        .map_err(|_| ResetPasswordError::DatabaseError)?;
-    Ok(())
+        .map_err(database_error)?;
+    // Sessions opened with the old password end here, in every API (MAIR-264). The session opened
+    // afterwards is the only one left.
+    let revoked = revoke_all_user_sessions_in(&mut tx, user_id)
+        .await
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
+    Ok(revoked)
 }
 
 async fn reset_password_trigger(
@@ -122,16 +139,8 @@ async fn reset_password_trigger(
         return Err(ResetPasswordError::RedisError);
     }
 
-    reset_pwd(smart_db, view.new_password(), user_id).await?;
-
-    // Sessions opened with the old password end here, in every API (MAIR-264). The session opened
-    // below is the only one left.
-    revoke_all_user_sessions(&state, user_id)
-        .await
-        .map_err(|e| {
-            eprintln!("Failed to revoke the previous sessions: {e}");
-            ResetPasswordError::DatabaseError
-        })?;
+    let revoked = reset_pwd(smart_db, view.new_password(), user_id).await?;
+    publish_revoked_sessions(redis, &revoked).await;
 
     match generate_session(user_id, &view.device_info(), ip_adress, state).await {
         Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),

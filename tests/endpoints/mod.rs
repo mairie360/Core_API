@@ -11,4 +11,5 @@ mod revocation_list;
 mod sessions_logout;
 mod sessions_refresh;
 mod telemetry;
+mod transactions;
 mod user_preferences;
