@@ -2369,9 +2369,9 @@ dependencies = [
 
 [[package]]
 name = "mairie360_api_lib"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8bd1a9f9f5090724879afec8dab6973a348a31fbcd9497ec1e57f956ba1111d"
+checksum = "6312707b3bfade2391a8e6273483b91bdc107d627ef12b2a86e7c86e54f68ff3"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2380,8 +2380,10 @@ dependencies = [
  "chrono",
  "deadpool-redis",
  "futures-util",
+ "governor",
  "jsonwebtoken",
  "libc",
+ "percent-encoding",
  "redis",
  "regex",
  "reqwest",
@@ -2393,6 +2395,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-postgres",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
@@ -4640,6 +4644,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-subscriber"
 version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4649,12 +4663,15 @@ dependencies = [
  "nu-ansi-term",
  "once_cell",
  "regex-automata",
+ "serde",
+ "serde_json",
  "sharded-slab",
  "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
  "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]
