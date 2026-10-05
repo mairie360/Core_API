@@ -35,7 +35,7 @@ impl ResponseError for GetError {
 async fn get_roles(state: web::Data<AppState>) -> Result<AdminGetRolesResultView, GetError> {
     let view = GetRolesQueryView::default();
     let result = state.get_smart_db().fetch_all(&view).await.map_err(|e| {
-        eprintln!("Login DB Error: {e}");
+        tracing::error!("Login DB Error: {e}");
         GetError::DatabaseError
     })?;
     Ok(AdminGetRolesResultView::from(result))

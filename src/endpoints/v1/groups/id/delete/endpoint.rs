@@ -1,3 +1,4 @@
+use crate::endpoints::db_error;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -7,14 +8,14 @@ use crate::database::groups::delete_group::DeleteGroupQueryView;
 
 #[derive(Debug, Clone, PartialEq)]
 enum DeleteGroupError {
-    BadRequest,
+    DatabaseError,
 }
 
 impl std::fmt::Display for DeleteGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadRequest => {
-                write!(f, "Bad request.")
+            Self::DatabaseError => {
+                write!(f, "An error occurred while accessing the database.")
             }
         }
     }
@@ -23,7 +24,7 @@ impl std::fmt::Display for DeleteGroupError {
 impl ResponseError for DeleteGroupError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -34,11 +35,10 @@ impl ResponseError for DeleteGroupError {
 
 async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(), DeleteGroupError> {
     let db_view = DeleteGroupQueryView::new(id);
-    state
-        .get_smart_db()
-        .execute(db_view)
-        .await
-        .map_err(|_| DeleteGroupError::BadRequest)?;
+    state.get_smart_db().execute(db_view).await.map_err(|e| {
+        db_error::log("delete group", &e);
+        DeleteGroupError::DatabaseError
+    })?;
 
     Ok(())
 }
@@ -61,13 +61,6 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
             description = "Group deleted. Empty body.",
         ),
         (
-            status = 400,
-            description = "Échec de la suppression en base. Ce endpoint renvoie `400` là où les autres renverraient `500`.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Bad request.")
-        ),
-        (
             status = 401,
             description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
             body = String,
@@ -87,6 +80,13 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
             body = String,
             content_type = "text/plain",
             example = json!("Resource not found")
+        ),
+        (
+            status = 500,
+            description = "Database error, logged by the server.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
         ),
     ),
     tag = "Groups",

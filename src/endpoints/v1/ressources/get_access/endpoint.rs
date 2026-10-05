@@ -1,5 +1,6 @@
 use crate::database::ressources::get_access_by_ressource::GetAccessByRessourceQueryView;
 use crate::database::ressources::get_ressource_type_id::GetRessourceTypeIdQueryView;
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::endpoints::v1::ressources::authorization::{
     can_manage_accesses, is_valid_ressource_type,
 };
@@ -7,8 +8,6 @@ use crate::endpoints::v1::ressources::get_access::view::GetAccessQuery;
 use crate::endpoints::v1::ressources::GetAccessResultView;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::error::DbError;
-use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
@@ -59,14 +58,19 @@ async fn get_access_from_ressource(
     smart_db
         .fetch_scalar::<i32, _>(&GetRessourceTypeIdQueryView::new(ressource_type))
         .await
-        .map_err(|err| match err {
-            ApiLibError::Database(DbError::NotFound) => GetError::UnknownRessourceType,
-            _ => GetError::Internal,
-        })?;
+        .map_err(
+            |err| match db_error::log("get access: resource type", &err) {
+                DbFailure::NotFound => GetError::UnknownRessourceType,
+                _ => GetError::Internal,
+            },
+        )?;
 
     let allowed = can_manage_accesses(smart_db, caller_id, ressource_type, ressource_id)
         .await
-        .map_err(|_| GetError::Internal)?;
+        .map_err(|e| {
+            db_error::log("get access", &e);
+            GetError::Internal
+        })?;
     if !allowed {
         return Err(GetError::Forbidden);
     }
@@ -77,7 +81,10 @@ async fn get_access_from_ressource(
             ressource_type,
         ))
         .await
-        .map_err(|_| GetError::Internal)?;
+        .map_err(|e| {
+            db_error::log("get access", &e);
+            GetError::Internal
+        })?;
 
     Ok(GetAccessResultView::new(result))
 }

@@ -49,7 +49,7 @@ async fn main() -> std::io::Result<()> {
             if admin.is_configured() {
                 true
             } else {
-                eprintln!(
+                tracing::warn!(
                     "Keycloak account synchronisation disabled: KEYCLOAK_CLIENT_SECRET is not set or KEYCLOAK_REALM_URL has no /realms/ segment."
                 );
                 false
@@ -104,7 +104,7 @@ async fn main() -> std::io::Result<()> {
     let addr = server.addrs().first().copied();
     tokio::spawn(async move {
         if let Some(addr) = addr {
-            println!("Serveur démarré avec succès sur http://{addr}");
+            tracing::info!("Server listening on http://{addr}");
         }
     });
 

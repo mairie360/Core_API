@@ -34,7 +34,7 @@ pub fn parse_trusted_proxies(raw: &str) -> Vec<IpNet> {
             entry
                 .parse::<IpNet>()
                 .or_else(|_| entry.parse::<IpAddr>().map(IpNet::from))
-                .map_err(|_| eprintln!("Ignoring invalid TRUSTED_PROXIES entry: {entry}"))
+                .map_err(|_| tracing::warn!("Ignoring invalid TRUSTED_PROXIES entry: {entry}"))
                 .ok()
         })
         .collect()

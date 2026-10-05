@@ -1,13 +1,13 @@
 use crate::database::ressources::add_access_to_user::AddAccessToUserQueryView;
 use crate::database::ressources::get_ressource_type_id::GetRessourceTypeIdQueryView;
 use crate::database::rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction};
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::endpoints::v1::ressources::add_access::view::{AccessType, AddAccessView};
 use crate::endpoints::v1::ressources::authorization::{
     can_manage_accesses, fits_int_column, is_valid_ressource_type,
 };
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
-use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -62,10 +62,10 @@ impl ResponseError for AddAccessError {
 }
 
 /// Maps a failed lookup: no row means the caller sent an unknown value (`not_found`), anything
-/// else is a server error.
-const fn lookup_error(err: &ApiLibError, not_found: AddAccessError) -> AddAccessError {
-    match err {
-        ApiLibError::Database(DbError::NotFound) => not_found,
+/// else is a server error, logged.
+fn lookup_error(err: &ApiLibError, not_found: AddAccessError) -> AddAccessError {
+    match db_error::log("add access: lookup", err) {
+        DbFailure::NotFound => not_found,
         _ => AddAccessError::Internal,
     }
 }
@@ -97,7 +97,10 @@ async fn add_access_to_ressource(
         view.resource_id(),
     )
     .await
-    .map_err(|_| AddAccessError::Internal)?;
+    .map_err(|e| {
+        db_error::log("add access", &e);
+        AddAccessError::Internal
+    })?;
     if !allowed {
         return Err(AddAccessError::Forbidden);
     }
@@ -121,8 +124,9 @@ async fn add_access_to_ressource(
             permission_id,
         ))
         .await
-        .map_err(|err| match err {
-            ApiLibError::Database(DbError::ForeignKeyViolation(_)) => AddAccessError::UnknownUser,
+        .map_err(|err| match db_error::log("add access: insert", &err) {
+            // `user_id` matches no user (foreign key).
+            DbFailure::NotFound => AddAccessError::UnknownUser,
             _ => AddAccessError::Internal,
         })
 }

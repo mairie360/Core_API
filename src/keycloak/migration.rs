@@ -184,7 +184,7 @@ pub async fn migrate_users(
         db.fetch_all(&ListSsoExportQueryView::new())
             .await
             .map_err(|e| {
-                eprintln!("Keycloak migration: cannot read v_users_sso_export: {e}");
+                tracing::error!("Keycloak migration: cannot read v_users_sso_export: {e}");
                 MigrationError::Database
             })?;
 
@@ -240,7 +240,7 @@ async fn migrate_user(
             return Ok(result);
         }
         Err(e) => {
-            eprintln!("Keycloak migration: cannot link user {}: {e}", user.id);
+            tracing::error!("Keycloak migration: cannot link user {}: {e}", user.id);
             return Err(MigrationError::Database);
         }
     }
@@ -250,7 +250,7 @@ async fn migrate_user(
         match admin.send_password_setup_email(&keycloak_id).await {
             Ok(()) => result.password_email_sent = true,
             Err(e) => {
-                eprintln!(
+                tracing::error!(
                     "Keycloak migration: password set-up e-mail not sent to {}: {e}",
                     user.email
                 );
