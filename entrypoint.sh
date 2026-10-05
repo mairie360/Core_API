@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# CORRECTION : Utiliser le même dossier que le WORKDIR du Dockerfile
+# Same folder as the WORKDIR of development.Dockerfile
 cd /usr/src/core
 
-# Lancer cargo watch
-exec cargo watch --poll -w src -i target -x run
+# Hot reload of the API (`--bin`: the crate also ships the keycloak_migration binary)
+exec cargo watch --poll -w src -i target -x "run --bin core_api"
