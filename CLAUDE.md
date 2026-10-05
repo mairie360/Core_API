@@ -104,7 +104,9 @@ service (`init-test.sql`: plain `User` accounts `id=2` and `id=42`, user `id=1` 
 any alert not set to `IGNORE` / `OUTOFSCOPE` in `.zap/rules.tsv` (no `-I`). `-O http://core:3000` is required: the
 spec's `servers` (localhost, development.mairie360.fr) are unreachable from the ZAP container. Keep `rules.tsv`
 identical in every API. The scan fuzzes every field, so a `500` (value too long for its column, NUL byte, unmapped
-constraint violation) or a `<script>` echoed back fails the job: validate inputs, don't silence the alert.
+constraint violation) fails the job: validate inputs, don't silence the alert. The XSS rules (40012, 40014, 40016,
+40017) are ignored since MAIR-426: the API only serves JSON / plain text with `nosniff`, a name echoed with `<script>`
+is data, and escaping it for HTML is the fronts' job (React escapes text; no `dangerouslySetInnerHTML`).
 
 Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairie360/CICD `tests/`, available as
 `cicd-repo/` (checked out by CI, cloned by the scripts at the pinned `cicd_version` otherwise, override with
@@ -174,7 +176,7 @@ Business logic is split into two mirrored trees under `src/`, one per resource/a
 
 Request bodies and query strings are extracted with `endpoints::validation::{ValidatedJson, ValidatedQuery}`
 instead of `web::Json` / `web::Query`: the view implements `Validate` (length matching the Postgres column, no
-control character, no `<` / `>` in names and descriptions, e-mail / phone format) and an invalid value answers
+control character, e-mail / phone format; `<` and `>` are accepted since MAIR-426) and an invalid value answers
 `400` naming the field before the handler runs. Document the rules in the view's `#[schema]` and the handler's
 `400` response.
 

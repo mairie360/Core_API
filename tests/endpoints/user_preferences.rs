@@ -136,7 +136,7 @@ async fn invalid_preferences_answer_400() {
         (PREFERENCES, json!({ "theme": "neon" })),
         (PREFERENCES, json!({ "font_size": 0 })),
         (PREFERENCES, json!({ "language": "a".repeat(17) })),
-        (PREFERENCES, json!({ "home_page": "<script>" })),
+        (PREFERENCES, json!({ "home_page": "home\u{7}page" })),
         (PREFERENCES, json!({ "timezone": "  " })),
         (NOTIFICATIONS, json!({ "email": "yes" })),
     ] {
