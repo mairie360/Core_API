@@ -2,6 +2,7 @@ use super::view::{LoginResponseView, LoginView};
 use crate::client_ip::client_ip;
 use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
+use crate::database::ids::id_from_sql;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
 use crate::endpoints::validation::ValidatedJson;
@@ -231,7 +232,7 @@ async fn login_user(
     if !is_hashed(&stored_password) {
         migrate_plaintext_password(
             state.get_smart_db(),
-            user.user_id() as u64,
+            id_from_sql(user.user_id()),
             &login_view.password(),
         )
         .await;
@@ -239,12 +240,12 @@ async fn login_user(
 
     if user.first_connect() {
         return Err(LoginError::FirstConnectError(
-            generate_first_connection_token(user.user_id() as u64, state).await?,
+            generate_first_connection_token(id_from_sql(user.user_id()), state).await?,
         ));
     }
 
     generate_session(
-        user.user_id() as u64,
+        id_from_sql(user.user_id()),
         &login_view.device_info(),
         ip_adress,
         state,

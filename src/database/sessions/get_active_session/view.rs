@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql_i64;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -17,7 +18,7 @@ impl GetActiveSessionQueryView {
             ip_address,
             device_info: device_info.to_string(),
             params: vec![
-                QueryParam::I64(user_id as i64),
+                QueryParam::I64(id_to_sql_i64(user_id)),
                 QueryParam::IpAddr(ip_address),
                 QueryParam::Text(device_info.to_string()),
             ],

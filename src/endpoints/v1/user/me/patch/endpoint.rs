@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use actix_web::http::StatusCode;
 use actix_web::{patch, web, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
@@ -62,7 +63,7 @@ async fn check_current_password(
             PatchMeError::DatabaseError
         })?;
     match stored.password() {
-        Some(hash) if is_password_valid(user_id as i32, password, hash) => Ok(()),
+        Some(hash) if is_password_valid(id_to_sql(user_id), password, hash) => Ok(()),
         _ => Err(PatchMeError::WrongPassword),
     }
 }

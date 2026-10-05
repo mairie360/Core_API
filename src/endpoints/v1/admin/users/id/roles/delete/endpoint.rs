@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
@@ -78,7 +79,7 @@ async fn remove_role_from_user(
     else {
         return revoke_in_core(smart_db, user_id, role_id).await;
     };
-    let Some(user) = export_user(smart_db, user_id as i32)
+    let Some(user) = export_user(smart_db, id_to_sql(user_id))
         .await
         .map_err(RemoveUserRoleError::Keycloak)?
     else {

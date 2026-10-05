@@ -1,3 +1,4 @@
+use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::validation::ValidatedJson;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
@@ -133,7 +134,7 @@ async fn patch_user(
     };
     // Unknown user, patch outside the Keycloak profile, or account unknown to Keycloak: Core
     // alone.
-    let Some(user) = export_user(smart_db, user_id as i32)
+    let Some(user) = export_user(smart_db, id_to_sql(user_id))
         .await
         .map_err(PatchUserError::Keycloak)?
     else {
