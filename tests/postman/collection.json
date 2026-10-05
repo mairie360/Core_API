@@ -31,17 +31,17 @@
       "name": "Service",
       "item": [
         {
-          "name": "Hello",
+          "name": "Ready",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/",
+              "raw": "{{baseUrl}}/ready",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                ""
+                "ready"
               ]
             }
           },
@@ -54,8 +54,8 @@
                   "pm.test(\"Status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Body matches the expected text\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"Hello, world!\");",
+                  "pm.test(\"Postgres and Redis are reachable\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"OK\");",
                   "});"
                 ]
               }
