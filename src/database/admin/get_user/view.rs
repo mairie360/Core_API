@@ -28,7 +28,7 @@ impl AdminGetUserQueryView {
 
 impl ApiRequestDto for AdminGetUserQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1) t"
+        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -87,15 +87,32 @@ pub struct User {
     /// Adresse e-mail, unique sur la plateforme.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
-    /// Numéro de téléphone, ou `null` s'il n'en a pas renseigné.
-    #[schema(example = "0612345678")]
+    /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
+    /// that could not be attributed to a country (MAIR-480) is returned as stored, digits only,
+    /// with `phone_country` `null`.
+    #[schema(example = "+33612345678")]
     phone_number: Option<String>,
+    /// ISO 3166-1 alpha-2 code of the phone number's country, or `null` when there is no phone.
+    #[schema(example = "FR")]
+    #[serde(default)]
+    phone_country: Option<String>,
     /// Statut du compte tel qu'il est stocké en base.
     #[schema(example = "active")]
     status: String,
     /// `true` si le compte est archivé : il ne peut plus se connecter.
     #[schema(example = false)]
     is_archived: bool,
+}
+
+impl User {
+    /// Replaces the stored national number by its E.164 form (MAIR-480): the rows are read with
+    /// the national number of `users.phone_number`, the API answers in E.164.
+    #[must_use]
+    pub fn with_e164_phone(mut self) -> Self {
+        self.phone_number =
+            crate::phone::display(self.phone_country.as_deref(), self.phone_number.as_deref());
+        self
+    }
 }
 
 impl Display for User {

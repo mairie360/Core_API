@@ -20,6 +20,8 @@ jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "ring", "webpki-roots", "builder"] }
 mairie360_api_lib = "3.0.0"
 percent-encoding = "2.3"
+# Phone numbers validated against the numbering plan of their country (MAIR-480).
+phonenumber = "0.3.10"
 # OpenTelemetry (MAIR-131). `tracing-actix-web` only supports OpenTelemetry up to 0.32 and
 # `tracing-opentelemetry` 0.33 is the release paired with it: bump all of them together.
 opentelemetry = "0.32"

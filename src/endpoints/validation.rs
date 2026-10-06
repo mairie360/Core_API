@@ -12,16 +12,14 @@ use std::pin::Pin;
 use std::str::FromStr;
 
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+
+use crate::phone::{Phone, PhoneChange};
 use serde::de::DeserializeOwned;
 
 /// `users.first_name`, `users.last_name`, `roles.name` and `groups.name` are `VARCHAR(64)`.
 pub const MAX_NAME_LENGTH: usize = 64;
 /// `users.email` is `VARCHAR(320)` (RFC 5321 maximum).
 pub const MAX_EMAIL_LENGTH: usize = 320;
-/// Accepted phone numbers: digits only, between these two lengths (`users.phone_number` is
-/// `VARCHAR(15)`).
-pub const MIN_PHONE_LENGTH: usize = 10;
-pub const MAX_PHONE_LENGTH: usize = 15;
 /// Role and group descriptions (`TEXT` columns, capped to keep the payloads reasonable).
 pub const MAX_DESCRIPTION_LENGTH: usize = 1000;
 /// Passwords, as typed by the user, on the routes that create an account or set a password.
@@ -133,21 +131,46 @@ pub fn check_email(field: &str, value: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// A phone number: digits only, between [`MIN_PHONE_LENGTH`] and [`MAX_PHONE_LENGTH`] of them.
+/// A phone number as typed, with the country picked for it (MAIR-480), see [`Phone::parse`].
 ///
 /// # Errors
 ///
-/// Returns a [`ValidationError`] naming `field` when the number does not match.
-pub fn check_phone(field: &str, value: &str) -> Result<(), ValidationError> {
-    if !(MIN_PHONE_LENGTH..=MAX_PHONE_LENGTH).contains(&value.len())
-        || !value.chars().all(|c| c.is_ascii_digit())
-    {
-        return Err(ValidationError::new(
-            field,
-            &format!("must be {MIN_PHONE_LENGTH} to {MAX_PHONE_LENGTH} digits"),
-        ));
+/// Returns a [`ValidationError`] naming `phone_country` when the country is not an ISO 3166-1
+/// alpha-2 code, `field` when the number is not valid for it.
+pub fn check_phone(
+    field: &str,
+    number: &str,
+    country: Option<&str>,
+) -> Result<Phone, ValidationError> {
+    if let Some(country) = country {
+        crate::phone::check_country(country)
+            .map_err(|reason| ValidationError::new("phone_country", reason))?;
     }
-    Ok(())
+    Phone::parse(country, number).map_err(|reason| ValidationError::new(field, reason))
+}
+
+/// What a partial update does to the phone (MAIR-480): `number` absent keeps it, `null` or `""`
+/// clears it, a value replaces it. `phone_country` alone is refused: it qualifies a number.
+///
+/// # Errors
+///
+/// Returns the [`ValidationError`] of [`check_phone`], or one naming `phone_country` when it is
+/// sent without a number.
+#[allow(clippy::option_option)]
+pub fn check_phone_change(
+    field: &str,
+    number: Option<Option<&str>>,
+    country: Option<&str>,
+) -> Result<PhoneChange, ValidationError> {
+    match number {
+        None if country.is_some() => Err(ValidationError::new(
+            "phone_country",
+            &format!("must come with `{field}`"),
+        )),
+        None => Ok(PhoneChange::Keep),
+        Some(None | Some("")) => Ok(PhoneChange::Clear),
+        Some(Some(number)) => check_phone(field, number, country).map(PhoneChange::Set),
+    }
 }
 
 /// A password: between `min` and [`MAX_PASSWORD_LENGTH`] characters, no control character.
@@ -288,10 +311,36 @@ mod tests {
 
     #[test]
     fn phone_rules() {
-        assert!(check_phone("phone", "0798765432").is_ok());
-        assert!(check_phone("phone", "079876543").is_err());
-        assert!(check_phone("phone", "0798765432 AND 1=1 -- ").is_err());
-        assert!(check_phone("phone", "<script>alert(1);</script>").is_err());
+        assert!(check_phone("phone", "0798765432", Some("FR")).is_ok());
+        assert!(check_phone("phone", "079876543", Some("FR")).is_err());
+        assert!(check_phone("phone", "0798765432 AND 1=1 -- ", Some("FR")).is_err());
+        assert!(check_phone("phone", "<script>alert(1);</script>", Some("FR")).is_err());
+        let wrong_country = check_phone("phone", "0798765432", Some("France")).unwrap_err();
+        assert!(wrong_country
+            .to_string()
+            .starts_with("Invalid `phone_country`"));
+    }
+
+    #[test]
+    fn phone_changes() {
+        assert_eq!(
+            check_phone_change("phone", None, None),
+            Ok(PhoneChange::Keep)
+        );
+        assert_eq!(
+            check_phone_change("phone", Some(None), None),
+            Ok(PhoneChange::Clear)
+        );
+        assert_eq!(
+            check_phone_change("phone", Some(Some("")), Some("FR")),
+            Ok(PhoneChange::Clear)
+        );
+        assert!(matches!(
+            check_phone_change("phone", Some(Some("0612345678")), Some("FR")),
+            Ok(PhoneChange::Set(_))
+        ));
+        assert!(check_phone_change("phone", None, Some("FR")).is_err());
+        assert!(check_phone_change("phone", Some(Some("0612345678")), None).is_err());
     }
 
     #[test]
@@ -305,7 +354,7 @@ mod tests {
 
     #[test]
     fn optional_skips_absent_values() {
-        assert!(check_optional(None, |v| check_phone("phone", v)).is_ok());
-        assert!(check_optional(Some("x"), |v| check_phone("phone", v)).is_err());
+        assert!(check_optional(None, |v| check_label("name", v, MAX_NAME_LENGTH)).is_ok());
+        assert!(check_optional(Some(""), |v| check_label("name", v, MAX_NAME_LENGTH)).is_err());
     }
 }

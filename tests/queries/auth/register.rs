@@ -1,5 +1,6 @@
 use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::register::RegisterUserQueryView;
+use core_api::phone::Phone;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
@@ -37,7 +38,7 @@ async fn test_register_user_success() {
             "Doe",
             &unique_email,
             seed_password_hash(),
-            Some("0601020304"),
+            Some(&Phone::parse(Some("FR"), "0601020304").unwrap()),
         ))
         .await
         .unwrap();
@@ -61,7 +62,7 @@ async fn test_register_user_duplicate_email() {
             "Doe",
             &unique_email,
             seed_password_hash(),
-            Some("0601020304"),
+            Some(&Phone::parse(Some("FR"), "0601020304").unwrap()),
         ))
         .await;
 
@@ -71,7 +72,7 @@ async fn test_register_user_duplicate_email() {
             "Doe",
             &unique_email,
             seed_password_hash(),
-            Some("0601020304"),
+            Some(&Phone::parse(Some("FR"), "0601020304").unwrap()),
         ))
         .await;
 
@@ -85,11 +86,11 @@ fn display_never_prints_credentials() {
         "Dupont",
         "jean.dupont@mairie360.fr",
         "S3cret-Passw0rd",
-        Some("0612345678"),
+        Some(&Phone::parse(Some("FR"), "0612345678").unwrap()),
     );
     let printed = view.to_string();
     assert!(printed.contains("Jean"), "{printed}");
-    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "0612345678"] {
+    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "612345678"] {
         assert!(!printed.contains(secret), "{printed}");
     }
 }
