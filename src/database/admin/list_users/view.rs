@@ -4,16 +4,19 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-// Filtre commun à la liste et au comptage : recherche insensible à la casse sur le prénom, le nom
-// (dans les deux ordres) et l'email, et restriction facultative aux membres d'un groupe.
-// $1 = recherche ('' = aucune), $2 = identifiant de groupe (NULL = tous les utilisateurs).
+// Filter shared by the list and the count: case-insensitive search on the first name, the last name,
+// the full name (both orders) and the e-mail, optionally restricted to the members of a group.
+// $1 = search ('' = none), $2 = group id (NULL = every user).
+// The full names are built with `||`, not `concat_ws` (not IMMUTABLE): they are the expressions
+// the trigram indexes of Database 3.0.0 (schema v1.11.0) cover, and one unindexed branch of the OR
+// makes Postgres scan the whole table (MAIR-477). Both columns are NOT NULL: same result.
 macro_rules! admin_users_filter {
     () => {
         "(NULLIF($1, '') IS NULL \
             OR u.first_name ILIKE '%' || $1 || '%' \
             OR u.last_name ILIKE '%' || $1 || '%' \
-            OR concat_ws(' ', u.first_name, u.last_name) ILIKE '%' || $1 || '%' \
-            OR concat_ws(' ', u.last_name, u.first_name) ILIKE '%' || $1 || '%' \
+            OR (u.first_name || ' ' || u.last_name) ILIKE '%' || $1 || '%' \
+            OR (u.last_name || ' ' || u.first_name) ILIKE '%' || $1 || '%' \
             OR u.email ILIKE '%' || $1 || '%') \
         AND ($2::int IS NULL OR EXISTS ( \
             SELECT 1 FROM group_members gm WHERE gm.user_id = u.id AND gm.group_id = $2))"

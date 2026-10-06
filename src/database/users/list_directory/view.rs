@@ -48,7 +48,7 @@ impl ApiRequestDto for ListDirectoryUsersQueryView {
               AND (NULLIF($1, '') IS NULL \
                 OR u.first_name ILIKE '%' || $1 || '%' \
                 OR u.last_name ILIKE '%' || $1 || '%' \
-                OR concat_ws(' ', u.first_name, u.last_name) ILIKE '%' || $1 || '%' \
+                OR (u.first_name || ' ' || u.last_name) ILIKE '%' || $1 || '%' \
                 OR u.email ILIKE '%' || $1 || '%') \
               AND (NULLIF($2, '') IS NULL \
                 OR u.id = ANY(string_to_array($2, ',')::int[])) \

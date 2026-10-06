@@ -55,6 +55,30 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
     assert!(users[0].group_ids.is_empty());
 }
 
+/// A search spanning both columns ("first last") matches the full name, built with `||` so the
+/// trigram index of Database 3.0.0 (schema v1.11.0) serves it (MAIR-477).
+#[tokio::test]
+#[serial]
+async fn directory_matches_the_full_name() {
+    let (_container, host) = get_shared_db().await;
+    let pool = get_pool(host.clone()).await;
+    let marker = unique_marker("FullName");
+    let adam = create_user(&pool, "Adam", &marker).await;
+    create_user(&pool, "Zoe", &marker).await;
+
+    let users: Vec<DirectoryUser> = pool
+        .fetch_all(&ListDirectoryUsersQueryView::new(
+            Some(&format!("dam {}", marker.to_lowercase())),
+            &[],
+            &[],
+            1000,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(ids(&users), vec![adam]);
+}
+
 #[tokio::test]
 #[serial]
 async fn directory_filters_by_ids_and_groups_and_exposes_roles() {
