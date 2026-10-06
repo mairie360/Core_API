@@ -5,6 +5,7 @@ pub mod delete_role;
 pub mod does_role_exist;
 pub mod get_roles;
 pub mod get_roles_by_id;
+pub mod get_roles_of_user;
 pub mod is_rename_forbidden;
 pub mod lock_role;
 pub mod patch_role;

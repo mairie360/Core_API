@@ -105,9 +105,12 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./init-test.sql:/init-test.sql:ro
+      # Data volume of the load test (MAIR-474), on top of the fixtures: k6 stack only.
+      - ./init-perf.sql:/init-perf.sql:ro
     # ON_ERROR_STOP: a failing fixture must fail the stack, not leave k6 running without its users.
     command: >
-      psql -h postgres -U postgres -d mairie_360_database -v ON_ERROR_STOP=1 -f /init-test.sql
+      psql -h postgres -U postgres -d mairie_360_database -v ON_ERROR_STOP=1
+      -f /init-test.sql -f /init-perf.sql
     environment:
       PGPASSWORD: ${DB_PASSWORD:-password}
     networks:

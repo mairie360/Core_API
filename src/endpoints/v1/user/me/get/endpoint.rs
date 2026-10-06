@@ -1,6 +1,5 @@
 use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
-use crate::database::roles::get_roles_by_id::GetRolesByIdQueryView;
-use crate::database::users::get_roles::GetUserRolesQueryView;
+use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use crate::database::users::get_user_by_id::GetUserByIdQueryView;
 use crate::endpoints::v1::user::me::get::view::GetMeResponseView;
 use actix_web::http::StatusCode;
@@ -51,12 +50,7 @@ async fn trigger_get_me(
         tracing::error!("Get user DB Error: {e}");
         GetMeError::DatabaseError
     })?;
-    let role = GetUserRolesQueryView::new(user_id);
-    let role_id: Vec<i32> = smart_db.fetch_all(&role).await.map_err(|e| {
-        tracing::error!("Get user DB Error: {e}");
-        GetMeError::DatabaseError
-    })?;
-    let view = GetRolesByIdQueryView::new(role_id);
+    let view = GetRolesOfUserQueryView::new(user_id);
     let role: Vec<crate::database::roles::get_roles_by_id::Role> =
         smart_db.fetch_all(&view).await.map_err(|e| {
             tracing::error!("Get user DB Error: {e}");

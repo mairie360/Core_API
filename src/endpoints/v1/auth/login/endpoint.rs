@@ -6,6 +6,7 @@ use crate::database::ids::id_from_sql;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::passwords;
 use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::refresh_token;
@@ -147,7 +148,7 @@ async fn generate_first_connection_token(
 /// know it. A failure here (hashing or write) is logged and swallowed: the login itself already
 /// succeeded and must not fail because the opportunistic migration didn't.
 async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plaintext: &str) {
-    let hashed = match hash_password(plaintext) {
+    let hashed = match passwords::hash(plaintext).await {
         Ok(hashed) => hashed,
         Err(e) => {
             tracing::error!("Failed to hash password while migrating user {user_id}: {e}");
@@ -168,22 +169,29 @@ async fn migrate_plaintext_password(smart_db: &SmartDatabase, user_id: u64, plai
 static DUMMY_PASSWORD_HASH: LazyLock<Option<String>> =
     LazyLock::new(|| hash_password(&refresh_token::generate()).ok());
 
-fn burn_password_verification(password: &str) {
-    if let Some(dummy) = DUMMY_PASSWORD_HASH.as_deref() {
-        let _ = verify_password(password, dummy);
-    }
+async fn burn_password_verification(password: &str) {
+    let password = password.to_owned();
+    // On the blocking pool like `passwords::verify`, the one-time dummy hash included.
+    let _ = web::block(move || {
+        if let Some(dummy) = DUMMY_PASSWORD_HASH.as_deref() {
+            let _ = verify_password(&password, dummy);
+        }
+    })
+    .await;
 }
 
 /// Checks `password` against the stored value, hashed or legacy plaintext.
-pub(crate) fn is_password_valid(user_id: i32, password: &str, stored_password: &str) -> bool {
+pub(crate) async fn is_password_valid(user_id: i32, password: &str, stored_password: &str) -> bool {
     // Accounts created before the password migration still hold a plaintext password: compare it
     // directly (the caller then replaces it with a hash). Everything hashed already goes through
     // `verify_password`, which only accepts a value `is_hashed` agrees is an argon2id PHC string.
     if is_hashed(stored_password) {
-        verify_password(password, stored_password).unwrap_or_else(|e| {
-            tracing::error!("Failed to verify the password hash of user {user_id}: {e}");
-            false
-        })
+        passwords::verify(password, stored_password)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to verify the password hash of user {user_id}: {e}");
+                false
+            })
     } else {
         password == stored_password.trim()
     }
@@ -215,13 +223,13 @@ async fn login_user(
         let stored_password = user.password()?.to_string();
         Some((user, stored_password))
     }) else {
-        burn_password_verification(&login_view.password());
+        burn_password_verification(&login_view.password()).await;
         return Err(LoginError::InvalidCredentials);
     };
 
     // The password is checked before anything else, the first-connection token included: knowing
     // the e-mail of a new account must not be enough to choose its password (MAIR-390).
-    if !is_password_valid(user.user_id(), &login_view.password(), &stored_password) {
+    if !is_password_valid(user.user_id(), &login_view.password(), &stored_password).await {
         tracing::error!(
             "Login failed: invalid credentials for user {}",
             user.user_id()

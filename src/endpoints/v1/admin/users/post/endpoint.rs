@@ -9,9 +9,9 @@ use crate::keycloak::sync::{
     ReservedAccount, SyncError,
 };
 use crate::keycloak::{KeycloakAdminClient, KeycloakUserProfile};
+use crate::passwords;
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
-use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use std::collections::HashMap;
@@ -110,10 +110,12 @@ async fn insert_user(
     register_view: &CreateUserView,
     smart_db: &SmartDatabase,
 ) -> Result<(), CreateUserError> {
-    let hashed_password = hash_password(register_view.password()).map_err(|e| {
-        tracing::error!("Password hashing error: {e}");
-        CreateUserError::DatabaseError
-    })?;
+    let hashed_password = passwords::hash(register_view.password())
+        .await
+        .map_err(|e| {
+            tracing::error!("Password hashing error: {e}");
+            CreateUserError::DatabaseError
+        })?;
 
     let phone = register_view
         .phone()

@@ -66,7 +66,7 @@ async fn check_current_password(
             PatchMeError::DatabaseError
         })?;
     match stored.password() {
-        Some(hash) if is_password_valid(id_to_sql(user_id), password, hash) => Ok(()),
+        Some(hash) if is_password_valid(id_to_sql(user_id), password, hash).await => Ok(()),
         _ => Err(PatchMeError::WrongPassword),
     }
 }
