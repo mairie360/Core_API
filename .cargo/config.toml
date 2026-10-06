@@ -17,12 +17,9 @@ cov_test = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib
 cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs", "--fail-under-lines", "60", "--codecov", "--output-path", "codecov.json"]
 
 # Version of the ghcr.io/mairie360/database and liquibase-migrations images the integration tests
-# run against (read by mairie360_api_lib::test_setup). Pinned to the latest published dev-<sha> image of Devops/Database (no release has the
-# v1.4.0 schema the Keycloak features (user_identities, MAIR-141) need yet).
-#
-# Held on dev-0aaede5, the image used before MAIR-413 (MAIR-390): from dev-fb7c223 on, the migration
-# refuses to seed the admin without credentials or -Dallow_template_admin=true, and the testcontainers
-# of mairie360_api_lib 1.4.1 pass neither, so the migration stops half way. Move to the image of the
-# compose stacks (and restore the renovate marker) once a lib release passes the flag.
+# run against (read by mairie360_api_lib::test_setup), kept equal to the compose files: Database
+# v3.0.0. mairie360_api_lib 3.0.0 passes -Dallow_template_admin=true, so the migration seeds the
+# template admin past MAIR-413. An exported TEST_DB_VERSION still wins.
 [env]
-TEST_DB_VERSION = "dev-0aaede5"
+# renovate: datasource=docker depName=ghcr.io/mairie360/database
+TEST_DB_VERSION = "3.0.0"
