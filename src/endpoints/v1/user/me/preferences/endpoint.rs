@@ -128,10 +128,10 @@ pub async fn get_my_preferences(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, field of an unexpected type, or a value breaking its rules: `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` and `home_page` 1 to 128 characters, `timezone` 1 to 64, `density` and `date_format` 1 to 32, `language` 1 to 16, not blank, no control character.",
+            description = "Malformed JSON body, field of an unexpected type, or a value outside the ones the application understands (MAIR-479): `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` is `Marianne`, `Arial`, `Verdana`, `OpenDyslexic` or `system-ui`; `density` is `compact`, `normal` or `comfortable`; `date_format` is `DD/MM/YYYY`, `MM/DD/YYYY` or `YYYY-MM-DD`; `language` a language code such as `fr` or `fr-FR`; `timezone` an IANA time zone such as `Europe/Paris` (case-sensitive); `home_page` a path such as `/dashboard` (lowercase letters, digits, `-`, `_`, `/`, no `//`, 128 characters at most). The body names the first invalid field. Nothing is saved.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `theme`: must be `light`, `dark` or `system`")
+            example = json!("Invalid `density`: must be one of `compact`, `normal`, `comfortable`")
         ),
         (
             status = 401,

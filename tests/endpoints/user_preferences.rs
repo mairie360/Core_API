@@ -1,6 +1,9 @@
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
+use core_api::endpoints::v1::user::me::preferences::view::{
+    DATE_FORMATS, DENSITIES, FONT_FAMILIES,
+};
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
@@ -138,6 +141,22 @@ async fn invalid_preferences_answer_400() {
         (PREFERENCES, json!({ "language": "a".repeat(17) })),
         (PREFERENCES, json!({ "home_page": "home\u{7}page" })),
         (PREFERENCES, json!({ "timezone": "  " })),
+        // MAIR-479: the value ZAP's path traversal rule sends, and its payloads, on every text field.
+        (PREFERENCES, json!({ "density": "general" })),
+        (PREFERENCES, json!({ "date_format": "general" })),
+        (PREFERENCES, json!({ "language": "general" })),
+        (PREFERENCES, json!({ "font_family": "general" })),
+        (PREFERENCES, json!({ "timezone": "general" })),
+        (PREFERENCES, json!({ "home_page": "general" })),
+        (PREFERENCES, json!({ "timezone": "../../../../etc/passwd" })),
+        (PREFERENCES, json!({ "home_page": "/../../etc/passwd" })),
+        (PREFERENCES, json!({ "home_page": "//evil.example" })),
+        (
+            PREFERENCES,
+            json!({ "font_family": "c:\\Windows\\system.ini" }),
+        ),
+        (PREFERENCES, json!({ "language": "fr_FR" })),
+        (PREFERENCES, json!({ "timezone": "europe/paris" })),
         (NOTIFICATIONS, json!({ "email": "yes" })),
     ] {
         let req = test::TestRequest::patch()
@@ -147,6 +166,38 @@ async fn invalid_preferences_answer_400() {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{uri} {body}");
+    }
+}
+
+/// Every value the application offers fits the `user_preferences` columns (MAIR-479).
+#[tokio::test]
+#[serial]
+async fn allowed_preference_values_are_stored() {
+    std::sync::LazyLock::force(&INIT);
+    let (_container, host) = get_shared_db().await;
+    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let app = init_app!(state);
+    let jwt = fresh_user_jwt(&state).await;
+    let bearer = ("Authorization", format!("Bearer {jwt}"));
+
+    let mut bodies = vec![json!({
+        "language": "fr-FR",
+        "timezone": "America/Argentina/ComodRivadavia",
+        "home_page": format!("/{}", "a".repeat(127)),
+    })];
+    bodies.extend(FONT_FAMILIES.map(|font| json!({ "font_family": font })));
+    bodies.extend(DENSITIES.map(|density| json!({ "density": density })));
+    bodies.extend(DATE_FORMATS.map(|format| json!({ "date_format": format })));
+    for body in bodies {
+        let req = test::TestRequest::patch()
+            .uri(PREFERENCES)
+            .insert_header(bearer.clone())
+            .set_json(&body)
+            .to_request();
+        let stored: Value = test::call_and_read_body_json(&app, req).await;
+        for (field, value) in body.as_object().unwrap() {
+            assert_eq!(&stored[field], value, "{body}");
+        }
     }
 }
 
