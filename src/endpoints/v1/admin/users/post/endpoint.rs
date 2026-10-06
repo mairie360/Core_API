@@ -78,11 +78,6 @@ const fn is_valid_password(password: &str) -> bool {
     password.len() >= 8
 }
 
-fn is_valid_phone_number(phone_number: Option<&str>) -> bool {
-    //Need to be more complex and based on requirements
-    phone_number.is_none_or(|num| num.len() >= 10 && num.chars().all(|c| c.is_ascii_digit()))
-}
-
 async fn can_be_registered(
     register_view: &CreateUserView,
     smart_db: &SmartDatabase,
@@ -108,9 +103,6 @@ async fn can_be_registered(
     if !is_valid_password(register_view.password()) {
         return Err(CreateUserError::InvalidData);
     }
-    if !is_valid_phone_number(register_view.phone_number()) {
-        return Err(CreateUserError::InvalidData);
-    }
     Ok(())
 }
 
@@ -123,12 +115,15 @@ async fn insert_user(
         CreateUserError::DatabaseError
     })?;
 
+    let phone = register_view
+        .phone()
+        .map_err(|_| CreateUserError::InvalidData)?;
     let view = RegisterUserQueryView::new(
         register_view.first_name(),
         register_view.last_name(),
         register_view.email(),
         &hashed_password,
-        register_view.phone_number(),
+        phone.as_ref(),
     );
 
     let success: bool = smart_db.fetch_scalar(&view).await.map_err(|e| {
@@ -228,7 +223,8 @@ async fn register_user(
     description = "Creates an account on behalf of an administrator. Reserved to administrators: \
                    this is the only way to create an account, there is no public sign-up route.\n\n\
                    Validation: e-mail of the form `local@domain.tld`, password of at least 8 \
-                   characters, optional phone number of at least 10 digits. All share the same \
+                   characters, optional phone number valid for its `phone_country` (national \
+                   format with the country, or E.164). All share the same \
                    `400`.\n\n\
                    The password given here is temporary: the account is flagged as first \
                    connection, and the user's first `POST /api/v1/auth/login` answers `412` so \
@@ -252,7 +248,8 @@ async fn register_user(
             "last_name": "Dupont",
             "email": "jean.dupont@mairie360.fr",
             "password": "MotDePasse!123",
-            "phone_number": "0612345678"
+            "phone_number": "06 12 34 56 78",
+            "phone_country": "FR"
         })
     ),
     responses(
@@ -265,7 +262,7 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` 10 to 15 digits. The body names the first invalid field.",
+            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `password`: must be at least 8 characters")

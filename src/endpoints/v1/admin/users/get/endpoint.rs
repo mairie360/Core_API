@@ -62,7 +62,10 @@ async fn list_users(
 
     let total = u64::try_from(total).unwrap_or_default();
     Ok(AdminListUsersResultView {
-        users,
+        users: users
+            .into_iter()
+            .map(AdminUserRow::with_e164_phone)
+            .collect(),
         page,
         page_size,
         total,
@@ -94,7 +97,8 @@ async fn list_users(
                         "first_name": "Jean",
                         "last_name": "Dupont",
                         "email": "jean.dupont@mairie360.fr",
-                        "phone_number": "0612345678",
+                        "phone_number": "+33612345678",
+                        "phone_country": "FR",
                         "status": "active",
                         "is_archived": false,
                         "roles": [{ "id": 2, "name": "agent" }]

@@ -94,7 +94,8 @@ async fn trigger_get_user(
         result.first_name(),
         result.last_name(),
         result.email(),
-        result.phone_number().filter(|_| full_access),
+        result.phone_e164().filter(|_| full_access),
+        result.phone_country().filter(|_| full_access),
         result.status(),
         result.is_archived(),
         role.iter().map(|r| r.name().to_string()).collect(),
@@ -111,7 +112,7 @@ async fn trigger_get_user(
                    records:\n\n\
                    - the user themself and administrators get the full record, archived accounts \
                    included (`is_archived` is then `true`);\n\
-                   - anyone else gets `phone` set to `null`, and an archived account answers \
+                   - anyone else gets `phone` and `phone_country` set to `null`, and an archived account answers \
                    `404` as if it did not exist, so `is_archived` is always `false` for them.\n\n\
                    `role` is deprecated: read `roles`, which lists every role.",
     params(
@@ -126,7 +127,8 @@ async fn trigger_get_user(
                 "first_name": "Jean",
                 "last_name": "Dupont",
                 "email": "jean.dupont@mairie360.fr",
-                "phone": "0612345678",
+                "phone": "+33612345678",
+                "phone_country": "FR",
                 "status": "active",
                 "is_archived": false,
                 "role": "agent",

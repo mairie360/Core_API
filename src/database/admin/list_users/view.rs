@@ -49,7 +49,7 @@ impl ApiRequestDto for AdminListUsersQueryView {
     fn query_sql(&self) -> &'static str {
         concat!(
             "SELECT to_jsonb(t) FROM ( \
-                SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, u.status, \
+                SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, u.phone_country, u.status, \
                     COALESCE(u.is_archived, false) AS is_archived, \
                     COALESCE( \
                         (SELECT jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name) ORDER BY r.name) \
@@ -133,9 +133,15 @@ pub struct AdminUserRow {
     /// Adresse e-mail, unique sur la plateforme.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
-    /// Numéro de téléphone, ou `null` s'il n'en a pas renseigné.
-    #[schema(example = "0612345678")]
+    /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
+    /// that could not be attributed to a country (MAIR-480) is returned as stored, digits only,
+    /// with `phone_country` `null`.
+    #[schema(example = "+33612345678")]
     pub phone_number: Option<String>,
+    /// ISO 3166-1 alpha-2 code of the phone number's country, or `null` when there is no phone.
+    #[schema(example = "FR")]
+    #[serde(default)]
+    pub phone_country: Option<String>,
     /// Statut du compte tel qu'il est stocké en base.
     #[schema(example = "active")]
     pub status: String,
@@ -145,4 +151,15 @@ pub struct AdminUserRow {
     pub is_archived: bool,
     /// Rôles portés par l'utilisateur. Un compte créé sans rôle reçoit `Guest` par défaut.
     pub roles: Vec<AdminUserRole>,
+}
+
+impl AdminUserRow {
+    /// Replaces the stored national number by its E.164 form (MAIR-480): the rows are read with
+    /// the national number of `users.phone_number`, the API answers in E.164.
+    #[must_use]
+    pub fn with_e164_phone(mut self) -> Self {
+        self.phone_number =
+            crate::phone::display(self.phone_country.as_deref(), self.phone_number.as_deref());
+        self
+    }
 }

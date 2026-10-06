@@ -257,10 +257,13 @@ async fn other_users_record_hides_phone_and_archived_accounts() {
         test::read_body_json(test::call_service(&app, get(target, reader).to_request()).await)
             .await;
     assert!(body["phone"].is_null());
+    assert!(body["phone_country"].is_null());
     let body: Value =
         test::read_body_json(test::call_service(&app, get(target, target).to_request()).await)
             .await;
-    assert_eq!(body["phone"], "0612345678");
+    // Inserted the legacy way (French national number, no country), read back in E.164.
+    assert_eq!(body["phone"], "+33612345678");
+    assert_eq!(body["phone_country"], "FR");
     let resp = test::call_service(&app, get(archived, reader).to_request()).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

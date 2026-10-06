@@ -17,9 +17,14 @@ pub struct GetUserResponseView {
     /// Adresse e-mail, unique sur la plateforme.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
-    /// Numéro de téléphone, ou `null` si l'utilisateur n'en a pas renseigné.
-    #[schema(example = "0612345678")]
+    /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
+    /// that could not be attributed to a country (MAIR-480) is returned as stored, digits only,
+    /// with `phone_country` `null`.
+    #[schema(example = "+33612345678")]
     phone: Option<String>,
+    /// ISO 3166-1 alpha-2 code of the phone number's country (`FR`), `null` when `phone` is.
+    #[schema(example = "FR")]
+    phone_country: Option<String>,
     /// Statut du compte tel qu'il est stocké en base.
     #[schema(example = "active")]
     status: String,
@@ -47,7 +52,8 @@ impl GetUserResponseView {
         first_name: &str,
         last_name: &str,
         email: &str,
-        phone: Option<&str>,
+        phone: Option<String>,
+        phone_country: Option<&str>,
         status: &str,
         is_archived: bool,
         roles: Vec<String>,
@@ -57,7 +63,8 @@ impl GetUserResponseView {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
-            phone: phone.map(std::string::ToString::to_string),
+            phone,
+            phone_country: phone_country.map(std::string::ToString::to_string),
             status: status.to_string(),
             is_archived,
             role: roles.first().cloned().unwrap_or_default(),
@@ -84,6 +91,11 @@ impl GetUserResponseView {
     #[must_use]
     pub fn phone(&self) -> Option<&str> {
         self.phone.as_deref()
+    }
+
+    #[must_use]
+    pub fn phone_country(&self) -> Option<&str> {
+        self.phone_country.as_deref()
     }
 
     #[must_use]
@@ -132,8 +144,9 @@ impl From<GetUserByIdQueryResultView> for GetUserResponseView {
             first_name: query_result.first_name().to_string(),
             last_name: query_result.last_name().to_string(),
             email: query_result.email().to_string(),
-            phone: query_result
-                .phone_number()
+            phone: query_result.phone_e164(),
+            phone_country: query_result
+                .phone_country()
                 .map(std::string::ToString::to_string),
             status: query_result.status().to_string(),
             is_archived: query_result.is_archived(),

@@ -26,7 +26,7 @@ impl GetUserByIdQueryView {
 
 impl ApiRequestDto for GetUserByIdQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, status, is_archived FROM users WHERE id = $1) t"
+        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -46,6 +46,8 @@ pub struct GetUserByIdQueryResultView {
     last_name: String,
     email: String,
     phone_number: Option<String>,
+    #[serde(default)]
+    phone_country: Option<String>,
     status: String,
     is_archived: bool,
 }
@@ -57,6 +59,7 @@ impl GetUserByIdQueryResultView {
         last_name: &str,
         email: &str,
         phone_number: Option<&str>,
+        phone_country: Option<&str>,
         status: &str,
         is_archived: bool,
     ) -> Self {
@@ -65,6 +68,7 @@ impl GetUserByIdQueryResultView {
             last_name: last_name.to_string(),
             email: email.to_string(),
             phone_number: phone_number.map(std::string::ToString::to_string),
+            phone_country: phone_country.map(std::string::ToString::to_string),
             status: status.to_string(),
             is_archived,
         }
@@ -94,9 +98,22 @@ impl GetUserByIdQueryResultView {
         &self.email
     }
 
+    /// National significant number, as stored in `users.phone_number`.
     #[must_use]
     pub fn phone_number(&self) -> Option<&str> {
         self.phone_number.as_deref()
+    }
+
+    /// ISO 3166-1 alpha-2 code of the phone number's country (MAIR-480).
+    #[must_use]
+    pub fn phone_country(&self) -> Option<&str> {
+        self.phone_country.as_deref()
+    }
+
+    /// The phone in E.164, as the API returns it (see [`crate::phone::display`]).
+    #[must_use]
+    pub fn phone_e164(&self) -> Option<String> {
+        crate::phone::display(self.phone_country(), self.phone_number())
     }
 
     #[must_use]

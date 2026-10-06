@@ -184,7 +184,8 @@ fn create_body(email: &str) -> Value {
         "last_name": "Martin",
         "email": email,
         "password": "MotDePasse!123",
-        "phone_number": "0612345678"
+        "phone_number": "06 12 34 56 78",
+        "phone_country": "FR"
     })
 }
 
@@ -500,7 +501,7 @@ async fn test_patch_user_core_only_fields_do_not_call_keycloak() {
         Some(mock.admin_client()),
         Method::PATCH,
         &format!("{USERS_PATH}{user_id}/"),
-        Some(&json!({ "phone_number": "0798765432", "password": "NewPassword!123" })),
+        Some(&json!({ "phone_number": "0798765432", "phone_country": "FR", "password": "NewPassword!123" })),
     )
     .await;
 

@@ -3,6 +3,7 @@ use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use core_api::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
 use core_api::database::users::patch_user::PatchUserQueryView;
+use core_api::phone::{Phone, PhoneChange};
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
@@ -17,7 +18,7 @@ async fn register_fresh_user(pool: &SmartDatabase, tag: &str) -> u64 {
             "User",
             &email,
             seed_password_hash(),
-            Some("0102030405"),
+            Some(&fr("0102030405")),
         ))
         .await
         .unwrap();
@@ -25,6 +26,10 @@ async fn register_fresh_user(pool: &SmartDatabase, tag: &str) -> u64 {
     pool.fetch_scalar::<i32, _>(&GetUserIdQueryView::new(&email))
         .await
         .unwrap() as u64
+}
+
+fn fr(number: &str) -> Phone {
+    Phone::parse(Some("FR"), number).unwrap()
 }
 
 async fn patch_user(pool: &SmartDatabase, view: PatchUserQueryView) -> Result<(), ApiLibError> {
@@ -47,7 +52,14 @@ async fn patch_user_first_name_only() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "first_name").await;
 
-    let view = PatchUserQueryView::new(user_id, Some("Patched"), None, None, None, None);
+    let view = PatchUserQueryView::new(
+        user_id,
+        Some("Patched"),
+        None,
+        None,
+        &PhoneChange::Keep,
+        None,
+    );
     assert!(!view.is_noop());
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
@@ -64,7 +76,14 @@ async fn patch_user_last_name_only() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "last_name").await;
 
-    let view = PatchUserQueryView::new(user_id, None, Some("Patched"), None, None, None);
+    let view = PatchUserQueryView::new(
+        user_id,
+        None,
+        Some("Patched"),
+        None,
+        &PhoneChange::Keep,
+        None,
+    );
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
 
@@ -84,7 +103,14 @@ async fn patch_user_email_only() {
         "patch_user_email_patched_{}@example.com",
         uuid::Uuid::new_v4()
     );
-    let view = PatchUserQueryView::new(user_id, None, None, Some(&new_email), None, None);
+    let view = PatchUserQueryView::new(
+        user_id,
+        None,
+        None,
+        Some(&new_email),
+        &PhoneChange::Keep,
+        None,
+    );
     println!("{view}");
     assert_eq!(view.email(), Some(new_email.as_str()));
     let result = patch_user(&pool, view).await;
@@ -101,12 +127,33 @@ async fn patch_user_phone_number_only() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "phone").await;
 
-    let view = PatchUserQueryView::new(user_id, None, None, None, Some("0611223344"), None);
+    let phone = PhoneChange::Set(Phone::parse(Some("BE"), "+32 470 12 34 56").unwrap());
+    let view = PatchUserQueryView::new(user_id, None, None, None, &phone, None);
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
 
     let result = fetch_user(&pool, user_id).await;
-    assert_eq!(result.phone_number(), Some("0611223344"));
+    assert_eq!(result.phone_country(), Some("BE"));
+    assert_eq!(result.phone_number(), Some("470123456"));
+    assert_eq!(result.phone_e164().as_deref(), Some("+32470123456"));
+}
+
+#[tokio::test]
+#[serial]
+async fn patch_user_clears_the_phone() {
+    let (_container, host) = get_shared_db().await;
+    let pool = get_pool(host.clone()).await;
+    let user_id = register_fresh_user(&pool, "clear_phone").await;
+    assert_eq!(fetch_user(&pool, user_id).await.phone_country(), Some("FR"));
+
+    let view = PatchUserQueryView::new(user_id, None, None, None, &PhoneChange::Clear, None);
+    assert!(!view.is_noop());
+    let result = patch_user(&pool, view).await;
+    assert!(result.is_ok(), "{result:?}");
+
+    let result = fetch_user(&pool, user_id).await;
+    assert_eq!(result.phone_number(), None);
+    assert_eq!(result.phone_country(), None);
 }
 
 #[tokio::test]
@@ -116,7 +163,14 @@ async fn patch_user_password_only() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "password").await;
 
-    let view = PatchUserQueryView::new(user_id, None, None, None, None, Some(seed_password_hash()));
+    let view = PatchUserQueryView::new(
+        user_id,
+        None,
+        None,
+        None,
+        &PhoneChange::Keep,
+        Some(seed_password_hash()),
+    );
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
 }
@@ -133,7 +187,7 @@ async fn patch_user_multiple_fields() {
         Some("Multi"),
         Some("Patched"),
         None,
-        Some("0699887766"),
+        &PhoneChange::Set(fr("0699887766")),
         Some(seed_password_hash()),
     );
     println!("{view}");
@@ -142,7 +196,7 @@ async fn patch_user_multiple_fields() {
     assert_eq!(view.first_name(), Some("Multi"));
     assert_eq!(view.last_name(), Some("Patched"));
     assert_eq!(view.email(), None);
-    assert_eq!(view.phone_number(), Some("0699887766"));
+    assert_eq!(view.phone(), &PhoneChange::Set(fr("0699887766")));
     assert_eq!(view.password(), Some(seed_password_hash()));
     assert!(!view.is_noop());
     let result = patch_user(&pool, view).await;
@@ -151,7 +205,8 @@ async fn patch_user_multiple_fields() {
     let result = fetch_user(&pool, user_id).await;
     assert_eq!(result.first_name(), "Multi");
     assert_eq!(result.last_name(), "Patched");
-    assert_eq!(result.phone_number(), Some("0699887766"));
+    assert_eq!(result.phone_number(), Some("699887766"));
+    assert_eq!(result.phone_e164().as_deref(), Some("+33699887766"));
 }
 
 #[tokio::test]
@@ -161,7 +216,7 @@ async fn patch_user_noop_when_nothing_provided() {
     let pool = get_pool(host.clone()).await;
     let user_id = register_fresh_user(&pool, "noop").await;
 
-    let view = PatchUserQueryView::new(user_id, None, None, None, None, None);
+    let view = PatchUserQueryView::new(user_id, None, None, None, &PhoneChange::Keep, None);
     assert!(view.is_noop());
     let result = patch_user(&pool, view).await;
     assert!(result.is_ok(), "{result:?}");
@@ -177,7 +232,14 @@ async fn patch_user_bad_user_id_is_noop_free_but_harmless() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
 
-    let view = PatchUserQueryView::new(999_999, Some("Nobody"), None, None, None, None);
+    let view = PatchUserQueryView::new(
+        999_999,
+        Some("Nobody"),
+        None,
+        None,
+        &PhoneChange::Keep,
+        None,
+    );
     let result = patch_user(&pool, view).await;
 
     assert!(result.is_ok(), "{result:?}");
@@ -190,12 +252,12 @@ fn display_never_prints_credentials() {
         Some("Jean"),
         None,
         Some("jean.dupont@mairie360.fr"),
-        Some("0612345678"),
+        &PhoneChange::Set(fr("0612345678")),
         Some("S3cret-Passw0rd"),
     );
     let printed = view.to_string();
     assert!(printed.contains("Jean"), "{printed}");
-    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "0612345678"] {
+    for secret in ["jean.dupont@mairie360.fr", "S3cret-Passw0rd", "612345678"] {
         assert!(!printed.contains(secret), "{printed}");
     }
 }

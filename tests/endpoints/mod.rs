@@ -17,4 +17,5 @@ mod sessions_logout;
 mod sessions_refresh;
 mod telemetry;
 mod transactions;
+mod user_phone;
 mod user_preferences;
