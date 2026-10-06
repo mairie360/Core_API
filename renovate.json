@@ -12,6 +12,33 @@
       "allowedVersions": "0.9.x"
     },
     {
+      "description": "tracing-actix-web propagates the incoming traceparent through its own OpenTelemetry version (feature opentelemetry_0_x, 0.32 at most in 0.7.25): keep opentelemetry* on that version and tracing-opentelemetry on its paired release, and bump them together with the tracing-actix-web feature once it supports the next one.",
+      "matchPackageNames": [
+        "opentelemetry",
+        "opentelemetry-otlp",
+        "opentelemetry_sdk",
+        "tracing-opentelemetry",
+        "tracing-actix-web"
+      ],
+      "groupName": "opentelemetry"
+    },
+    {
+      "description": "See the opentelemetry group above.",
+      "matchPackageNames": [
+        "opentelemetry",
+        "opentelemetry-otlp",
+        "opentelemetry_sdk"
+      ],
+      "allowedVersions": "0.32.x"
+    },
+    {
+      "description": "See the opentelemetry group above.",
+      "matchPackageNames": [
+        "tracing-opentelemetry"
+      ],
+      "allowedVersions": "0.33.x"
+    },
+    {
       "description": "The reusable workflow is referenced twice in cicd.yml (`uses:` pinned by commit, and the `cicd_version` input): bump both in one PR (MAIR-427).",
       "matchPackageNames": [
         "mairie360/CICD"
