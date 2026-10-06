@@ -1,6 +1,6 @@
 # Images are pinned by digest (Renovate bumps tag and digest together): a re-pushed tag cannot
 # change what gets built. Same toolchain as API_template (MAIR-427).
-FROM rust:1.99-slim-bookworm@sha256:60aef4c3c41e9837d5dd9a140ad6f2db4721620448e72e505d73d9d0ff0acc63 AS builder
+FROM rust:1.99-slim-bookworm@sha256:2c3a22f0a5533ea2dd5a16627bc841228151faa2d4de2644ac9987e4a2f1f2fa AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
