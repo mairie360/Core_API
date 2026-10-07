@@ -55,8 +55,8 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
     assert!(users[0].group_ids.is_empty());
 }
 
-/// A search spanning both columns ("first last") matches the full name, built with `||` so the
-/// trigram index of Database 3.0.0 (schema v1.11.0) serves it (MAIR-477).
+/// A search spanning both columns ("first last") matches the full name, through the search
+/// expression of Database 3.0.1 (`user_search_text_sql!`, MAIR-477).
 #[tokio::test]
 #[serial]
 async fn directory_matches_the_full_name() {

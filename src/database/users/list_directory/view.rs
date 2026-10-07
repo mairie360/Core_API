@@ -38,14 +38,13 @@ impl ApiRequestDto for ListDirectoryUsersQueryView {
     // user on the way for a selective search (MAIR-477). The roles and groups are only aggregated
     // for the rows kept.
     fn query_sql(&self) -> &'static str {
-        "WITH matched AS MATERIALIZED ( \
+        concat!(
+            "WITH matched AS MATERIALIZED ( \
             SELECT u.id, u.first_name, u.last_name, u.email FROM users u \
             WHERE COALESCE(u.is_archived, false) = false \
-              AND (NULLIF($1, '') IS NULL \
-                OR u.first_name ILIKE '%' || $1 || '%' \
-                OR u.last_name ILIKE '%' || $1 || '%' \
-                OR (u.first_name || ' ' || u.last_name) ILIKE '%' || $1 || '%' \
-                OR u.email ILIKE '%' || $1 || '%') \
+              AND (NULLIF($1, '') IS NULL OR ",
+            crate::user_search_text_sql!(),
+            " LIKE '%' || lower($1) || '%') \
               AND (NULLIF($2, '') IS NULL \
                 OR u.id = ANY(string_to_array($2, ',')::int[])) \
               AND (NULLIF($3, '') IS NULL OR EXISTS ( \
@@ -67,6 +66,7 @@ impl ApiRequestDto for ListDirectoryUsersQueryView {
             FROM page p \
             ORDER BY p.last_name, p.first_name, p.id \
          ) t"
+        )
     }
 
     fn query_params(&self) -> &[QueryParam] {
