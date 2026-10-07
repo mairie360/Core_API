@@ -204,6 +204,8 @@ services:
       - MAILPIT_URL=http://mailpit:8025
       # Admin JWT signed with this run's JWT_SECRET (stack_secrets.sh, MAIR-428).
       - JWT=${ADMIN_JWT:?ADMIN_JWT must be set, run performance_test.sh}
+      # Load profile of load-test.js: `ci` (default, sized for the CI runner) or `stress` (MAIR-474).
+      - K6_PROFILE=${K6_PROFILE:-ci}
     depends_on:
       core-ready:
         condition: service_completed_successfully

@@ -6,14 +6,15 @@
 // `readHandlers` (GET) or `writeHandlers` (any other method) and send its request through
 // `request()` (raw `http.*` calls are not counted).
 //
-// High load profile (MAIR-474), against the data volume of init-perf.sql (10 000 users, 50 000
-// sessions, 2 000 groups). Two scenarios share the spec, split by HTTP method:
-// - `reads`: the GET operations, ramping up to 100 VUs, as the Admin, against a group created in
-//   setup() and removed in teardown();
-// - `writes`: every other operation with 10 VUs. Each handler is self-contained: it creates what
-//   it needs through `fixture()` (accounts, roles, groups), sends its request, then deletes what it
-//   created, so the handlers do not depend on their order. Deleted accounts are archived by the
-//   API (soft delete), the only rows left behind.
+// Load test (MAIR-474) against the data volume of init-perf.sql (10 000 users, 50 000 sessions,
+// 2 000 groups), sized by K6_PROFILE (see PROFILES). Two scenarios share the spec, split by HTTP
+// method:
+// - `reads`: the GET operations, ramping up to the read VUs of the profile, as the Admin, against
+//   a group created in setup() and removed in teardown();
+// - `writes`: every other operation with the write VUs of the profile. Each handler is
+//   self-contained: it creates what it needs through `fixture()` (accounts, roles, groups), sends
+//   its request, then deletes what it created, so the handlers do not depend on their order.
+//   Deleted accounts are archived by the API (soft delete), the only rows left behind.
 // A third scenario, `login_rush`, replays the morning rush: up to LOGIN_RUSH_RATE password logins
 // per second (argon2, CPU bound) on accounts created in setup(), alongside the two others.
 //
@@ -48,8 +49,20 @@ const READ_BUDGET_MS = 200;
 const WRITE_BUDGET_MS = 500;
 const LOGIN_RUSH_BUDGET_MS = 1000;
 
+// Load profile (MAIR-474), K6_PROFILE:
+// - `ci` (default): what the CI runner holds with the same strict thresholds. The runner
+//   (ubuntu-latest, 4 vCPU) hosts the API, Postgres, Redis and k6 together;
+// - `stress`: the high load, run by hand (`K6_PROFILE=stress ./performance_test.sh`) to find
+//   the breaking point on a larger machine, not on every push.
+const PROFILES = {
+  ci: { readVus: 30, writeVus: 4, loginRushRate: 8 },
+  stress: { readVus: 100, writeVus: 10, loginRushRate: 20 },
+};
+const PROFILE = PROFILES[__ENV.K6_PROFILE || 'ci'];
+if (!PROFILE) throw new Error(`Unknown K6_PROFILE ${__ENV.K6_PROFILE}: ${Object.keys(PROFILES).join(', ')}`);
+
 // Morning rush: logins per second at the peak, spread over LOGIN_RUSH_ACCOUNTS accounts.
-const LOGIN_RUSH_RATE = 20;
+const LOGIN_RUSH_RATE = PROFILE.loginRushRate;
 const LOGIN_RUSH_ACCOUNTS = 40;
 
 // Agents seeded by init-perf.sql (perf.agent.<n>@mairie360.fr), 20 per page of the admin list.
@@ -532,16 +545,16 @@ export const options = {
       executor: 'ramping-vus',
       exec: 'readScenario',
       stages: [
-        { duration: '30s', target: 50 }, // Ramp up
-        { duration: '30s', target: 100 }, // Ramp up to 100 virtual users
-        { duration: '2m', target: 100 }, // Hold
+        { duration: '30s', target: Math.ceil(PROFILE.readVus / 2) }, // Ramp up
+        { duration: '30s', target: PROFILE.readVus },
+        { duration: '2m', target: PROFILE.readVus }, // Hold
         { duration: '20s', target: 0 }, // Ramp down
       ],
     },
     writes: {
       executor: 'constant-vus',
       exec: 'writeScenario',
-      vus: 10,
+      vus: PROFILE.writeVus,
       duration: '3m20s',
     },
     login_rush: {
@@ -556,7 +569,7 @@ export const options = {
         { duration: '1m', target: LOGIN_RUSH_RATE }, // Peak
         { duration: '20s', target: 0 },
       ],
-      startTime: '1m', // Once the reads reach 100 VUs
+      startTime: '1m', // Once the reads reach their peak
     },
   },
   thresholds: {

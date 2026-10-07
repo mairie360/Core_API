@@ -33,18 +33,34 @@ if [ ! -f "$CICD_DIR/tests/k6/coverage.js" ]; then
     git clone --quiet --depth 1 --branch "$CICD_VERSION" https://github.com/mairie360/CICD "$CICD_DIR" || exit 1
 fi
 
+# Same CPUs as the CI runner (MAIR-474): ubuntu-latest gives 4 vCPU to the API, Postgres, Redis
+# and k6 together. Every service of the stack is pinned to the first min(PERF_CPUS, nproc) CPUs
+# (PERF_CPUS defaults to 4), so a local run measures what CI will; on the runner it changes nothing.
+PERF_CPUS="${PERF_CPUS:-4}"
+CPUS=$(nproc)
+[ "$CPUS" -gt "$PERF_CPUS" ] && CPUS="$PERF_CPUS"
+CPUSET_FILE="$(mktemp --suffix=.yml)"
+trap 'rm -f "$CPUSET_FILE"' EXIT
+{
+    echo "services:"
+    for service in $(docker compose -f "$COMPOSE_FILE" config --services); do
+        printf '  %s:\n    cpuset: "0-%d"\n' "$service" "$((CPUS - 1))"
+    done
+} > "$CPUSET_FILE"
+echo "==> Stack pinned to $CPUS CPUs (PERF_CPUS=$PERF_CPUS)"
+
 echo "==> [1/4] Starting the stack and the k6 load test..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker compose -f "$COMPOSE_FILE" -f "$CPUSET_FILE" up -d
 
 echo "==> [2/4] Waiting for the k6 load test to finish..."
-docker compose -f "$COMPOSE_FILE" wait "$SERVICE_NAME"
+docker compose -f "$COMPOSE_FILE" -f "$CPUSET_FILE" wait "$SERVICE_NAME"
 EXIT_CODE=$?
 
 echo "==> [3/4] Report (logs)..."
-docker compose -f "$COMPOSE_FILE" logs "$SERVICE_NAME"
+docker compose -f "$COMPOSE_FILE" -f "$CPUSET_FILE" logs "$SERVICE_NAME"
 
 echo "==> [4/4] Cleaning up the containers..."
-docker compose -f "$COMPOSE_FILE" down -v
+docker compose -f "$COMPOSE_FILE" -f "$CPUSET_FILE" down -v
 
 echo "----------------------------------------"
 echo "Final exit code: $EXIT_CODE"

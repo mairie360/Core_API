@@ -125,7 +125,7 @@ login `412` → `force_change_password` → login → refresh → revoke, and `f
 token read from the Mailpit API (`MAILPIT_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
 password logins/s on accounts created in `setup()`, `op:login_rush`, 1 s budget). One `p(95)` threshold per `op` tag
 (200 ms reads, 500 ms writes), `http_req_failed == 0` (the expected `412` of the fixture logins is excluded through
-`responseCallback`), `checks == 100%` (status and seeded rows) and no dropped iteration. The k6 stack's seeder also runs `init-perf.sql`
+`responseCallback`), `checks == 100%` (status and seeded rows) and no dropped iteration. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, login rush at 8/s); `stress` is the high load (100 readers, 10 writers, 20 logins/s), run by hand with `K6_PROFILE=stress ./performance_test.sh`, not on every push. The k6 stack's seeder also runs `init-perf.sql`
 (MAIR-474): 10 000 users, 51 000 sessions, 2 000 groups, so the lists are measured on a realistic volume (the ZAP
 stack does not load it). The spec k6 reads is the one served by the image under test, saved into the
 `openapi-spec` volume by `core-ready`. **Adding an endpoint = adding its handler in `load-test.js`** (k6 aborts at
