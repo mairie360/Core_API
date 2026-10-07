@@ -228,7 +228,10 @@ const readHandlers = {
   // Directory and profile.
   // 'martin' matches hundreds of seeded agents: the page is full.
   'GET /api/v1/user/': ({ request }) =>
-    check(request({ query: { search: 'martin', limit: 50 } }), { 'directory 200': (r) => r.status === 200 }),
+    check(request({ query: { search: 'martin', limit: 50 } }), {
+      'directory 200': (r) => r.status === 200,
+      'directory reads the seed': (r) => r.status === 200 && r.json('users').length === 50,
+    }),
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
@@ -244,7 +247,12 @@ const readHandlers = {
     check(request(), { 'session history 200': (r) => r.status === 200 }),
 
   // Groups.
-  'GET /api/v1/groups/': ({ request }) => check(request(), { 'groups 200': (r) => r.status === 200 }),
+  // The Admin is a member of 300 seeded groups.
+  'GET /api/v1/groups/': ({ request }) =>
+    check(request(), {
+      'groups 200': (r) => r.status === 200,
+      'groups reads the seed': (r) => r.status === 200 && r.json('groups').length > 0,
+    }),
   'GET /api/v1/groups/{group_id}/': ({ request, data }) =>
     check(request({ path: { group_id: data.groupId } }), { 'group 200': (r) => r.status === 200 }),
   'GET /api/v1/groups/{group_id}/users/': ({ request, data }) =>
@@ -254,7 +262,11 @@ const readHandlers = {
   // Any page of the 10 000 agents, the last ones included (deep OFFSET).
   'GET /api/v1/admin/users/': ({ request }) => {
     const page = 1 + Math.floor(Math.random() * (SEEDED_AGENTS / ADMIN_PAGE_SIZE));
-    check(request({ query: { page, page_size: ADMIN_PAGE_SIZE } }), { 'admin users 200': (r) => r.status === 200 });
+    check(request({ query: { page, page_size: ADMIN_PAGE_SIZE } }), {
+      'admin users 200': (r) => r.status === 200,
+      'admin users reads the seed': (r) =>
+        r.status === 200 && r.json('total') >= SEEDED_AGENTS && r.json('users').length > 0,
+    });
   },
   'GET /api/v1/admin/users/{userId}/': ({ request }) =>
     check(request({ path: { userId: MEMBER_ID } }), { 'admin user 200': (r) => r.status === 200 }),
@@ -557,9 +569,10 @@ export const options = {
     'http_req_duration{op:login_rush}': [`p(95)<${LOGIN_RUSH_BUDGET_MS}`],
     // The login rush must not be shed: every arrival gets a VU.
     dropped_iterations: ['count==0'],
-    http_req_failed: ['rate<0.01'], // Less than 1% errors
+    // Strict (MAIR-474): one unexpected error, wrong status or missing seeded row fails the run.
+    http_req_failed: ['rate==0'],
     // A check can fail on a 2xx (missing header or body field) that http_req_failed accepts.
-    checks: ['rate>0.99'],
+    checks: ['rate==1'],
   },
 };
 
