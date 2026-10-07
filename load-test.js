@@ -106,13 +106,6 @@ function bearer(jwt) {
   return { Authorization: `Bearer ${jwt}` };
 }
 
-function userIdByEmail(email) {
-  const users = fixture('GET', `/api/v1/admin/users/?search=${encodeURIComponent(email)}`).json('users');
-  const user = users.find((u) => u.email === email);
-  if (!user) fail(`fixture: no user ${email}`);
-  return user.id;
-}
-
 function deleteUser(userId) {
   fixture('DELETE', `/api/v1/admin/users/${userId}/`);
 }
@@ -120,13 +113,14 @@ function deleteUser(userId) {
 /** Account created by the admin, still in first connection: its login answers 412 with a token. */
 function registerAccount(tag) {
   const email = `k6.${tag}.${unique()}@mairie360.fr`;
-  fixture('POST', '/api/v1/admin/users/', {
+  // The creation answers the id of the account: no search by e-mail (MAIR-474).
+  const id = fixture('POST', '/api/v1/admin/users/', {
     first_name: 'Agent',
     last_name: 'Charge',
     email,
     password: FIRST_PASSWORD,
-  });
-  return { email, id: userIdByEmail(email) };
+  }).json('id');
+  return { email, id };
 }
 
 function firstConnectionToken(account) {
@@ -359,8 +353,11 @@ const writeHandlers = {
     const res = request({
       body: { first_name: 'Agent', last_name: 'Cree', email, password: FIRST_PASSWORD, phone_number: '0612345678', phone_country: 'FR' },
     });
-    check(res, { 'admin create user 201': (r) => r.status === 201 });
-    if (res.status === 201) deleteUser(userIdByEmail(email));
+    check(res, {
+      'admin create user 201': (r) => r.status === 201,
+      'admin create user answers its id': (r) => r.status === 201 && Number.isInteger(r.json('id')),
+    });
+    if (res.status === 201) deleteUser(res.json('id'));
   },
   'PATCH /api/v1/admin/users/{userId}/': ({ request }) => {
     const account = registerAccount('patch');

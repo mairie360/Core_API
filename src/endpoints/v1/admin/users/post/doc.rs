@@ -4,6 +4,6 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(endpoint::admin_post_user),
-    components(schemas(super::view::CreateUserView))
+    components(schemas(super::view::CreateUserView, super::view::CreatedUserView))
 )]
 pub struct CreateUserDoc;

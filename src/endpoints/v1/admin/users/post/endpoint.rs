@@ -1,8 +1,9 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
+use crate::database::ids::id_from_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::db_error;
-use crate::endpoints::v1::admin::users::post::view::CreateUserView;
+use crate::endpoints::v1::admin::users::post::view::{CreateUserView, CreatedUserView};
 use crate::endpoints::validation::ValidatedJson;
 use crate::keycloak::sync::{
     discard_account, export_user, invite, link_account, reserve_account, sync_roles,
@@ -257,10 +258,10 @@ async fn register_user(
     responses(
         (
             status = 201,
-            description = "Account created (and, with Keycloak, mirrored, linked and invited), waiting for the password change at first login.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("User created successfully!")
+            description = "Account created (and, with Keycloak, mirrored, linked and invited), waiting for the password change at first login. The body gives the id of the new account, so the caller does not have to search for it.",
+            body = CreatedUserView,
+            content_type = "application/json",
+            example = json!({ "id": 42, "message": "User created successfully!" })
         ),
         (
             status = 400,
@@ -338,10 +339,21 @@ pub async fn admin_post_user(
 
     register_user(
         &register_view,
-        state,
+        state.clone(),
         admin.as_ref().map(web::Data::get_ref),
     )
     .await?;
 
-    Ok(HttpResponse::Created().body("User created successfully!"))
+    let id: i32 = state
+        .get_smart_db()
+        .fetch_scalar(&GetUserIdQueryView::new(register_view.email()))
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error reading the id of the new account: {e}");
+            CreateUserError::DatabaseError
+        })?;
+    Ok(HttpResponse::Created().json(CreatedUserView {
+        id: id_from_sql(id),
+        message: "User created successfully!".to_string(),
+    }))
 }

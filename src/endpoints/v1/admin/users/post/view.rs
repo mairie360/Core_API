@@ -3,7 +3,7 @@ use crate::endpoints::validation::{
     MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
 };
 use crate::phone::Phone;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
@@ -93,4 +93,15 @@ impl Validate for CreateUserView {
         check_password("password", &self.password, MIN_PASSWORD_LENGTH)?;
         self.phone().map(|_| ())
     }
+}
+
+/// Account created by `POST /api/v1/admin/users/` (MAIR-474).
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct CreatedUserView {
+    /// Id of the new account, usable in every `/api/v1/admin/users/{userId}/` route.
+    #[schema(example = 42)]
+    pub id: u64,
+    /// Fixed confirmation message.
+    #[schema(example = "User created successfully!")]
+    pub message: String,
 }
