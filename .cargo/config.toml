@@ -18,8 +18,8 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs
 
 # Version of the ghcr.io/mairie360/database and liquibase-migrations images the integration tests
 # run against (read by mairie360_api_lib::test_setup), kept equal to the compose files: Database
-# v3.0.0. mairie360_api_lib 3.0.0 passes -Dallow_template_admin=true, so the migration seeds the
+# v3.0.1 (idx_users_name_order of the admin user list, MAIR-477). mairie360_api_lib 3.0.0 passes -Dallow_template_admin=true, so the migration seeds the
 # template admin past MAIR-413. An exported TEST_DB_VERSION still wins.
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database
-TEST_DB_VERSION = "3.0.0"
+TEST_DB_VERSION = "3.0.1"
