@@ -28,7 +28,9 @@ async fn get_user_by_id_success() {
             "first_name": "Alice",
             "last_name": "Smith",
             "email": "alice@example.com",
-            "phone_number": "0102030405",
+            // Seeded the legacy way by mairie360_api_lib, converted by the database (MAIR-480).
+            "phone_number": "102030405",
+            "phone_country": "FR",
             "status": "active",
             "is_archived": false,
         })

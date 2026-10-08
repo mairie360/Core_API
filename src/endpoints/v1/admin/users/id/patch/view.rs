@@ -1,12 +1,15 @@
+use crate::endpoints::v1::user::me::nullable::double_option;
 use crate::endpoints::validation::{
-    check_email, check_label, check_optional, check_password, check_phone, Validate,
+    check_email, check_label, check_optional, check_password, check_phone_change, Validate,
     ValidationError, MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
 };
+use crate::phone::PhoneChange;
 use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
 /// Modification partielle d'un utilisateur par un administrateur : seuls les champs fournis sont mis à jour.
+#[allow(clippy::option_option)]
 #[derive(Deserialize, ToSchema)]
 pub struct PatchUserView {
     /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.
@@ -18,9 +21,18 @@ pub struct PatchUserView {
     /// Nouvelle adresse e-mail. Elle doit rester unique, sinon l'appel échoue en `404`.
     #[schema(max_length = 320, format = Email, example = "j.dupont@mairie360.fr")]
     email: Option<String>,
-    /// Nouveau numéro de téléphone. Absent ou `null` pour ne pas y toucher.
-    #[schema(pattern = "^[0-9]{10,15}$", example = "0798765432")]
-    phone_number: Option<String>,
+    /// New phone number, as typed: national format (`07 98 76 54 32`) with `phone_country`, or
+    /// E.164 (`+33798765432`, `phone_country` optional). It must be a valid number of that
+    /// country. Absent keeps the stored phone; `null` or `""` removes it.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>, max_length = 32, example = "07 98 76 54 32")]
+    phone_number: Option<Option<String>>,
+    /// ISO 3166-1 alpha-2 code of the country the number is typed for (`FR`, `BE`...). Required
+    /// with a national number, refused without a number. The stored country is the number's own:
+    /// a `+262` number sent with `FR` is stored `RE`.
+    #[schema(min_length = 2, max_length = 2, pattern = "^[A-Z]{2}$", example = "FR")]
+    #[serde(default)]
+    phone_country: Option<String>,
     /// New password, 8 to 255 characters, no control character. Absent or `null` to leave it
     /// unchanged. `PATCH /api/v1/admin/users/{userId}/password` is the dedicated route.
     #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
@@ -40,8 +52,17 @@ impl PatchUserView {
         self.email.as_deref()
     }
 
-    pub fn phone_number(&self) -> Option<&str> {
-        self.phone_number.as_deref()
+    /// What the request does to the phone.
+    ///
+    /// # Errors
+    ///
+    /// Returns the `400` of an invalid phone or country (already refused by [`Validate`]).
+    pub fn phone_change(&self) -> Result<PhoneChange, ValidationError> {
+        check_phone_change(
+            "phone_number",
+            self.phone_number.as_ref().map(Option::as_deref),
+            self.phone_country.as_deref(),
+        )
     }
 
     pub fn password(&self) -> Option<&str> {
@@ -72,9 +93,7 @@ impl Validate for PatchUserView {
             check_label("last_name", name, MAX_NAME_LENGTH)
         })?;
         check_optional(self.email.as_deref(), |email| check_email("email", email))?;
-        check_optional(self.phone_number.as_deref(), |phone| {
-            check_phone("phone_number", phone)
-        })?;
+        self.phone_change()?;
         check_optional(self.password.as_deref(), |password| {
             check_password("password", password, MIN_PASSWORD_LENGTH)
         })

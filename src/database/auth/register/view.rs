@@ -1,3 +1,4 @@
+use crate::phone::Phone;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -7,7 +8,8 @@ pub struct RegisterUserQueryView {
     last_name: String,
     email: String,
     password: String,
-    phone_number: Option<String>,
+    /// `(phone_country, phone_number)` of the account (MAIR-480).
+    phone: Option<(String, String)>,
     params: Vec<QueryParam>,
 }
 
@@ -18,33 +20,26 @@ impl RegisterUserQueryView {
         last_name: &str,
         email: &str,
         password: &str,
-        phone_number: Option<&str>,
+        phone: Option<&Phone>,
     ) -> Self {
+        let phone = phone.map(|phone| (phone.country().to_string(), phone.national().to_string()));
+        let mut params = vec![
+            QueryParam::Text(first_name.to_string()),
+            QueryParam::Text(last_name.to_string()),
+            QueryParam::Text(email.to_string()),
+            QueryParam::Text(password.to_string()),
+        ];
+        if let Some((country, national)) = &phone {
+            params.push(QueryParam::Text(country.clone()));
+            params.push(QueryParam::Text(national.clone()));
+        }
         Self {
             first_name: first_name.to_string(),
             last_name: last_name.to_string(),
             email: email.to_string(),
             password: password.to_string(),
-            phone_number: phone_number.map(std::string::ToString::to_string),
-            params: phone_number.map_or_else(
-                || {
-                    vec![
-                        QueryParam::Text(first_name.to_string()),
-                        QueryParam::Text(last_name.to_string()),
-                        QueryParam::Text(email.to_string()),
-                        QueryParam::Text(password.to_string()),
-                    ]
-                },
-                |phone_number| {
-                    vec![
-                        QueryParam::Text(first_name.to_string()),
-                        QueryParam::Text(last_name.to_string()),
-                        QueryParam::Text(email.to_string()),
-                        QueryParam::Text(password.to_string()),
-                        QueryParam::Text(phone_number.to_string()),
-                    ]
-                },
-            ),
+            phone,
+            params,
         }
     }
 
@@ -64,18 +59,25 @@ impl RegisterUserQueryView {
     pub fn get_password(&self) -> &str {
         &self.password
     }
+    /// National significant number of the phone, if any.
     #[must_use]
     pub fn get_phone_number(&self) -> Option<&str> {
-        self.phone_number.as_deref()
+        self.phone.as_ref().map(|(_, national)| national.as_str())
+    }
+
+    /// Country of the phone, if any.
+    #[must_use]
+    pub fn get_phone_country(&self) -> Option<&str> {
+        self.phone.as_ref().map(|(country, _)| country.as_str())
     }
 }
 
 impl ApiRequestDto for RegisterUserQueryView {
     fn query_sql(&self) -> &'static str {
-        match self.phone_number {
+        match self.phone {
             Some(_) => {
-                "INSERT INTO users (first_name, last_name, email, password, phone_number) \
-                 VALUES ($1, $2, $3, $4, $5) RETURNING true"
+                "INSERT INTO users (first_name, last_name, email, password, phone_country, phone_number) \
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING true"
             }
             None => {
                 "INSERT INTO users (first_name, last_name, email, password) \
@@ -97,7 +99,7 @@ impl Display for RegisterUserQueryView {
             "RegisterUserQueryView: first_name = {}, last_name = {}, email = [PROTECTED], password = [PROTECTED], phone_number = {}",
             self.first_name,
             self.last_name,
-            if self.phone_number.is_some() { "[PROTECTED]" } else { "none" }
+            if self.phone.is_some() { "[PROTECTED]" } else { "none" }
         )
     }
 }

@@ -19,6 +19,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PatchUserError {
+    BadRequest(String),
     EmailAlreadyUsed,
     DatabaseError,
     Keycloak(SyncError),
@@ -27,6 +28,7 @@ enum PatchUserError {
 impl std::fmt::Display for PatchUserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::BadRequest(message) => write!(f, "{message}"),
             Self::EmailAlreadyUsed => {
                 write!(f, "Another account already uses this e-mail address.")
             }
@@ -39,6 +41,7 @@ impl std::fmt::Display for PatchUserError {
 impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
+            Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::EmailAlreadyUsed | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
@@ -72,12 +75,15 @@ async fn patch_in_core(
             PatchUserError::DatabaseError
         })?;
 
+    let phone = view
+        .phone_change()
+        .map_err(|e| PatchUserError::BadRequest(e.to_string()))?;
     let query = PatchUserQueryView::new(
         user_id,
         view.first_name(),
         view.last_name(),
         view.email(),
-        view.phone_number(),
+        &phone,
         hashed_password.as_deref(),
     );
     if query.is_noop() {
@@ -192,11 +198,11 @@ async fn patch_user(
     ),
     request_body(
         content = PatchUserView,
-        description = "Fields to change. All optional; an absent or `null` field is ignored.",
-        example = json!({
-            "email": "j.dupont@mairie360.fr",
-            "phone_number": "0798765432"
-        })
+        description = "Fields to change. All optional; an absent or `null` field is ignored, except `phone_number` where `null` or `\"\"` removes the phone (MAIR-480).",
+        examples(
+            ("Change e-mail and phone" = (value = json!({ "email": "j.dupont@mairie360.fr", "phone_number": "07 98 76 54 32", "phone_country": "FR" }))),
+            ("Remove the phone" = (value = json!({ "phone_number": null })))
+        )
     ),
     responses(
         (
@@ -208,7 +214,7 @@ async fn patch_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` 10 to 15 digits; `password` 8 to 255 characters without control character. The body names the first invalid field.",
+            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`; `password` 8 to 255 characters without control character. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `password`: must be at least 8 characters")

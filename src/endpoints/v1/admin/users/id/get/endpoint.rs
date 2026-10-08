@@ -56,6 +56,7 @@ async fn get_user(
             DbFailure::NotFound => GetUserError::UnknownUser,
             _ => GetUserError::DatabaseError,
         })?;
+    let user = user.with_e164_phone();
 
     let roles_id: Vec<i32> = smart_db
         .fetch_all(&GetUserRolesQueryView::new(user_id))
@@ -123,7 +124,8 @@ async fn get_user(
                     "first_name": "Jean",
                     "last_name": "Dupont",
                     "email": "jean.dupont@mairie360.fr",
-                    "phone_number": "0612345678",
+                    "phone_number": "+33612345678",
+                    "phone_country": "FR",
                     "status": "active",
                     "is_archived": false
                 },

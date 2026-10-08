@@ -239,6 +239,17 @@ and never send the Postgres message to the client. Logs go through `tracing` (`t
 `eprintln!` outside `src/bin/`): `telemetry::init()` always installs the stdout layer (filtered by `RUST_LOG`,
 default `info`), with the OTLP export on top when it is enabled.
 
+### Phone numbers (MAIR-480)
+
+The phone is stored as `users.phone_country` (ISO 3166-1 alpha-2) + `users.phone_number` (national
+significant number, digits only), Database v1.10.0. Requests send the number as typed (national
+format with `phone_country`, or E.164) and `crate::phone::Phone::parse` validates it against the
+numbering plan of the country (`phonenumber` crate); the stored country is the number's own (`+262`
+sent with `FR` is `RE`). Partial updates go through `validation::check_phone_change`: absent keeps,
+`null` or `""` clears, a value replaces; `phone_country` alone is a `400`. Responses give the phone
+in E.164 (`phone::display`) next to `phone_country`. The database converts legacy writers (French
+national number without a country, e.g. the `mairie360_api_lib` fixtures) itself.
+
 ### Multi-statement writes (MAIR-420)
 
 A handler that checks then writes, or writes several rows, runs them in one transaction

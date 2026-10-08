@@ -319,7 +319,7 @@ const writeHandlers = {
 
   // Own profile of the Admin (idempotent value).
   'PATCH /api/v1/user/me/': ({ request }) =>
-    check(request({ body: { phone: '0612345678' } }), { 'patch me 200': (r) => r.status === 200 }),
+    check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR' } }), { 'patch me 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/notifications/': ({ request }) =>
     check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/preferences/': ({ request }) =>
@@ -329,14 +329,14 @@ const writeHandlers = {
   'POST /api/v1/admin/users/': ({ request }) => {
     const email = `k6.admin.${unique()}@mairie360.fr`;
     const res = request({
-      body: { first_name: 'Agent', last_name: 'Cree', email, password: FIRST_PASSWORD, phone_number: '0612345678' },
+      body: { first_name: 'Agent', last_name: 'Cree', email, password: FIRST_PASSWORD, phone_number: '0612345678', phone_country: 'FR' },
     });
     check(res, { 'admin create user 201': (r) => r.status === 201 });
     if (res.status === 201) deleteUser(userIdByEmail(email));
   },
   'PATCH /api/v1/admin/users/{userId}/': ({ request }) => {
     const account = registerAccount('patch');
-    check(request({ path: { userId: account.id }, body: { phone_number: '0798765432' } }), {
+    check(request({ path: { userId: account.id }, body: { phone_number: '0798765432', phone_country: 'FR' } }), {
       'admin patch user 200': (r) => r.status === 200,
     });
     deleteUser(account.id);

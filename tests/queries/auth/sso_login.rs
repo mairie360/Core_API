@@ -39,40 +39,50 @@ async fn test_sso_login_ignores_email_case() {
     assert_eq!(result.user_id(), *ALICE_ID.get().unwrap());
 }
 
+/// Since Database 2.0.0 (`uq_users_email_lower`) two accounts cannot share an address that only
+/// differs by case: the second one is refused, so a Keycloak e-mail designates one account
+/// whatever its case. (The former test created both accounts to check that the exact spelling won,
+/// which the schema no longer allows.)
 #[tokio::test]
 #[serial]
-async fn test_sso_login_prefers_exact_case_match() {
+async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool(host.clone()).await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("ssocase");
     let email = format!("sso.{marker}@example.com");
-    // Two accounts whose addresses only differ by case: Keycloak's exact spelling must win,
-    // whichever was created first.
-    for address in [email.to_uppercase(), email.clone()] {
-        sqlx::query(
-            "INSERT INTO users (first_name, last_name, email, password, status) \
-             VALUES ('Sso', $1, $2, $3, 'active')",
-        )
-        .bind(&marker)
-        .bind(&address)
-        .bind(seed_password_hash())
-        .execute(&raw)
-        .await
-        .unwrap();
-    }
-    let exact_id: i32 = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
-        .bind(&email)
-        .fetch_one(&raw)
-        .await
-        .unwrap();
+    let insert = |address: String| {
+        let raw = raw.clone();
+        let marker = marker.clone();
+        async move {
+            sqlx::query_scalar::<_, i32>(
+                "INSERT INTO users (first_name, last_name, email, password, status) \
+                 VALUES ('Sso', $1, $2, $3, 'active') RETURNING id",
+            )
+            .bind(&marker)
+            .bind(&address)
+            .bind(seed_password_hash())
+            .fetch_one(&raw)
+            .await
+        }
+    };
 
+    let account = insert(email.clone()).await.unwrap();
+    let duplicate = insert(email.to_uppercase()).await.unwrap_err();
     let result: SsoLoginUserQueryResultView = pool
-        .fetch_one(&SsoLoginUserQueryView::new(&email))
+        .fetch_one(&SsoLoginUserQueryView::new(&email.to_uppercase()))
         .await
         .unwrap();
 
-    assert_eq!(result.user_id(), exact_id);
+    assert_eq!(
+        duplicate
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("23505"),
+        "{duplicate}"
+    );
+    assert_eq!(result.user_id(), account);
 }
 
 #[tokio::test]
