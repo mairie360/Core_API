@@ -20,7 +20,7 @@ futures-util = "0.3"
 ipnet = "2.12"
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "ring", "webpki-roots", "builder"] }
-mairie360_api_lib = "3.0.0"
+mairie360_api_lib = "3.0.1"
 percent-encoding = "2.3"
 # Phone numbers validated against the numbering plan of their country (MAIR-480).
 phonenumber = "0.3.10"
@@ -29,7 +29,9 @@ phonenumber = "0.3.10"
 opentelemetry = "0.32"
 opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
 opentelemetry_sdk = "0.32"
-tracing-actix-web = { version = "0.7.25", features = ["opentelemetry_0_32"] }
+# `emit_event_on_error` (a default feature) logs the `Debug` of every error, which can hold the
+# values of the request: `request_log::RedactedRootSpanBuilder` emits that event instead (MAIR-290).
+tracing-actix-web = { version = "0.7.25", default-features = false, features = ["opentelemetry_0_32"] }
 tracing-opentelemetry = "0.33"
 rand = "0.10"
 reqwest = { version = "0.13.4", features = ["json", "form"] }
@@ -48,7 +50,7 @@ utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
-mairie360_api_lib = { version = "3.0.0", features = ["test-utils"] }
+mairie360_api_lib = { version = "3.0.1", features = ["test-utils"] }
 # In-memory span exporter to assert on the exported spans (MAIR-131).
 opentelemetry_sdk = { version = "0.32", features = ["testing"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
