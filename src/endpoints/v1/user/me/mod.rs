@@ -1,6 +1,7 @@
 use actix_web::web;
 
 pub mod doc;
+pub mod export;
 pub mod get;
 pub mod notifications;
 pub mod nullable;
@@ -11,6 +12,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/me")
             .service(get::endpoint::get_me)
+            .service(export::endpoint::export_my_data)
             .service(patch::endpoint::patch_me)
             .service(preferences::endpoint::get_my_preferences)
             .service(preferences::endpoint::patch_my_preferences)

@@ -1,4 +1,6 @@
 use crate::endpoints::v1::admin::users::id::delete::doc::DeleteUserDoc;
+use crate::endpoints::v1::admin::users::id::erase::doc::EraseUserDoc;
+use crate::endpoints::v1::admin::users::id::export::doc::ExportUserDataDoc;
 use crate::endpoints::v1::admin::users::id::get::doc::GetUserDoc;
 use crate::endpoints::v1::admin::users::id::password::doc::ResetPasswordDoc;
 use crate::endpoints::v1::admin::users::id::patch::doc::PatchUserDoc;
@@ -22,6 +24,8 @@ impl OpenApi for RootDoc {
         doc.merge(GetUserDoc::openapi());
         doc.merge(PatchUserDoc::openapi());
         doc.merge(ResetPasswordDoc::openapi());
+        doc.merge(EraseUserDoc::openapi());
+        doc.merge(ExportUserDataDoc::openapi());
         doc
     }
 }

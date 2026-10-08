@@ -49,6 +49,7 @@ operations:
     access: authenticated
     ownership: self
     note: "changing the e-mail needs the current password"
+  GET /api/v1/user/me/export: {access: authenticated, ownership: self, personal: [user, data], note: "export_user_data() of the caller (GDPR art. 15 and 20, MAIR-289)"}
   GET /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
   PATCH /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
   GET /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
@@ -120,6 +121,8 @@ operations:
   PATCH /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin], note: "archives the account and revokes its sessions"}
   PATCH /api/v1/admin/users/{userId}/password: {access: admin, roles: [Admin]}
+  POST /api/v1/admin/users/{userId}/erase: {access: admin, roles: [Admin], note: "erasure (GDPR art. 17, MAIR-289): anonymize_user(), sessions revoked, Keycloak account deleted"}
+  GET /api/v1/admin/users/{userId}/export: {access: admin, roles: [Admin], personal: [user, data], note: "export_user_data() (GDPR art. 15 and 20, MAIR-289)"}
   POST /api/v1/admin/users/{userId}/roles/: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/roles/{roleId}: {access: admin, roles: [Admin]}
   GET /api/v1/admin/roles/: {access: admin, roles: [Admin]}
