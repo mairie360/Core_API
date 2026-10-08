@@ -2,6 +2,7 @@ use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
 use crate::database::roles::get_roles_by_id::GetRolesByIdQueryView;
 use crate::database::users::get_roles::GetUserRolesQueryView;
 use crate::database::users::get_user_by_id::GetUserByIdQueryView;
+use crate::endpoints::v1::user::directory_access::may_read_directory;
 use crate::endpoints::v1::user::id::get::view::GetUserResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -14,6 +15,7 @@ use mairie360_api_lib::state::AppState;
 #[derive(Debug, Clone, PartialEq)]
 enum GetUserError {
     DatabaseError,
+    Forbidden,
     UnknownUser,
 }
 
@@ -23,6 +25,7 @@ impl std::fmt::Display for GetUserError {
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
+            Self::Forbidden => write!(f, "Forbidden: the directory is closed to guests."),
             Self::UnknownUser => {
                 write!(f, "User not found.")
             }
@@ -34,6 +37,7 @@ impl ResponseError for GetUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::UnknownUser => StatusCode::NOT_FOUND,
         }
     }
@@ -49,6 +53,14 @@ async fn trigger_get_user(
     id: u64,
 ) -> Result<GetUserResponseView, GetUserError> {
     let smart_db = state.get_smart_db();
+    if caller_id != id
+        && !may_read_directory(smart_db, caller_id).await.map_err(|e| {
+            tracing::error!("Get user DB Error: {e}");
+            GetUserError::DatabaseError
+        })?
+    {
+        return Err(GetUserError::Forbidden);
+    }
 
     let view = GetUserByIdQueryView::new(id);
     let result: crate::database::users::get_user_by_id::GetUserByIdQueryResultView =
@@ -60,8 +72,9 @@ async fn trigger_get_user(
                 return Err(GetUserError::DatabaseError);
             }
         };
-    // Another user's record is only fully readable by an administrator (MAIR-390): everyone else
-    // gets no phone number, and an archived account answers as if it did not exist.
+    // An archived account is only visible to itself and to the administrators (MAIR-390,
+    // MAIR-288): for everyone else it answers as if it did not exist. The phone number is visible
+    // to every agent (decision of the mairie, MAIR-288: professional use).
     let full_access = caller_id == id
         || smart_db
             .fetch_scalar::<bool, _>(&IsAdminQueryView::new(caller_id))
@@ -94,8 +107,8 @@ async fn trigger_get_user(
         result.first_name(),
         result.last_name(),
         result.email(),
-        result.phone_e164().filter(|_| full_access),
-        result.phone_country().filter(|_| full_access),
+        result.phone_e164(),
+        result.phone_country(),
         result.status(),
         result.is_archived(),
         role.iter().map(|r| r.name().to_string()).collect(),
@@ -110,10 +123,13 @@ async fn trigger_get_user(
     description = "Returns a user's record: names, e-mail, phone, status, archive flag, roles and \
                    groups. Open to every authenticated user, with restrictions on other users' \
                    records:\n\n\
-                   - the user themself and administrators get the full record, archived accounts \
-                   included (`is_archived` is then `true`);\n\
-                   - anyone else gets `phone` and `phone_country` set to `null`, and an archived account answers \
-                   `404` as if it did not exist, so `is_archived` is always `false` for them.\n\n\
+                   - the user themself and administrators also read archived accounts \
+                   (`is_archived` is then `true`);\n\
+                   - for anyone else an archived account answers `404` as if it did not exist, so \
+                   `is_archived` is always `false` for them.\n\n\
+                   The phone number is visible to every agent (MAIR-288). With \
+                   `DIRECTORY_GUEST_ACCESS=none`, an agent who only holds the Guest role gets `403` \
+                   on any record but their own.\n\n\
                    `role` is deprecated: read `roles`, which lists every role.",
     params(
         ("id" = u64, Path, description = "Id of the user to read.", example = 42)
@@ -121,7 +137,7 @@ async fn trigger_get_user(
     responses(
         (
             status = 200,
-            description = "The user's record (without `phone` when another non-administrator user asks).",
+            description = "The user's record.",
             body = GetUserResponseView,
             example = json!({
                 "first_name": "Jean",
@@ -144,6 +160,13 @@ async fn trigger_get_user(
             body = String,
             content_type = "text/plain",
             example = json!("Unauthorized")
+        ),
+        (
+            status = 403,
+            description = "`DIRECTORY_GUEST_ACCESS=none` and the caller only holds the Guest role (their own record stays readable).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: the directory is closed to guests.")
         ),
         (
             status = 404,

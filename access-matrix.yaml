@@ -1,0 +1,130 @@
+# Access matrix of Core_API (MAIR-288, epic MAIR-284).
+#
+# A decision of the mairie, proposed by Mairie 360: for every operation of the OpenAPI, who may
+# call it. tests/endpoints/access_matrix.rs reads the spec the API serves and fails when an
+# operation is missing here or listed here without existing, then calls every operation as each
+# role and checks the answer: an allowed caller never gets 401 / 403, any other caller gets 403
+# (401 without a session). Change this file and the code together.
+#
+# Keys of an operation ("METHOD /path" of the OpenAPI):
+#   access     public          no session needed
+#              authenticated   any session (every role, Guest included)
+#              admin           the `/api/v1/admin` scope: Admin only (admin_guard)
+#   roles      roles that pass whatever the instance (global right, e.g. `update_all`)
+#   ownership  who else passes, for one instance:
+#              self            the caller's own data (the JWT's user)
+#              owner           the instance's owner (owner_id), or an ACL entry
+#              member          a member of the group, or an ACL entry granting `read`
+#   personal   personal fields of the answer (gdpr/inventory.yaml of Database), for the review
+#   token      true when the body carries a credential (one-time or refresh token): its 401 / 403
+#              answer a wrong token, not an access decision
+#   note       the rule when it is not obvious
+#
+# Decisions of the mairie (2026-10-08): the phone number of an agent is visible to every agent
+# (professional use); a Guest only gets the default access of its role; an archived account is
+# only visible to itself and to the administrators. The directory can be closed to the agents
+# that only have the Guest role with DIRECTORY_GUEST_ACCESS=none (default: all).
+
+version: 1
+api: core
+roles: [Admin, Maire, Responsable, User, Guest]
+
+operations:
+  # --- Probes and authentication: no session ---
+  GET /health: {access: public}
+  GET /ready: {access: public}
+  POST /api/v1/auth/login: {access: public}
+  POST /api/v1/auth/force_change_password: {access: public, token: true, note: "needs the one-time first-connection token"}
+  POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
+  POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}
+  POST /api/v1/auth/keycloak: {access: public}
+  POST /api/v1/sessions/refresh: {access: public, token: true, note: "needs the refresh token"}
+
+  # --- The caller's own account and sessions ---
+  GET /api/v1/user/me/:
+    access: authenticated
+    ownership: self
+    personal: [first_name, last_name, email, phone_number, phone_country, status, roles, groups]
+  PATCH /api/v1/user/me/:
+    access: authenticated
+    ownership: self
+    note: "changing the e-mail needs the current password"
+  GET /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
+  PATCH /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
+  GET /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
+  PATCH /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
+  GET /api/v1/sessions/:
+    access: authenticated
+    ownership: self
+    personal: [ip_address, device_info, created_at]
+  GET /api/v1/sessions/history:
+    access: authenticated
+    ownership: self
+    personal: [ip_address, device_info, timestamp, action_type]
+  POST /api/v1/sessions/logout: {access: authenticated, ownership: self}
+  POST /api/v1/sessions/revoke: {access: authenticated, ownership: self, token: true, note: "a session of the caller only, named by its refresh token"}
+
+  # --- Directory ---
+  GET /api/v1/user/:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    personal: [first_name, last_name, email, roles, groups]
+    note: "active accounts only; closed to Guest-only agents with DIRECTORY_GUEST_ACCESS=none"
+  GET /api/v1/user/{id}/:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, groups]
+    note: "an archived account answers 404 except to itself and to the administrators; the phone is visible to every agent; closed to Guest-only agents (except their own record) with DIRECTORY_GUEST_ACCESS=none"
+  GET /api/v1/roles/:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+
+  # --- Groups (check_access on `groups`: read_all / update_all for Admin and Maire) ---
+  GET /api/v1/groups/:
+    access: authenticated
+    ownership: self
+    note: "the groups the caller is a member of"
+  POST /api/v1/groups/:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    note: "no right is checked: any agent creates a group and becomes its owner (the role rights grant `create` to Admin, Maire and Responsable only)"
+  GET /api/v1/groups/{group_id}/:
+    access: authenticated
+    roles: [Admin, Maire]
+    ownership: member
+  GET /api/v1/groups/{group_id}/users/:
+    access: authenticated
+    roles: [Admin, Maire]
+    ownership: member
+    note: "ids of the members only"
+  PATCH /api/v1/groups/{group_id}/: {access: authenticated, roles: [Admin, Maire], ownership: owner}
+  DELETE /api/v1/groups/{group_id}/: {access: authenticated, roles: [Admin, Maire], ownership: owner}
+  POST /api/v1/groups/{group_id}/users/: {access: authenticated, roles: [Admin, Maire], ownership: owner}
+  DELETE /api/v1/groups/{group_id}/users/{user_id}/: {access: authenticated, roles: [Admin, Maire], ownership: owner}
+
+  # --- Access control lists (groups and events only have an owner) ---
+  POST /api/v1/ressources/add_access: {access: authenticated, roles: [Admin], ownership: owner}
+  POST /api/v1/ressources/remove_access: {access: authenticated, roles: [Admin], ownership: owner}
+  POST /api/v1/ressources/{id}/access: {access: authenticated, roles: [Admin], ownership: owner}
+
+  # --- Administration: Admin only ---
+  GET /api/v1/admin/users/:
+    access: admin
+    roles: [Admin]
+    personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, created_at]
+  POST /api/v1/admin/users/: {access: admin, roles: [Admin]}
+  GET /api/v1/admin/users/{userId}/:
+    access: admin
+    roles: [Admin]
+    personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, groups]
+  PATCH /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin]}
+  DELETE /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin], note: "archives the account and revokes its sessions"}
+  PATCH /api/v1/admin/users/{userId}/password: {access: admin, roles: [Admin]}
+  POST /api/v1/admin/users/{userId}/roles/: {access: admin, roles: [Admin]}
+  DELETE /api/v1/admin/users/{userId}/roles/{roleId}: {access: admin, roles: [Admin]}
+  GET /api/v1/admin/roles/: {access: admin, roles: [Admin]}
+  POST /api/v1/admin/roles/: {access: admin, roles: [Admin]}
+  PUT /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
+  PATCH /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
+  DELETE /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
+  POST /api/v1/admin/keycloak/migration: {access: admin, roles: [Admin]}
