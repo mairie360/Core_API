@@ -324,6 +324,21 @@ printed and never stops the API.
 - `tests/endpoints/telemetry.rs` asserts the span, the continued trace id and the SQL events
   against an in-memory exporter (Docker needed like the other integration tests).
 
+### Access matrix (MAIR-288)
+
+`access-matrix.yaml` (root) is the access decision of every operation of the OpenAPI: `access`
+(`public` / `authenticated` / `admin`), the `roles` that pass whatever the instance, the
+`ownership` that also passes (`self`, `owner` = owner or ACL, `member`), the `personal` fields of
+the answer, `token: true` when the body carries a credential. `tests/endpoints/access_matrix.rs`
+fails when an operation of `ApiDoc` is missing from the file (or the file names one that does not
+exist), then calls every operation as a user of each role, as the owner of the instance and
+without a session, on fresh fixtures: an allowed caller never gets 401 / 403, any other gets 403.
+A new endpoint therefore needs its line in the matrix, decided with the mairie. Decisions recorded
+there: the phone is visible to every agent (`GET /api/v1/user/{id}/`), an archived account only
+to itself and the administrators; `DIRECTORY_GUEST_ACCESS=none` (read on every call, default
+`all`) closes `GET /api/v1/user/` and the other users' records to the agents who only hold the
+Guest role (`src/endpoints/v1/user/directory_access.rs`).
+
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every

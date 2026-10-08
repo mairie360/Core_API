@@ -1,4 +1,5 @@
 use crate::database::users::list_directory::{DirectoryUser, ListDirectoryUsersQueryView};
+use crate::endpoints::v1::user::directory_access::may_read_directory;
 use crate::endpoints::v1::user::get::view::{
     parse_id_list, DirectoryUsersQuery, DirectoryUsersResultView, MAX_DIRECTORY_LIMIT,
 };
@@ -12,12 +13,14 @@ use mairie360_api_lib::state::AppState;
 enum DirectoryError {
     BadRequest,
     DatabaseError,
+    Forbidden,
 }
 
 impl std::fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BadRequest => write!(f, "Bad request."),
+            Self::Forbidden => write!(f, "Forbidden: the directory is closed to guests."),
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -29,6 +32,7 @@ impl ResponseError for DirectoryError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -40,8 +44,18 @@ impl ResponseError for DirectoryError {
 
 async fn trigger_list_directory_users(
     state: web::Data<AppState>,
+    caller_id: u64,
     query: DirectoryUsersQuery,
 ) -> Result<DirectoryUsersResultView, DirectoryError> {
+    if !may_read_directory(state.get_smart_db(), caller_id)
+        .await
+        .map_err(|error| {
+            tracing::error!("{error:?}");
+            DirectoryError::DatabaseError
+        })?
+    {
+        return Err(DirectoryError::Forbidden);
+    }
     let ids = parse_id_list(query.ids()).ok_or(DirectoryError::BadRequest)?;
     let group_ids = parse_id_list(query.group_ids()).ok_or(DirectoryError::BadRequest)?;
     let limit = query.limit().unwrap_or(MAX_DIRECTORY_LIMIT);
@@ -121,6 +135,13 @@ async fn trigger_list_directory_users(
             example = json!("Jeton expiré")
         ),
         (
+            status = 403,
+            description = "`DIRECTORY_GUEST_ACCESS=none` and the caller only holds the Guest role (MAIR-288).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: the directory is closed to guests.")
+        ),
+        (
             status = 500,
             description = "Erreur de base de données lors de la lecture de l'annuaire.",
             body = String,
@@ -135,10 +156,10 @@ async fn trigger_list_directory_users(
 )]
 #[get("/")]
 pub async fn list_directory_users(
-    _: AuthenticatedUser,
+    caller: AuthenticatedUser,
     state: web::Data<AppState>,
     query: ValidatedQuery<DirectoryUsersQuery>,
 ) -> Result<impl Responder, DirectoryError> {
-    let result = trigger_list_directory_users(state, query.into_inner()).await?;
+    let result = trigger_list_directory_users(state, caller.id, query.into_inner()).await?;
     Ok(HttpResponse::Ok().json(result))
 }

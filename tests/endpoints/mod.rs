@@ -1,4 +1,5 @@
 mod access_denials;
+mod access_matrix;
 mod admin_users_keycloak;
 mod auth_hardening;
 mod auth_password;

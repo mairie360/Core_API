@@ -809,6 +809,7 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
+ "yaml_serde",
 ]
 
 [[package]]
