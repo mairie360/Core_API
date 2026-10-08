@@ -41,3 +41,72 @@ pub struct PasskeySummary {
 pub fn credential_id_hex(credential_id: &[u8]) -> String {
     hex::encode(credential_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::credential_id_hex;
+    use super::delete::DeletePasskeyQueryView;
+    use super::find_by_credential::FindPasskeyByCredentialQueryView;
+    use super::insert::InsertPasskeyQueryView;
+    use super::list::ListPasskeysQueryView;
+    use super::list_credential_ids::{CredentialIdRow, ListCredentialIdsQueryView};
+    use super::update_credential::UpdatePasskeyCredentialQueryView;
+    use mairie360_api_lib::database::db_interface::ApiRequestDto;
+
+    const CREDENTIAL: [u8; 4] = [0xde, 0xad, 0xbe, 0xef];
+
+    #[test]
+    fn credential_ids_travel_as_hex() {
+        let hex = credential_id_hex(&CREDENTIAL);
+        assert_eq!(hex, "deadbeef");
+        let row = CredentialIdRow { credential_id: hex };
+        assert_eq!(row.bytes().unwrap(), CREDENTIAL);
+        assert!(CredentialIdRow {
+            credential_id: "zz".to_string()
+        }
+        .bytes()
+        .is_err());
+    }
+
+    #[test]
+    fn views_bind_their_parameters_and_log_ids_only() {
+        let insert = InsertPasskeyQueryView::new(7, "deadbeef", "{}", "Mon téléphone");
+        assert_eq!(insert.user_id(), 7);
+        assert_eq!(insert.label(), "Mon téléphone");
+        assert_eq!(insert.query_params().len(), 4);
+        assert_eq!(insert.to_string(), "InsertPasskeyQueryView: user_id = 7");
+
+        let list = ListPasskeysQueryView::new(7);
+        assert_eq!(list.user_id(), 7);
+        assert_eq!(list.query_params().len(), 1);
+        assert_eq!(list.to_string(), "ListPasskeysQueryView: user_id = 7");
+
+        let ids = ListCredentialIdsQueryView::new(7);
+        assert_eq!(ids.user_id(), 7);
+        assert_eq!(ids.query_params().len(), 1);
+        assert_eq!(ids.to_string(), "ListCredentialIdsQueryView: user_id = 7");
+
+        let find = FindPasskeyByCredentialQueryView::new("deadbeef");
+        assert_eq!(find.query_params().len(), 1);
+        // The credential id identifies a device: never in the logs.
+        assert_eq!(find.to_string(), "FindPasskeyByCredentialQueryView");
+        assert!(find.query_sql().contains("decode($1, 'hex')"));
+
+        let update = UpdatePasskeyCredentialQueryView::new(12, "{}");
+        assert_eq!(update.passkey_id(), 12);
+        assert_eq!(update.query_params().len(), 2);
+        assert_eq!(
+            update.to_string(),
+            "UpdatePasskeyCredentialQueryView: passkey_id = 12"
+        );
+
+        let delete = DeletePasskeyQueryView::new(12, 7);
+        assert_eq!(delete.passkey_id(), 12);
+        assert_eq!(delete.user_id(), 7);
+        assert_eq!(delete.query_params().len(), 2);
+        assert_eq!(
+            delete.to_string(),
+            "DeletePasskeyQueryView: passkey_id = 12, user_id = 7"
+        );
+    }
+}

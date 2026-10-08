@@ -44,9 +44,22 @@ impl WebauthnConfig {
     /// empty; an origin that is not a valid URL is dropped with a warning.
     #[must_use]
     pub fn from_env() -> Option<Self> {
-        let rp_id = get_env_var("WEBAUTHN_RP_ID").filter(|value| !value.trim().is_empty());
-        let raw_origins =
-            get_env_var("WEBAUTHN_RP_ORIGIN").filter(|value| !value.trim().is_empty());
+        Self::from_values(
+            get_env_var("WEBAUTHN_RP_ID"),
+            get_env_var("WEBAUTHN_RP_ORIGIN"),
+            get_env_var("WEBAUTHN_RP_NAME"),
+        )
+    }
+
+    /// [`Self::from_env`] on the raw values of the three variables.
+    #[must_use]
+    pub fn from_values(
+        rp_id: Option<String>,
+        raw_origins: Option<String>,
+        rp_name: Option<String>,
+    ) -> Option<Self> {
+        let rp_id = rp_id.filter(|value| !value.trim().is_empty());
+        let raw_origins = raw_origins.filter(|value| !value.trim().is_empty());
         match (rp_id, raw_origins) {
             (Some(rp_id), Some(raw_origins)) => {
                 let origins: Vec<Url> = raw_origins
@@ -67,11 +80,7 @@ impl WebauthnConfig {
                     tracing::warn!("Passkeys disabled: WEBAUTHN_RP_ORIGIN holds no valid URL.");
                     return None;
                 }
-                Some(Self::new(
-                    &rp_id,
-                    get_env_var("WEBAUTHN_RP_NAME").as_deref(),
-                    origins,
-                ))
+                Some(Self::new(&rp_id, rp_name.as_deref(), origins))
             }
             (None, None) => None,
             _ => {
@@ -169,5 +178,77 @@ mod tests {
                 "an origin outside the relying party must be refused"
             );
         }
+    }
+
+    #[test]
+    fn refuses_a_configuration_without_origin() {
+        assert!(WebauthnConfig::new("mairie360.test", None, vec![])
+            .build()
+            .is_err());
+    }
+
+    #[test]
+    fn is_disabled_until_both_variables_are_set() {
+        let some = |value: &str| Some(value.to_string());
+        assert_eq!(WebauthnConfig::from_values(None, None, None), None);
+        assert_eq!(
+            WebauthnConfig::from_values(some("mairie360.test"), None, None),
+            None
+        );
+        assert_eq!(
+            WebauthnConfig::from_values(None, some("https://login.mairie360.test"), None),
+            None
+        );
+        // Blank values count as unset.
+        assert_eq!(
+            WebauthnConfig::from_values(some("  "), some("https://login.mairie360.test"), None),
+            None
+        );
+        assert_eq!(
+            WebauthnConfig::from_values(some("mairie360.test"), some(" , "), None),
+            None
+        );
+        // Values that are not URLs are dropped; none left disables the passkeys.
+        assert_eq!(
+            WebauthnConfig::from_values(some("mairie360.test"), some("not a url"), None),
+            None
+        );
+    }
+
+    #[test]
+    fn reads_the_origins_list_and_the_name() {
+        let some = |value: &str| Some(value.to_string());
+        let config = WebauthnConfig::from_values(
+            some(" mairie360.test "),
+            some("https://login.mairie360.test, not a url ,https://mairie360.test,"),
+            some(" Ma mairie "),
+        )
+        .expect("configured");
+        assert_eq!(config.rp_id(), "mairie360.test");
+        assert_eq!(config.rp_name(), "Ma mairie");
+        assert_eq!(
+            config.origins(),
+            &[
+                url("https://login.mairie360.test"),
+                url("https://mairie360.test")
+            ]
+        );
+        assert!(config.build().is_ok());
+
+        let unnamed = WebauthnConfig::from_values(
+            some("mairie360.test"),
+            some("https://login.mairie360.test"),
+            some(""),
+        )
+        .expect("configured");
+        assert_eq!(unnamed.rp_name(), "Mairie 360");
+        assert_eq!(
+            unnamed,
+            WebauthnConfig::new(
+                "mairie360.test",
+                None,
+                vec![url("https://login.mairie360.test")]
+            )
+        );
     }
 }
