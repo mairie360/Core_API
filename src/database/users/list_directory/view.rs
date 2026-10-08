@@ -32,32 +32,41 @@ fn join_ids(ids: &[u64]) -> String {
 }
 
 impl ApiRequestDto for ListDirectoryUsersQueryView {
+    // The matches are collected first (`MATERIALIZED`), through the trigram indexes when there is
+    // a search, then sorted and cut: written as one `ORDER BY ... LIMIT`, the generic plan of the
+    // prepared query walked `idx_users_name_order` (Database 3.0.1) in order and filtered every
+    // user on the way for a selective search (MAIR-477). The roles and groups are only aggregated
+    // for the rows kept.
     fn query_sql(&self) -> &'static str {
-        "SELECT to_jsonb(t) FROM ( \
-            SELECT u.id, u.first_name, u.last_name, u.email, \
-                COALESCE( \
-                    (SELECT jsonb_agg(DISTINCT r.name) FROM user_roles ur \
-                     JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id), \
-                    '[]'::jsonb) AS roles, \
-                COALESCE( \
-                    (SELECT jsonb_agg(DISTINCT gm.group_id) FROM group_members gm \
-                     WHERE gm.user_id = u.id), \
-                    '[]'::jsonb) AS group_ids \
-            FROM users u \
+        concat!(
+            "WITH matched AS MATERIALIZED ( \
+            SELECT u.id, u.first_name, u.last_name, u.email FROM users u \
             WHERE COALESCE(u.is_archived, false) = false \
-              AND (NULLIF($1, '') IS NULL \
-                OR u.first_name ILIKE '%' || $1 || '%' \
-                OR u.last_name ILIKE '%' || $1 || '%' \
-                OR concat_ws(' ', u.first_name, u.last_name) ILIKE '%' || $1 || '%' \
-                OR u.email ILIKE '%' || $1 || '%') \
+              AND (NULLIF($1, '') IS NULL OR ",
+            crate::user_search_text_sql!(),
+            " LIKE '%' || lower($1) || '%') \
               AND (NULLIF($2, '') IS NULL \
                 OR u.id = ANY(string_to_array($2, ',')::int[])) \
               AND (NULLIF($3, '') IS NULL OR EXISTS ( \
                 SELECT 1 FROM group_members scoped WHERE scoped.user_id = u.id \
                   AND scoped.group_id = ANY(string_to_array($3, ',')::int[]))) \
-            ORDER BY u.last_name, u.first_name, u.id \
-            LIMIT $4 \
+         ), page AS ( \
+            SELECT * FROM matched ORDER BY last_name, first_name, id LIMIT $4 \
+         ) \
+         SELECT to_jsonb(t) FROM ( \
+            SELECT p.id, p.first_name, p.last_name, p.email, \
+                COALESCE( \
+                    (SELECT jsonb_agg(DISTINCT r.name) FROM user_roles ur \
+                     JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = p.id), \
+                    '[]'::jsonb) AS roles, \
+                COALESCE( \
+                    (SELECT jsonb_agg(DISTINCT gm.group_id) FROM group_members gm \
+                     WHERE gm.user_id = p.id), \
+                    '[]'::jsonb) AS group_ids \
+            FROM page p \
+            ORDER BY p.last_name, p.first_name, p.id \
          ) t"
+        )
     }
 
     fn query_params(&self) -> &[QueryParam] {

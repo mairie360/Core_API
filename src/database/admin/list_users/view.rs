@@ -4,65 +4,102 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-// Filtre commun à la liste et au comptage : recherche insensible à la casse sur le prénom, le nom
-// (dans les deux ordres) et l'email, et restriction facultative aux membres d'un groupe.
-// $1 = recherche ('' = aucune), $2 = identifiant de groupe (NULL = tous les utilisateurs).
-macro_rules! admin_users_filter {
+// Filter of a search, shared by the list and the count: case-insensitive match on the full
+// names (both orders) and the e-mail (`user_search_text_sql!`), optionally restricted to the
+// members of a group. $1 = search, $2 = group id (NULL = every user).
+macro_rules! admin_users_search_filter {
     () => {
-        "(NULLIF($1, '') IS NULL \
-            OR u.first_name ILIKE '%' || $1 || '%' \
-            OR u.last_name ILIKE '%' || $1 || '%' \
-            OR concat_ws(' ', u.first_name, u.last_name) ILIKE '%' || $1 || '%' \
-            OR concat_ws(' ', u.last_name, u.first_name) ILIKE '%' || $1 || '%' \
-            OR u.email ILIKE '%' || $1 || '%') \
-        AND ($2::int IS NULL OR EXISTS ( \
-            SELECT 1 FROM group_members gm WHERE gm.user_id = u.id AND gm.group_id = $2))"
+        concat!(
+            crate::user_search_text_sql!(),
+            " LIKE '%' || lower($1) || '%' \
+            AND ($2::int IS NULL OR EXISTS ( \
+                SELECT 1 FROM group_members gm WHERE gm.user_id = u.id AND gm.group_id = $2))"
+        )
     };
 }
 
-fn filter_params(search: Option<&str>, group_id: Option<u64>) -> Vec<QueryParam> {
-    vec![
-        QueryParam::Text(search.map(str::trim).unwrap_or_default().to_string()),
-        QueryParam::OptionI32(group_id.map(id_to_sql)),
-    ]
+// Columns of a row of the list, read from `users u` for the ids of the page.
+macro_rules! admin_users_row {
+    () => {
+        "SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, u.phone_country, \
+            u.status, COALESCE(u.is_archived, false) AS is_archived, \
+            COALESCE( \
+                (SELECT jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name) ORDER BY r.name) \
+                 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
+                 WHERE ur.user_id = u.id), \
+                '[]'::jsonb) AS roles \
+         FROM page JOIN users u ON u.id = page.id \
+         ORDER BY u.last_name, u.first_name, u.id"
+    };
+}
+
+/// The trimmed search, `None` when empty.
+fn search_term(search: Option<&str>) -> Option<String> {
+    search
+        .map(str::trim)
+        .filter(|search| !search.is_empty())
+        .map(str::to_string)
 }
 
 /// Page d'utilisateurs pour l'administration, rôles inclus, triée par nom, prénom puis identifiant.
+///
+/// Two statements (MAIR-477, measured by the MAIR-474 load test): without a search, the ids of the
+/// page are read in the order of `idx_users_name_order` (Database 3.0.1) instead of sorting every
+/// user (18-29 ms for the last page of 10 000 users, 3 ms this way); with one, the matches are
+/// collected first through the trigram indexes (`MATERIALIZED`), then sorted. In one statement,
+/// the generic plan of the prepared query walked the name index for a selective search too (2 ms
+/// to 20 ms). In both, the roles are only aggregated for the rows of the page.
 #[derive(Debug, serde::Deserialize)]
 pub struct AdminListUsersQueryView {
     params: Vec<QueryParam>,
+    searched: bool,
 }
 
 impl AdminListUsersQueryView {
     #[must_use]
     pub fn new(search: Option<&str>, group_id: Option<u64>, page: u64, page_size: u64) -> Self {
-        let mut params = filter_params(search, group_id);
+        let search = search_term(search);
+        let searched = search.is_some();
+        let mut params = Vec::with_capacity(4);
+        if let Some(search) = search {
+            params.push(QueryParam::Text(search));
+        }
+        params.push(QueryParam::OptionI32(group_id.map(id_to_sql)));
         params.push(QueryParam::I64(id_to_sql_i64(page_size)));
         params.push(QueryParam::I64(id_to_sql_i64(
             page.saturating_sub(1).saturating_mul(page_size),
         )));
-        Self { params }
+        Self { params, searched }
     }
 }
 
 impl ApiRequestDto for AdminListUsersQueryView {
     fn query_sql(&self) -> &'static str {
-        concat!(
-            "SELECT to_jsonb(t) FROM ( \
-                SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, u.phone_country, u.status, \
-                    COALESCE(u.is_archived, false) AS is_archived, \
-                    COALESCE( \
-                        (SELECT jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name) ORDER BY r.name) \
-                         FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
-                         WHERE ur.user_id = u.id), \
-                        '[]'::jsonb) AS roles \
-                FROM users u \
-                WHERE ",
-            admin_users_filter!(),
-            " ORDER BY u.last_name, u.first_name, u.id \
-                LIMIT $3 OFFSET $4 \
-            ) t"
-        )
+        if self.searched {
+            concat!(
+                "WITH matched AS MATERIALIZED ( \
+                    SELECT u.id, u.first_name, u.last_name FROM users u WHERE ",
+                admin_users_search_filter!(),
+                " ), page AS ( \
+                    SELECT id FROM matched ORDER BY last_name, first_name, id \
+                    LIMIT $3 OFFSET $4) \
+                 SELECT to_jsonb(t) FROM (",
+                admin_users_row!(),
+                ") t"
+            )
+        } else {
+            concat!(
+                "WITH page AS ( \
+                    SELECT o.id FROM users o \
+                    WHERE $1::int IS NULL OR EXISTS ( \
+                        SELECT 1 FROM group_members gm WHERE gm.user_id = o.id AND gm.group_id = $1) \
+                    ORDER BY o.last_name, o.first_name, o.id \
+                    LIMIT $2 OFFSET $3) \
+                 SELECT to_jsonb(t) FROM (",
+                admin_users_row!(),
+                ") t"
+            )
+        }
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -80,20 +117,35 @@ impl Display for AdminListUsersQueryView {
 #[derive(Debug, serde::Deserialize)]
 pub struct AdminCountUsersQueryView {
     params: Vec<QueryParam>,
+    searched: bool,
 }
 
 impl AdminCountUsersQueryView {
     #[must_use]
     pub fn new(search: Option<&str>, group_id: Option<u64>) -> Self {
-        Self {
-            params: filter_params(search, group_id),
+        let search = search_term(search);
+        let searched = search.is_some();
+        let mut params = Vec::with_capacity(2);
+        if let Some(search) = search {
+            params.push(QueryParam::Text(search));
         }
+        params.push(QueryParam::OptionI32(group_id.map(id_to_sql)));
+        Self { params, searched }
     }
 }
 
 impl ApiRequestDto for AdminCountUsersQueryView {
     fn query_sql(&self) -> &'static str {
-        concat!("SELECT COUNT(*) FROM users u WHERE ", admin_users_filter!())
+        if self.searched {
+            concat!(
+                "SELECT COUNT(*) FROM users u WHERE ",
+                admin_users_search_filter!()
+            )
+        } else {
+            "SELECT COUNT(*) FROM users u \
+             WHERE $1::int IS NULL OR EXISTS ( \
+                SELECT 1 FROM group_members gm WHERE gm.user_id = u.id AND gm.group_id = $1)"
+        }
     }
 
     fn query_params(&self) -> &[QueryParam] {
