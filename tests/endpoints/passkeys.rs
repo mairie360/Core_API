@@ -2,7 +2,7 @@
 //! under `/api/v1/auth/passkey`, driven by a software authenticator (no browser).
 
 use crate::common::get_raw_pool;
-use crate::common::passkey::{Authenticator, ORIGIN, RP_ID};
+use crate::common::passkey::{ensure_user_passkeys_table, Authenticator, ORIGIN, RP_ID};
 use crate::common::users::{archive_user, create_user, unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
@@ -82,6 +82,7 @@ async fn stack() -> Stack {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
     let (redis, redis_config) = start_redis_container().await;
+    ensure_user_passkeys_table(&get_raw_pool(host.clone()).await).await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
     Stack {
         _redis: redis,

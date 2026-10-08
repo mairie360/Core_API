@@ -4,6 +4,7 @@
 //! The admin and authentication checks are driven by the published contract (`ApiDoc`), so a new
 //! operation is covered as soon as it is documented.
 
+use crate::common::passkey::ensure_user_passkeys_table;
 use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
 use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
@@ -68,7 +69,10 @@ async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     let pool = get_pool(host.clone()).await;
     let caller = create_user(&pool, "Caller", &unique_marker("deny")).await;
     let target = create_user(&pool, "Target", &unique_marker("deny")).await;
-    (state, get_raw_pool(host.clone()).await, caller, target)
+    let raw = get_raw_pool(host.clone()).await;
+    // The passkey operations of the sweeps below read `user_passkeys` (Database v3.1.0).
+    ensure_user_passkeys_table(&raw).await;
+    (state, raw, caller, target)
 }
 
 /// Every published `/api/v1` operation as `(method, uri, secured)`, path parameters replaced by

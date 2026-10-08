@@ -24,7 +24,8 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs
 # passes -Dallow_template_admin=true, so the migration seeds the template admin past MAIR-413.
 # MAIR-505 (passkeys) needs the `user_passkeys` table of Database v3.1.0 (mairie360/Database#170):
 # once that PR is merged, pin the `dev-<sha>` build it publishes here and in the compose files,
-# then "3.1.0" once released. Until then the passkey tests fail on an unknown relation.
+# then "3.1.0" once released, and drop `ensure_user_passkeys_table` (tests/common/passkey.rs), which
+# creates the table itself until then.
 # An exported TEST_DB_VERSION still wins.
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database

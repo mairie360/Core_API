@@ -2,6 +2,7 @@
 //! `webauthn-authenticator-rs` answers the ceremonies like a browser would, without hardware or
 //! browser.
 
+use sqlx::PgPool;
 use url::Url;
 use webauthn_authenticator_rs::softpasskey::SoftPasskey;
 use webauthn_authenticator_rs::WebauthnAuthenticator;
@@ -77,5 +78,39 @@ impl Authenticator {
     #[must_use]
     pub fn last_credential_id(&self) -> &[u8] {
         self.credential_ids.last().expect("a passkey was created")
+    }
+}
+
+/// DDL of `releases/v3.1.0/03__user_passkeys.sql` (Database, MAIR-505). Until `TEST_DB_VERSION`
+/// (`.cargo/config.toml`) points at an image that carries the table, the tests create it
+/// themselves; every statement is idempotent, so this is a no-op on a newer image. Remove once
+/// the version is bumped.
+const USER_PASSKEYS_DDL: [&str; 2] = [
+    "CREATE TABLE IF NOT EXISTS user_passkeys (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL,
+        credential_id BYTEA NOT NULL,
+        passkey JSONB NOT NULL,
+        label VARCHAR(100) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_used_at TIMESTAMPTZ,
+        CONSTRAINT fk_user_passkeys_user FOREIGN KEY (user_id)
+            REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT uq_user_passkeys_credential_id UNIQUE (credential_id),
+        CONSTRAINT chk_user_passkeys_credential_id
+            CHECK (octet_length(credential_id) BETWEEN 16 AND 1023),
+        CONSTRAINT chk_user_passkeys_passkey CHECK (jsonb_typeof(passkey) = 'object'),
+        CONSTRAINT chk_user_passkeys_label CHECK (btrim(label) <> '')
+    )",
+    "CREATE INDEX IF NOT EXISTS idx_user_passkeys_user_id ON user_passkeys (user_id)",
+];
+
+/// Makes sure the shared test database has `user_passkeys` (see [`USER_PASSKEYS_DDL`]).
+pub async fn ensure_user_passkeys_table(raw: &PgPool) {
+    for statement in USER_PASSKEYS_DDL {
+        sqlx::query(statement)
+            .execute(raw)
+            .await
+            .expect("user_passkeys table of Database v3.1.0");
     }
 }
