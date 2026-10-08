@@ -32,6 +32,10 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
+/// An origin on the relying party's domain that Core does not trust: the software authenticator,
+/// like a browser, only answers for an origin whose domain is the `rp_id` or below it.
+const FOREIGN_ORIGIN: &str = "https://evil.mairie360.test";
+
 fn relying_party() -> Webauthn {
     WebauthnConfig::new(RP_ID, None, vec![Url::parse(ORIGIN).unwrap()])
         .build()
@@ -366,9 +370,11 @@ async fn an_assertion_for_another_origin_is_refused() {
     let mut authenticator = Authenticator::new();
     register_passkey(&app, &mut authenticator, user_id).await;
 
+    // On the relying party's domain (the authenticator refuses any other, like a browser), but
+    // not one of the origins Core trusts.
     let (challenge_id, options) = login_options(&app).await;
     let credential_id = authenticator.last_credential_id().to_vec();
-    let assertion = authenticator.authenticate("https://evil.example", options, &credential_id);
+    let assertion = authenticator.authenticate(FOREIGN_ORIGIN, options, &credential_id);
     let resp = test::call_service(&app, login_request(&challenge_id, &assertion)).await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
@@ -413,7 +419,7 @@ async fn a_registration_challenge_belongs_to_the_account_that_opened_it() {
 
     // A fresh ceremony answered for another origin is refused too.
     let (challenge_id, options) = registration_options(&app, owner).await;
-    let credential = authenticator.register("https://evil.example", options);
+    let credential = authenticator.register(FOREIGN_ORIGIN, options);
     let resp = register(&app, owner, &challenge_id, &credential, "Ailleurs").await;
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 

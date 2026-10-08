@@ -4,15 +4,17 @@
 //! The admin and authentication checks are driven by the published contract (`ApiDoc`), so a new
 //! operation is covered as soon as it is documented.
 
-use crate::common::passkey::ensure_user_passkeys_table;
+use crate::common::passkey::{ensure_user_passkeys_table, ORIGIN, RP_ID};
 use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
 use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
+use core_api::webauthn::WebauthnConfig;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mairie360_api_lib::jwt_manager::{generate_jwt, get_jwt_secret, Claims};
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -25,12 +27,29 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
-/// Same wiring as `main.rs`: public routes, then the `/api` scope behind `JwtMiddleware`.
+/// Same wiring as `main.rs`: public routes, then the `/api` scope behind `JwtMiddleware`. The
+/// second form also registers a WebAuthn relying party (MAIR-505), so the passkey operations
+/// answer instead of `503`.
 macro_rules! init_app {
     ($state:expr) => {
         test::init_service(
             App::new()
                 .app_data($state.clone())
+                .configure(public_config)
+                .service(
+                    web::scope("/api")
+                        .wrap(actix_web::middleware::from_fn(session_guard))
+                        .wrap(JwtMiddleware)
+                        .configure(config),
+                ),
+        )
+        .await
+    };
+    ($state:expr, $webauthn:expr) => {
+        test::init_service(
+            App::new()
+                .app_data($state.clone())
+                .app_data(web::Data::new($webauthn))
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -310,8 +329,16 @@ async fn every_secured_operation_refuses_a_missing_or_forged_token() {
 #[tokio::test]
 #[serial]
 async fn a_genuine_token_passes_the_authentication_of_every_operation() {
-    let (state, _, caller, target) = setup().await;
-    let app = init_app!(state);
+    let (_, _, caller, target) = setup().await;
+    // The passkey operations need a relying party and a Redis (the pending ceremonies live
+    // there): a state of their own, on the same database.
+    let (_container, host) = get_shared_db().await;
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
+    let relying_party = WebauthnConfig::new(RP_ID, None, vec![url::Url::parse(ORIGIN).unwrap()])
+        .build()
+        .unwrap();
+    let app = init_app!(state, relying_party);
 
     for (method, uri, _) in published_operations(target)
         .into_iter()
