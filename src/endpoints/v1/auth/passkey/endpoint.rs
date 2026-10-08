@@ -291,7 +291,7 @@ async fn authenticate(
                 "rawId": "vJd5R8m2oA7N_3kQ1eF2hWfYbZcTx9L0",
                 "type": "public-key",
                 "response": {
-                    "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAQ",
+                    "authenticatorData": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAAAAQ",
                     "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoi...",
                     "signature": "MEUCIQDx...",
                     "userHandle": "m3q0Nq1xSfe2x4y7q0cNhA"
@@ -309,7 +309,7 @@ async fn authenticate(
             headers(
                 ("Authorization" = String, description = "Access JWT, prefixed with `Bearer `.")
             ),
-            example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+            example = json!({ "refresh_token": "refresh-token-of-the-session" })
         ),
         (
             status = 400,
