@@ -9,7 +9,8 @@ use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
-use mairie360_api_lib::jwt_manager::generate_jwt;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use mairie360_api_lib::jwt_manager::{generate_jwt, get_jwt_secret, Claims};
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
@@ -164,6 +165,91 @@ async fn every_admin_operation_refuses_a_non_admin() {
     assert_eq!(row.get::<String, _>("first_name"), "Target");
 }
 
+/// Unpadded base64url, the JWT encoding of each part.
+fn base64url(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |n, (i, byte)| n | u32::from(*byte) << (16 - 8 * i));
+        for i in 0..=chunk.len() {
+            out.push(ALPHABET[(n >> (18 - 6 * i) & 63) as usize] as char);
+        }
+    }
+    out
+}
+
+fn now() -> usize {
+    usize::try_from(chrono::Utc::now().timestamp()).unwrap()
+}
+
+/// Header values that must all be refused with `401`, labelled for the failure message.
+fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
+    let secret = get_jwt_secret().unwrap();
+    let valid = Claims::new(&user_id.to_string(), "User", now() + 3600);
+    let sign = |claims: &Claims, key: &[u8]| {
+        encode(&Header::default(), claims, &EncodingKey::from_secret(key)).unwrap()
+    };
+
+    let genuine = sign(&valid, &secret);
+    let mut parts = genuine.split('.');
+    let (header, signature) = (parts.next().unwrap(), parts.nth(1).unwrap());
+    let other_user = base64url(
+        serde_json::to_string(&Claims::new(
+            &(user_id + 1).to_string(),
+            "Admin",
+            now() + 3600,
+        ))
+        .unwrap()
+        .as_bytes(),
+    );
+    let payload = base64url(serde_json::to_string(&valid).unwrap().as_bytes());
+
+    vec![
+        ("other scheme", format!("Basic {genuine}")),
+        ("token without scheme", genuine.clone()),
+        ("empty bearer", "Bearer ".to_string()),
+        ("garbage", "Bearer not.a.jwt".to_string()),
+        (
+            "other secret",
+            format!(
+                "Bearer {}",
+                sign(&valid, b"not-the-secret-of-this-deployment-0123")
+            ),
+        ),
+        (
+            "expired",
+            format!(
+                "Bearer {}",
+                sign(
+                    &Claims::new(&user_id.to_string(), "User", now() - 60),
+                    &secret
+                )
+            ),
+        ),
+        (
+            "alg none",
+            format!(
+                "Bearer {}.{payload}.",
+                base64url(br#"{"alg":"none","typ":"JWT"}"#)
+            ),
+        ),
+        (
+            "payload swapped under a valid signature",
+            format!("Bearer {header}.{other_user}.{signature}"),
+        ),
+        (
+            "asymmetric algorithm",
+            format!(
+                "Bearer {}.{payload}.{signature}",
+                base64url(br#"{"alg":"RS256","typ":"JWT"}"#)
+            ),
+        ),
+    ]
+}
+
 #[tokio::test]
 #[serial]
 async fn every_secured_operation_refuses_a_missing_or_forged_token() {
@@ -196,6 +282,47 @@ async fn every_secured_operation_refuses_a_missing_or_forged_token() {
             status!(app, req),
             StatusCode::UNAUTHORIZED,
             "{method} {uri}"
+        );
+
+        // MAIR-474: the tokens an attacker can build without JWT_SECRET.
+        for (label, value) in refused_headers(target) {
+            let req = test::TestRequest::default()
+                .method(method.clone())
+                .uri(&uri)
+                .insert_header(("Authorization", value))
+                .set_json(json!({}))
+                .to_request();
+            assert_eq!(
+                status!(app, req),
+                StatusCode::UNAUTHORIZED,
+                "{label}: {method} {uri}"
+            );
+        }
+    }
+}
+
+/// Control of the sweep above (MAIR-474): a genuine token of an active account passes the
+/// authentication of every secured operation, so the sweep's `401`s come from the token alone.
+#[tokio::test]
+#[serial]
+async fn a_genuine_token_passes_the_authentication_of_every_operation() {
+    let (state, _, caller, target) = setup().await;
+    let app = init_app!(state);
+
+    for (method, uri, _) in published_operations(target)
+        .into_iter()
+        .filter(|(_, _, secured)| *secured)
+    {
+        let req = test::TestRequest::default()
+            .method(method.clone())
+            .uri(&uri)
+            .insert_header(bearer(caller))
+            .set_json(json!({}))
+            .to_request();
+        let status = status!(app, req);
+        assert!(
+            status != StatusCode::UNAUTHORIZED && !status.is_server_error(),
+            "{status}: {method} {uri}"
         );
     }
 }
@@ -334,4 +461,27 @@ async fn sessions_of_another_user_are_not_listed() {
             "{uri} leaks another user's session: {body}"
         );
     }
+}
+
+/// The sweeps above only see the operations that declare `jwt` (MAIR-474): the public ones are
+/// pinned here, so an operation published without `jwt` by mistake fails instead of being skipped.
+#[tokio::test]
+async fn only_the_authentication_routes_are_public() {
+    let mut public: Vec<String> = published_operations(1)
+        .into_iter()
+        .filter(|(_, _, secured)| !secured)
+        .map(|(method, uri, _)| format!("{method} {uri}"))
+        .collect();
+    public.sort();
+    assert_eq!(
+        public,
+        [
+            "POST /api/v1/auth/force_change_password",
+            "POST /api/v1/auth/forgot_password",
+            "POST /api/v1/auth/keycloak",
+            "POST /api/v1/auth/login",
+            "POST /api/v1/auth/reset_password",
+            "POST /api/v1/sessions/refresh",
+        ]
+    );
 }

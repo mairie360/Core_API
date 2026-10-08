@@ -2,12 +2,12 @@ use crate::client_ip::client_ip;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::force_change_password::view::ForceChangePasswordView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::passwords;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
@@ -74,7 +74,7 @@ async fn change_password(
     user_id: u64,
     new_password: &str,
 ) -> Result<Vec<Uuid>, ForceChanhePasswordError> {
-    let hashed_password = hash_password(new_password).map_err(|e| {
+    let hashed_password = passwords::hash(new_password).await.map_err(|e| {
         tracing::error!("Password hashing error: {e}");
         ForceChanhePasswordError::DatabaseError
     })?;

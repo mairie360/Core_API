@@ -6,9 +6,8 @@ use crate::{
             AdminGetUserQueryResultView, AdminGetUserQueryView, RoleQueryResult, User,
         },
         groups::get_user_groups::GetUserGroupsQuerView,
-        roles::get_roles_by_id::{GetRolesByIdQueryView, Role},
+        roles::{get_roles_by_id::Role, get_roles_of_user::GetRolesOfUserQueryView},
         sessions::{get_sessions_by_user::GetSessionsByUserQueryView, Session},
-        users::get_roles::GetUserRolesQueryView,
     },
     endpoints::v1::admin::users::id::get::view::GetUserResultView,
 };
@@ -58,15 +57,8 @@ async fn get_user(
         })?;
     let user = user.with_e164_phone();
 
-    let roles_id: Vec<i32> = smart_db
-        .fetch_all(&GetUserRolesQueryView::new(user_id))
-        .await
-        .map_err(|e| {
-            db_error::log("admin get user", &e);
-            GetUserError::DatabaseError
-        })?;
     let roles_result: Vec<Role> = smart_db
-        .fetch_all(&GetRolesByIdQueryView::new(roles_id))
+        .fetch_all(&GetRolesOfUserQueryView::new(user_id))
         .await
         .map_err(|e| {
             db_error::log("admin get user", &e);

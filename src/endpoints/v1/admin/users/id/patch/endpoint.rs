@@ -1,11 +1,11 @@
 use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::validation::ValidatedJson;
+use crate::passwords;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
@@ -66,14 +66,13 @@ async fn patch_in_core(
     user_id: u64,
     view: &PatchUserView,
 ) -> Result<Vec<Uuid>, PatchUserError> {
-    let hashed_password = view
-        .password()
-        .map(hash_password)
-        .transpose()
-        .map_err(|e| {
+    let hashed_password = match view.password() {
+        Some(password) => Some(passwords::hash(password).await.map_err(|e| {
             tracing::error!("Password hashing error: {e}");
             PatchUserError::DatabaseError
-        })?;
+        })?),
+        None => None,
+    };
 
     let phone = view
         .phone_change()

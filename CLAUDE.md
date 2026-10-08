@@ -118,12 +118,16 @@ Both the ZAP and k6 stacks carry the OpenAPI coverage gate (MAIR-194) from mairi
 `CICD_VERSION`; gitignored). ZAP runs with `--hook zap_hooks.py` and fails when an operation of the served spec was
 never reached, or when an operation declaring `security(("jwt" = []))` only got 401/403 (the `/auth/**` routes
 declare none: public). `load-test.js` is built on `coverage.js` and covers every operation (MAIR-195): GET handlers
-run in the `reads` scenario (20 VUs) as the Admin against a group created in `setup()`, the other methods in the
-`writes` scenario (2 VUs), each handler creating and deleting its own accounts, roles and groups so they are
+run in the `reads` scenario (ramping up to 100 VUs) as the Admin against a group created in `setup()`, the other
+methods in the `writes` scenario (10 VUs), each handler creating and deleting its own accounts, roles and groups so they are
 order-independent (deleted accounts stay archived). The auth flows run end to end on throwaway accounts: register →
 login `412` → `force_change_password` → login → refresh → revoke, and `forgot_password` → `reset_password` with the
-token read from the Mailpit API (`MAILPIT_URL`). One `p(95)` threshold per `op` tag (200 ms reads, 500 ms writes) and `http_req_failed < 1%` (the expected `412` of the fixture logins is excluded
-through `responseCallback`). The spec k6 reads is the one served by the image under test, saved into the
+token read from the Mailpit API (`MAILPIT_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
+password logins/s on accounts created in `setup()`, `op:login_rush`, 1 s budget). One `p(95)` threshold per `op` tag
+(200 ms reads, 500 ms writes), `http_req_failed == 0` (the expected `412` of the fixture logins is excluded through
+`responseCallback`), `checks == 100%` (status and seeded rows) and no dropped iteration. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, login rush at 8/s); `stress` is the high load (100 readers, 10 writers, 20 logins/s), run by hand with `K6_PROFILE=stress ./performance_test.sh`, not on every push. The k6 stack's seeder also runs `init-perf.sql`
+(MAIR-474): 10 000 users, 51 000 sessions, 2 000 groups, so the lists are measured on a realistic volume (the ZAP
+stack does not load it). The spec k6 reads is the one served by the image under test, saved into the
 `openapi-spec` volume by `core-ready`. **Adding an endpoint = adding its handler in `load-test.js`** (k6 aborts at
 init otherwise), nothing to do for ZAP. `init-test.sql` also seeds the rows of the spec's path examples (user 42,
 group 3, role 6) so ZAP reaches real rows; the role examples point at 6 because the five base roles are protected
@@ -268,6 +272,10 @@ logging in, forcing a password change via `force_change_password`. On success it
 (`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
+
+Argon2 (MAIR-474): hash and verify passwords through `crate::passwords::{hash, verify}`, which run on actix's
+blocking pool (`web::block`), never by calling `mairie360_api_lib::password::{hash_password, verify_password}` from a
+handler: inline, each hash blocks the worker thread and every request queued on it.
 
 Security knobs added by MAIR-390, all optional:
 

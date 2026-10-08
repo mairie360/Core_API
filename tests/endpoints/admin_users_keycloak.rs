@@ -208,7 +208,9 @@ async fn test_create_user_creates_links_and_invites_the_keycloak_account() {
     .await;
 
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    assert_eq!(body, "User created successfully!");
+    let created: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(created["message"], "User created successfully!");
+    let created_id = created["id"].as_i64().expect("id of the new account");
     let keycloak_user = mock
         .user_by_email(&email)
         .expect("account created in the realm");
@@ -227,6 +229,7 @@ async fn test_create_user_creates_links_and_invites_the_keycloak_account() {
         .fetch_scalar(&GetUserIdQueryView::new(&email))
         .await
         .unwrap();
+    assert_eq!(i64::from(user_id), created_id);
     assert_eq!(
         keycloak_subject(&env, user_id).await.as_deref(),
         Some(keycloak_user.id.as_str()),

@@ -6,13 +6,17 @@
 // `readHandlers` (GET) or `writeHandlers` (any other method) and send its request through
 // `request()` (raw `http.*` calls are not counted).
 //
-// Two scenarios share the spec, split by HTTP method:
-// - `reads`: the GET operations under the historical profile (ramp up to 20 VUs), as the Admin,
-//   against a group created in setup() and removed in teardown();
-// - `writes`: every other operation with 2 VUs. Each handler is self-contained: it creates what it
-//   needs through `fixture()` (accounts, roles, groups), sends its request, then deletes what it
-//   created, so the handlers do not depend on their order. Deleted accounts are archived by the
-//   API (soft delete), the only rows left behind.
+// Load test (MAIR-474) against the data volume of init-perf.sql (10 000 users, 50 000 sessions,
+// 2 000 groups), sized by K6_PROFILE (see PROFILES). Two scenarios share the spec, split by HTTP
+// method:
+// - `reads`: the GET operations, ramping up to the read VUs of the profile, as the Admin, against
+//   a group created in setup() and removed in teardown();
+// - `writes`: every other operation with the write VUs of the profile. Each handler is
+//   self-contained: it creates what it needs through `fixture()` (accounts, roles, groups), sends
+//   its request, then deletes what it created, so the handlers do not depend on their order.
+//   Deleted accounts are archived by the API (soft delete), the only rows left behind.
+// A third scenario, `login_rush`, replays the morning rush: up to LOGIN_RUSH_RATE password logins
+// per second (argon2, CPU bound) on accounts created in setup(), alongside the two others.
 //
 // The authentication flows run end to end on throwaway accounts: admin creates the account → login (412, first
 // connection) → force_change_password → login → refresh → revoke, and forgot_password → reset
@@ -43,6 +47,27 @@ const DEVICE = 'k6 load test';
 // p(95) latency budget of each family of operations, in ms (reference machine).
 const READ_BUDGET_MS = 200;
 const WRITE_BUDGET_MS = 500;
+const LOGIN_RUSH_BUDGET_MS = 1000;
+
+// Load profile (MAIR-474), K6_PROFILE:
+// - `ci` (default): what the CI runner holds with the same strict thresholds. The runner
+//   (ubuntu-latest, 4 vCPU) hosts the API, Postgres, Redis and k6 together;
+// - `stress`: the high load, run by hand (`K6_PROFILE=stress ./performance_test.sh`) to find
+//   the breaking point on a larger machine, not on every push.
+const PROFILES = {
+  ci: { readVus: 30, writeVus: 4, loginRushRate: 8 },
+  stress: { readVus: 100, writeVus: 10, loginRushRate: 20 },
+};
+const PROFILE = PROFILES[__ENV.K6_PROFILE || 'ci'];
+if (!PROFILE) throw new Error(`Unknown K6_PROFILE ${__ENV.K6_PROFILE}: ${Object.keys(PROFILES).join(', ')}`);
+
+// Morning rush: logins per second at the peak, spread over LOGIN_RUSH_ACCOUNTS accounts.
+const LOGIN_RUSH_RATE = PROFILE.loginRushRate;
+const LOGIN_RUSH_ACCOUNTS = 40;
+
+// Agents seeded by init-perf.sql (perf.agent.<n>@mairie360.fr), 20 per page of the admin list.
+const SEEDED_AGENTS = 10000;
+const ADMIN_PAGE_SIZE = 20;
 
 const READ_METHODS = ['get', 'head', 'options'];
 
@@ -94,13 +119,6 @@ function bearer(jwt) {
   return { Authorization: `Bearer ${jwt}` };
 }
 
-function userIdByEmail(email) {
-  const users = fixture('GET', `/api/v1/admin/users/?search=${encodeURIComponent(email)}`).json('users');
-  const user = users.find((u) => u.email === email);
-  if (!user) fail(`fixture: no user ${email}`);
-  return user.id;
-}
-
 function deleteUser(userId) {
   fixture('DELETE', `/api/v1/admin/users/${userId}/`);
 }
@@ -108,13 +126,14 @@ function deleteUser(userId) {
 /** Account created by the admin, still in first connection: its login answers 412 with a token. */
 function registerAccount(tag) {
   const email = `k6.${tag}.${unique()}@mairie360.fr`;
-  fixture('POST', '/api/v1/admin/users/', {
+  // The creation answers the id of the account: no search by e-mail (MAIR-474).
+  const id = fixture('POST', '/api/v1/admin/users/', {
     first_name: 'Agent',
     last_name: 'Charge',
     email,
     password: FIRST_PASSWORD,
-  });
-  return { email, id: userIdByEmail(email) };
+  }).json('id');
+  return { email, id };
 }
 
 function firstConnectionToken(account) {
@@ -214,8 +233,12 @@ const readHandlers = {
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
 
   // Directory and profile.
+  // 'martin' matches hundreds of seeded agents: the page is full.
   'GET /api/v1/user/': ({ request }) =>
-    check(request({ query: { search: 'test', limit: 50 } }), { 'directory 200': (r) => r.status === 200 }),
+    check(request({ query: { search: 'martin', limit: 50 } }), {
+      'directory 200': (r) => r.status === 200,
+      'directory reads the seed': (r) => r.status === 200 && r.json('users').length === 50,
+    }),
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
@@ -231,15 +254,27 @@ const readHandlers = {
     check(request(), { 'session history 200': (r) => r.status === 200 }),
 
   // Groups.
-  'GET /api/v1/groups/': ({ request }) => check(request(), { 'groups 200': (r) => r.status === 200 }),
+  // The Admin is a member of 300 seeded groups.
+  'GET /api/v1/groups/': ({ request }) =>
+    check(request(), {
+      'groups 200': (r) => r.status === 200,
+      'groups reads the seed': (r) => r.status === 200 && r.json('groups').length > 0,
+    }),
   'GET /api/v1/groups/{group_id}/': ({ request, data }) =>
     check(request({ path: { group_id: data.groupId } }), { 'group 200': (r) => r.status === 200 }),
   'GET /api/v1/groups/{group_id}/users/': ({ request, data }) =>
     check(request({ path: { group_id: data.groupId } }), { 'group users 200': (r) => r.status === 200 }),
 
   // Administration.
-  'GET /api/v1/admin/users/': ({ request }) =>
-    check(request({ query: { page: 1, page_size: 20 } }), { 'admin users 200': (r) => r.status === 200 }),
+  // Any page of the 10 000 agents, the last ones included (deep OFFSET).
+  'GET /api/v1/admin/users/': ({ request }) => {
+    const page = 1 + Math.floor(Math.random() * (SEEDED_AGENTS / ADMIN_PAGE_SIZE));
+    check(request({ query: { page, page_size: ADMIN_PAGE_SIZE } }), {
+      'admin users 200': (r) => r.status === 200,
+      'admin users reads the seed': (r) =>
+        r.status === 200 && r.json('total') >= SEEDED_AGENTS && r.json('users').length > 0,
+    });
+  },
   'GET /api/v1/admin/users/{userId}/': ({ request }) =>
     check(request({ path: { userId: MEMBER_ID } }), { 'admin user 200': (r) => r.status === 200 }),
   'GET /api/v1/admin/roles/': ({ request }) => check(request(), { 'admin roles 200': (r) => r.status === 200 }),
@@ -331,8 +366,11 @@ const writeHandlers = {
     const res = request({
       body: { first_name: 'Agent', last_name: 'Cree', email, password: FIRST_PASSWORD, phone_number: '0612345678', phone_country: 'FR' },
     });
-    check(res, { 'admin create user 201': (r) => r.status === 201 });
-    if (res.status === 201) deleteUser(userIdByEmail(email));
+    check(res, {
+      'admin create user 201': (r) => r.status === 201,
+      'admin create user answers its id': (r) => r.status === 201 && Number.isInteger(r.json('id')),
+    });
+    if (res.status === 201) deleteUser(res.json('id'));
   },
   'PATCH /api/v1/admin/users/{userId}/': ({ request }) => {
     const account = registerAccount('patch');
@@ -500,40 +538,70 @@ function latencyThresholds(coverage, budgetMs) {
 }
 
 export const options = {
+  // setup() creates the LOGIN_RUSH_ACCOUNTS accounts (four argon2 hashes each).
+  setupTimeout: '3m',
   scenarios: {
     reads: {
       executor: 'ramping-vus',
       exec: 'readScenario',
       stages: [
-        { duration: '30s', target: 20 }, // Ramp up to 20 virtual users
-        { duration: '1m', target: 20 }, // Hold
-        { duration: '10s', target: 0 }, // Ramp down
+        { duration: '30s', target: Math.ceil(PROFILE.readVus / 2) }, // Ramp up
+        { duration: '30s', target: PROFILE.readVus },
+        { duration: '2m', target: PROFILE.readVus }, // Hold
+        { duration: '20s', target: 0 }, // Ramp down
       ],
     },
     writes: {
       executor: 'constant-vus',
       exec: 'writeScenario',
-      vus: 2,
-      duration: '1m40s',
+      vus: PROFILE.writeVus,
+      duration: '3m20s',
+    },
+    login_rush: {
+      executor: 'ramping-arrival-rate',
+      exec: 'loginRushScenario',
+      startRate: 0,
+      timeUnit: '1s',
+      preAllocatedVUs: 50,
+      maxVUs: 200,
+      stages: [
+        { duration: '30s', target: LOGIN_RUSH_RATE }, // Agents arrive
+        { duration: '1m', target: LOGIN_RUSH_RATE }, // Peak
+        { duration: '20s', target: 0 },
+      ],
+      startTime: '1m', // Once the reads reach their peak
     },
   },
   thresholds: {
     ...reads.thresholds, // every operation exercised, no handler error (shared counters)
     ...latencyThresholds(reads, READ_BUDGET_MS),
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
-    http_req_failed: ['rate<0.01'], // Less than 1% errors
+    'http_req_duration{op:login_rush}': [`p(95)<${LOGIN_RUSH_BUDGET_MS}`],
+    // The login rush must not be shed: every arrival gets a VU.
+    dropped_iterations: ['count==0'],
+    // Strict (MAIR-474): one unexpected error, wrong status or missing seeded row fails the run.
+    http_req_failed: ['rate==0'],
+    // A check can fail on a 2xx (missing header or body field) that http_req_failed accepts.
+    checks: ['rate==1'],
   },
 };
 
-/** Read fixture: a group with user 2 as member. */
+/** Read fixture: a group with user 2 as member. Login rush: active accounts. */
 export function setup() {
   const groupId = createGroup('read');
   addGroupMember(groupId, MEMBER_ID);
-  return { groupId };
+  const rushAccounts = [];
+  for (let i = 0; i < LOGIN_RUSH_ACCOUNTS; i += 1) {
+    rushAccounts.push(activeAccount('rush'));
+  }
+  return { groupId, rushAccounts };
 }
 
 export function teardown(data) {
   deleteGroup(data.groupId);
+  for (const account of data.rushAccounts) {
+    deleteUser(account.id);
+  }
 }
 
 export function readScenario(data) {
@@ -544,4 +612,15 @@ export function readScenario(data) {
 export function writeScenario(data) {
   writes.run({ headers: AUTH, data });
   sleep(1);
+}
+
+/** One password login of a rush account, outside the coverage count (tagged `login_rush`). */
+export function loginRushScenario(data) {
+  const account = data.rushAccounts[exec.scenario.iterationInTest % data.rushAccounts.length];
+  const res = http.post(
+    `${BASE_URL}/api/v1/auth/login`,
+    JSON.stringify({ email: account.email, password: PASSWORD, device_info: DEVICE }),
+    { headers: { 'Content-Type': 'application/json' }, tags: { op: 'login_rush' } },
+  );
+  check(res, { 'rush login 200': (r) => r.status === 200 && !!r.headers.Authorization });
 }

@@ -6,6 +6,7 @@ pub mod client_ip;
 pub mod database;
 pub mod endpoints;
 pub mod keycloak;
+pub mod passwords;
 pub mod phone;
 pub mod rate_limit;
 pub mod redis_keys;
