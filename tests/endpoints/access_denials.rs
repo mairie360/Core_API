@@ -306,8 +306,16 @@ async fn every_secured_operation_refuses_a_missing_or_forged_token() {
 #[tokio::test]
 #[serial]
 async fn a_genuine_token_passes_the_authentication_of_every_operation() {
-    let (state, _, caller, target) = setup().await;
+    let (state, raw, caller, target) = setup().await;
     let app = init_app!(state);
+    // MAIR-289: the export and erasure routes call functions of Database #166. On a pinned image
+    // without them (TEST_DB_VERSION older than the release that ships #166) they answer 500: only
+    // their authentication is checked then. Remove once TEST_DB_VERSION carries #166.
+    let erasure_functions: bool =
+        sqlx::query_scalar("SELECT to_regprocedure('export_user_data(integer)') IS NOT NULL")
+            .fetch_one(&raw)
+            .await
+            .unwrap();
 
     for (method, uri, _) in published_operations(target)
         .into_iter()
@@ -320,8 +328,10 @@ async fn a_genuine_token_passes_the_authentication_of_every_operation() {
             .set_json(json!({}))
             .to_request();
         let status = status!(app, req);
+        let needs_newer_schema =
+            !erasure_functions && (uri.ends_with("/export") || uri.ends_with("/erase"));
         assert!(
-            status != StatusCode::UNAUTHORIZED && !status.is_server_error(),
+            status != StatusCode::UNAUTHORIZED && (needs_newer_schema || !status.is_server_error()),
             "{status}: {method} {uri}"
         );
     }
