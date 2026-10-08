@@ -10,6 +10,7 @@ use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
+use core_api::request_log::{hide_query, restore_query, RedactedRootSpanBuilder};
 use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
@@ -116,8 +117,12 @@ async fn main() -> std::io::Result<()> {
             ),
             None => app,
         };
-        // Outermost: one root span per request, including the ones the JWT / session guards refuse.
-        app.wrap(TracingLogger::default())
+        // One root span per request, including the ones the JWT / session guards refuse. It
+        // records the path without the query string and no error `Debug` (MAIR-290, see
+        // `request_log`): `hide_query` runs before it, `restore_query` right after it.
+        app.wrap(middleware::from_fn(restore_query))
+            .wrap(TracingLogger::<RedactedRootSpanBuilder>::new())
+            .wrap(middleware::from_fn(hide_query))
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             .service(health::health)
