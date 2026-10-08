@@ -18,25 +18,42 @@ where
     Option::<T>::deserialize(deserializer).map(Some)
 }
 
-/// Checks a free text setting: 1 to `max` characters, no control character.
+/// Checks a setting restricted to a list of values.
 ///
 /// # Errors
 ///
-/// Returns the message of the `400` answer when the value breaks a rule.
-pub fn check_text(field: &str, value: Option<Option<&str>>, max: usize) -> Result<(), String> {
-    let Some(Some(value)) = value else {
-        return Ok(());
-    };
-    let length = value.chars().count();
-    if value.trim().is_empty() || length > max {
-        return Err(format!(
-            "Invalid `{field}`: must be 1 to {max} characters, not blank"
-        ));
+/// Returns the message of the `400` answer when the value is not in `allowed`.
+pub fn check_one_of(
+    field: &str,
+    value: Option<Option<&str>>,
+    allowed: &[&str],
+) -> Result<(), String> {
+    match value {
+        Some(Some(value)) if !allowed.contains(&value) => {
+            let allowed = allowed
+                .iter()
+                .map(|value| format!("`{value}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!("Invalid `{field}`: must be one of {allowed}"))
+        }
+        _ => Ok(()),
     }
-    if value.chars().any(char::is_control) {
-        return Err(format!(
-            "Invalid `{field}`: must not contain control characters"
-        ));
+}
+
+/// Checks a setting with a format rule.
+///
+/// # Errors
+///
+/// Returns `Invalid `<field>`: <expected>` when the value breaks the rule.
+pub fn check_rule(
+    field: &str,
+    value: Option<Option<&str>>,
+    rule: fn(&str) -> bool,
+    expected: &str,
+) -> Result<(), String> {
+    match value {
+        Some(Some(value)) if !rule(value) => Err(format!("Invalid `{field}`: {expected}")),
+        _ => Ok(()),
     }
-    Ok(())
 }
