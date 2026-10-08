@@ -4,6 +4,7 @@ pub mod doc;
 pub mod get;
 pub mod notifications;
 pub mod nullable;
+pub mod passkeys;
 pub mod patch;
 pub mod preferences;
 
@@ -15,6 +16,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(preferences::endpoint::get_my_preferences)
             .service(preferences::endpoint::patch_my_preferences)
             .service(notifications::endpoint::get_my_notification_settings)
-            .service(notifications::endpoint::patch_my_notification_settings),
+            .service(notifications::endpoint::patch_my_notification_settings)
+            .service(passkeys::endpoint::passkey_registration_options)
+            .service(passkeys::endpoint::register_passkey)
+            .service(passkeys::endpoint::list_passkeys)
+            .service(passkeys::endpoint::delete_passkey),
     );
 }

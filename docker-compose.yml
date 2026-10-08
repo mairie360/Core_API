@@ -147,6 +147,12 @@ services:
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+      # Passkeys (MAIR-505), disabled while these are empty. WebAuthn needs a secure context:
+      # the browser only runs the ceremonies on https:// or on localhost, not on
+      # http://development.mairie360.fr, e.g. WEBAUTHN_RP_ID=localhost
+      # WEBAUTHN_RP_ORIGIN=http://localhost:3001 with the Login front started by hand.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_RP_ORIGIN: ${WEBAUTHN_RP_ORIGIN:-}
     depends_on:
       liquibase:
         condition: service_completed_successfully
