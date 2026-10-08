@@ -6,6 +6,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::database::sessions::get_active_session_ids::GetActiveSessionIdsQueryView;
 use core_api::endpoints::session_guard::session_guard;
+use core_api::endpoints::v1::sessions::REFRESH_PATH;
 use core_api::endpoints::{config, public_config};
 use core_api::session_jwt::generate_session_jwt;
 use core_api::session_revocation::{
@@ -196,6 +197,60 @@ async fn admin_password_reset_publishes_every_session() {
         mairie360_api_lib::password::is_hashed(&stored_password),
         "admin reset stored a plaintext password"
     );
+}
+
+/// MAIR-287: an account archived by an administrator can neither use its JWTs (in Core, and in
+/// the other APIs through the revocation list) nor log in again.
+#[tokio::test]
+#[serial]
+async fn admin_archiving_revokes_the_sessions_and_blocks_the_account() {
+    let env = env().await;
+    let app = init_app!(env.state);
+    let user = fresh_user(&env.host, "Archived").await;
+    let (first, jwt, refresh_token) = open_session(&env.state, user).await;
+    let (second, _, _) = open_session(&env.state, user).await;
+    let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
+    let (_, admin_jwt, _) = open_session(&env.state, admin).await;
+    let me = || {
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/")
+            .insert_header(("Authorization", format!("Bearer {jwt}")))
+            .to_request()
+    };
+    assert_eq!(
+        status!(app, me()),
+        StatusCode::OK,
+        "the session works before"
+    );
+
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/v1/admin/users/{user}/"))
+        .insert_header(("Authorization", format!("Bearer {admin_jwt}")))
+        .to_request();
+    assert_eq!(status!(app, req), StatusCode::NO_CONTENT);
+
+    assert_revoked(&env.redis, first);
+    assert_revoked(&env.redis, second);
+    assert_eq!(
+        status!(app, me()),
+        StatusCode::UNAUTHORIZED,
+        "the JWT is refused after"
+    );
+    let req = test::TestRequest::post()
+        .uri(REFRESH_PATH)
+        .set_json(json!({ "refresh_token": refresh_token }))
+        .to_request();
+    assert_eq!(
+        status!(app, req),
+        StatusCode::UNAUTHORIZED,
+        "no new JWT from the refresh token"
+    );
+    let stored: bool = sqlx::query_scalar("SELECT is_archived FROM users WHERE id = $1")
+        .bind(i32::try_from(user).unwrap())
+        .fetch_one(&crate::common::get_raw_pool(env.host.clone()).await)
+        .await
+        .unwrap();
+    assert!(stored, "the account is archived, not deleted");
 }
 
 #[tokio::test]
