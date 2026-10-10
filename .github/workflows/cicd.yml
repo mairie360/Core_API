@@ -14,12 +14,13 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@9ba44db53682abbe81b7e7a9406e8075dc365e79 # v4.2.0
+    # [NOUVEAU] MAIR-493 : TEMPORAIRE, test de mairie360/CICD#142. Repasser `uses` et `cicd_version` sur le tag publie avant merge.
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@mair-493-actions-by-check-and-stack
     permissions:
       contents: write
       packages: write
       id-token: write
     with:
       package_name: core-api
-      cicd_version: v4.2.0
+      cicd_version: mair-493-actions-by-check-and-stack
     secrets: inherit # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit
