@@ -4,5 +4,6 @@ mod get_raw_pool;
 pub mod keycloak_mock;
 pub use get_raw_pool::get_raw_pool;
 pub mod acl_redis;
+pub mod passkey;
 pub mod roles;
 pub mod users;
