@@ -15,7 +15,7 @@
 #   ./agent_dev.sh restart [svc]    restart one service (default: the app)
 #   ./agent_dev.sh down [-v]        stop the watcher and the stack (-v also drops the volumes)
 #
-# Stack-local overrides live in docker-compose.agent.yml (database and Redis published on 127.0.0.1).
+# Stack-local overrides live in compose.agent.yml (database and Redis published on 127.0.0.1).
 # Exit codes are those of the underlying command, so the agent can branch on them.
 
 set -euo pipefail
@@ -36,7 +36,7 @@ STATE_DIR=".agent"
 WATCH_PID="$STATE_DIR/watch.pid"
 WATCH_LOG="$STATE_DIR/watch.log"
 
-compose() { docker compose -f docker-compose.yml -f docker-compose.agent.yml "$@"; }
+compose() { docker compose -f docker-compose.yml -f compose.agent.yml "$@"; }
 
 die() { echo "agent_dev: $*" >&2; exit 1; }
 
@@ -68,7 +68,7 @@ cmd_up() {
         echo "watcher already running (pid $(cat "$WATCH_PID"))"
     else
         # `watch --no-up` only syncs/rebuilds on file changes; the containers are already up.
-        nohup docker compose -f docker-compose.yml -f docker-compose.agent.yml watch --no-up \
+        nohup docker compose -f docker-compose.yml -f compose.agent.yml watch --no-up \
             >"$WATCH_LOG" 2>&1 &
         echo $! >"$WATCH_PID"
         echo "watcher started (pid $(cat "$WATCH_PID"), log $WATCH_LOG)"

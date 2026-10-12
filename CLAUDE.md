@@ -339,7 +339,7 @@ Every PR requests a review from the whole team, minus its author: `CarolinHugo`,
 
 ## Agent dev loop
 
-`./agent_dev.sh` lets an agent run and observe the dev stack from a shell, without attaching to a terminal. `docker-compose.agent.yml` is the overlay it adds (Postgres on `127.0.0.1:5432`, Redis on `127.0.0.1:6379`, bounded logs).
+`./agent_dev.sh` lets an agent run and observe the dev stack from a shell, without attaching to a terminal. `compose.agent.yml` is the overlay it adds (Postgres on `127.0.0.1:5432`, Redis on `127.0.0.1:6379`, bounded logs).
 
 ```bash
 ./agent_dev.sh up                 # build + start detached, wait for healthy, start `docker compose watch` in the background
