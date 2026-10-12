@@ -1,3 +1,6 @@
 # False positive: a made-up refresh token in an OpenAPI example (MAIR-390). The example was replaced
 # by a low-entropy value in a later commit; this fingerprint only covers the commit that added it.
 a3def8b9e1957a89c18c438792f726a10b7e21cd:src/endpoints/v1/sessions/refresh/endpoint.rs:generic-api-key:116
+# False positives of Gitleaks: OpenAPI examples of the passkey routes (MAIR-505), not secrets.
+5efe0db24212eda61b8812f47239507d67cf4ccb:src/endpoints/v1/auth/passkey/endpoint.rs:generic-api-key:294
+5efe0db24212eda61b8812f47239507d67cf4ccb:src/endpoints/v1/auth/passkey/endpoint.rs:generic-api-key:312

@@ -58,6 +58,24 @@ Keycloak sign-in is optional. Set these variables on the `core` service to enabl
 A Keycloak user is matched to a Mairie 360 account by the link stored in `user_identities`, or by
 its verified e-mail on the first sign-in. No account is created from Keycloak.
 
+### Passkeys (WebAuthn)
+
+Passkeys are optional too (MAIR-505): Core is the WebAuthn relying party when these variables are set
+on the `core` service; otherwise `POST /api/v1/auth/passkey*` and `POST /api/v1/user/me/passkeys*`
+answer `503`.
+
+| Variable | Role |
+| --- | --- |
+| `WEBAUTHN_RP_ID` | Domain the passkeys are bound to: the instance's domain, e.g. `prod.mairie360-eip.fr` |
+| `WEBAUTHN_RP_ORIGIN` | Browser origin(s) of the sign-in page, comma-separated, e.g. `https://login.prod.mairie360-eip.fr`; each must be the relying party id or one of its subdomains, or Core refuses to start |
+| `WEBAUTHN_RP_NAME` | Name the browser shows in the passkey dialog (optional, `Mairie 360`) |
+
+A signed-in user registers a passkey (`POST /api/v1/user/me/passkeys/options` then `POST
+/api/v1/user/me/passkeys/`), lists and deletes them; `POST /api/v1/auth/passkey/options` then `POST
+/api/v1/auth/passkey` open a session like the password login, without typing an e-mail (discoverable
+credential). The pending ceremonies live two minutes in Redis; browsers only run WebAuthn on
+`https://` or `localhost`.
+
 ### Migrating the existing accounts and roles
 
 Existing accounts must exist in Keycloak before users can sign in through the SSO. The migration

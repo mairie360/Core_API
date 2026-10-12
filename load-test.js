@@ -24,6 +24,8 @@
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
+import crypto from 'k6/crypto';
+import encoding from 'k6/encoding';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -226,6 +228,300 @@ function revokeAccess(accessId) {
   fixture('POST', '/api/v1/ressources/remove_access', { access_id: accessId });
 }
 
+
+// ---------------------------------------------------------------------------
+// Software passkey authenticator (MAIR-505). The passkey operations need a real WebAuthn
+// attestation / assertion: an ECDSA P-256 signature over data the server checks. coverage.js runs
+// the handlers synchronously, so the asynchronous WebCrypto cannot be used: P-256 is implemented
+// here with BigInt (Jacobian coordinates), SHA-256 comes from k6/crypto. The relying party of the
+// stack is `localhost` / `http://localhost:3000` (docker-compose-performance.yml): the origin is
+// what the authenticator writes in clientDataJSON, not where the request goes.
+// ---------------------------------------------------------------------------
+
+const RP_ID = __ENV.WEBAUTHN_RP_ID || 'localhost';
+const RP_ORIGIN = __ENV.WEBAUTHN_RP_ORIGIN || 'http://localhost:3000';
+
+const P256 = {
+  p: BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff'),
+  a: BigInt('0xffffffff00000001000000000000000000000000fffffffffffffffffffffffc'),
+  b: BigInt('0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b'),
+  n: BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551'),
+  gx: BigInt('0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296'),
+  gy: BigInt('0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5'),
+};
+const ZERO = BigInt(0);
+const ONE = BigInt(1);
+const TWO = BigInt(2);
+const THREE = BigInt(3);
+
+function mod(x, m) {
+  const r = x % m;
+  return r < ZERO ? r + m : r;
+}
+
+function modInverse(x, m) {
+  let [a, b] = [mod(x, m), m];
+  let [u, v] = [ONE, ZERO];
+  while (b !== ZERO) {
+    const q = a / b;
+    [a, b] = [b, a - q * b];
+    [u, v] = [v, u - q * v];
+  }
+  return mod(u, m);
+}
+
+function bytesToBigInt(bytes) {
+  let hex = '';
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, '0');
+  return hex ? BigInt(`0x${hex}`) : ZERO;
+}
+
+function bigIntToBytes(value, length) {
+  const hex = value.toString(16).padStart(length * 2, '0');
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i += 1) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
+// Jacobian point arithmetic on P-256; `null` is the point at infinity.
+function jacobianDouble(point) {
+  if (!point || point.y === ZERO) return null;
+  const { p, a } = P256;
+  const ysq = mod(point.y * point.y, p);
+  const s = mod(BigInt(4) * point.x * ysq, p);
+  const zsq = mod(point.z * point.z, p);
+  const m = mod(THREE * point.x * point.x + a * zsq * zsq, p);
+  const nx = mod(m * m - TWO * s, p);
+  const ny = mod(m * (s - nx) - BigInt(8) * ysq * ysq, p);
+  const nz = mod(TWO * point.y * point.z, p);
+  return { x: nx, y: ny, z: nz };
+}
+
+function jacobianAdd(p1, p2) {
+  if (!p1) return p2;
+  if (!p2) return p1;
+  const { p } = P256;
+  const z1sq = mod(p1.z * p1.z, p);
+  const z2sq = mod(p2.z * p2.z, p);
+  const u1 = mod(p1.x * z2sq, p);
+  const u2 = mod(p2.x * z1sq, p);
+  const s1 = mod(p1.y * z2sq * p2.z, p);
+  const s2 = mod(p2.y * z1sq * p1.z, p);
+  if (u1 === u2) return s1 === s2 ? jacobianDouble(p1) : null;
+  const h = mod(u2 - u1, p);
+  const r = mod(s2 - s1, p);
+  const hsq = mod(h * h, p);
+  const hcu = mod(hsq * h, p);
+  const u1hsq = mod(u1 * hsq, p);
+  const nx = mod(r * r - hcu - TWO * u1hsq, p);
+  const ny = mod(r * (u1hsq - nx) - s1 * hcu, p);
+  const nz = mod(h * p1.z * p2.z, p);
+  return { x: nx, y: ny, z: nz };
+}
+
+function scalarMultiply(scalar, point) {
+  let result = null;
+  let addend = { x: point.x, y: point.y, z: ONE };
+  let k = scalar;
+  while (k > ZERO) {
+    if (k & ONE) result = jacobianAdd(result, addend);
+    addend = jacobianDouble(addend);
+    k >>= ONE;
+  }
+  if (!result) return null;
+  const { p } = P256;
+  const zinv = modInverse(result.z, p);
+  const zinv2 = mod(zinv * zinv, p);
+  return { x: mod(result.x * zinv2, p), y: mod(result.y * zinv2 * zinv, p) };
+}
+
+function randomScalar() {
+  for (;;) {
+    const k = bytesToBigInt(new Uint8Array(crypto.randomBytes(32)));
+    if (k > ZERO && k < P256.n) return k;
+  }
+}
+
+function sha256(bytes) {
+  return new Uint8Array(crypto.sha256(bytes.buffer, 'binary'));
+}
+
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+function utf8(text) {
+  return new Uint8Array(encoding.b64decode(encoding.b64encode(text)));
+}
+
+function b64url(bytes) {
+  return encoding.b64encode(bytes.buffer, 'rawurl');
+}
+
+function fromB64url(text) {
+  return new Uint8Array(encoding.b64decode(text, 'rawurl'));
+}
+
+/** DER INTEGER of a positive big integer. */
+function derInteger(value) {
+  let bytes = bigIntToBytes(value, 32);
+  let start = 0;
+  while (start < bytes.length - 1 && bytes[start] === 0) start += 1;
+  bytes = bytes.slice(start);
+  if (bytes[0] & 0x80) bytes = concat(new Uint8Array([0]), bytes);
+  return concat(new Uint8Array([0x02, bytes.length]), bytes);
+}
+
+/** ECDSA P-256 / SHA-256 signature of `message`, DER encoded (what WebAuthn expects). */
+function ecdsaSign(privateKey, message) {
+  const z = bytesToBigInt(sha256(message));
+  for (;;) {
+    const k = randomScalar();
+    const point = scalarMultiply(k, { x: P256.gx, y: P256.gy });
+    const r = mod(point.x, P256.n);
+    if (r === ZERO) continue;
+    const s = mod(modInverse(k, P256.n) * (z + r * privateKey), P256.n);
+    if (s === ZERO) continue;
+    const body = concat(derInteger(r), derInteger(s));
+    return concat(new Uint8Array([0x30, body.length]), body);
+  }
+}
+
+/** CBOR byte string header for `length` bytes. */
+function cborBytesHeader(length) {
+  if (length < 24) return new Uint8Array([0x40 | length]);
+  if (length < 256) return new Uint8Array([0x58, length]);
+  return new Uint8Array([0x59, length >> 8, length & 0xff]);
+}
+
+function cborText(text) {
+  const bytes = utf8(text);
+  return concat(new Uint8Array([0x60 | bytes.length]), bytes);
+}
+
+/** A new P-256 passkey of the authenticator: private scalar, public point, credential id. */
+function createPasskey() {
+  const privateKey = randomScalar();
+  const publicKey = scalarMultiply(privateKey, { x: P256.gx, y: P256.gy });
+  return {
+    privateKey,
+    x: bigIntToBytes(publicKey.x, 32),
+    y: bigIntToBytes(publicKey.y, 32),
+    credentialId: new Uint8Array(crypto.randomBytes(32)),
+    counter: 0,
+  };
+}
+
+// Authenticator data flags: user present, user verified, attested credential data included.
+const FLAG_UP = 0x01;
+const FLAG_UV = 0x04;
+const FLAG_AT = 0x40;
+
+function counterBytes(counter) {
+  return new Uint8Array([(counter >>> 24) & 0xff, (counter >>> 16) & 0xff, (counter >>> 8) & 0xff, counter & 0xff]);
+}
+
+/** `clientDataJSON` of a ceremony, as a browser builds it for RP_ORIGIN. */
+function clientDataJson(type, challenge) {
+  return utf8(JSON.stringify({ type, challenge, origin: RP_ORIGIN, crossOrigin: false }));
+}
+
+/**
+ * Answers the creation options of `POST /api/v1/user/me/passkeys/options` (`fmt: none`
+ * attestation, COSE ES256 key), like `navigator.credentials.create().toJSON()`.
+ */
+function attest(passkey, options) {
+  const publicKey = options.publicKey;
+  passkey.counter += 1;
+  // COSE_Key: {1: 2 (EC2), 3: -7 (ES256), -1: 1 (P-256), -2: x, -3: y}.
+  const coseKey = concat(
+    new Uint8Array([0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20]),
+    passkey.x,
+    new Uint8Array([0x22, 0x58, 0x20]),
+    passkey.y,
+  );
+  const authData = concat(
+    sha256(utf8(publicKey.rp.id || RP_ID)),
+    new Uint8Array([FLAG_UP | FLAG_UV | FLAG_AT]),
+    counterBytes(passkey.counter),
+    new Uint8Array(16), // AAGUID: none
+    new Uint8Array([passkey.credentialId.length >> 8, passkey.credentialId.length & 0xff]),
+    passkey.credentialId,
+    coseKey,
+  );
+  // {"fmt": "none", "attStmt": {}, "authData": <bytes>}
+  const attestationObject = concat(
+    new Uint8Array([0xa3]),
+    cborText('fmt'),
+    cborText('none'),
+    cborText('attStmt'),
+    new Uint8Array([0xa0]),
+    cborText('authData'),
+    cborBytesHeader(authData.length),
+    authData,
+  );
+  return {
+    id: b64url(passkey.credentialId),
+    rawId: b64url(passkey.credentialId),
+    type: 'public-key',
+    response: {
+      attestationObject: b64url(attestationObject),
+      clientDataJSON: b64url(clientDataJson('webauthn.create', publicKey.challenge)),
+      transports: ['internal'],
+    },
+    clientExtensionResults: {},
+  };
+}
+
+/** Answers the request options of `POST /api/v1/auth/passkey/options`, like `credentials.get()`. */
+function assert(passkey, options) {
+  const publicKey = options.publicKey;
+  passkey.counter += 1;
+  const authData = concat(
+    sha256(utf8(publicKey.rpId || RP_ID)),
+    new Uint8Array([FLAG_UP | FLAG_UV]),
+    counterBytes(passkey.counter),
+  );
+  const clientData = clientDataJson('webauthn.get', publicKey.challenge);
+  const signature = ecdsaSign(passkey.privateKey, concat(authData, sha256(clientData)));
+  return {
+    id: b64url(passkey.credentialId),
+    rawId: b64url(passkey.credentialId),
+    type: 'public-key',
+    response: {
+      authenticatorData: b64url(authData),
+      clientDataJSON: b64url(clientData),
+      signature: b64url(signature),
+      userHandle: null,
+    },
+    clientExtensionResults: {},
+  };
+}
+
+/** Registers a new passkey for the session `jwt` through the fixture calls; returns its id. */
+function registerPasskey(jwt) {
+  const headers = bearer(jwt);
+  const passkey = createPasskey();
+  const options = fixture('POST', '/api/v1/user/me/passkeys/options', undefined, { headers }).json();
+  const res = fixture(
+    'POST',
+    '/api/v1/user/me/passkeys/',
+    { challenge_id: options.challenge_id, label: `k6 ${unique()}`, credential: attest(passkey, options.public_key) },
+    { headers, expected: [201] },
+  );
+  return { passkey, id: res.json('id') };
+}
+
+function deletePasskey(jwt, passkeyId) {
+  fixture('DELETE', `/api/v1/user/me/passkeys/${passkeyId}/`, undefined, { headers: bearer(jwt) });
+}
+
 const spec = loadSpec();
 
 const readHandlers = {
@@ -244,6 +540,8 @@ const readHandlers = {
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/preferences/': ({ request }) =>
     check(request(), { 'preferences 200': (r) => r.status === 200 }),
+  'GET /api/v1/user/me/passkeys/': ({ request }) =>
+    check(request(), { 'passkeys 200': (r) => r.status === 200 && Array.isArray(r.json('passkeys')) }),
   'GET /api/v1/user/{id}/': ({ request }) =>
     check(request({ path: { id: MEMBER_ID } }), { 'user 200': (r) => r.status === 200 }),
   'GET /api/v1/roles/': ({ request }) => check(request(), { 'roles 200': (r) => r.status === 200 }),
@@ -328,6 +626,65 @@ const writeHandlers = {
     check(request({ body: { refresh_token: session.refresh }, headers: bearer(session.jwt) }), {
       'revoke 200': (r) => r.status === 200,
     });
+    deleteUser(account.id);
+  },
+
+  // Passkeys (MAIR-505): the account registers one with its JWT, then signs in with it.
+  'POST /api/v1/user/me/passkeys/options': ({ request }) => {
+    const account = activeAccount('passkey-options');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt) }), {
+      'passkey registration options 200': (r) => r.status === 200 && !!r.json('challenge_id'),
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/passkeys/': ({ request }) => {
+    const account = activeAccount('passkey-register');
+    const session = login(account);
+    const headers = bearer(session.jwt);
+    const passkey = createPasskey();
+    const options = fixture('POST', '/api/v1/user/me/passkeys/options', undefined, { headers }).json();
+    check(
+      request({
+        headers,
+        body: { challenge_id: options.challenge_id, label: 'k6 register', credential: attest(passkey, options.public_key) },
+      }),
+      { 'register passkey 201': (r) => r.status === 201 && !!r.json('id') },
+    );
+    deleteUser(account.id);
+  },
+  'DELETE /api/v1/user/me/passkeys/{id}/': ({ request }) => {
+    const account = activeAccount('passkey-delete');
+    const session = login(account);
+    const registered = registerPasskey(session.jwt);
+    check(request({ path: { id: registered.id }, headers: bearer(session.jwt) }), {
+      'delete passkey 204': (r) => r.status === 204,
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/passkey/options': ({ request }) =>
+    check(request(), {
+      'passkey sign-in options 200': (r) => r.status === 200 && !!r.json('challenge_id'),
+    }),
+  'POST /api/v1/auth/passkey': ({ request }) => {
+    const account = activeAccount('passkey-login');
+    const session = login(account);
+    const registered = registerPasskey(session.jwt);
+    const options = fixture('POST', '/api/v1/auth/passkey/options').json();
+    const res = request({
+      body: {
+        challenge_id: options.challenge_id,
+        credential: assert(registered.passkey, options.public_key),
+        device_info: DEVICE,
+      },
+    });
+    check(res, { 'passkey sign-in 200': (r) => r.status === 200 && !!r.headers.Authorization });
+    if (res.status === 200) {
+      fixture('POST', '/api/v1/sessions/revoke', { refresh_token: res.json('refresh_token') }, {
+        headers: { Authorization: res.headers.Authorization },
+      });
+    }
+    deletePasskey(session.jwt, registered.id);
     deleteUser(account.id);
   },
 

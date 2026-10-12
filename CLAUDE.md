@@ -56,6 +56,32 @@ the token's verified e-mail for an account not linked yet, which links it on the
 refused. Tests use a local fake realm (`tests/common/keycloak_mock.rs`, throwaway RSA keys in
 `tests/fixtures/`), no Keycloak needed.
 
+Passkeys (MAIR-505, `src/webauthn/`, Database v3.1.0 `user_passkeys`): Core is the WebAuthn relying
+party, optional like Keycloak. `WebauthnConfig::from_env` reads `WEBAUTHN_RP_ID` (the instance's
+domain) + `WEBAUTHN_RP_ORIGIN` (origins of the sign-in page, comma-separated, each on that domain or
+`main` refuses to start) + optional `WEBAUTHN_RP_NAME`; without them the passkey routes answer `503`
+and `main.rs` registers no `web::Data<Webauthn>` (handlers take it as `Option`). A ceremony is two
+requests: `POST .../options` opens it and parks the `webauthn-rs` state in Redis under a random
+`challenge_id` (`ChallengeStore`, `passkey_registration/<id>` / `passkey_authentication/<id>`,
+2 min, read once and deleted so a replay is refused), the second request answers it. Registration is
+authenticated (`POST /api/v1/user/me/passkeys/options`, `POST /api/v1/user/me/passkeys/`, plus
+`GET` / `DELETE /api/v1/user/me/passkeys/{id}/`): user verification required, no attestation
+required, passkeys already registered excluded, a ceremony opened by another account refused, a
+credential already registered anywhere `409`. Sign-in is public and **discoverable** (no e-mail:
+`POST /api/v1/auth/passkey/options` then `POST /api/v1/auth/passkey`, `login_per_ip` budget): the
+credential id of the assertion finds the row (`FindPasskeyByCredentialQueryView`, credential ids
+travel as hex, `decode($n, 'hex')`), the stored `Passkey` is rewritten after each sign-in (counter,
+backup flags, `last_used_at`), and unknown / replayed challenge, unknown credential, refused
+assertion and archived account all answer the same `401`; success calls `generate_session` like the
+password login. The WebAuthn user handle is `webauthn::user_handle(user_id)` (UUID v5, never the
+e-mail). `webauthn-rs` needs OpenSSL, compiled in (`openssl` `vendored`, `perl` + `make` in the
+builder stage) for the distroless image. Tests (`tests/endpoints/passkeys.rs`) drive a software
+authenticator (`tests/common/passkey.rs`, `webauthn-authenticator-rs` `SoftPasskey`), which sends no
+`userHandle` and needs the credential named in `allowCredentials` (the helper adds it); the k6
+handlers carry their own P-256 authenticator in `load-test.js` (synchronous, `coverage.js` runs
+handlers synchronously, so no WebCrypto), with `WEBAUTHN_RP_ID=localhost` /
+`WEBAUTHN_RP_ORIGIN=http://localhost:3000` in the ZAP and k6 stacks.
+
 Account migration to Keycloak (MAIR-141): `POST /api/v1/admin/keycloak/migration` (admin only)
 and the `keycloak_migration` binary (`src/bin/`, shipped in the image as `/app/keycloak-migration`,
 same env vars, `--send-password-setup-email` flag) both run `keycloak::migration::migrate_users`:

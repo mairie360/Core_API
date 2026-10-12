@@ -5,6 +5,9 @@ FROM rust:1.99-slim-bookworm@sha256:60aef4c3c41e9837d5dd9a140ad6f2db4721620448e7
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
+    # OpenSSL compiled into the binary (webauthn-rs, MAIR-505): the distroless runtime has no libssl.
+    perl \
+    make \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

@@ -11,6 +11,7 @@ use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
 use core_api::telemetry;
+use core_api::webauthn::WebauthnConfig;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
@@ -88,6 +89,14 @@ async fn main() -> std::io::Result<()> {
             }
         })
         .map(web::Data::new);
+    // Passkeys (MAIR-505) are optional like Keycloak: without WEBAUTHN_RP_ID / WEBAUTHN_RP_ORIGIN
+    // the passkey routes answer 503. An origin outside the relying party id is a deployment
+    // error: refuse to start rather than serve ceremonies no browser can complete.
+    let webauthn = WebauthnConfig::from_env().map(|config| {
+        web::Data::new(config.build().unwrap_or_else(|e| {
+            panic!("Invalid passkey configuration (WEBAUTHN_RP_ID / WEBAUTHN_RP_ORIGIN): {e}")
+        }))
+    });
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
@@ -104,6 +113,10 @@ async fn main() -> std::io::Result<()> {
         };
         let app = match &keycloak_admin {
             Some(admin) => app.app_data(admin.clone()),
+            None => app,
+        };
+        let app = match &webauthn {
+            Some(webauthn) => app.app_data(webauthn.clone()),
             None => app,
         };
         let app = match &rate_limits {

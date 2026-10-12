@@ -45,7 +45,18 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 utoipa = { version = "6", features = ["actix_extras", "yaml"] }
 utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
+# Passkeys (MAIR-505): Core is the WebAuthn relying party. `conditional-ui` gives the
+# discoverable-credential login (no e-mail typed), `danger-allow-state-serialisation` lets the
+# ceremony state wait in Redis between the two requests of a ceremony.
+webauthn-rs = { version = "0.5.5", features = ["danger-allow-state-serialisation", "conditional-ui"] }
+# webauthn-rs verifies the signatures with OpenSSL; linked statically so the distroless runtime
+# image (no libssl) keeps working. Needs `perl` and `make` in the builder stage.
+openssl = { version = "0.10", features = ["vendored"] }
+# Credential ids go to Postgres as hex (`decode($n, 'hex')`): the lib binds no binary parameter.
+hex = "0.4"
+url = "2.5"
+# `v5` for the stable WebAuthn user handle derived from the account id.
+uuid = { version = "1.0", features = ["v4", "v5", "serde"] }
 
 [dev-dependencies]
 mairie360_api_lib = { version = "3.0.0", features = ["test-utils"] }
@@ -56,8 +67,13 @@ redis = "1.0.3"
 # Redis enforcing the chart's ACL in tests (same version as mairie360_api_lib's test_setup).
 testcontainers = "0.28.0"
 serial_test = "4.0.0"
-url = "2.5"
+# `TestRequest::to_request()` type of the passkey test helpers.
+actix-http = "3"
 once_cell = "1.21.3"
+# Software authenticator of the passkey tests (MAIR-505): no browser, no hardware key.
+webauthn-authenticator-rs = { version = "0.5.5", features = ["softpasskey"] }
+# `AllowCredentials`, which the webauthn-rs prelude does not re-export (test helper).
+webauthn-rs-proto = "0.5.5"
 sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "chrono", "uuid"] }
 
 [profile.dev]

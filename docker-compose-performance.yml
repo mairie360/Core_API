@@ -138,6 +138,10 @@ services:
       JWT_TIMEOUT: 3600
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
+      # Passkeys (MAIR-505): the k6 handlers / ZAP reach the ceremonies with a software
+      # authenticator claiming this origin in its clientDataJSON.
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_ORIGIN: http://localhost:3000
       SMTP_HOST: "mailpit" # Nom du service docker
       SMTP_PORT: "1025" # Port SMTP de mailpit
       SMTP_USERNAME: "" # Pas besoin d'authentification en local

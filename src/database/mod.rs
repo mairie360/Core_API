@@ -3,6 +3,7 @@ pub mod auth;
 pub mod get_user_id;
 pub mod groups;
 pub mod ids;
+pub mod passkeys;
 pub mod pg_url;
 pub mod ressources;
 pub mod rights;

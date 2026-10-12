@@ -9,6 +9,7 @@ mod id_aliases;
 mod keycloak_login;
 mod keycloak_migration;
 mod pagination;
+mod passkeys;
 mod rate_limits;
 mod readiness;
 mod redis_acl;
