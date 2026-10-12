@@ -20,7 +20,7 @@ use mairie360_api_lib::state::AppState;
 use std::sync::LazyLock;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum LoginError {
     DatabaseError,
     FirstConnectError(String),
@@ -28,6 +28,20 @@ pub enum LoginError {
     RedisError,
     TokenGenerationError,
     TooManyRequests(u64),
+}
+
+impl std::fmt::Debug for LoginError {
+    // Never the first-connection token: an error's `Debug` ends up in logs and traces (MAIR-290).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DatabaseError => write!(f, "DatabaseError"),
+            Self::FirstConnectError(_) => write!(f, "FirstConnectError(<token>)"),
+            Self::InvalidCredentials => write!(f, "InvalidCredentials"),
+            Self::RedisError => write!(f, "RedisError"),
+            Self::TokenGenerationError => write!(f, "TokenGenerationError"),
+            Self::TooManyRequests(seconds) => write!(f, "TooManyRequests({seconds})"),
+        }
+    }
 }
 
 impl std::fmt::Display for LoginError {

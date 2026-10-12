@@ -1,0 +1,123 @@
+# GDPR log marker journey (MAIR-290), played by mairie360/CICD tests/gdpr/marker.
+#
+# A marker user with unique values goes through the flows that handle personal data, deliberate
+# errors included; the logs of every container of docker-compose-gdpr-marker.yml are then
+# searched for those values (see gdpr_marker_test.sh). A log describes an error by its type and
+# context, never by the value it received.
+version: 1
+target: http://core:3000
+wait: /ready
+env: [ADMIN_JWT]
+ignore:
+  - service: mailpit
+    reason: SMTP sink of the stack, it receives the marker's e-mails (forgot password) by design
+steps:
+  # There is no public sign-up: an administrator creates the account.
+  - name: create the marker account (admin)
+    request:
+      method: POST
+      path: /api/v1/admin/users/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {first_name: "{{marker.first_name}}", last_name: "{{marker.last_name}}", email: "{{marker.email}}", password: "{{marker.password}}", phone_number: "{{marker.phone}}", phone_country: FR}
+    expect: [201]
+    capture:
+      user_id: body.id
+  - name: create the same e-mail again (deliberate error)
+    request:
+      method: POST
+      path: /api/v1/admin/users/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {first_name: "{{marker.first_name}}", last_name: "{{marker.last_name}}", email: "{{marker.email}}", password: "{{marker.password}}"}
+    expect: [409]
+  - name: create an account with an invalid phone (deliberate error)
+    request:
+      method: POST
+      path: /api/v1/admin/users/
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {first_name: "{{marker.first_name}}", last_name: "{{marker.last_name}}", email: "x{{marker.email}}", password: "{{marker.password}}", phone_number: "{{marker.phone}}123", phone_country: FR}
+    expect: [400]
+  - name: search the marker in the admin list (query string)
+    request:
+      method: GET
+      path: "/api/v1/admin/users/?search={{marker.email}}"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+  - name: search the marker with an invalid page size (deliberate error, query string)
+    request:
+      method: GET
+      path: "/api/v1/admin/users/?search={{marker.email}}&page_size=0"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+    expect: [400]
+  - name: grant a role with a value of the wrong type (deliberate error)
+    request:
+      method: POST
+      path: "/api/v1/admin/users/{{user_id}}/roles/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {role_id: "{{marker.email}}"}
+    expect: [400]
+  - name: read the marker account (admin)
+    request:
+      method: GET
+      path: "/api/v1/admin/users/{{user_id}}/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+  - name: log in with a wrong password (deliberate error)
+    request: {method: POST, path: /api/v1/auth/login, json: {email: "{{marker.email}}", password: "x{{marker.password}}", device_info: "gdpr marker"}}
+    expect: [401]
+  - name: log in with an unknown e-mail (deliberate error)
+    request: {method: POST, path: /api/v1/auth/login, json: {email: "x{{marker.email}}", password: "{{marker.password}}", device_info: "gdpr marker"}}
+    expect: [401]
+  - name: first login, password change required
+    request: {method: POST, path: /api/v1/auth/login, json: {email: "{{marker.email}}", password: "{{marker.password}}", device_info: "gdpr marker"}}
+    expect: [412]
+    capture:
+      first_connection_token: {from: body.token, sensitive: true}
+  - name: change the password with a too short one (deliberate error)
+    request: {method: POST, path: /api/v1/auth/force_change_password, json: {token: "{{first_connection_token}}", new_password: "Mk1!"}}
+    expect: [400]
+  - name: change the password at first connection
+    request: {method: POST, path: /api/v1/auth/force_change_password, json: {token: "{{first_connection_token}}", new_password: "{{marker.password}}2"}}
+  - name: log in
+    request: {method: POST, path: /api/v1/auth/login, json: {email: "{{marker.email}}", password: "{{marker.password}}2", device_info: "gdpr marker"}}
+    capture:
+      authorization: {from: header.authorization, sensitive: true}
+      refresh_token: {from: body.refresh_token, sensitive: true}
+  - name: read the own profile
+    request: {method: GET, path: /api/v1/user/me/, headers: {Authorization: "{{authorization}}"}}
+  - name: update the own profile with the phone
+    request:
+      method: PATCH
+      path: /api/v1/user/me/
+      headers: {Authorization: "{{authorization}}"}
+      json: {first_name: "{{marker.first_name}}", last_name: "{{marker.last_name}}", phone: "{{marker.phone}}", phone_country: FR}
+  - name: update the own profile with an invalid phone (deliberate error)
+    request:
+      method: PATCH
+      path: /api/v1/user/me/
+      headers: {Authorization: "{{authorization}}"}
+      json: {phone: "{{marker.phone}}123", phone_country: FR}
+    expect: [400]
+  - name: search the marker in the directory (query string)
+    request: {method: GET, path: "/api/v1/user/?search={{marker.last_name}}", headers: {Authorization: "{{authorization}}"}}
+  - name: update the marker as admin (phone and name)
+    request:
+      method: PATCH
+      path: "/api/v1/admin/users/{{user_id}}/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+      json: {first_name: "{{marker.first_name}}", phone_number: "{{marker.phone}}", phone_country: FR}
+  - name: ask for a password reset e-mail
+    request: {method: POST, path: /api/v1/auth/forgot_password, json: {email: "{{marker.email}}"}}
+  - name: ask for a password reset for an unknown e-mail
+    request: {method: POST, path: /api/v1/auth/forgot_password, json: {email: "y{{marker.email}}"}}
+  - name: reset the password with a wrong token (deliberate error)
+    request: {method: POST, path: /api/v1/auth/reset_password, json: {token: "00000000-0000-4000-8000-000000000000", new_password: "{{marker.password}}3", device_info: "gdpr marker"}}
+    expect: [401]
+  - name: log out
+    request: {method: POST, path: /api/v1/sessions/logout, headers: {Authorization: "{{authorization}}"}}
+    expect: [204]
+  - name: archive the marker account (admin)
+    request:
+      method: DELETE
+      path: "/api/v1/admin/users/{{user_id}}/"
+      headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
+  - name: log in to the archived account (deliberate error)
+    request: {method: POST, path: /api/v1/auth/login, json: {email: "{{marker.email}}", password: "{{marker.password}}2", device_info: "gdpr marker"}}
+    expect: [401]
