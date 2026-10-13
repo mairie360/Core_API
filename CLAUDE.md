@@ -28,7 +28,7 @@ Build/run:
 ```bash
 cargo build
 cargo build --release
-docker compose up --build --watch   # full stack: postgres, liquibase migrations, redis, core (hot reload), mailpit, nginx
+docker compose up --build --watch   # full stack: postgres, liquibase migrations, redis, core (hot reload), fake-resend, nginx
 ```
 
 Probes (MAIR-423): `GET /health` is the liveness probe (the process answers), `GET /ready` the readiness probe
@@ -38,11 +38,24 @@ exits with an error if it never answers, instead of serving `500`s. The compose 
 chart's readiness probe (`Devops/Deploiment`) must point at it too.
 
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
-`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET`, `JWT_TIMEOUT` and
-`SMTP_*`/`EMAIL_FROM` env vars — all fetched with `get_critical_env_var` (panics on missing var), see
+`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET` and `JWT_TIMEOUT`
+— all fetched with `get_critical_env_var` (panics on missing var) — plus the e-mail variables below, see
 `docker-compose.yml` for the dev values. The Postgres URL is assembled by
 `database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
 `DB_PASSWORD` may contain any character.
+
+E-mails (MAIR-522, `src/emails/`): every e-mail is a **published Resend template** filled in by Core,
+never a body written in the code. `emails::PasswordResetEmail` implements the lib's `EmailTemplate` (alias
+`account-password-reset`, variables `USER_FIRST_NAME`, `RESET_URL`, `EXPIRE_MINUTES`, optional
+`MAIRIE_NAME`); `emails::AccountEmails` (app data built by `main`, which refuses to start without it) sends
+it through `mairie360_api_lib::email::ResendMailer`. The sender is always `no-reply@<EMAIL_DOMAIN>`, no
+`Reply-To`: only the domain is configurable. Variables: `RESEND_API_KEY`, `EMAIL_DOMAIN` (verified in
+Resend), `PUBLIC_URL` (login front, the reset link is `<PUBLIC_URL>/reset-password?token=…`), optional
+`EMAIL_SENDER_NAME` and `MAIRIE_NAME`. The reset token lives 15 minutes (`FORGOT_PASSWORD_TTL_SECONDS`)
+and is dropped when Resend refuses the e-mail. A new e-mail = a template published in Resend + a struct
+implementing `EmailTemplate` here. The compose stacks run a fake Resend (WireMock, `tests/fake-resend/`)
+reached through `RESEND_BASE_URL`; the dev stack exposes its journal on `localhost:8025/__admin/requests`.
+The integration tests use the one of `tests/common/fake_resend.rs`.
 
 Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
 `get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
@@ -122,7 +135,7 @@ run in the `reads` scenario (ramping up to 100 VUs) as the Admin against a group
 methods in the `writes` scenario (10 VUs), each handler creating and deleting its own accounts, roles and groups so they are
 order-independent (deleted accounts stay archived). The auth flows run end to end on throwaway accounts: register →
 login `412` → `force_change_password` → login → refresh → revoke, and `forgot_password` → `reset_password` with the
-token read from the Mailpit API (`MAILPIT_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
+token read from the fake Resend's request journal (`FAKE_RESEND_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
 password logins/s on accounts created in `setup()`, `op:login_rush`, 1 s budget). One `p(95)` threshold per `op` tag
 (200 ms reads, 500 ms writes), `http_req_failed == 0` (the expected `412` of the fixture logins is excluded through
 `responseCallback`), `checks == 100%` (status and seeded rows) and no dropped iteration. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, login rush at 8/s); `stress` is the high load (100 readers, 10 writers, 20 logins/s), run by hand with `K6_PROFILE=stress ./performance_test.sh`, not on every push. The k6 stack's seeder also runs `init-perf.sql`
@@ -285,7 +298,6 @@ Security knobs added by MAIR-390, all optional:
 - `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
   keycloak, forgot/reset/force_change_password and refresh (`429` + `Retry-After`). Handlers take
   `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
-- `SMTP_INSECURE=true` allows a plaintext SMTP relay other than `mailpit` / `localhost`; otherwise STARTTLS.
 
 ### Database schema
 
