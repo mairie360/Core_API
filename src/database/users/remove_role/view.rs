@@ -34,6 +34,11 @@ impl RemoveRolesQueryView {
 }
 
 impl ApiRequestDto for RemoveRolesQueryView {
+    // The directory (`GET /api/v1/user/`) shows this change: drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "DELETE FROM user_roles WHERE role_id = $1 AND user_id = $2"
     }

@@ -243,12 +243,24 @@ const readHandlers = {
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
 
   // Directory and profile.
-  // 'martin' matches hundreds of seeded agents: the page is full.
-  'GET /api/v1/user/': ({ request }) =>
-    check(request({ query: { search: 'martin', limit: 50 } }), {
+  // The directory is cached in Redis for 60 s, one entry per filter set (MAIR-524). Three
+  // iterations out of four repeat the same query ('martin' matches hundreds of seeded agents: the
+  // page is full), served from the cache after the first one; the fourth searches one seeded
+  // e-mail picked at random, a filter set nobody asked yet, so the Postgres path stays measured
+  // under the same p(95) budget.
+  'GET /api/v1/user/': ({ request }) => {
+    if (exec.scenario.iterationInTest % 4 === 3) {
+      const n = 1 + Math.floor(Math.random() * 10000);
+      return check(request({ query: { search: `perf.agent.${n}@`, limit: 50 } }), {
+        'directory 200': (r) => r.status === 200,
+        'directory finds the searched agent': (r) => r.status === 200 && r.json('users').length === 1,
+      });
+    }
+    return check(request({ query: { search: 'martin', limit: 50 } }), {
       'directory 200': (r) => r.status === 200,
       'directory reads the seed': (r) => r.status === 200 && r.json('users').length === 50,
-    }),
+    });
+  },
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),

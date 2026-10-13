@@ -73,6 +73,12 @@ impl RegisterUserQueryView {
 }
 
 impl ApiRequestDto for RegisterUserQueryView {
+    // A new account (with the default role given by the schema) appears in the directory
+    // (`GET /api/v1/user/`): drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         match self.phone {
             Some(_) => {

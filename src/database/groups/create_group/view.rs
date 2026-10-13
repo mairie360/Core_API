@@ -42,6 +42,12 @@ impl CreateGroupQueryView {
 }
 
 impl ApiRequestDto for CreateGroupQueryView {
+    // The directory (`GET /api/v1/user/`) lists the owner in the new group (the schema trigger
+    // adds them as a member): drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "INSERT INTO groups (owner_id, name, description) VALUES ($1, $2, $3) RETURNING id"
     }

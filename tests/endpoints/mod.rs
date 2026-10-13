@@ -3,6 +3,7 @@ mod admin_users_keycloak;
 mod auth_hardening;
 mod auth_password;
 mod db_errors;
+mod directory_cache;
 mod forgot_password;
 mod free_text;
 mod id_aliases;
