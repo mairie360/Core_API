@@ -12,7 +12,7 @@ use crate::endpoints::v1::sessions::refresh::response_view::RefreshResponseView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::refresh_token;
-use crate::session_jwt::generate_session_jwt;
+use crate::session_jwt::{generate_session_jwt, user_role_names};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
@@ -75,8 +75,13 @@ async fn refresh_request(
     };
 
     let user_id = u64::try_from(session.user_id()).map_err(|_| RefreshError::InvalidToken)?;
-    // The new JWT stays bound to the same session (`sid` claim), see `session_jwt`.
-    let jwt = generate_session_jwt(user_id, session.id()).map_err(|e| {
+    // The new JWT stays bound to the same session (`sid` claim), see `session_jwt`. The roles are
+    // read again: a role granted or removed since the last JWT shows from now on (MAIR-529).
+    let roles = user_role_names(&state, user_id).await.map_err(|e| {
+        tracing::error!("Get user roles DB Error: {e}");
+        RefreshError::DatabaseError
+    })?;
+    let jwt = generate_session_jwt(user_id, session.id(), roles).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;
@@ -92,6 +97,9 @@ async fn refresh_request(
     description = "Exchanges a valid refresh token for a new JWT and a new refresh token, without \
                    asking for the password again. The new JWT is returned in the `Authorization` \
                    header, the new refresh token in the JSON body.\n\n\
+                   The new JWT carries the same claims as the one issued at login, with the \
+                   user's roles (`roles`, `role`) read again: a role granted or removed since the \
+                   previous JWT shows from this call on.\n\n\
                    No JWT is needed: the route is served outside the JWT middleware, so an \
                    expired JWT can be renewed.\n\n\
                    **The refresh token is rotated**: the token sent in the request stops working \
