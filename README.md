@@ -43,6 +43,14 @@ docker run --rm --network host -v "$PWD/tests/postman:/etc/newman:ro" postman/ne
 The collection is also importable in the Postman app for manual debugging (`baseUrl` defaults to
 `http://localhost:3000`).
 
+## ⚡ Directory cache
+
+The user directory `GET /api/v1/user/` is cached in Redis for 60 seconds, one entry per set of
+filters shared by every caller (MAIR-524). Every write through Core that changes what it shows
+(account creation, update, archive, role grant/revoke/rename/delete, group creation/deletion,
+group member add/remove) invalidates it immediately; a change made directly in the database shows
+up after at most 60 seconds. When Redis is unavailable the directory is read from Postgres.
+
 ## 🔐 Keycloak single sign-on
 
 Keycloak sign-in is optional. Set these variables on the `core` service to enable

@@ -276,6 +276,25 @@ statement. The first read of a transaction locks what the checks depend on (`Loc
 revoke the sessions in the same transaction through `session_revocation::revoke_all_user_sessions_in`
 and publish them to Redis only after the commit. `tests/endpoints/transactions.rs` checks the rollbacks.
 
+### Directory read cache (MAIR-524)
+
+`GET /api/v1/user/` (the directory, `list_directory_users`) is served through the lib's
+`ReadCache`: `database::users::list_directory::DIRECTORY_CACHE` (namespace `directory`, 60 s,
+`DIRECTORY_CACHE_TTL_SECONDS`) with `ReadCache::shared` keys, because the page does not depend on
+the caller (no ACL, same rows whoever asks). `ListDirectoryUsersQueryView::cache_key` only applies
+normalisations the SQL ignores (search trimmed, `ids` / `group_ids` sorted and deduplicated); the
+search case is kept. Entries are `core-api:read-cache:directory:<generation>:shared:<sha256>` under
+the chart ACL. **Every write view that changes what the directory shows returns
+`INVALIDATES_DIRECTORY` from `invalidated_read_caches`**: `RegisterUserQueryView` (admin creation),
+`PatchUserQueryView` (admin patch and `PATCH /user/me/`), `DeleteUserQueryView` (archive),
+`AddRolesQueryView` / `RemoveRolesQueryView`, `PatchRoleQueryView` / `ChangeRoleQueryView` /
+`DeleteRoleQueryView` (role names), `CreateGroupQueryView` (the trigger adds the owner),
+`DeleteGroupQueryView` (cascade), `AddUserToGroupQueryView` / `DeleteUserFromGroupQueryView`. A new
+write on `users`, `user_roles`, `roles.name` or `group_members` must do the same; inside a
+transaction the namespace is bumped on `commit()`. Changes outside Core (raw SQL, another service)
+show up after the TTL. `tests/endpoints/directory_cache.rs` covers the hits and every invalidation
+against the ACL Redis. Without a reachable Redis (most tests) the cache is bypassed.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

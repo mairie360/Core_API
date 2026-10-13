@@ -21,7 +21,7 @@ ipnet = "2.12"
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
 # Only `lettre::Address`, to validate e-mail addresses (the e-mails themselves go through Resend).
 lettre = { version = "0.11", default-features = false }
-mairie360_api_lib = "3.1.0"
+mairie360_api_lib = "3.2.0"
 percent-encoding = "2.3"
 # Phone numbers validated against the numbering plan of their country (MAIR-480).
 phonenumber = "0.3.10"
@@ -49,7 +49,7 @@ utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
-mairie360_api_lib = { version = "3.1.0", features = ["test-utils"] }
+mairie360_api_lib = { version = "3.2.0", features = ["test-utils"] }
 # In-memory span exporter to assert on the exported spans (MAIR-131).
 opentelemetry_sdk = { version = "0.32", features = ["testing"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
