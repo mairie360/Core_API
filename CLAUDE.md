@@ -305,6 +305,12 @@ logging in, forcing a password change via `force_change_password`. On success it
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
 
+The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
+`roles` (every role name of the user, ordered by role id) plus `role` (the first of them, empty string when none).
+`session_jwt::user_role_names` reads them at every login (password, Keycloak, reset password) and every refresh,
+so a role change reaches the JWT at the next refresh only. The BFFs read the roles from the token (`bffs_lib`
+`sessionRoles`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have no `roles` claim.
+
 Argon2 (MAIR-474): hash and verify passwords through `crate::passwords::{hash, verify}`, which run on actix's
 blocking pool (`web::block`), never by calling `mairie360_api_lib::password::{hash_password, verify_password}` from a
 handler: inline, each hash blocks the worker thread and every request queued on it.

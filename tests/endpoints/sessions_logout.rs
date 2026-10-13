@@ -74,7 +74,10 @@ async fn open_session(state: &web::Data<AppState>) -> (String, String) {
         ))
         .await
         .unwrap();
-    (generate_session_jwt(1, session_id).unwrap(), refresh_token)
+    (
+        generate_session_jwt(1, session_id, Vec::new()).unwrap(),
+        refresh_token,
+    )
 }
 
 #[tokio::test]

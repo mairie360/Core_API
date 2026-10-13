@@ -10,7 +10,7 @@ use crate::passwords;
 use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::refresh_token;
-use crate::session_jwt::generate_session_jwt;
+use crate::session_jwt::{generate_session_jwt, user_role_names};
 use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -98,8 +98,12 @@ pub async fn generate_session(
         tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    // The role claim stays empty: neither the lib nor Core reads it.
-    let jwt = generate_session_jwt(user_id, session_id).map_err(|e| {
+    // The BFFs read the caller's roles from the JWT (MAIR-529).
+    let roles = user_role_names(&state, user_id).await.map_err(|e| {
+        tracing::error!("Get user roles DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    let jwt = generate_session_jwt(user_id, session_id, roles).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
@@ -284,6 +288,12 @@ fn check_rate_limits(
     description = "Authenticates a user by e-mail and password, opens a session and returns a JWT \
                    in the `Authorization` header plus a refresh token in the body. Public route: \
                    `JwtMiddleware` lets everything under `/auth` through.\n\n\
+                   The JWT carries the user id (`sub`), the session id (`sid`), its expiry \
+                   (`exp`) and the user's roles: `roles` lists every role name ordered by role id \
+                   (empty array when the user has none) and `role` repeats the first one (empty \
+                   string when none). The roles are read at login and at \
+                   `POST /api/v1/sessions/refresh`: a role granted or removed later shows at the \
+                   next refresh only.\n\n\
                    The password is always checked first: an unknown address, an archived account, \
                    an account without a password (Keycloak only) and a wrong password all answer \
                    the same `401`, in the same time.\n\n\
