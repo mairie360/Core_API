@@ -138,13 +138,17 @@ services:
       JWT_TIMEOUT: 3600
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
-      SMTP_HOST: "mailpit" # Nom du service docker
-      SMTP_PORT: "1025" # Port SMTP de mailpit
-      SMTP_USERNAME: "" # Pas besoin d'authentification en local
-      SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      # E-mails go to the fake Resend (MAIR-522), from no-reply@mairie360.local.
+      RESEND_API_KEY: "re_fake_local"
+      RESEND_BASE_URL: "http://fake-resend:8080"
+      EMAIL_DOMAIN: "mairie360.local"
+      EMAIL_SENDER_NAME: "Mairie 360 (test)"
+      # resend_rs throttles each process to bursts of RESEND_RATE_LIMIT e-mails (default 9), then
+      # one per 1.1 s, to stay under Resend's quota. The fake Resend has none: let k6's password
+      # resets through instead of measuring that queue.
+      RESEND_RATE_LIMIT: "100000"
       # k6 logs in, refreshes and resets passwords far beyond the auth rate limits (MAIR-390).
       RATE_LIMIT_ENABLED: "false"
-      EMAIL_FROM: "noreply.mairie360@dev.local"
     depends_on:
       liquibase:
         condition: service_completed_successfully
@@ -173,18 +177,18 @@ services:
     networks:
       - backend
 
-  mailpit:
-    image: axllent/mailpit:v1.31
-    container_name: mairie360-mailpit
+  # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
+  fake-resend:
+    image: wiremock/wiremock:3.13.1
+    container_name: mairie360-fake-resend
     restart: always
-    ports:
-      - "8025:8025" # Interface Web pour voir les mails (http://localhost:8025)
-      - "1025:1025" # Le port SMTP pour ton code Rust
+    command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
+    volumes:
+      - ./tests/fake-resend/mappings:/home/wiremock/mappings:ro
+    expose:
+      - "8080"
     networks:
       - backend
-    depends_on:
-      core-ready:
-        condition: service_completed_successfully
 
   k6-perf-test:
     image: grafana/k6:latest
@@ -201,7 +205,7 @@ services:
     environment:
       - BASE_URL=http://core:3000
       - OPENAPI_SPEC=/spec/openapi.json
-      - MAILPIT_URL=http://mailpit:8025
+      - FAKE_RESEND_URL=http://fake-resend:8080
       # Admin JWT signed with this run's JWT_SECRET (stack_secrets.sh, MAIR-428).
       - JWT=${ADMIN_JWT:?ADMIN_JWT must be set, run performance_test.sh}
       # Load profile of load-test.js: `ci` (default, sized for the CI runner) or `stress` (MAIR-474).
@@ -212,6 +216,6 @@ services:
       # The fixtures load-test.js relies on (init-test.sql).
       seeder:
         condition: service_completed_successfully
-      # load-test.js reads the password reset e-mails through the Mailpit API.
-      mailpit:
+      # load-test.js reads the password reset e-mails from the fake Resend's request journal.
+      fake-resend:
         condition: service_started

@@ -44,6 +44,7 @@ macro_rules! init_app {
         test::init_service(
             App::new()
                 .app_data($state.clone())
+                .app_data(crate::common::fake_resend::account_emails())
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -89,10 +90,6 @@ async fn forgot_password_flow_works_under_the_acl() {
     let (_container, host) = get_shared_db().await;
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
-    let smtp_port = super::forgot_password::start_fake_smtp().await;
-    std::env::set_var("SMTP_HOST", "localhost");
-    std::env::set_var("SMTP_PORT", smtp_port.to_string());
-    std::env::remove_var("SMTP_USERNAME");
 
     let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
     let app = init_app!(state);

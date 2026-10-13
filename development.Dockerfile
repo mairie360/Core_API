@@ -18,6 +18,10 @@ RUN cargo build --locked && rm -rf src
 # -----------------------------
 
 COPY src ./src
+# The placeholder sources of the dependency cache are newer than the real ones: without this
+# touch, cargo keeps the empty `fn main() {}` binary and the container never serves (same as the
+# production Dockerfile).
+RUN touch src/main.rs src/lib.rs src/bin/keycloak_migration.rs
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

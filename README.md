@@ -30,7 +30,7 @@ leave `IMAGE_REF` empty and the script builds `core-api:local` from `development
 ./integration_test.sh
 ```
 
-The script starts `docker-compose-integration.yml` (Postgres + Liquibase + Redis + Mailpit + API +
+The script starts `docker-compose-integration.yml` (Postgres + Liquibase + Redis + fake Resend + API +
 newman), waits for the `newman` service, prints its report and exits with its status (`--bail`
 stops at the first failing request). To iterate on the collection against a stack already running
 on `localhost:3000`:

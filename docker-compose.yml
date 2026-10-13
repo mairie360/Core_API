@@ -134,14 +134,15 @@ services:
       JWT_TIMEOUT: 3600
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
-      SMTP_HOST: "mailpit" # Nom du service docker
-      SMTP_PORT: "1025" # Port SMTP de mailpit
-      SMTP_USERNAME: "" # Pas besoin d'authentification en local
-      SMTP_PASSWORD: "" # Pas besoin d'authentification en local
+      # E-mails go to the fake Resend (MAIR-522), from no-reply@<EMAIL_DOMAIN>. To send real ones:
+      # RESEND_API_KEY=re_… RESEND_BASE_URL=https://api.resend.com EMAIL_DOMAIN=mairie360-eip.fr
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_fake_local}
+      RESEND_BASE_URL: ${RESEND_BASE_URL:-http://fake-resend:8080}
+      EMAIL_DOMAIN: ${EMAIL_DOMAIN:-mairie360.local}
+      EMAIL_SENDER_NAME: "Mairie 360 (dev)"
       # Traces OpenTelemetry (MAIR-131), off unless an OTLP/HTTP endpoint is set, e.g. a local
       # collector listening on the host: OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
       # OTEL_SERVICE_NAME: core-api
-      EMAIL_FROM: "noreply.mairie360@dev.local"
       # Keycloak SSO (POST /api/v1/auth/keycloak), disabled while these are empty
       KEYCLOAK_REALM_URL: ${KEYCLOAK_REALM_URL:-}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
@@ -159,18 +160,18 @@ services:
       retries: 5
       start_period: 90s
 
-  mailpit:
-    image: axllent/mailpit:v1.31
-    container_name: mairie360-mailpit
+  # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
+  fake-resend:
+    image: wiremock/wiremock:3.13.1
+    container_name: mairie360-fake-resend
     restart: always
+    command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
+    volumes:
+      - ./tests/fake-resend/mappings:/home/wiremock/mappings:ro
     ports:
-      - "8025:8025" # Interface Web pour voir les mails (http://localhost:8025)
-      - "1025:1025" # Le port SMTP pour ton code Rust
+      - "8025:8080" # Journal of the e-mails sent: http://localhost:8025/__admin/requests
     networks:
       - backend
-    depends_on:
-      core:
-        condition: service_healthy
 
   nginx:
     image: nginx:1.29.1-bookworm
@@ -182,5 +183,5 @@ services:
     networks:
       - backend
     depends_on:
-      mailpit:
+      core:
         condition: service_healthy

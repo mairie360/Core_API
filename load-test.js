@@ -20,14 +20,14 @@
 //
 // The authentication flows run end to end on throwaway accounts: admin creates the account → login (412, first
 // connection) → force_change_password → login → refresh → revoke, and forgot_password → reset
-// through the token the API e-mails to Mailpit (read through its HTTP API).
+// through the token the API e-mails through the fake Resend (read from its request journal, MAIR-522).
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
-const MAILPIT_URL = (__ENV.MAILPIT_URL || 'http://localhost:8025').replace(/\/+$/, '');
+const FAKE_RESEND_URL = (__ENV.FAKE_RESEND_URL || 'http://localhost:8025').replace(/\/+$/, '');
 
 // Admin JWT (sub=1, the Admin seeded by liquibase, role=admin) signed with the stack's random
 // JWT_SECRET by stack_secrets.sh (MAIR-428): no token is committed any more.
@@ -165,21 +165,31 @@ function login(account) {
   return { jwt: res.headers.Authorization.replace(/^Bearer /, ''), refresh: res.json('refresh_token') };
 }
 
-/** Password reset token the API e-mailed to `email`, read back from Mailpit. */
+/**
+ * Password reset token the API e-mailed to `email`: the `RESET_URL` variable of the
+ * `account-password-reset` template, read back from the fake Resend's request journal.
+ */
 function resetToken(email) {
+  const query = JSON.stringify({
+    method: 'POST',
+    url: '/emails',
+    bodyPatterns: [{ matchesJsonPath: `$.to[?(@ == '${email}')]` }],
+  });
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const search = http.get(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`, {
+    const found = http.post(`${FAKE_RESEND_URL}/__admin/requests/find`, query, {
+      headers: { 'Content-Type': 'application/json' },
       tags: { op: 'fixture' },
     });
-    const messages = search.status === 200 ? search.json('messages') || [] : [];
-    if (messages.length > 0) {
-      const text = http.get(`${MAILPIT_URL}/api/v1/message/${messages[0].ID}`, { tags: { op: 'fixture' } }).json('Text');
-      const token = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(text || '');
-      if (token) return token[0];
+    const requests = found.status === 200 ? found.json('requests') || [] : [];
+    if (requests.length > 0) {
+      const body = JSON.parse(requests[requests.length - 1].body);
+      const url = (body.template && body.template.variables && body.template.variables.RESET_URL) || '';
+      const token = /[?&]token=([0-9a-f-]{36})/.exec(url);
+      if (token) return token[1];
     }
     sleep(0.2);
   }
-  return fail(`fixture: no reset e-mail for ${email} in Mailpit`);
+  return fail(`fixture: no reset e-mail for ${email} in the fake Resend`);
 }
 
 function createRole(tag) {
@@ -331,7 +341,7 @@ const writeHandlers = {
     deleteUser(account.id);
   },
 
-  // Password reset: forgot_password → e-mail (Mailpit) → reset_password.
+  // Password reset: forgot_password → e-mail (fake Resend) → reset_password.
   'POST /api/v1/auth/forgot_password': ({ request }) => {
     const account = activeAccount('forgot');
     check(request({ body: { email: account.email } }), { 'forgot password 200': (r) => r.status === 200 });
