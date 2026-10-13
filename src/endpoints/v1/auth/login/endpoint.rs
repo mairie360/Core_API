@@ -10,7 +10,7 @@ use crate::passwords;
 use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::refresh_token;
-use crate::session_jwt::{generate_session_jwt, user_role_names};
+use crate::session_jwt::{generate_session_jwt, user_role_name};
 use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -98,12 +98,12 @@ pub async fn generate_session(
         tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    // The BFFs read the caller's roles from the JWT (MAIR-529).
-    let roles = user_role_names(&state, user_id).await.map_err(|e| {
+    // The BFFs read the caller's role from the JWT (MAIR-529).
+    let role = user_role_name(&state, user_id).await.map_err(|e| {
         tracing::error!("Get user roles DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    let jwt = generate_session_jwt(user_id, session_id, roles).map_err(|e| {
+    let jwt = generate_session_jwt(user_id, session_id, role).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;

@@ -94,7 +94,7 @@ async fn open_session(state: &AppState, user_id: u64) -> (Uuid, String, String) 
         .unwrap();
     (
         session_id,
-        generate_session_jwt(user_id, session_id, Vec::new()).unwrap(),
+        generate_session_jwt(user_id, session_id, String::new()).unwrap(),
         refresh_token,
     )
 }

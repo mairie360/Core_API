@@ -1,5 +1,5 @@
-//! The JWTs issued at login and at refresh carry the caller's roles (MAIR-529): the BFFs read
-//! them from the token instead of calling `BFF_user /me`.
+//! The JWTs issued at login and at refresh carry the caller's role in `role` (MAIR-529): the BFFs
+//! read it from the token instead of calling `BFF_user /me`. There is no `roles` claim.
 
 use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
@@ -117,51 +117,73 @@ macro_rules! login {
     }};
 }
 
-#[tokio::test]
-#[serial]
-async fn mair_529_login_jwt_carries_every_role_of_the_user() {
-    let (state, raw) = setup().await;
-    let app = init_app!(state);
-    let (user_id, email) = create_account(&raw).await;
-    let agent = grant_new_role(&raw, user_id, "Agent").await;
-    let manager = grant_new_role(&raw, user_id, "Manager").await;
-    let expected = role_names(&raw, user_id).await;
-    assert!(expected.len() >= 2 && expected.ends_with(&[agent, manager]));
+/// Claims of `jwt` as signed, without verification: shows which claims are present.
+fn payload(jwt: &str) -> Value {
+    let payload = jwt.split('.').nth(1).unwrap();
+    serde_json::from_slice(
+        &base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload)
+            .unwrap(),
+    )
+    .unwrap()
+}
 
-    let (claims, jwt, _) = login!(app, &email);
-
-    // Ordered by role id, `role` is the first one (like the deprecated `role` of `/user/me/`).
-    assert_eq!(claims.roles(), expected);
-    assert_eq!(claims.role(), expected[0]);
-    // The lib, which every API uses to verify JWTs, still accepts the token.
-    let lib_claims = mairie360_api_lib::jwt_manager::decode_jwt(&jwt).unwrap();
-    assert_eq!(lib_claims.role(), expected[0]);
+/// Removes every role of `user_id`.
+async fn clear_roles(raw: &PgPool, user_id: i32) {
+    sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+        .bind(user_id)
+        .execute(raw)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 #[serial]
-async fn mair_529_user_without_role_gets_empty_role_claims() {
+async fn mair_529_login_jwt_carries_the_user_role_and_no_roles_claim() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
     let (user_id, email) = create_account(&raw).await;
-    sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
-        .bind(user_id)
-        .execute(&raw)
-        .await
-        .unwrap();
+    clear_roles(&raw, user_id).await;
+    let agent = grant_new_role(&raw, user_id, "Agent").await;
 
     let (claims, jwt, _) = login!(app, &email);
 
-    assert!(claims.roles().is_empty());
+    assert_eq!(claims.role(), agent);
+    assert!(payload(&jwt).get("roles").is_none());
+    // The lib, which every API uses to verify JWTs, still accepts the token.
+    let lib_claims = mairie360_api_lib::jwt_manager::decode_jwt(&jwt).unwrap();
+    assert_eq!(lib_claims.role(), agent);
+}
+
+#[tokio::test]
+#[serial]
+async fn mair_529_user_with_several_roles_gets_the_lowest_role_id() {
+    let (state, raw) = setup().await;
+    let app = init_app!(state);
+    let (user_id, email) = create_account(&raw).await;
+    grant_new_role(&raw, user_id, "Manager").await;
+    let expected = role_names(&raw, user_id).await;
+    assert!(expected.len() >= 2);
+
+    let (claims, _, _) = login!(app, &email);
+
+    // Like the deprecated `role` of `/user/me/`.
+    assert_eq!(claims.role(), expected[0]);
+}
+
+#[tokio::test]
+#[serial]
+async fn mair_529_user_without_role_gets_an_empty_role_claim() {
+    let (state, raw) = setup().await;
+    let app = init_app!(state);
+    let (user_id, email) = create_account(&raw).await;
+    clear_roles(&raw, user_id).await;
+
+    let (claims, jwt, _) = login!(app, &email);
+
     assert_eq!(claims.role(), "");
-    // `roles` is always present, an empty array rather than a missing claim.
-    let payload = jwt.split('.').nth(1).unwrap();
-    let payload: Value = serde_json::from_slice(
-        &base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload)
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(payload["roles"], json!([]));
+    let payload = payload(&jwt);
+    assert_eq!(payload["role"], json!(""));
+    assert!(payload.get("roles").is_none());
 }
 
 #[tokio::test]
@@ -172,9 +194,10 @@ async fn mair_529_refresh_jwt_reflects_role_changes() {
     let (user_id, email) = create_account(&raw).await;
     let before = role_names(&raw, user_id).await;
     let (claims, _, refresh_token) = login!(app, &email);
-    assert_eq!(claims.roles(), before);
+    assert_eq!(claims.role(), before[0]);
 
-    // Granted after the login: only the next JWT carries it.
+    // Changed after the login: only the next JWT carries it.
+    clear_roles(&raw, user_id).await;
     let granted = grant_new_role(&raw, user_id, "Admin").await;
     let req = test::TestRequest::post()
         .uri(REFRESH_PATH)
@@ -182,25 +205,46 @@ async fn mair_529_refresh_jwt_reflects_role_changes() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    let claims = decode_session_jwt(&bearer_token(&resp)).unwrap();
+    let jwt = bearer_token(&resp);
+    let claims = decode_session_jwt(&jwt).unwrap();
 
-    let after = role_names(&raw, user_id).await;
-    assert!(after.contains(&granted) && !before.contains(&granted));
-    assert_eq!(claims.roles(), after);
-    assert_eq!(claims.role(), after[0]);
+    assert_eq!(claims.role(), granted);
+    assert!(payload(&jwt).get("roles").is_none());
 }
 
 #[tokio::test]
 #[serial]
-async fn mair_529_jwt_issued_before_the_roles_claim_still_decodes() {
+async fn mair_529_jwt_issued_before_the_role_claim_still_decodes() {
     std::env::set_var("JWT_SECRET", "session_roles_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
-    // A JWT signed by the lib (no `roles`, no `sid`), like those issued before MAIR-529.
+    // A JWT signed by the lib (empty `role`, no `sid`), like those issued before MAIR-529.
     let jwt = mairie360_api_lib::jwt_manager::generate_jwt("1", "").unwrap();
 
     let claims = decode_session_jwt(&jwt).unwrap();
 
-    assert!(claims.roles().is_empty());
     assert_eq!(claims.role(), "");
+    assert_eq!(claims.user_id(), Some(1));
+}
+
+#[tokio::test]
+#[serial]
+async fn mair_529_jwt_still_carrying_a_roles_claim_still_decodes() {
+    std::env::set_var("JWT_SECRET", "session_roles_test_secret");
+    // Signed by Core#293, which added a `roles` array next to `role`: valid until it expires.
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let jwt = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &json!({ "sub": "1", "role": "Admin", "exp": exp, "sid": uuid::Uuid::new_v4(), "roles": ["Admin", "Agent"] }),
+        &jsonwebtoken::EncodingKey::from_secret(b"session_roles_test_secret"),
+    )
+    .unwrap();
+
+    let claims = decode_session_jwt(&jwt).unwrap();
+
+    assert_eq!(claims.role(), "Admin");
     assert_eq!(claims.user_id(), Some(1));
 }

@@ -12,7 +12,7 @@ use crate::endpoints::v1::sessions::refresh::response_view::RefreshResponseView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::refresh_token;
-use crate::session_jwt::{generate_session_jwt, user_role_names};
+use crate::session_jwt::{generate_session_jwt, user_role_name};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
@@ -77,11 +77,11 @@ async fn refresh_request(
     let user_id = u64::try_from(session.user_id()).map_err(|_| RefreshError::InvalidToken)?;
     // The new JWT stays bound to the same session (`sid` claim), see `session_jwt`. The roles are
     // read again: a role granted or removed since the last JWT shows from now on (MAIR-529).
-    let roles = user_role_names(&state, user_id).await.map_err(|e| {
+    let role = user_role_name(&state, user_id).await.map_err(|e| {
         tracing::error!("Get user roles DB Error: {e}");
         RefreshError::DatabaseError
     })?;
-    let jwt = generate_session_jwt(user_id, session.id(), roles).map_err(|e| {
+    let jwt = generate_session_jwt(user_id, session.id(), role).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;

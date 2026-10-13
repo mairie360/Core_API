@@ -6,10 +6,10 @@
 //! every API still accepts these JWTs; Core itself uses `sid` to revoke the current session on
 //! logout and to reject the JWT of a revoked session (see `endpoints::session_guard`).
 //!
-//! Since MAIR-529 the JWT also carries the caller's roles, so the BFFs no longer ask
-//! `BFF_user /me` for them: `roles` holds every role name, `role` the first one (lowest role id,
-//! like the deprecated `role` of `GET /user/me/`). Both are read from the database at login and
-//! at refresh: a role change shows in the JWT at the next refresh only.
+//! Since MAIR-529 the JWT also carries the caller's role in `role`, so the BFFs no longer ask
+//! `BFF_user /me` for it: a user has one role (the lowest role id when the database holds several,
+//! like the deprecated `role` of `GET /user/me/`). It is read from the database at login and at
+//! refresh: a role change shows in the JWT at the next refresh only.
 
 use crate::database::roles::get_roles_by_id::Role;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
@@ -21,20 +21,17 @@ use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-/// Same claims as the lib's `Claims`, plus the session id and the roles.
+/// Same claims as the lib's `Claims`, plus the session id.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SessionClaims {
     sub: String,
-    /// First of `roles`, empty string when the user has none (and in JWTs issued before MAIR-529).
+    /// Name of the user's role, empty string when the user has none (and in JWTs issued before
+    /// MAIR-529).
     role: String,
     exp: usize,
     /// Id of the `sessions` row. Absent from JWTs issued before MAIR-226.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sid: Option<Uuid>,
-    /// Names of every role the user holds, ordered by role id. Empty when the user has none;
-    /// absent from JWTs issued before MAIR-529.
-    #[serde(default)]
-    roles: Vec<String>,
 }
 
 impl SessionClaims {
@@ -53,11 +50,6 @@ impl SessionClaims {
         &self.role
     }
 
-    #[must_use]
-    pub fn roles(&self) -> &[String] {
-        &self.roles
-    }
-
     /// Seconds left before the token expires (0 once expired).
     #[must_use]
     pub fn remaining_lifetime(&self) -> u64 {
@@ -68,21 +60,25 @@ impl SessionClaims {
     }
 }
 
-/// Names of the roles `user_id` holds, ordered by role id: the `roles` claim of its JWTs.
+/// Name of the role `user_id` holds, the lowest role id when the database holds several, or an
+/// empty string when it holds none: the `role` claim of its JWTs.
 ///
 /// # Errors
 ///
 /// Returns the database error when the roles cannot be read.
-pub async fn user_role_names(state: &AppState, user_id: u64) -> Result<Vec<String>, ApiLibError> {
+pub async fn user_role_name(state: &AppState, user_id: u64) -> Result<String, ApiLibError> {
     let roles: Vec<Role> = state
         .get_smart_db()
         .fetch_all(&GetRolesOfUserQueryView::new(user_id))
         .await?;
-    Ok(roles.iter().map(|role| role.name().to_string()).collect())
+    Ok(roles
+        .first()
+        .map(|role| role.name().to_string())
+        .unwrap_or_default())
 }
 
-/// Issues a JWT for `user_id`, bound to the session `session_id` and carrying `roles` (see
-/// [`user_role_names`]).
+/// Issues a JWT for `user_id`, bound to the session `session_id` and carrying `role` (see
+/// [`user_role_name`]).
 ///
 /// # Errors
 ///
@@ -90,7 +86,7 @@ pub async fn user_role_names(state: &AppState, user_id: u64) -> Result<Vec<Strin
 pub fn generate_session_jwt(
     user_id: u64,
     session_id: Uuid,
-    roles: Vec<String>,
+    role: String,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let secret = get_jwt_secret()?;
     let timeout = get_jwt_timeout()?;
@@ -100,12 +96,11 @@ pub fn generate_session_jwt(
         .map_or(0, |elapsed| elapsed.as_secs());
     let claims = SessionClaims {
         sub: user_id.to_string(),
-        role: roles.first().cloned().unwrap_or_default(),
+        role,
         exp: usize::try_from(now)
             .unwrap_or(usize::MAX)
             .saturating_add(timeout),
         sid: Some(session_id),
-        roles,
     };
     encode(
         &Header::default(),

@@ -75,7 +75,7 @@ async fn open_session(state: &web::Data<AppState>) -> (String, String) {
         .await
         .unwrap();
     (
-        generate_session_jwt(1, session_id, Vec::new()).unwrap(),
+        generate_session_jwt(1, session_id, String::new()).unwrap(),
         refresh_token,
     )
 }
