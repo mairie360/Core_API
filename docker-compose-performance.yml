@@ -179,7 +179,7 @@ services:
 
   # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
   fake-resend:
-    image: wiremock/wiremock:3.13.1
+    image: wiremock/wiremock:3.13.2
     container_name: mairie360-fake-resend
     restart: always
     command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
