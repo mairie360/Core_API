@@ -295,6 +295,19 @@ transaction the namespace is bumped on `commit()`. Changes outside Core (raw SQL
 show up after the TTL. `tests/endpoints/directory_cache.rs` covers the hits and every invalidation
 against the ACL Redis. Without a reachable Redis (most tests) the cache is bypassed.
 
+### One role per user (MAIR-564)
+
+The database keys `user_roles` by the user (Database 3.1.0, `mair-564-01`): a user holds at most
+one role. `POST /api/v1/admin/users/{userId}/roles/` **replaces** the role
+(`AddRolesQueryView`: `INSERT … ON CONFLICT (user_id) DO UPDATE … RETURNING`, no row = the role was
+already held, `409`), and its Keycloak mirror unmaps the former Core role before Core writes
+(mapped back if Core refuses). An account registered without a role holds `Guest`; the schema's
+`tr_user_roles_replace_default` lets a raw `INSERT INTO user_roles` replace that default Guest,
+any other second role is a `23505`. The responses expose the role as `role` (`/user/{id}/`,
+`/user/me/`, the directory, the admin list and record); the `roles` lists are deprecated (at most
+one entry) and kept for the BFFs until they move to `role`. The upsert needs the new key: Core
+must run on a Database image that has `mair-564-01`.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and
@@ -306,7 +319,7 @@ logging in, forcing a password change via `force_change_password`. On success it
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
-`role` (the user's role, the lowest role id when the database holds several, empty string when none).
+`role` (the user's role, one per user since MAIR-564, empty string when none).
 `session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
 so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
 `sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no

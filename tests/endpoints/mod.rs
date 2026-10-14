@@ -18,6 +18,7 @@ mod revocation_list;
 mod session_roles;
 mod sessions_logout;
 mod sessions_refresh;
+mod single_role;
 mod telemetry;
 mod transactions;
 mod user_phone;
