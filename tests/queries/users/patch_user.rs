@@ -6,7 +6,6 @@ use core_api::database::users::patch_user::PatchUserQueryView;
 use core_api::phone::{Phone, PhoneChange};
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
@@ -48,8 +47,7 @@ async fn fetch_user(pool: &SmartDatabase, user_id: u64) -> GetUserByIdQueryResul
 #[tokio::test]
 #[serial]
 async fn patch_user_first_name_only() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "first_name").await;
 
     let view = PatchUserQueryView::new(
@@ -72,8 +70,7 @@ async fn patch_user_first_name_only() {
 #[tokio::test]
 #[serial]
 async fn patch_user_last_name_only() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "last_name").await;
 
     let view = PatchUserQueryView::new(
@@ -95,8 +92,7 @@ async fn patch_user_last_name_only() {
 #[tokio::test]
 #[serial]
 async fn patch_user_email_only() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "email").await;
 
     let new_email = format!(
@@ -123,8 +119,7 @@ async fn patch_user_email_only() {
 #[tokio::test]
 #[serial]
 async fn patch_user_phone_number_only() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "phone").await;
 
     let phone = PhoneChange::Set(Phone::parse(Some("BE"), "+32 470 12 34 56").unwrap());
@@ -141,8 +136,7 @@ async fn patch_user_phone_number_only() {
 #[tokio::test]
 #[serial]
 async fn patch_user_clears_the_phone() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "clear_phone").await;
     assert_eq!(fetch_user(&pool, user_id).await.phone_country(), Some("FR"));
 
@@ -159,8 +153,7 @@ async fn patch_user_clears_the_phone() {
 #[tokio::test]
 #[serial]
 async fn patch_user_password_only() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "password").await;
 
     let view = PatchUserQueryView::new(
@@ -178,8 +171,7 @@ async fn patch_user_password_only() {
 #[tokio::test]
 #[serial]
 async fn patch_user_multiple_fields() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "multiple").await;
 
     let view = PatchUserQueryView::new(
@@ -212,8 +204,7 @@ async fn patch_user_multiple_fields() {
 #[tokio::test]
 #[serial]
 async fn patch_user_noop_when_nothing_provided() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "noop").await;
 
     let view = PatchUserQueryView::new(user_id, None, None, None, &PhoneChange::Keep, None);
@@ -229,8 +220,7 @@ async fn patch_user_noop_when_nothing_provided() {
 #[tokio::test]
 #[serial]
 async fn patch_user_bad_user_id_is_noop_free_but_harmless() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = PatchUserQueryView::new(
         999_999,

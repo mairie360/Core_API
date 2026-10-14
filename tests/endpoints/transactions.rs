@@ -1,7 +1,9 @@
 //! Writes that span several statements run in one transaction (MAIR-420): when a later statement
 //! fails, the earlier ones are rolled back.
 
-use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
+use crate::common::{
+    core_db_url, get_pool, get_raw_pool, users::create_user, users::unique_marker,
+};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
@@ -43,8 +45,8 @@ fn admin_bearer() -> (&'static str, String) {
 async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let first = create_user(&pool, "First", &unique_marker("tx")).await;
     let second = create_user(&pool, "Second", &unique_marker("tx")).await;
     (state, get_raw_pool(host.clone()).await, first, second)

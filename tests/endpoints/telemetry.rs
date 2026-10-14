@@ -1,6 +1,7 @@
 //! OpenTelemetry tracing (MAIR-131): each request yields a root span carrying the route and the
 //! status, continues an incoming `traceparent`, and carries the SQL it ran as span events.
 
+use crate::common::core_db_url;
 use actix_web::{test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
@@ -8,9 +9,7 @@ use core_api::endpoints::{config, public_config};
 use core_api::telemetry::trace_layer;
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use opentelemetry::global;
 use opentelemetry::Value;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -82,8 +81,7 @@ async fn a_request_is_exported_as_a_span_with_its_sql() {
         tracing_subscriber::registry().with(trace_layer(&provider)),
     );
 
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     exporter.reset();
@@ -148,8 +146,7 @@ async fn a_refused_request_still_gets_its_span() {
         tracing_subscriber::registry().with(trace_layer(&provider)),
     );
 
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     exporter.reset();
 

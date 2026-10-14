@@ -23,7 +23,7 @@ fn find(users: &[SsoExportUser], id: i32) -> &SsoExportUser {
 #[serial]
 async fn test_sso_export_lists_every_account_in_id_order() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
 
     let users = export(&pool).await;
@@ -53,7 +53,7 @@ async fn test_sso_export_lists_every_account_in_id_order() {
 #[serial]
 async fn test_sso_export_carries_roles_and_identities() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("export");
     let user_id = create_user(&pool, "Exported", &marker).await;
@@ -92,7 +92,7 @@ async fn test_sso_export_carries_roles_and_identities() {
 #[serial]
 async fn test_sso_export_flags_sso_only_accounts() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("ssoonly");
     let user_id = create_user(&pool, "SsoOnly", &marker).await;

@@ -2,7 +2,8 @@
 
 use crate::common::fake_resend::{self, FailingGuard, TEST_PUBLIC_URL};
 use crate::common::{
-    get_pool, get_raw_pool, users::archive_user, users::create_user, users::unique_marker,
+    core_db_url, get_pool, get_raw_pool, users::archive_user, users::create_user,
+    users::unique_marker,
 };
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
@@ -49,10 +50,10 @@ macro_rules! forgot {
 async fn known_and_unknown_emails_get_the_same_answer() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
 
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("forgot");
     let user_id = create_user(&pool, "Known", &marker).await;
     let known_email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
@@ -92,7 +93,7 @@ async fn known_and_unknown_emails_get_the_same_answer() {
 }
 
 async fn known_email(host: &str, marker: &str) -> (String, i32) {
-    let pool = get_pool(host.to_string()).await;
+    let pool = get_pool().await;
     let user_id = create_user(&pool, "Jeanne", marker).await;
     let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
         .bind(user_id)
@@ -109,7 +110,7 @@ async fn known_email(host: &str, marker: &str) -> (String, i32) {
 async fn the_reset_email_is_the_resend_template_from_no_reply() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
     let (email, _) = known_email(host, &unique_marker("template")).await;
 
@@ -142,7 +143,7 @@ async fn the_reset_email_is_the_resend_template_from_no_reply() {
 async fn an_archived_account_gets_no_email() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
     let (email, user_id) = known_email(host, &unique_marker("archived")).await;
     archive_user(&get_raw_pool(host.clone()).await, user_id).await;
@@ -160,7 +161,7 @@ async fn an_archived_account_gets_no_email() {
 async fn an_unsent_email_answers_500_and_can_be_requested_again() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
     let (email, _) = known_email(host, &unique_marker("unsent")).await;
 
@@ -187,7 +188,7 @@ async fn an_unsent_email_answers_500_and_can_be_requested_again() {
 async fn without_a_mailer_a_known_address_answers_500() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis_config.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = test::init_service(
         App::new().app_data(state.clone()).service(
             web::scope("/api")

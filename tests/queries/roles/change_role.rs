@@ -7,7 +7,6 @@ use core_api::database::roles::get_roles::{GetRolesQueryView, RoleQueryResult};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use rand::random;
 use serial_test::serial;
 
@@ -28,8 +27,7 @@ async fn change_role(
 #[tokio::test]
 #[serial]
 async fn test_change_role_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let name = "test_change_role_success".to_string() + random::<u64>().to_string().as_str();
     let description =
@@ -91,8 +89,7 @@ async fn test_change_role_success() {
 #[serial]
 async fn test_change_role_bad_id() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = ChangeRoleQueryView::new(999, "Admin", "Administrateur", Some(false));
     let result = change_role(&pool, view).await;

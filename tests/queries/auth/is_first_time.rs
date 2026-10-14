@@ -3,14 +3,13 @@ use core_api::database::auth::is_first_time::IsFirstTimeQueryView;
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, seed_password_hash};
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn is_first_time_reads_the_first_connection_flag() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let email = format!("is_first_time_{}@example.com", uuid::Uuid::new_v4());
     let _: bool = pool
@@ -52,8 +51,7 @@ async fn is_first_time_reads_the_first_connection_flag() {
 #[tokio::test]
 #[serial]
 async fn is_first_time_unknown_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = IsFirstTimeQueryView::new(999_999);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;

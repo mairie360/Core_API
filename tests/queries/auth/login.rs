@@ -2,15 +2,13 @@ use crate::common::get_pool;
 use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryView};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_login_user_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let result: LoginUserQueryResultView = pool
         .fetch_one(&LoginUserQueryView::new(
             "alice@example.com".to_string(),
@@ -28,8 +26,7 @@ async fn test_login_user_success() {
 #[tokio::test]
 #[serial]
 async fn test_login_user_wrong_password() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: Result<LoginUserQueryResultView, _> = pool
         .fetch_one(&LoginUserQueryView::new(
@@ -44,8 +41,7 @@ async fn test_login_user_wrong_password() {
 #[tokio::test]
 #[serial]
 async fn test_login_user_unknown_email() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: Result<LoginUserQueryResultView, _> = pool
         .fetch_one(&LoginUserQueryView::new(

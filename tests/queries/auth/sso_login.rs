@@ -11,8 +11,7 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn test_sso_login_finds_active_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: SsoLoginUserQueryResultView = pool
         .fetch_one(&SsoLoginUserQueryView::new("alice@example.com"))
@@ -28,8 +27,7 @@ async fn test_sso_login_finds_active_user() {
 #[tokio::test]
 #[serial]
 async fn test_sso_login_ignores_email_case() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: SsoLoginUserQueryResultView = pool
         .fetch_one(&SsoLoginUserQueryView::new("Alice@Example.COM"))
@@ -47,7 +45,7 @@ async fn test_sso_login_ignores_email_case() {
 #[serial]
 async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("ssocase");
     let email = format!("sso.{marker}@example.com");
@@ -88,8 +86,7 @@ async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
 #[tokio::test]
 #[serial]
 async fn test_sso_login_reports_archived_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: SsoLoginUserQueryResultView = pool
         .fetch_one(&SsoLoginUserQueryView::new("bob@example.com"))
@@ -105,8 +102,7 @@ async fn test_sso_login_reports_archived_user() {
 #[tokio::test]
 #[serial]
 async fn test_sso_login_unknown_email() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: Result<SsoLoginUserQueryResultView, _> = pool
         .fetch_one(&SsoLoginUserQueryView::new("stranger@danger.com"))

@@ -1,12 +1,11 @@
 //! Phone numbers (MAIR-480): a country and a number, validated against the numbering plan of
 //! the country, cleared with `null` or `""`, read back in E.164.
 
-use crate::common::{get_pool, users::create_user, users::unique_marker};
+use crate::common::{core_db_url, get_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -61,9 +60,8 @@ fn bearer(user_id: i32, role: &str) -> (&'static str, String) {
 #[serial]
 async fn profile_phone_is_set_read_in_e164_and_cleared() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let app = init_app!(state);
     let user = create_user(&pool, "Phone", &unique_marker("phone")).await;
     let auth = bearer(user, "user");
@@ -123,9 +121,8 @@ async fn profile_phone_is_set_read_in_e164_and_cleared() {
 #[serial]
 async fn invalid_profile_phones_answer_400_and_change_nothing() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let app = init_app!(state);
     let user = create_user(&pool, "Phone", &unique_marker("phone_400")).await;
     let auth = bearer(user, "user");
@@ -186,8 +183,7 @@ async fn invalid_profile_phones_answer_400_and_change_nothing() {
 #[serial]
 async fn admin_creates_and_clears_a_phone() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let admin = bearer(1, "admin");
     let email = format!("{}@example.com", unique_marker("admin_phone"));

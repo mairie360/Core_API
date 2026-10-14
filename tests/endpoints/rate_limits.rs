@@ -5,14 +5,13 @@
 //! limits apply. `login_is_rate_limited_per_email` (in `auth_hardening`) covers the per-account
 //! login budget.
 
+use crate::common::core_db_url;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
-use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
 use std::net::SocketAddr;
@@ -61,8 +60,7 @@ macro_rules! init_app {
 
 async fn setup() -> web::Data<AppState> {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await)
+    web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await)
 }
 
 fn unique_email() -> String {

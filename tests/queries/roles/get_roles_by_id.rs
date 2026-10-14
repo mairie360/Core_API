@@ -1,5 +1,4 @@
 use core_api::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 use crate::common::{get_pool, roles::setup_tests};
@@ -8,8 +7,7 @@ use crate::common::{get_pool, roles::setup_tests};
 #[serial]
 async fn test_get_roles_by_id() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetRolesByIdQueryView::new(vec![1, 2]);
     println!("{view}");
@@ -35,8 +33,7 @@ async fn test_get_roles_by_id() {
 #[serial]
 async fn test_get_roles_by_id_bad_id() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let roles: Result<Vec<Role>, _> = pool
         .fetch_all(&GetRolesByIdQueryView::new(vec![998, 999]))
