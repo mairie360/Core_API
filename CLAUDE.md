@@ -384,3 +384,19 @@ PRs.
 ## Pull request reviewers
 
 Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
+
+## Agent dev loop
+
+`./agent_dev.sh` lets an agent run and observe the dev stack from a shell, without attaching to a terminal. `compose.agent.yml` is the overlay it adds (Postgres on `127.0.0.1:5432`, Redis on `127.0.0.1:6379`, bounded logs).
+
+```bash
+./agent_dev.sh up                 # build + start detached, wait for healthy, start `docker compose watch` in the background
+./agent_dev.sh wait               # after an edit: block until http://localhost:3000/ready answers again (prints the app logs on timeout)
+./agent_dev.sh logs core 100        # last 100 log lines (compile errors show up here)
+./agent_dev.sh sql "SELECT id, email FROM users LIMIT 5"
+./agent_dev.sh redis KEYS '*'
+./agent_dev.sh http GET /path     # authenticated call (admin JWT, sub=1, signed with the dev secret)
+./agent_dev.sh status | restart | down [-v]
+```
+
+The loop is: edit, `wait`, `http`/`sql` to check the behaviour, `logs` when it fails. The watcher state lives in `.agent/` (gitignored). The dev secret is the well-known `b"secret"` of docker-compose.yml; set `JWT_SECRET` to sign for another stack. Mail sent by the API is readable at http://localhost:8025 (mailpit).
