@@ -14,4 +14,3 @@ pub mod redis_keys;
 pub mod refresh_token;
 pub mod session_jwt;
 pub mod session_revocation;
-pub mod telemetry;

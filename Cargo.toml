@@ -21,17 +21,11 @@ ipnet = "2.12"
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
 # Only `lettre::Address`, to validate e-mail addresses (the e-mails themselves go through Resend).
 lettre = { version = "0.11", default-features = false }
-mairie360_api_lib = "3.2.0"
+# Logs and OpenTelemetry traces (MAIR-503): `logging::telemetry` and its re-exports.
+mairie360_api_lib = { version = "3.3.0", features = ["otel"] }
 percent-encoding = "2.3"
 # Phone numbers validated against the numbering plan of their country (MAIR-480).
 phonenumber = "0.3.10"
-# OpenTelemetry (MAIR-131). `tracing-actix-web` only supports OpenTelemetry up to 0.32 and
-# `tracing-opentelemetry` 0.33 is the release paired with it: bump all of them together.
-opentelemetry = "0.32"
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "trace", "reqwest-blocking-client", "reqwest-rustls"] }
-opentelemetry_sdk = "0.32"
-tracing-actix-web = { version = "0.7.25", features = ["opentelemetry_0_32"] }
-tracing-opentelemetry = "0.33"
 rand = "0.10"
 reqwest = { version = "0.13.4", features = ["json", "form"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -43,15 +37,12 @@ sqlx = { version = "0.9.0", default-features = false }
 tokio = { version = "1.50.1", features = ["full"] }
 tokio-postgres = "0.7.17"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 utoipa = { version = "6", features = ["actix_extras", "yaml"] }
 utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
-mairie360_api_lib = { version = "3.2.0", features = ["test-utils"] }
-# In-memory span exporter to assert on the exported spans (MAIR-131).
-opentelemetry_sdk = { version = "0.32", features = ["testing"] }
+mairie360_api_lib = { version = "3.3.0", features = ["test-utils"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
 redis = "1.0.3"
 # Redis enforcing the chart's ACL in tests (same version as mairie360_api_lib's test_setup).
@@ -60,6 +51,8 @@ serial_test = "4.0.0"
 url = "2.5"
 once_cell = "1.21.3"
 sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "chrono", "uuid"] }
+# Subscriber of the telemetry tests (registry + the lib's trace layer).
+tracing-subscriber = "0.3.23"
 
 [profile.dev]
 opt-level = 0
