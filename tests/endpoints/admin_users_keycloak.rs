@@ -4,7 +4,7 @@
 
 use crate::common::keycloak_mock::{KeycloakMock, CLIENT_ID, CLIENT_SECRET};
 use crate::common::users::{link_identity, unique_marker, user_identities};
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::{core_db_url, get_pool, get_raw_pool};
 use actix_web::http::Method;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
@@ -42,8 +42,8 @@ async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
     Env {
-        state: web::Data::new(AppState::new(String::new(), host.clone()).await),
-        pool: get_pool(host.clone()).await,
+        state: web::Data::new(AppState::new(String::new(), core_db_url().await).await),
+        pool: get_pool().await,
         raw: get_raw_pool(host.clone()).await,
     }
 }

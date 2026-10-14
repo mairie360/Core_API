@@ -1,7 +1,7 @@
 //! MAIR-264: every revocation path publishes `revoked:<sid>` to Redis with a TTL, so that the
 //! other APIs refuse the JWTs of the session too.
 
-use crate::common::{get_pool, users::create_user, users::unique_marker};
+use crate::common::{core_db_url, get_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::database::sessions::get_active_session_ids::GetActiveSessionIdsQueryView;
@@ -68,7 +68,7 @@ async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
     let (node, redis) = start_redis_container().await;
-    let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
     Env {
         _redis: Box::new(node),
         redis,
@@ -115,8 +115,8 @@ fn assert_not_revoked(config: &RedisTestConfig, session_id: Uuid) {
     assert!(!exists, "session {session_id} should not be revoked");
 }
 
-async fn fresh_user(host: &str, name: &str) -> u64 {
-    let pool = get_pool(host.to_string()).await;
+async fn fresh_user(name: &str) -> u64 {
+    let pool = get_pool().await;
     u64::try_from(create_user(&pool, name, &unique_marker("revocation")).await).unwrap()
 }
 
@@ -135,7 +135,7 @@ fn key_is_the_one_the_lib_reads() {
 async fn logout_publishes_the_session() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "Logout").await;
+    let user = fresh_user("Logout").await;
     let (sid, jwt, _) = open_session(&env.state, user).await;
 
     let req = test::TestRequest::post()
@@ -151,7 +151,7 @@ async fn logout_publishes_the_session() {
 async fn sessions_revoke_publishes_the_session() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "Revoke").await;
+    let user = fresh_user("Revoke").await;
     let (current, jwt, _) = open_session(&env.state, user).await;
     let (other, _, other_refresh) = open_session(&env.state, user).await;
 
@@ -170,7 +170,7 @@ async fn sessions_revoke_publishes_the_session() {
 async fn admin_password_reset_publishes_every_session() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "AdminReset").await;
+    let user = fresh_user("AdminReset").await;
     let (first, _, _) = open_session(&env.state, user).await;
     let (second, _, _) = open_session(&env.state, user).await;
     let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
@@ -203,7 +203,7 @@ async fn admin_password_reset_publishes_every_session() {
 async fn forgot_password_reset_publishes_the_previous_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "ForgotReset").await;
+    let user = fresh_user("ForgotReset").await;
     let (previous, _, _) = open_session(&env.state, user).await;
     let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
         .bind(i32::try_from(user).unwrap())
@@ -239,7 +239,7 @@ async fn forgot_password_reset_publishes_the_previous_sessions() {
 async fn force_change_password_publishes_the_previous_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "ForceChange").await;
+    let user = fresh_user("ForceChange").await;
     let (previous, _, _) = open_session(&env.state, user).await;
     let token = Uuid::new_v4().to_string();
     env.state
@@ -267,7 +267,7 @@ async fn force_change_password_publishes_the_previous_sessions() {
 #[serial]
 async fn account_sessions_are_listed_and_published() {
     let env = env().await;
-    let user = fresh_user(&env.host, "Archive").await;
+    let user = fresh_user("Archive").await;
     let (first, _, _) = open_session(&env.state, user).await;
     let (second, _, _) = open_session(&env.state, user).await;
 

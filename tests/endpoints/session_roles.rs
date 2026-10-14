@@ -1,6 +1,7 @@
 //! The JWTs issued at login and at refresh carry the caller's role in `role` (MAIR-529): the BFFs
 //! read it from the token instead of calling `BFF_user /me`. There is no `roles` claim.
 
+use crate::common::core_db_url;
 use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
@@ -38,7 +39,7 @@ async fn setup() -> (web::Data<AppState>, PgPool) {
     std::env::set_var("JWT_SECRET", "session_roles_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     (state, get_raw_pool(host.clone()).await)
 }
 

@@ -1,6 +1,8 @@
 //! Database errors are answered by kind, not with one status per handler (MAIR-421).
 
-use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
+use crate::common::{
+    core_db_url, get_pool, get_raw_pool, users::create_user, users::unique_marker,
+};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
@@ -43,8 +45,8 @@ fn bearer(user_id: i32) -> (&'static str, String) {
 async fn constraint_violations_answer_404_or_409() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let app = init_app!(state);
     let owner = create_user(&pool, "Owner", &unique_marker("dberr")).await;

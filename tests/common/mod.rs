@@ -1,5 +1,5 @@
 mod get_pool; // Accès à ton pool
-pub use get_pool::get_pool;
+pub use get_pool::{core_db_url, get_pool};
 pub mod fake_resend;
 mod get_raw_pool;
 pub mod keycloak_mock;

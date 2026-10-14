@@ -1,12 +1,12 @@
 //! MAIR-221: only an administrator or the owner of a resource instance may add, remove or list
 //! its accesses.
 
-use crate::common::{get_pool, users::create_user, users::unique_marker};
+use crate::common::{core_db_url, get_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID, GROUP_OWNER_ID};
+use mairie360_api_lib::test_setup::queries_setup::{ADMIN_ID, GROUP_OWNER_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -68,9 +68,8 @@ fn owner() -> i32 {
 /// accesses, and an unrelated caller.
 async fn setup() -> (web::Data<AppState>, i32, i32) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let target = create_user(&pool, "Target", &unique_marker("acl")).await;
     let other = create_user(&pool, "Other", &unique_marker("acl")).await;
     (state, target, other)

@@ -1,15 +1,13 @@
 use crate::common::get_pool;
 use crate::common::roles::setup_tests;
 use core_api::database::users::get_roles::GetUserRolesQueryView;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_get_role_success() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetUserRolesQueryView::new(1);
     println!("{view}");
@@ -29,8 +27,7 @@ async fn test_get_role_success() {
 #[serial]
 async fn test_get_role_bad_user_id() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetUserRolesQueryView::new(999);
 

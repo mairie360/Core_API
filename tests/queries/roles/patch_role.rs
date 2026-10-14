@@ -6,7 +6,6 @@ use core_api::database::roles::{
     get_roles::{GetRolesQueryView, RoleQueryResult},
     patch_role::PatchRoleQueryView,
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 async fn patch_role(
@@ -22,8 +21,7 @@ async fn patch_role(
 #[tokio::test]
 #[serial]
 async fn test_patch_role_name() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = PatchRoleQueryView::new(
         *PATCH_ID.get().unwrap(),
@@ -54,8 +52,7 @@ async fn test_patch_role_name() {
 #[tokio::test]
 #[serial]
 async fn test_patch_role_description() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = PatchRoleQueryView::new(
         *PATCH_ID.get().unwrap(),
@@ -79,8 +76,7 @@ async fn test_patch_role_description() {
 #[tokio::test]
 #[serial]
 async fn test_patch_role_can_be_deleted_to_false() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = PatchRoleQueryView::new(*PATCH_ID.get().unwrap(), None, None, Some(Some(false)));
     let _guard = PATCH_MUTEX.get().unwrap().lock().await;

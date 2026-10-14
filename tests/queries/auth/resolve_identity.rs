@@ -23,8 +23,7 @@ async fn resolve(
 #[tokio::test]
 #[serial]
 async fn test_resolve_identity_returns_the_linked_active_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("resolve");
     let user_id = create_user(&pool, "Resolved", &marker).await;
     let subject = format!("sub-{marker}");
@@ -39,8 +38,7 @@ async fn test_resolve_identity_returns_the_linked_active_user() {
 #[tokio::test]
 #[serial]
 async fn test_resolve_identity_matches_provider_and_subject() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("resolvematch");
     let user_id = create_user(&pool, "Resolved", &marker).await;
     let subject = format!("sub-{marker}");
@@ -57,7 +55,7 @@ async fn test_resolve_identity_matches_provider_and_subject() {
 #[serial]
 async fn test_resolve_identity_refuses_an_archived_user() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("resolvearch");
     let user_id = create_user(&pool, "Archived", &marker).await;
