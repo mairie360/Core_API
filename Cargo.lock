@@ -786,9 +786,6 @@ dependencies = [
  "lettre",
  "mairie360_api_lib",
  "once_cell",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
  "percent-encoding",
  "phonenumber",
  "rand 0.10.3",
@@ -803,8 +800,6 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tracing",
- "tracing-actix-web",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
  "utoipa",
@@ -1280,7 +1275,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2430,9 +2425,9 @@ dependencies = [
 
 [[package]]
 name = "mairie360_api_lib"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cbe87d386200b1fc370f12901e6d9b3a9b43ab1f762df8df98c297dc50750f8"
+checksum = "4c7a1ab9281a5ef01c0d51380852bc0267c3ac3a29456594a76f300fbc1904ab"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2444,6 +2439,9 @@ dependencies = [
  "governor",
  "jsonwebtoken",
  "libc",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
  "percent-encoding",
  "redis",
  "regex",
@@ -2458,6 +2456,8 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tracing",
+ "tracing-actix-web",
+ "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -3288,7 +3288,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3654,7 +3654,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3712,7 +3712,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4444,7 +4444,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5202,7 +5202,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
