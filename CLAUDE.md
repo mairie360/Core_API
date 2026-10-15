@@ -397,3 +397,11 @@ PRs.
 ## Pull request reviewers
 
 Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
+
+## Postgres pool settings (MAIR-565)
+
+Since `mairie360_api_lib` 3.4.0, `Database` reads three optional env vars through `DbPoolConfig::from_env`:
+`DB_POOL_MIN_CONNECTIONS` (default 1, sqlx's was 0: the API keeps one connection open, so the first request after a
+pause no longer reconnects), `DB_POOL_MAX_CONNECTIONS` (default 10) and `DB_POOL_IDLE_TIMEOUT_SECS` (default 600). An
+invalid value falls back to its default with a `warn!`. Per-instance values are set by the `Deploiment` chart
+(`APIs.dbPool`); the compose stacks set none and use the defaults.
