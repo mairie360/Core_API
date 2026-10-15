@@ -92,7 +92,7 @@ impl ApiRequestDto for ListDirectoryUsersQueryView {
          ), page AS ( \
             SELECT * FROM matched ORDER BY last_name, first_name, id LIMIT $4 \
          ) \
-         SELECT to_jsonb(t) FROM ( \
+         SELECT to_jsonb(t) || jsonb_build_object('role', COALESCE(t.roles ->> 0, '')) FROM ( \
             SELECT p.id, p.first_name, p.last_name, p.email, \
                 COALESCE( \
                     (SELECT jsonb_agg(DISTINCT r.name) FROM user_roles ur \
@@ -119,7 +119,7 @@ impl Display for ListDirectoryUsersQueryView {
     }
 }
 
-/// Directory entry of an active user: identity, roles and groups.
+/// Directory entry of an active user: identity, role and groups.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct DirectoryUser {
     /// Id of the user, reusable in `GET /api/v1/user/{id}/`.
@@ -134,9 +134,14 @@ pub struct DirectoryUser {
     /// E-mail address, unique on the platform.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
-    /// Names of the roles held by the user. An account created without a role gets `Guest` by
-    /// default. Empty if the user holds no role (never `null`).
-    #[schema(example = json!(["agent"]))]
+    /// Name of the user's role: a user holds one role (MAIR-564), an account created without one
+    /// gets `Guest`. Empty string if the user holds none (never `null`).
+    #[schema(example = "agent", required = true)]
+    #[serde(default)]
+    pub role: String,
+    /// Deprecated: `role` as a list, kept for the clients written when a user could hold several
+    /// roles. At most one entry, empty if the user holds none (never `null`). Read `role` instead.
+    #[schema(example = json!(["agent"]), deprecated)]
     pub roles: Vec<String>,
     /// Ids of the groups the user is a member of. Empty if they belong to none (never `null`).
     #[schema(example = json!([3, 7]))]
