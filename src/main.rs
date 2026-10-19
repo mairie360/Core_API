@@ -11,13 +11,12 @@ use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
-use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
+use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
 use mairie360_api_lib::state::AppState;
 use std::time::{Duration, Instant};
-use tracing_actix_web::TracingLogger;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -53,8 +52,10 @@ async fn wait_for_postgres(state: &AppState) -> std::io::Result<()> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Exports the traces when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (MAIR-131); flushed on drop.
-    let _telemetry = telemetry::init();
+    // Logs on stdout in the format shared by every API (`RUST_LOG`, default `info`;
+    // `LOG_FORMAT=json` for JSON lines), plus the trace export when `OTEL_EXPORTER_OTLP_ENDPOINT`
+    // is set (MAIR-131, MAIR-503); flushed on drop.
+    let _telemetry = init_telemetry("core-api");
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
     let db_password = get_critical_env_var("DB_PASSWORD");

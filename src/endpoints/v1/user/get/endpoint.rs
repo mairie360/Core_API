@@ -67,8 +67,9 @@ async fn trigger_list_directory_users(
     get,
     path = "",
     summary = "Search the user directory",
-    description = "Returns the non-archived users, with their roles and the ids of the groups \
-                   they belong to. Feeds the user pickers of the other modules (task \
+    description = "Returns the non-archived users, with their role and the ids of the groups \
+                   they belong to. A user holds one role (MAIR-564): read `role`; `roles` is \
+                   deprecated, it holds at most that role. Feeds the user pickers of the other modules (task \
                    assignment, event invitation, adding someone to a conversation).\n\n\
                    The filters add up: a user must match **every** filter given. Without any \
                    filter, the first 1000 non-archived users are returned.\n\n\
@@ -96,6 +97,7 @@ async fn trigger_list_directory_users(
                         "first_name": "Jean",
                         "last_name": "Dupont",
                         "email": "jean.dupont@mairie360.fr",
+                        "role": "agent",
                         "roles": ["agent"],
                         "group_ids": [3, 7]
                     },
@@ -104,7 +106,8 @@ async fn trigger_list_directory_users(
                         "first_name": "Amina",
                         "last_name": "Bensaïd",
                         "email": "amina.bensaid@mairie360.fr",
-                        "roles": ["admin", "agent"],
+                        "role": "admin",
+                        "roles": ["admin"],
                         "group_ids": []
                     }
                 ]

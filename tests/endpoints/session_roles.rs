@@ -157,18 +157,18 @@ async fn mair_529_login_jwt_carries_the_user_role_and_no_roles_claim() {
 
 #[tokio::test]
 #[serial]
-async fn mair_529_user_with_several_roles_gets_the_lowest_role_id() {
+async fn mair_564_role_granted_after_the_default_guest_is_the_jwt_role() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
+    // Created without a role: the schema gives it Guest, which the grant replaces.
     let (user_id, email) = create_account(&raw).await;
-    grant_new_role(&raw, user_id, "Manager").await;
-    let expected = role_names(&raw, user_id).await;
-    assert!(expected.len() >= 2);
+    let manager = grant_new_role(&raw, user_id, "Manager").await;
+    assert_eq!(role_names(&raw, user_id).await, vec![manager.clone()]);
 
     let (claims, _, _) = login!(app, &email);
 
-    // Like the deprecated `role` of `/user/me/`.
-    assert_eq!(claims.role(), expected[0]);
+    // Like `role` of `/user/me/`.
+    assert_eq!(claims.role(), manager);
 }
 
 #[tokio::test]

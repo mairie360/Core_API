@@ -44,7 +44,7 @@ x-service: &service-template
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-90c22bb
+    image: ghcr.io/mairie360/database:dev-ec4f539
     restart: always
     container_name: mairie360-db-core-api
     environment:
@@ -64,7 +64,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-90c22bb
+    image: ghcr.io/mairie360/liquibase-migrations:dev-ec4f539
     container_name: mairie360-liquibase-core-api
     depends_on:
       postgres:
@@ -143,7 +143,9 @@ services:
       RESEND_BASE_URL: ${RESEND_BASE_URL:-http://fake-resend:8080}
       EMAIL_DOMAIN: ${EMAIL_DOMAIN:-mairie360.local}
       EMAIL_SENDER_NAME: "Mairie 360 (dev)"
-      # Traces OpenTelemetry (MAIR-131), off unless an OTLP/HTTP endpoint is set, e.g. a local
+      # Logs: coloured text by default, `LOG_FORMAT: json` for one JSON object per line (MAIR-503).
+      # LOG_FORMAT: json
+      # OpenTelemetry traces (MAIR-131), off unless an OTLP/HTTP endpoint is set, e.g. a local
       # collector listening on the host: OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
       # OTEL_SERVICE_NAME: core-api
       # Keycloak SSO (POST /api/v1/auth/keycloak), disabled while these are empty

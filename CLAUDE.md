@@ -259,8 +259,8 @@ logs it through `tracing` and returns its `DbFailure`: `Conflict` (unique constr
 or foreign key → `404`), `Invalid` (SQLSTATE `22xxx` / `23xxx` → `400`), `Unavailable` (pool down → `503`),
 `Internal` (anything else → `500`). Map the kinds the endpoint documents, answer the others with its generic `500`,
 and never send the Postgres message to the client. Logs go through `tracing` (`tracing::error!` / `warn!`, no
-`eprintln!` outside `src/bin/`): `telemetry::init()` always installs the stdout layer (filtered by `RUST_LOG`,
-default `info`), with the OTLP export on top when it is enabled.
+`eprintln!` outside `src/bin/`): the lib's `init_telemetry("core-api")` always installs the stdout layer
+(filtered by `RUST_LOG`, default `info`), with the OTLP export on top when it is enabled.
 
 ### Phone numbers (MAIR-480)
 
@@ -301,6 +301,19 @@ transaction the namespace is bumped on `commit()`. Changes outside Core (raw SQL
 show up after the TTL. `tests/endpoints/directory_cache.rs` covers the hits and every invalidation
 against the ACL Redis. Without a reachable Redis (most tests) the cache is bypassed.
 
+### One role per user (MAIR-564)
+
+The database keys `user_roles` by the user (Database 3.1.0, `mair-564-01`): a user holds at most
+one role. `POST /api/v1/admin/users/{userId}/roles/` **replaces** the role
+(`AddRolesQueryView`: `INSERT … ON CONFLICT (user_id) DO UPDATE … RETURNING`, no row = the role was
+already held, `409`), and its Keycloak mirror unmaps the former Core role before Core writes
+(mapped back if Core refuses). An account registered without a role holds `Guest`; the schema's
+`tr_user_roles_replace_default` lets a raw `INSERT INTO user_roles` replace that default Guest,
+any other second role is a `23505`. The responses expose the role as `role` (`/user/{id}/`,
+`/user/me/`, the directory, the admin list and record); the `roles` lists are deprecated (at most
+one entry) and kept for the BFFs until they move to `role`. The upsert needs the new key: Core
+must run on a Database image that has `mair-564-01`.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and
@@ -312,7 +325,7 @@ logging in, forcing a password change via `force_change_password`. On success it
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
-`role` (the user's role, the lowest role id when the database holds several, empty string when none).
+`role` (the user's role, one per user since MAIR-564, empty string when none).
 `session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
 so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
 `sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no
@@ -341,32 +354,42 @@ against the `ghcr.io/mairie360/database` image; its source is `../../Devops/Data
 
 - `API.md` — informal endpoint list (partial/stale in places, e.g. missing rows).
 
-### Observability (MAIR-131)
+### Logs and observability (MAIR-131, MAIR-503)
 
-`src/telemetry.rs` exports traces over OTLP/HTTP (protobuf), opt-in and driven by the standard
-`OTEL_*` variables: nothing changes unless `OTEL_EXPORTER_OTLP_ENDPOINT` (or
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, and `OTEL_SDK_DISABLED=true` forces it off. The
-endpoint is an agent that relays to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
-`http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
-`OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one. `RUST_LOG` (default
-`info`) filters the stdout logs, always on since MAIR-421. A failure to build the exporter is
-printed and never stops the API.
+Logs and traces come from `mairie360_api_lib::logging::telemetry` (feature `otel`), shared by every
+API since MAIR-503 (Core hosted the original POC of MAIR-131 in `src/telemetry.rs`, now removed):
+`main.rs` only calls `init_telemetry("core-api")` and keeps the guard. Read the lib for the details.
 
-- `main.rs` wraps the app in `tracing_actix_web::TracingLogger` (outermost, so requests refused by
-  the JWT / session guards get a span too; it replaces `middleware::Logger`). Root spans are named
+- Logs on stdout in the format of every API: coloured text (`RUST_LOG`, default `info`), one JSON
+  object per line with `LOG_FORMAT=json`. They are always on (MAIR-421): the handlers report their
+  database errors through `tracing`, export or not. The request root span is hidden from them (it
+  holds the client address and the query string, MAIR-290).
+- Traces over OTLP/HTTP (protobuf), opt-in: nothing is exported unless
+  `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set,
+  `OTEL_SDK_DISABLED=true` forces it off, a failing exporter is logged and never stops the API. The
+  endpoint is an agent relaying to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
+  `http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
+  `OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one.
+- `main.rs` wraps the app in the lib's `TracingLogger` (outermost, so requests refused by the JWT /
+  session guards get a span too; there is no `middleware::Logger`). Root spans are named
   `<METHOD> <route pattern>`, carry `http.*` attributes and continue an incoming `traceparent`.
-  `http.target` includes the query string (directory search terms): do not put secrets in query
-  strings.
+- No personal data leaves in a span: the lib's `Redact` span processor drops `http.client_ip` and
+  the query string of `http.target` (directory search terms) before the export. Build test
+  providers with `telemetry::tracer_provider(processor, "core-api")`, never
+  `SdkTracerProvider::builder()`, so the redaction always applies.
 - The SQL of `mairie360_api_lib` (sqlx) appears as span **events** (`db.statement` with `$n`
   placeholders, never the bound values, plus `elapsed` and the row counts), not as child spans:
   sqlx reports statements as `tracing` events of the `sqlx::query` target. Real `db` spans need a
   change in `API_lib`.
-- The `opentelemetry*`, `opentelemetry-otlp`, `opentelemetry_sdk`, `tracing-opentelemetry` and
-  `tracing-actix-web` versions are coupled (`tracing-actix-web` 0.7 supports OpenTelemetry up to
-  0.32, `tracing-opentelemetry` 0.33): bump them together, never one alone.
+- Never add `opentelemetry*`, `tracing-opentelemetry` or `tracing-actix-web` to `Cargo.toml`: use
+  the lib's re-exports (`logging::telemetry::{opentelemetry, opentelemetry_sdk, TracingLogger}`),
+  their versions are coupled and bumped in the lib. `tracing-subscriber` is only a dev-dependency
+  (the telemetry tests build their own registry).
 - CPU/RAM of the pod are not app metrics: they come from the cluster agent, not from this crate.
-- `tests/endpoints/telemetry.rs` asserts the span, the continued trace id and the SQL events
-  against an in-memory exporter (Docker needed like the other integration tests).
+- `tests/endpoints/telemetry.rs` asserts, against an in-memory exporter, the span of a real route
+  (status, route, continued trace id, SQL events, neither client address nor query string) and of a
+  `401` (Docker needed like the other integration tests); the redaction of logs and spans and
+  `init_telemetry` are tested in the lib.
 
 ## CI
 
@@ -380,3 +403,11 @@ PRs.
 ## Pull request reviewers
 
 Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
+
+## Postgres pool settings (MAIR-565)
+
+Since `mairie360_api_lib` 3.4.0, `Database` reads three optional env vars through `DbPoolConfig::from_env`:
+`DB_POOL_MIN_CONNECTIONS` (default 1, sqlx's was 0: the API keeps one connection open, so the first request after a
+pause no longer reconnects), `DB_POOL_MAX_CONNECTIONS` (default 10) and `DB_POOL_IDLE_TIMEOUT_SECS` (default 600). An
+invalid value falls back to its default with a `warn!`. Per-instance values are set by the `Deploiment` chart
+(`APIs.dbPool`); the compose stacks set none and use the defaults.

@@ -7,9 +7,9 @@
 //! logout and to reject the JWT of a revoked session (see `endpoints::session_guard`).
 //!
 //! Since MAIR-529 the JWT also carries the caller's role in `role`, so the BFFs no longer ask
-//! `BFF_user /me` for it: a user has one role (the lowest role id when the database holds several,
-//! like the deprecated `role` of `GET /user/me/`). It is read from the database at login and at
-//! refresh: a role change shows in the JWT at the next refresh only.
+//! `BFF_user /me` for it: a user has one role (enforced by the database since MAIR-564), the same
+//! as `role` of `GET /user/me/`. It is read from the database at login and at refresh: a role
+//! change shows in the JWT at the next refresh only.
 
 use crate::database::roles::get_roles_by_id::Role;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
@@ -60,8 +60,8 @@ impl SessionClaims {
     }
 }
 
-/// Name of the role `user_id` holds, the lowest role id when the database holds several, or an
-/// empty string when it holds none: the `role` claim of its JWTs.
+/// Name of the role `user_id` holds (one per user since MAIR-564; the lowest role id on a database
+/// older than that), or an empty string when it holds none: the `role` claim of its JWTs.
 ///
 /// # Errors
 ///

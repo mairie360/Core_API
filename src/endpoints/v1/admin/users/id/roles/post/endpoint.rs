@@ -65,9 +65,9 @@ async fn grant_in_core(
     user_id: u64,
     view: &AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
-    let view = AddRolesQueryView::new(view.role_id(), user_id);
-    smart_db
-        .execute(view)
+    // Replaces the user's role (one role per user, MAIR-564); no row when it was already held.
+    let granted: Vec<i32> = smart_db
+        .fetch_all(&AddRolesQueryView::new(view.role_id(), user_id))
         .await
         .map_err(|e| match db_error::log("grant role", &e) {
             // `user_id` or `role_id` matches nothing (foreign key).
@@ -75,8 +75,37 @@ async fn grant_in_core(
             DbFailure::Conflict => AddRoleToUserError::AlreadyGranted,
             _ => AddRoleToUserError::DatabaseError,
         })?;
+    if granted.is_empty() {
+        return Err(AddRoleToUserError::AlreadyGranted);
+    }
 
     Ok(())
+}
+
+/// Undoes the Keycloak side of a grant Core refused: unmaps `name` when this call mapped it and
+/// maps back the former roles it unmapped. Failures are only logged.
+async fn restore_keycloak(
+    admin: &KeycloakAdminClient,
+    keycloak_id: &str,
+    user_id: u64,
+    name: &str,
+    mapped: bool,
+    unmapped: &[&str],
+) {
+    if mapped {
+        if let Err(restore) = unmap_role(admin, keycloak_id, name).await {
+            tracing::error!(
+                "Keycloak sync: Core refused role {name} for user {user_id} and it could not be unmapped from {keycloak_id}: {restore}"
+            );
+        }
+    }
+    for former in unmapped {
+        if let Err(restore) = map_role(admin, keycloak_id, former).await {
+            tracing::error!(
+                "Keycloak sync: Core refused role {name} for user {user_id} and its former role {former} could not be re-mapped to {keycloak_id}: {restore}"
+            );
+        }
+    }
 }
 
 /// Name of the Core role `role_id`, `None` for an unknown role.
@@ -138,14 +167,20 @@ async fn add_role_to_user(
     let mapped = map_role(admin, &keycloak_id, &name)
         .await
         .map_err(AddRoleToUserError::Keycloak)?;
-    if let Err(error) = grant_in_core(smart_db, user_id, &view).await {
-        if mapped {
-            if let Err(restore) = unmap_role(admin, &keycloak_id, &name).await {
-                tracing::error!(
-                    "Keycloak sync: Core refused role {name} for user {user_id} and it could not be unmapped from {keycloak_id}: {restore}"
-                );
+    // The grant replaces the Core role (MAIR-564): the former one is unmapped too.
+    let mut unmapped = Vec::new();
+    for former in user.roles.iter().filter(|former| **former != name) {
+        match unmap_role(admin, &keycloak_id, former).await {
+            Ok(true) => unmapped.push(former.as_str()),
+            Ok(false) => {}
+            Err(error) => {
+                restore_keycloak(admin, &keycloak_id, user_id, &name, mapped, &unmapped).await;
+                return Err(AddRoleToUserError::Keycloak(error));
             }
         }
+    }
+    if let Err(error) = grant_in_core(smart_db, user_id, &view).await {
+        restore_keycloak(admin, &keycloak_id, user_id, &name, mapped, &unmapped).await;
         return Err(error);
     }
     Ok(())
@@ -154,8 +189,11 @@ async fn add_role_to_user(
 #[utoipa::path(
     post,
     path = "/",
-    summary = "Grant a role to a user",
-    description = "Attaches a role to a user account. Reserved to administrators.\n\n\
+    summary = "Set the role of a user",
+    description = "Gives a role to a user account, **replacing the role it held**: a user holds \
+                   one role (MAIR-564). An account registered without a role holds `Guest` until \
+                   then. Reserved to administrators. The new role reaches the user's JWT at its \
+                   next refresh or login.\n\n\
                    The target user is always the `userId` of the **path**. The body `user_id` is \
                    deprecated and optional: when sent, it must equal the path's, otherwise the \
                    answer is `400`.\n\n\
@@ -164,8 +202,10 @@ async fn add_role_to_user(
                    **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client \
                    and the account is known to Keycloak (recorded link, then e-mail), the role is \
                    mapped as a realm role of the same name (created in the realm when missing) \
-                   **before** Core writes it; if Core then refuses (`404`), the mapping added by \
-                   this call is removed. An unknown role or user, or an account unknown to \
+                   and the former Core role is unmapped, **before** Core writes; if Core then \
+                   refuses (`404`, `409`), the mapping added by this call is removed and the \
+                   former role mapped back. Roles the user holds only in Keycloak are never \
+                   touched. An unknown role or user, or an account unknown to \
                    Keycloak, only goes through Core. Without Keycloak, or with a public client, \
                    only Core is written.",
     request_body(
@@ -179,7 +219,7 @@ async fn add_role_to_user(
     responses(
         (
             status = 200,
-            description = "Role granted (and mapped in Keycloak when mirrored). Empty body.",
+            description = "Role set, the former one replaced (and mirrored in Keycloak when configured). Empty body.",
         ),
         (
             status = 400,
@@ -211,7 +251,7 @@ async fn add_role_to_user(
         ),
         (
             status = 409,
-            description = "The user already holds the role. The Keycloak mapping, if it had been added, is removed.",
+            description = "The user already holds the role: nothing changes. The Keycloak mapping, if it had been added, is removed.",
             body = String,
             content_type = "text/plain",
             example = json!("The user already holds this role.")
@@ -225,7 +265,7 @@ async fn add_role_to_user(
         ),
         (
             status = 502,
-            description = "Keycloak could not be reached or refused Core's service account. Nothing is changed.",
+            description = "Keycloak could not be reached or refused Core's service account. Nothing is changed (what this call had changed in Keycloak is restored).",
             body = String,
             content_type = "text/plain",
             examples(

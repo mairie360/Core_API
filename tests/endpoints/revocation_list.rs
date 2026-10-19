@@ -213,11 +213,19 @@ async fn forgot_password_reset_publishes_the_previous_sessions() {
     let token = Uuid::new_v4().to_string();
     let redis = env.state.get_redis();
     redis
-        .set(&format!("{token}/forgot_password_email"), email.as_str())
+        .set_ex(
+            &format!("{token}/forgot_password_email"),
+            email.as_str(),
+            900,
+        )
         .await
         .unwrap();
     redis
-        .set(&format!("{email}/forgot_password_token"), token.as_str())
+        .set_ex(
+            &format!("{email}/forgot_password_token"),
+            token.as_str(),
+            900,
+        )
         .await
         .unwrap();
 
@@ -244,9 +252,10 @@ async fn force_change_password_publishes_the_previous_sessions() {
     let token = Uuid::new_v4().to_string();
     env.state
         .get_redis()
-        .set(
+        .set_ex(
             &format!("{token}/first_connection_id"),
             user.to_string().as_str(),
+            900,
         )
         .await
         .unwrap();
