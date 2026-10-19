@@ -22,7 +22,7 @@ jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust
 # Only `lettre::Address`, to validate e-mail addresses (the e-mails themselves go through Resend).
 lettre = { version = "0.11", default-features = false }
 # Logs and OpenTelemetry traces (MAIR-503): `logging::telemetry` and its re-exports.
-mairie360_api_lib = { version = "4.1.0", features = ["otel"] }
+mairie360_api_lib = { version = "4.2.0", features = ["otel"] }
 percent-encoding = "2.3"
 # Phone numbers validated against the numbering plan of their country (MAIR-480).
 phonenumber = "0.3.10"
@@ -42,7 +42,7 @@ utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
-mairie360_api_lib = { version = "4.1.0", features = ["test-utils"] }
+mairie360_api_lib = { version = "4.2.0", features = ["test-utils"] }
 # Same major as mairie360_api_lib: raw connection to read the TTL of the revocation keys in tests.
 redis = "1.0.3"
 # Redis enforcing the chart's ACL in tests (same version as mairie360_api_lib's test_setup).
