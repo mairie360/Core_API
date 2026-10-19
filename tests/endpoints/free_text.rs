@@ -1,12 +1,11 @@
 //! `<` and `>` are ordinary characters in names and descriptions (MAIR-426): the API serves JSON
 //! with `nosniff`, escaping for HTML is the fronts' job.
 
-use crate::common::{get_pool, users::create_user, users::unique_marker};
+use crate::common::{core_db_url, get_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -21,9 +20,8 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
 #[serial]
 async fn angle_brackets_round_trip_in_a_group() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let app = test::init_service(
         App::new()
             .app_data(state.clone())

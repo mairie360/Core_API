@@ -11,7 +11,7 @@ use serial_test::serial;
 #[serial]
 async fn test_link_identity_is_replayable_and_relinks_a_new_subject() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("link");
     let user_id = create_user(&pool, "Linked", &marker).await;
@@ -60,7 +60,7 @@ async fn test_link_identity_is_replayable_and_relinks_a_new_subject() {
 #[serial]
 async fn test_link_identity_allows_one_identity_per_provider() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("linkmulti");
     let user_id = create_user(&pool, "Multi", &marker).await;
@@ -91,8 +91,7 @@ async fn test_link_identity_allows_one_identity_per_provider() {
 #[tokio::test]
 #[serial]
 async fn test_link_identity_refuses_a_subject_held_by_another_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("linkconflict");
     let owner = create_user(&pool, "Owner", &marker).await;
     let other = create_user(&pool, "Other", &marker).await;
@@ -126,8 +125,7 @@ async fn test_link_identity_refuses_a_subject_held_by_another_user() {
 #[tokio::test]
 #[serial]
 async fn test_link_identity_refuses_an_unknown_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: Result<i32, _> = pool
         .fetch_scalar(&LinkUserIdentityQueryView::new(

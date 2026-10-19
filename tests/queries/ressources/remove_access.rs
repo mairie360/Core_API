@@ -6,14 +6,12 @@ use core_api::database::{
     },
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let id = id as u64;
@@ -32,8 +30,7 @@ async fn success() {
 #[tokio::test]
 #[serial]
 async fn bad_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = RemoveAccessQueryView::new(3);
     let result = pool.execute(view).await;
     assert!(result.is_ok(), "{result:?}");

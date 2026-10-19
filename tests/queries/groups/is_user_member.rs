@@ -3,14 +3,12 @@ use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
     is_user_member::IsUserMemberQueryView,
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn is_user_member_true() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -34,8 +32,7 @@ async fn is_user_member_true() {
 #[tokio::test]
 #[serial]
 async fn is_user_member_false() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -56,8 +53,7 @@ async fn is_user_member_false() {
 #[tokio::test]
 #[serial]
 async fn is_user_member_unknow_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -81,8 +77,7 @@ async fn is_user_member_unknow_user() {
 #[tokio::test]
 #[serial]
 async fn is_user_member_unknow_group() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = IsUserMemberQueryView::new(999, 2);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;
@@ -99,8 +94,7 @@ async fn is_user_member_unknow_group() {
 #[tokio::test]
 #[serial]
 async fn is_user_member_unknow_user_and_group() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = IsUserMemberQueryView::new(999, 999);
     let result: Result<bool, _> = pool.fetch_scalar(&view).await;

@@ -1,7 +1,9 @@
 //! A user holds one role (MAIR-564): granting a role replaces the former one, and the responses
 //! expose it as `role`.
 
-use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
+use crate::common::{
+    core_db_url, get_pool, get_raw_pool, users::create_user, users::unique_marker,
+};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
@@ -96,8 +98,8 @@ macro_rules! get_json {
 async fn mair_564_granting_a_role_replaces_the_former_one() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let app = init_app!(state);
     // Registered without a role: the schema gives it Guest.
@@ -125,8 +127,8 @@ async fn mair_564_granting_a_role_replaces_the_former_one() {
 async fn mair_564_unknown_role_keeps_the_former_one() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let app = init_app!(state);
     let user = create_user(&pool, "Kept", &unique_marker("onerole")).await;
@@ -144,8 +146,8 @@ async fn mair_564_unknown_role_keeps_the_former_one() {
 async fn mair_564_responses_expose_one_role() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let app = init_app!(state);
     let marker = unique_marker("onerole");

@@ -26,7 +26,7 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
 #[serial]
 async fn test_register_user_success() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw_pool = get_raw_pool(host.clone()).await;
     sync_user_sequence(&raw_pool).await.unwrap();
 
@@ -50,7 +50,7 @@ async fn test_register_user_success() {
 #[serial]
 async fn test_register_user_duplicate_email() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw_pool = get_raw_pool(host.clone()).await;
     sync_user_sequence(&raw_pool).await.unwrap();
 

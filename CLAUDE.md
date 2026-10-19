@@ -163,7 +163,13 @@ refuses a non-admin (plain and percent-encoded path) and that every `jwt`-secure
 forged token, so a new operation is covered as soon as it is documented.
 
 Integration tests need **Docker running** — `get_shared_db()` (from `mairie360_api_lib::test_setup`) spins up a
-shared Postgres testcontainer on first use and hands back a pool. Tests that touch shared/seeded rows are
+shared Postgres testcontainer on first use and hands back its **superuser** URL, used by the fixtures only
+(`tests/common::get_raw_pool`). Everything that runs Core's code connects as the `core_api` role, like in
+staging (MAIR-556): `tests/common::get_pool()` (query views) and `AppState::new(…, core_db_url().await)`
+(endpoints). A query outside the grants of Database's `api_grants.sql` then fails the test with
+`permission denied`: add the grant there, never connect the code under test as the superuser. The compose stacks
+connect `core` as `core_api` too (`-Dcore_api_password` passed to Liquibase); postgres, liquibase and the seeder
+keep the superuser. Tests that touch shared/seeded rows are
 annotated `#[serial]` (the `serial_test` crate) to avoid interference between tests running against the same
 container.
 

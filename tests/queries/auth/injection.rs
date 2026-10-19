@@ -28,8 +28,7 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
 #[tokio::test]
 #[serial]
 async fn test_injection_login_email() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let malicious_email = "' OR 1=1 --";
 
@@ -50,7 +49,7 @@ async fn test_injection_login_email() {
 #[serial]
 async fn test_injection_register_fields() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw_pool = get_raw_pool(host.clone()).await;
     sync_user_sequence(&raw_pool).await.unwrap();
 

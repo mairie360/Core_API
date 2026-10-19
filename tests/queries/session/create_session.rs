@@ -1,17 +1,13 @@
 use crate::common::get_pool;
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::v1::auth::create_new_session;
-use mairie360_api_lib::{
-    database::query_views::IsSessionTokenValidQueryView, error::ApiLibError,
-    test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{database::query_views::IsSessionTokenValidQueryView, error::ApiLibError};
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_create_session() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     // Create a session
     let view = CreateSessionQueryView::new(
@@ -44,8 +40,7 @@ async fn test_create_session() {
 #[tokio::test]
 #[serial]
 async fn test_injection_create_session() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let malicious_token = "' OR 1=1 --";
 
@@ -67,8 +62,7 @@ async fn test_injection_create_session() {
 #[tokio::test]
 #[serial]
 async fn test_create_new_session_keeps_other_device_session_active() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let ip = std::net::IpAddr::from([10, 0, 0, 1]);
     let device_info = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0";
