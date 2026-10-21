@@ -1,51 +1,40 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "e4b0ee030f39d1e11a242cfb2ce79d49ef0324cd", "prod": "b14e21cf832df4d517710c5d079297098a0bbe4d", "prod_tag": "v2.1.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-10-21 08:33 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "971899000dcd3b3ab46e8f6e29e22964cc4e26a1", "prod": "b14e21cf832df4d517710c5d079297098a0bbe4d", "prod_tag": "v2.1.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-10-21 09:07 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.1.0 | `b14e21c` | — |
 | staging | — | `cea777d` | 2026-10-21 03:14 UTC |
-| dev | — | `e4b0ee0` | 2026-10-21 08:33 UTC |
+| dev | — | `9718990` | 2026-10-21 09:07 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.1.0)
 
-#### Changements de comportement
-
-- Le déploiement n'est plus automatique depuis `main` : un push sur `main` ne livre que dev (`cicd.yml` s'arrête à `release-dev`). Staging et prod se lancent à la main avec `gh workflow run promote-staging.yml -R mairie360/Core_API [-f sha=<sha>]` puis `promote-prod.yml`, avec l'approbation des environnements `Staging` et `Prod`. Staging refuse un commit sans image `dev-<sha>` ni run vert sur `main` ; prod refuse un commit sans `staging-<sha>`. (MAIR-494, [#322](https://github.com/mairie360/Core_API/pull/322))
-- Les stacks Docker Compose locales (`docker-compose.yml`, `-integration`, `-performance`, `-security`) connectent `core` avec le rôle Postgres `core_api` au lieu du superuser : une requête hors des grants de ce rôle échoue désormais en local. Postgres, Liquibase et le seeder gardent le superuser. (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299))
-- Bibliothèque `mairie360_api_lib` passée de 3.4.0 à 4.2.0 (dépendance et dev-dependency). La description de #299 cite 4.1.0, mais c'est le diff qui fait foi. Selon cette description, la lib 4.x n'écrit plus dans Redis sans TTL (MAIR-499). (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299))
-
 #### Technique
-
-- Workflows CICD `mairie360/CICD` mis à jour de v4.2.1 à v4.4.2 : journal de release rédigé par Claude (v4.3.x), découpage staging/prod (v4.4.0), correction de la création du tag et de la release par `promote-prod` (v4.4.2, HTTP 403 en v4.4.1). Renovate regroupe désormais les `cicd_version` des trois workflows.
-- Dépendances et tests : `utoipa-swagger-ui` 10.0.2 et `tokio` 1.54.0 (diffs absents), `rustls-webpki` et `webpki-roots` relevés pour `cargo audit`, trois advisories `zip` ignorées dans `.cargo/audit.toml`, tests d'intégration exécutés sous le rôle `core_api`.
+- Dépendances Rust mises à jour : `mairie360_api_lib` passe à 4.2.0 (dépendance et dev-dependency, [#299](https://github.com/mairie360/Core_API/pull/299)), `tokio` à 1.54.0 ([#316](https://github.com/mairie360/Core_API/pull/316)), `utoipa-swagger-ui` à 10.0.2 ([#319](https://github.com/mairie360/Core_API/pull/319)), et l'image `rust:1.99-bookworm` épinglée par digest dans `development.Dockerfile` ([#328](https://github.com/mairie360/Core_API/pull/328)).
+- Tests et environnements de développement : les tests et les `docker-compose*.yml` font tourner le code Core avec le rôle `core_api` au lieu du superuser, `get_pool()` ne prend plus d'URL, et `.cargo/audit.toml` ignore RUSTSEC-2026-0367, 0368 et 0369 (zip, build-dependency). (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299))
+- Pipeline de release : CICD évolue de v4.2.1 à v4.4.2 via les PR Renovate ([#310](https://github.com/mairie360/Core_API/pull/310), [#315](https://github.com/mairie360/Core_API/pull/315), [#320](https://github.com/mairie360/Core_API/pull/320), [#318](https://github.com/mairie360/Core_API/pull/318)) et MAIR-571 ([#314](https://github.com/mairie360/Core_API/pull/314)) ; ajout des workflows manuels `promote-staging.yml` et `promote-prod.yml` (MAIR-494, [#322](https://github.com/mairie360/Core_API/pull/322)) ; corrections de promotion (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327)).
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
 #### Technique
-
-- Workflows `cicd.yml`, `promote-staging.yml` et `promote-prod.yml` passés à mairie360/CICD v4.4.1 puis v4.4.2 : la v4.4.2 corrige la création du tag et de la release par `promote-prod` (HTTP 403 de l'API releases en v4.4.1), selon la description de #327. (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327))
+- Image de développement : `development.Dockerfile` utilise désormais le digest `5c1a173` de `rust:1.99-bookworm` ([#328](https://github.com/mairie360/Core_API/pull/328)).
+- Pipeline : `cicd.yml` et les workflows `promote-*.yml` passent de CICD v4.4.0 à v4.4.1 puis v4.4.2 (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327)) ; selon la description de la PR, la v4.4.2 corrige la création du tag et de la release lors du `promote-prod`.
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
-#### Changements de comportement
-
-- Le déploiement n'est plus automatique depuis `main` : un push sur `main` ne livre que dev (`cicd.yml` s'arrête à `release-dev`). Staging et prod se lancent à la main avec `gh workflow run promote-staging.yml -R mairie360/Core_API [-f sha=<sha>]` puis `promote-prod.yml`, avec l'approbation des environnements `Staging` et `Prod`. Staging refuse un commit sans image `dev-<sha>` ni run vert sur `main` ; prod refuse un commit sans `staging-<sha>`. (MAIR-494, [#322](https://github.com/mairie360/Core_API/pull/322))
-- Les stacks Docker Compose locales connectent `core` avec le rôle Postgres `core_api` au lieu du superuser : une requête hors des grants de ce rôle échoue désormais en local. (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299))
-- Bibliothèque `mairie360_api_lib` passée de 3.4.0 à 4.2.0 (dépendance et dev-dependency). La description de #299 cite 4.1.0, mais c'est le diff qui fait foi. Selon cette description, la lib 4.x n'écrit plus dans Redis sans TTL (MAIR-499). (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299))
-
 #### Technique
-
-- Workflows CICD `mairie360/CICD` mis à jour de v4.2.1 à v4.4.0 (renovate, puis découpage staging/prod), avec le journal de release rédigé par Claude (v4.3.x). Renovate regroupe désormais les `cicd_version` des trois workflows.
-- Dépendances et tests : `utoipa-swagger-ui` 10.0.2 et `tokio` 1.54.0 (diffs absents), `rustls-webpki` et `webpki-roots` relevés pour `cargo audit`, trois advisories `zip` ignorées dans `.cargo/audit.toml`, tests d'intégration exécutés sous le rôle `core_api`.
+- Dépendances Rust mises à jour : `mairie360_api_lib` passe à 4.2.0 ([#299](https://github.com/mairie360/Core_API/pull/299)), `tokio` à 1.54.0 ([#316](https://github.com/mairie360/Core_API/pull/316)) et `utoipa-swagger-ui` à 10.0.2 ([#319](https://github.com/mairie360/Core_API/pull/319)).
+- Tests et environnements de développement : les tests et les `docker-compose*.yml` font tourner le code Core avec le rôle `core_api` au lieu du superuser, `get_pool()` ne prend plus d'URL, et `.cargo/audit.toml` ignore RUSTSEC-2026-0367, 0368 et 0369 (MAIR-556, [#299](https://github.com/mairie360/Core_API/pull/299)).
+- Pipeline de release : CICD passe de v4.2.2 à v4.3.3 via les PR Renovate ([#320](https://github.com/mairie360/Core_API/pull/320), [#318](https://github.com/mairie360/Core_API/pull/318)) et MAIR-571 ([#314](https://github.com/mairie360/Core_API/pull/314), [#315](https://github.com/mairie360/Core_API/pull/315)) ; ajout des workflows manuels `promote-staging.yml` et `promote-prod.yml` (MAIR-494, [#322](https://github.com/mairie360/Core_API/pull/322)).
 
 ## Historique des passages
 
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-10-21 09:07 UTC | dev | — | `9718990` | [run](https://github.com/mairie360/Core_API/actions/runs/39573304899) |
 | 2026-10-21 08:33 UTC | dev | — | `e4b0ee0` | [run](https://github.com/mairie360/Core_API/actions/runs/39568592596) |
 | 2026-10-21 03:50 UTC | dev | — | `19adc1e` | [run](https://github.com/mairie360/Core_API/actions/runs/39539859800) |
 | 2026-10-21 03:14 UTC | staging | — | `cea777d` | [run](https://github.com/mairie360/Core_API/actions/runs/39528369269) |
