@@ -1,25 +1,25 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "971899000dcd3b3ab46e8f6e29e22964cc4e26a1", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-10-21 09:07 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "0d723d49c49a3531b34ffce045720a16e8f538b1", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-10-21 09:18 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
 | staging | — | `cea777d` | 2026-10-21 03:14 UTC |
-| dev | — | `9718990` | 2026-10-21 09:07 UTC |
+| dev | — | `0d723d4` | 2026-10-21 09:18 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.2.0)
 
 #### Technique
-- Versions du workflow CICD `mairie360/CICD` passées de v4.4.0 à v4.4.2 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`. La v4.4.2 corrige la création du tag et de la release par `promote-prod` (erreur HTTP 403). (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327))
-- Image de développement `development.Dockerfile` épinglée sur le digest `5c1a173` de `rust:1.99-bookworm`, la même toolchain que l'image de production. ([#328](https://github.com/mairie360/Core_API/pull/328))
+- Pin CICD relevé de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml` (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327), [#330](https://github.com/mairie360/Core_API/pull/330)) : d'après les descriptions de PR, ces mises à jour corrigent la chaîne de release interne (calcul de version, création du tag et de la release). Aucun changement de code de l'API.
+- Image de base `rust:1.99-bookworm` figée sur un nouveau digest dans `development.Dockerfile` (MAIR-427, [#328](https://github.com/mairie360/Core_API/pull/328), sans clé Jira) : même toolchain que la production, sans effet pour les utilisateurs.
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
 #### Technique
-- Versions du workflow CICD `mairie360/CICD` passées de v4.4.0 à v4.4.2 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml`. La v4.4.2 corrige la création du tag et de la release par `promote-prod` (erreur HTTP 403). (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327))
-- Image de développement `development.Dockerfile` épinglée sur le digest `5c1a173` de `rust:1.99-bookworm`, la même toolchain que l'image de production. ([#328](https://github.com/mairie360/Core_API/pull/328))
+- Pin CICD relevé de v4.4.0 à v4.4.3 dans `cicd.yml`, `promote-staging.yml` et `promote-prod.yml` (MAIR-612, [#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327), [#330](https://github.com/mairie360/Core_API/pull/330)) : d'après les descriptions de PR, ces mises à jour corrigent la chaîne de release interne (calcul de version, création du tag et de la release). Aucun changement de code de l'API.
+- Image de base `rust:1.99-bookworm` figée sur un nouveau digest dans `development.Dockerfile` (MAIR-427, [#328](https://github.com/mairie360/Core_API/pull/328), sans clé Jira) : même toolchain que la production, sans effet pour les utilisateurs.
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
@@ -30,6 +30,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-10-21 09:18 UTC | dev | — | `0d723d4` | [run](https://github.com/mairie360/Core_API/actions/runs/39574704778) |
 | 2026-10-21 09:13 UTC | prod | v2.2.0 | `cea777d` | [run](https://github.com/mairie360/Core_API/actions/runs/39574731861) |
 | 2026-10-21 09:07 UTC | dev | — | `9718990` | [run](https://github.com/mairie360/Core_API/actions/runs/39573304899) |
 | 2026-10-21 08:33 UTC | dev | — | `e4b0ee0` | [run](https://github.com/mairie360/Core_API/actions/runs/39568592596) |
