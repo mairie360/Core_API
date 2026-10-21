@@ -397,7 +397,7 @@ API since MAIR-503 (Core hosted the original POC of MAIR-131 in `src/telemetry.r
 push, with no input other than the package name and the CICD version. The `uses:` is pinned by commit SHA with the
 tag in a comment, `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
 the two secrets the workflow declares are passed (no `secrets: inherit`). Both Dockerfiles build on the template's
-Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
+Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the staging gates of `promote-staging.yml` (MAIR-494) run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
@@ -411,3 +411,11 @@ Since `mairie360_api_lib` 3.4.0, `Database` reads three optional env vars throug
 pause no longer reconnects), `DB_POOL_MAX_CONNECTIONS` (default 10) and `DB_POOL_IDLE_TIMEOUT_SECS` (default 600). An
 invalid value falls back to its default with a `warn!`. Per-instance values are set by the `Deploiment` chart
 (`APIs.dbPool`); the compose stacks set none and use the defaults.
+
+## Promotion to staging and prod (MAIR-494)
+
+A push to `main` only releases dev (`cicd.yml` stops at `release-dev`). Staging and prod are manual:
+`gh workflow run promote-staging.yml -R mairie360/Core_API [-f sha=<sha>]`, then `promote-prod.yml`
+(environments `Staging` / `Prod`). Staging refuses a commit without `dev-<sha>` and a green main run, and runs
+the integration, ZAP and k6 stacks on that image; prod refuses one without `staging-<sha>` and tags the version semantic-release computes
+for that commit. `cicd.yml`, `promote-staging.yml` and `promote-prod.yml` pin the same mairie360/CICD release.
