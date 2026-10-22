@@ -96,6 +96,13 @@ async fn trigger_get_group(
             })
         ),
         (
+            status = 400,
+            description = "`group_id` in the path is not an integer.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid path: ids are integers.")
+        ),
+        (
             status = 401,
             description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
