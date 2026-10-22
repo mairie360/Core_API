@@ -9,6 +9,12 @@
       "enabled": true
     },
     {
+      "key": "fakeResendUrl",
+      "value": "http://localhost:8025",
+      "type": "default",
+      "enabled": true
+    },
+    {
       "key": "test_user_password",
       "value": "Newman!Password123",
       "type": "default",

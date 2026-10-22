@@ -165,5 +165,6 @@ services:
       run /etc/newman/collection.json
       --environment /etc/newman/environment.json
       --env-var baseUrl=http://core:3000
+      --env-var fakeResendUrl=http://fake-resend:8080
       --env-var jwt_secret=${JWT_SECRET}
       --bail

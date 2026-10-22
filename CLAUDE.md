@@ -161,6 +161,28 @@ group 3, role 6) so ZAP reaches real rows; the role examples point at 6 because 
 committed default (`http://localhost:3000`) stays usable from a host shell. The scenario registers a fresh user
 (unique e-mail generated in the collection pre-request script) so it is replayable against a persistent database.
 
+Split of the tests (MAIR-262): `cargo test` (unit and handler tests) validates the code, newman validates that the
+running image works. The collection holds, for **every operation of the spec**, its success case and one case per
+documented `400` / `401` / `403` / `404` / `409` / `412`, chained in business journeys (account creation → first
+login → password change → sessions → profile → groups, members and ACLs → roles → archive), each case checking the
+status and what the front relies on. The `429` / `500` / `502` / `503` cannot be produced on purpose on a healthy
+stack and stay in the handler tests. Three collection-level scripts, identical in every API collection, back it:
+
+- the collection pre-request loads `/api-docs/openapi.json` once (the stack sets `SWAGGER_ENABLED=true`), and the
+  collection test checks every answer against it: documented operation, documented status, content type, and the
+  JSON body against the response schema (`$ref`s inlined);
+- `Every secured operation refuses a missing JWT` replays every `jwt`-secured operation of the spec without a token
+  and expects a documented `401 text/plain`;
+- `OpenAPI coverage`, the last request, fails when an operation has no success case or a documented status above
+  was never answered, and when an entry of the collection variable `openapi_coverage_exceptions` (`"METHOD /path
+  STATUS": "reason"`, `2xx` for the success) is no longer needed. The only exceptions are the Keycloak routes,
+  which answer `503` without a realm (covered by `tests/endpoints/keycloak_login.rs` / `keycloak_migration.rs`).
+
+A new endpoint therefore fails the integration stack until the collection tests it. The refusal cases need a second
+plain account: the collection creates it through the admin route and forges its JWT (`jwt_other`) like the Admin's.
+The password reset reads its token from the fake Resend's journal (`fakeResendUrl`). The public auth routes are
+rate limited per address (`429`): replay the collection on a fresh stack (`docker compose down -v`), as CI does.
+
 `tests/routing_test.rs` checks that every `/api/v1` operation published by `ApiDoc` (the contract
 `@mairie360/core-api-openapi` is generated from) hits a mounted actix route: Core does not normalise trailing
 slashes, and utoipa replaces (does not merge) two `nest` entries that end on the same path, so operations sharing
@@ -268,6 +290,12 @@ the other authenticated routes rely on the ingress.
 API ids are `u64`, Postgres ids `INT4`. Convert with `database::ids::{id_to_sql, id_to_sql_i64, id_from_sql}`,
 never with `as`: an `as i32` wraps (`/user/4294967298/` read user 2), the helpers saturate so an out-of-range id
 answers `404`. The `cast_possible_truncation` / `cast_possible_wrap` / `cast_sign_loss` lints are on.
+
+A path id that does not parse (`/admin/users/abc/`) answers `400 text/plain` `Invalid path: ids are integers.`
+(`endpoints::config` registers a `PathConfig`, MAIR-262; the routes behind `access_guard_middleware` answer the
+lib's `Invalid ID format in URL`), and every operation with a path id documents that `400`:
+`tests/endpoints/path_ids.rs` walks the contract. Plain-text answers without a content type get
+`text/plain; charset=utf-8` from `endpoints::headers::default_headers()` (with `nosniff`), wired in `main.rs`.
 
 ### Database errors and logs (MAIR-421)
 
