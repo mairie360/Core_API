@@ -1,6 +1,7 @@
 pub mod admin_guard;
 pub mod db_error;
 pub mod export_data;
+pub mod headers;
 pub mod health;
 pub mod keycloak_console;
 pub mod last_admin;
