@@ -28,13 +28,14 @@ pub struct GetMeResponseView {
     /// Statut du compte tel qu'il est stocké en base.
     #[schema(example = "active")]
     status: String,
-    /// Deprecated: the first of `roles` (lowest role id), empty string when the user has none.
-    /// Read `roles` instead, a user can hold several roles.
+    /// Name of the user's role: a user holds one role (MAIR-564), the one carried by the `role`
+    /// claim of their JWT. Empty string when the user has none (never `null`).
     #[schema(example = "agent")]
-    #[deprecated(note = "read `roles`")]
     role: String,
-    /// Names of every role the user holds, ordered by role id. Empty when the user has none.
-    #[schema(example = json!(["agent", "manager"]))]
+    /// Deprecated: `role` as a list, kept for the clients written when a user could hold several
+    /// roles. At most one entry, empty when the user has none. Read `role` instead.
+    #[schema(example = json!(["agent"]))]
+    #[deprecated(note = "read `role`, a user holds one role")]
     roles: Vec<String>,
     /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
@@ -98,12 +99,12 @@ impl GetMeResponseView {
     }
 
     #[must_use]
-    #[allow(deprecated)]
     pub fn role(&self) -> &str {
         &self.role
     }
 
     #[must_use]
+    #[allow(deprecated)]
     pub fn roles(&self) -> &[String] {
         &self.roles
     }
@@ -115,7 +116,6 @@ impl GetMeResponseView {
 }
 
 impl Display for GetMeResponseView {
-    #[allow(deprecated)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

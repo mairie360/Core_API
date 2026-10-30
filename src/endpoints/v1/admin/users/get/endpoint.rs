@@ -101,6 +101,7 @@ async fn list_users(
                         "phone_country": "FR",
                         "status": "active",
                         "is_archived": false,
+                        "role": { "id": 2, "name": "agent" },
                         "roles": [{ "id": 2, "name": "agent" }]
                     }
                 ],

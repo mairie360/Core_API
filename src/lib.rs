@@ -4,6 +4,7 @@
 #![allow(clippy::multiple_crate_versions)]
 pub mod client_ip;
 pub mod database;
+pub mod emails;
 pub mod endpoints;
 pub mod keycloak;
 pub mod passwords;
@@ -14,83 +15,3 @@ pub mod refresh_token;
 pub mod request_log;
 pub mod session_jwt;
 pub mod session_revocation;
-pub mod telemetry;
-
-use lettre::{
-    transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
-    Tokio1Executor,
-};
-use std::env;
-
-// Structure pour stocker les informations de destination
-pub struct EmailDestination {
-    pub from: String,
-    pub to: String,
-}
-
-// Type alias pour clarifier le type du mailer de la lib 'lettre'
-pub type SmtpMailer = AsyncSmtpTransport<Tokio1Executor>;
-
-/// # Errors
-///
-/// Cette fonction ne retourne actuellement jamais d'erreur (toujours `Ok`), la signature
-/// `Result` est conservée pour rester compatible avec ses appelants.
-pub fn get_email_sender() -> Result<String, Box<dyn std::error::Error>> {
-    // Récupère les variables d'environnement, avec des valeurs de secours (fallback) au cas où
-    Ok(env::var("EMAIL_FROM").unwrap_or_else(|_| "Beta App <noreply@votrebeta.com>".to_string()))
-}
-
-/// # Errors
-///
-/// Retourne une erreur si l'adresse source/destination ou le corps du message est invalide.
-pub fn build_email(
-    destination: &EmailDestination,
-    subject: &str,
-    body_content: &str,
-) -> Result<Message, Box<dyn std::error::Error>> {
-    let email = Message::builder()
-        .from(destination.from.parse()?)
-        .to(destination.to.parse()?)
-        .subject(subject)
-        .body(body_content.to_string())?;
-
-    Ok(email)
-}
-
-/// # Errors
-///
-/// Retourne une erreur si l'envoi SMTP échoue (connexion, authentification, transport).
-pub async fn send_email(email: Message) -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Récupération des identifiants SMTP
-    let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let smtp_port = env::var("SMTP_PORT").unwrap_or_else(|_| "1025".to_string());
-    let username = env::var("SMTP_USERNAME").unwrap_or_default();
-    let password = env::var("SMTP_PASSWORD").unwrap_or_default();
-
-    let port: u16 = smtp_port.parse().unwrap_or(1025);
-
-    // 2. Transport. Only a local relay (Mailpit) or an explicit `SMTP_INSECURE=true` gets a
-    // plaintext connection: an empty `SMTP_USERNAME` no longer turns TLS off (MAIR-390).
-    let local_relay = matches!(smtp_host.as_str(), "mailpit" | "localhost" | "127.0.0.1");
-    let insecure = env::var("SMTP_INSECURE").is_ok_and(|value| value.eq_ignore_ascii_case("true"));
-    let mailer: SmtpMailer = if local_relay || insecure {
-        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&smtp_host)
-            .port(port)
-            .build()
-    } else {
-        // STARTTLS, with credentials when the relay needs them.
-        let builder = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp_host)?.port(port);
-        if username.is_empty() {
-            builder.build()
-        } else {
-            builder
-                .credentials(Credentials::new(username, password))
-                .build()
-        }
-    };
-
-    // 3. Envoi effectif
-    mailer.send(email).await?;
-
-    Ok(())
-}

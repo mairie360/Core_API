@@ -1,7 +1,7 @@
 use core_api::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use core_api::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use core_api::database::users::get_roles::GetUserRolesQueryView;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use serial_test::serial;
 
 use crate::common::{get_pool, roles::setup_tests};
@@ -11,8 +11,7 @@ use crate::common::{get_pool, roles::setup_tests};
 #[serial]
 async fn test_get_roles_of_user_matches_ids_then_roles() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
 
     let ids: Vec<i32> = pool
@@ -36,8 +35,7 @@ async fn test_get_roles_of_user_matches_ids_then_roles() {
 #[serial]
 async fn test_get_roles_of_unknown_user_is_empty() {
     setup_tests().await;
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetRolesOfUserQueryView::new(999_999);
     println!("{view}");

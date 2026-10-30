@@ -44,7 +44,7 @@ impl From<&Session> for SessionResultView {
 }
 
 /// Rôle porté par l'utilisateur consulté.
-#[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, ToSchema, Serialize, Debug, Clone, PartialEq, Eq)]
 struct RoleResultView {
     /// Identifiant du rôle.
     #[schema(example = 2)]
@@ -72,7 +72,12 @@ impl From<&RoleQueryResult> for RoleResultView {
 pub struct GetUserResultView {
     /// État civil et statut du compte.
     user: User,
-    /// Rôles portés par l'utilisateur. Vide s'il n'en a aucun.
+    /// The user's role: a user holds one role (MAIR-564). `null` when the user has none.
+    #[schema(required = true)]
+    role: Option<RoleResultView>,
+    /// Deprecated: `role` as a list, kept for the clients written when a user could hold several
+    /// roles. At most one entry, empty when the user has none. Read `role` instead.
+    #[schema(deprecated)]
     roles: Vec<RoleResultView>,
     /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
     groups: Vec<Group>,
@@ -95,9 +100,12 @@ impl Display for GetUserResultView {
 
 impl From<AdminGetUserQueryResultView> for GetUserResultView {
     fn from(value: AdminGetUserQueryResultView) -> Self {
+        let roles: Vec<RoleResultView> =
+            value.roles().iter().map(std::convert::Into::into).collect();
         Self {
             user: value.user().clone(),
-            roles: value.roles().iter().map(std::convert::Into::into).collect(),
+            role: roles.first().cloned(),
+            roles,
             groups: value.groups().into_iter().collect(),
             sessions: value
                 .sessions()

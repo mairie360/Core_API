@@ -4,7 +4,9 @@
 //! The admin and authentication checks are driven by the published contract (`ApiDoc`), so a new
 //! operation is covered as soon as it is documented.
 
-use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
+use crate::common::{
+    core_db_url, get_pool, get_raw_pool, users::create_user, users::unique_marker,
+};
 use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
@@ -64,8 +66,8 @@ fn admin() -> i32 {
 async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
-    let pool = get_pool(host.clone()).await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
     let caller = create_user(&pool, "Caller", &unique_marker("deny")).await;
     let target = create_user(&pool, "Target", &unique_marker("deny")).await;
     (state, get_raw_pool(host.clone()).await, caller, target)

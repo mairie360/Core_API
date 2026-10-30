@@ -114,7 +114,8 @@ async fn trigger_get_user(
                    included (`is_archived` is then `true`);\n\
                    - anyone else gets `phone` and `phone_country` set to `null`, and an archived account answers \
                    `404` as if it did not exist, so `is_archived` is always `false` for them.\n\n\
-                   `role` is deprecated: read `roles`, which lists every role.",
+                   A user holds one role (MAIR-564): read `role`. `roles` is deprecated, it \
+                   holds at most that role.",
     params(
         ("id" = u64, Path, description = "Id of the user to read.", example = 42)
     ),

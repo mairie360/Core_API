@@ -2,14 +2,12 @@ use crate::common::get_pool;
 use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn add_user_to_group_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -30,8 +28,7 @@ async fn add_user_to_group_success() {
 #[tokio::test]
 #[serial]
 async fn add_user_to_group_duplicate_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -50,8 +47,7 @@ async fn add_user_to_group_duplicate_user() {
 #[tokio::test]
 #[serial]
 async fn add_user_to_group_unknow_user() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = CreateGroupQueryView::new(
         1,
@@ -68,8 +64,7 @@ async fn add_user_to_group_unknow_user() {
 #[tokio::test]
 #[serial]
 async fn add_user_to_group_unknow_group() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = AddUserToGroupQueryView::new(999, 2);
     let result = pool.execute(view).await;
@@ -79,8 +74,7 @@ async fn add_user_to_group_unknow_group() {
 #[tokio::test]
 #[serial]
 async fn add_user_to_group_unknow_user_and_group() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = AddUserToGroupQueryView::new(999, 999);
     let result = pool.execute(view).await;

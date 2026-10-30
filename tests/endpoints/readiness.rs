@@ -1,10 +1,10 @@
 //! `/ready` checks Postgres and Redis, `/health` stays a plain liveness probe (MAIR-423).
 
 use crate::common::acl_redis::AclRedis;
+use crate::common::core_db_url;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::{config, health, ready};
 use mairie360_api_lib::state::AppState;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 macro_rules! init_app {
@@ -33,13 +33,12 @@ macro_rules! get {
 #[tokio::test]
 #[serial]
 async fn ready_needs_postgres_and_redis() {
-    let (_container, host) = get_shared_db().await;
     std::env::remove_var("REDIS_KEY_PREFIX");
     std::env::remove_var("REDIS_USERNAME");
 
     // Redis unreachable: not ready, while the liveness probe still answers.
     let state =
-        web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), host.clone()).await);
+        web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), core_db_url().await).await);
     let app = init_app!(state);
     assert_eq!(
         get!(app, "/ready"),
@@ -52,7 +51,7 @@ async fn ready_needs_postgres_and_redis() {
 
     // Both reachable (Redis with the chart's ACL).
     let redis = AclRedis::start().await;
-    let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     let app = init_app!(state);
     assert_eq!(get!(app, "/ready"), (StatusCode::OK, "OK".to_string()));
 

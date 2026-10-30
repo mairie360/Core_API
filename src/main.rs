@@ -4,20 +4,20 @@
 use actix_web::{middleware, web, App, HttpServer};
 
 use core_api::database::pg_url::build_pg_url;
+use core_api::emails::AccountEmails;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::{is_swagger_enabled, ApiDoc};
 use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
-use core_api::request_log::{hide_query, restore_query, RedactedRootSpanBuilder};
-use core_api::telemetry;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
+use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
+use mairie360_api_lib::request_log::{hide_query, restore_query, RedactedRootSpanBuilder};
 use mairie360_api_lib::state::AppState;
 use std::time::{Duration, Instant};
-use tracing_actix_web::TracingLogger;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -53,8 +53,10 @@ async fn wait_for_postgres(state: &AppState) -> std::io::Result<()> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Exports the traces when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (MAIR-131); flushed on drop.
-    let _telemetry = telemetry::init();
+    // Logs on stdout in the format shared by every API (`RUST_LOG`, default `info`;
+    // `LOG_FORMAT=json` for JSON lines), plus the trace export when `OTEL_EXPORTER_OTLP_ENDPOINT`
+    // is set (MAIR-131, MAIR-503); flushed on drop.
+    let _telemetry = init_telemetry("core-api");
     let redis_url = get_critical_env_var("REDIS_URL");
     let db_user = get_critical_env_var("DB_USER");
     let db_password = get_critical_env_var("DB_PASSWORD");
@@ -89,6 +91,12 @@ async fn main() -> std::io::Result<()> {
             }
         })
         .map(web::Data::new);
+    // The e-mails go through Resend templates, from no-reply@<EMAIL_DOMAIN> (MAIR-522): refuse
+    // to start without them rather than failing every password reset.
+    let account_emails = web::Data::new(AccountEmails::from_env().map_err(|e| {
+        tracing::error!("E-mail configuration: {e}");
+        std::io::Error::other(e.to_string())
+    })?);
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
@@ -98,7 +106,9 @@ async fn main() -> std::io::Result<()> {
     let port = get_critical_env_var("PORT");
     let bind_address = format!("{host}:{port}");
     let server = HttpServer::new(move || {
-        let app = App::new().app_data(data.clone());
+        let app = App::new()
+            .app_data(data.clone())
+            .app_data(account_emails.clone());
         let app = match &keycloak {
             Some(keycloak) => app.app_data(keycloak.clone()),
             None => app,

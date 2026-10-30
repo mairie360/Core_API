@@ -1,3 +1,4 @@
+use crate::common::core_db_url;
 use crate::common::keycloak_mock::{KeycloakMock, CLIENT_ID, CLIENT_SECRET};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::{config, public_config};
@@ -7,7 +8,7 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::{
     security::JwtMiddleware,
     state::AppState,
-    test_setup::queries_setup::{get_shared_db, ADMIN_ID, ALICE_ID, BOB_ID, GROUP_OWNER_ID},
+    test_setup::queries_setup::{ADMIN_ID, ALICE_ID, BOB_ID, GROUP_OWNER_ID},
 };
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -22,8 +23,7 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
 
 async fn app_state() -> web::Data<AppState> {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    web::Data::new(AppState::new(String::new(), host.clone()).await)
+    web::Data::new(AppState::new(String::new(), core_db_url().await).await)
 }
 
 fn jwt_for(user_id: i32) -> String {

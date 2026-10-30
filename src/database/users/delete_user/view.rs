@@ -33,6 +33,12 @@ impl DeleteUserQueryView {
 }
 
 impl ApiRequestDto for DeleteUserQueryView {
+    // `DELETE FROM v_users_active` archives the account (view trigger), which hides it from the
+    // directory: drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "DELETE FROM v_users_active WHERE id = $1"
     }

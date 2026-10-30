@@ -10,19 +10,20 @@ pub const MAX_DIRECTORY_LIMIT: u64 = 1000;
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct DirectoryUsersQuery {
-    /// Recherche sur le prénom, le nom ou l'email. Insensible à la casse et partielle.
+    /// Search on the first name, last name or e-mail. Case-insensitive and partial; leading and
+    /// trailing spaces are ignored.
     #[param(max_length = 255, example = "dupont")]
     search: Option<String>,
-    /// Identifiants d'utilisateurs séparés par des virgules (ex. `1,2,3`). Un identifiant qui
-    /// n'est pas un entier strictement positif fait échouer la requête en `400`.
+    /// Comma-separated user ids (e.g. `1,2,3`), order and repetitions ignored. An id that is not
+    /// a strictly positive integer fails the request with `400`.
     #[param(max_length = 255, example = "1,2,3")]
     ids: Option<String>,
-    /// Ne garde que les membres d'au moins un de ces groupes (identifiants séparés par des
-    /// virgules). Mêmes règles de validation que `ids`.
+    /// Keeps only the members of at least one of these groups (comma-separated ids). Same
+    /// validation rules as `ids`.
     #[param(max_length = 255, example = "3,7")]
     group_ids: Option<String>,
-    /// Nombre maximal d'utilisateurs renvoyés, de 1 à 1000 (1000 par défaut). Hors de cet
-    /// intervalle, la requête échoue en `400`.
+    /// Maximum number of users returned, from 1 to 1000 (1000 by default). Outside this range,
+    /// the request fails with `400`.
     #[param(minimum = 1, maximum = 1000, example = 50)]
     limit: Option<u64>,
 }
@@ -45,7 +46,7 @@ impl DirectoryUsersQuery {
     }
 }
 
-/// Analyse une liste « 1,2,3 » d'identifiants strictement positifs ; `None` si un élément est invalide.
+/// Parses a `1,2,3` list of strictly positive ids; `None` if an item is invalid.
 pub fn parse_id_list(value: Option<&str>) -> Option<Vec<u64>> {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return Some(Vec::new());
@@ -61,10 +62,10 @@ pub fn parse_id_list(value: Option<&str>) -> Option<Vec<u64>> {
         .collect()
 }
 
-/// Résultat d'une recherche dans l'annuaire.
+/// Result of a directory search.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct DirectoryUsersResultView {
-    /// Utilisateurs non archivés correspondant aux filtres. Vide si aucun ne correspond.
+    /// Non-archived users matching the filters. Empty if none matches.
     pub users: Vec<DirectoryUser>,
 }
 

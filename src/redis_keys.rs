@@ -7,8 +7,9 @@
 use mairie360_api_lib::redis::error::RedisError;
 use mairie360_api_lib::redis::redis_interface::Redis;
 
-/// Time to live of the forgot-password token and of its e-mail mapping: 30 minutes.
-pub const FORGOT_PASSWORD_TTL_SECONDS: u64 = 30 * 60;
+/// Time to live of the forgot-password token and of its e-mail mapping: 15 minutes, the lifetime
+/// the reset e-mail announces (MAIR-522).
+pub const FORGOT_PASSWORD_TTL_SECONDS: u64 = 15 * 60;
 
 /// Time to live of the first-connection token and of its user id mapping: 24 hours (an
 /// administrator creates the account and the user may log in for the first time later that day).

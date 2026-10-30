@@ -12,8 +12,7 @@ use serial_test::serial;
 #[tokio::test]
 #[serial]
 async fn admin_list_users_searches_and_paginates_by_name() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("Paging");
     let charlie = create_user(&pool, "Charlie", &marker).await;
     let alex = create_user(&pool, "Alex", &marker).await;
@@ -50,8 +49,7 @@ async fn admin_list_users_searches_and_paginates_by_name() {
 #[tokio::test]
 #[serial]
 async fn admin_list_users_includes_roles_and_matches_full_name() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let rows: Vec<AdminUserRow> = pool
         .fetch_all(&AdminListUsersQueryView::new(
@@ -74,8 +72,7 @@ async fn admin_list_users_includes_roles_and_matches_full_name() {
 #[tokio::test]
 #[serial]
 async fn admin_list_users_filters_by_group() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("Grouped");
     let member = create_user(&pool, "Member", &marker).await;
     let _outsider = create_user(&pool, "Outsider", &marker).await;
@@ -120,7 +117,7 @@ async fn admin_list_users_filters_by_group() {
 #[serial]
 async fn admin_list_users_without_search_pages_every_user_in_name_order() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = crate::common::get_raw_pool(host.clone()).await;
     let marker = unique_marker("Unsearched");
     let member = create_user(&pool, "Member", &marker).await;
