@@ -122,6 +122,10 @@ async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
     assert_eq!(body["already_anonymized"], false);
     assert_eq!(body["revoked_sessions"], 2);
     assert_eq!(
+        body["revocation_published"], true,
+        "Redis accepted both sessions"
+    );
+    assert_eq!(
         body["keycloak_account_deleted"], false,
         "no Keycloak in this test"
     );

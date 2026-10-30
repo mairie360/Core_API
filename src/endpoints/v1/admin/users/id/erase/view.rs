@@ -21,6 +21,10 @@ pub struct ErasureView {
     /// Sessions of the user, closed and published to the revocation list.
     #[schema(example = 2)]
     pub revoked_sessions: usize,
+    /// `false` when Redis did not accept every closed session on the revocation list: Core
+    /// refuses their JWTs anyway, the other APIs only once they expire.
+    #[schema(example = true)]
+    pub revocation_published: bool,
     /// Whether the Keycloak account of the user was deleted (`false` when Keycloak is not
     /// configured or does not know the account).
     #[schema(example = false)]
@@ -29,13 +33,18 @@ pub struct ErasureView {
 
 impl ErasureView {
     #[must_use]
-    pub const fn new(result: &AnonymizeUserResult, keycloak_account_deleted: bool) -> Self {
+    pub const fn new(
+        result: &AnonymizeUserResult,
+        revocation_published: bool,
+        keycloak_account_deleted: bool,
+    ) -> Self {
         Self {
             user_id: result.user_id,
             already_anonymized: result.already_anonymized,
             handed_over_to: result.handed_over_to,
             deleted_private_events: result.deleted_private_events,
             revoked_sessions: result.revoked_sessions.len(),
+            revocation_published,
             keycloak_account_deleted,
         }
     }

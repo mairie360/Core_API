@@ -28,6 +28,13 @@ enum EraseUserError {
     Keycloak(SyncError),
     /// Erased in Core, but the Keycloak account (disabled) could not be deleted.
     KeycloakIncomplete(SyncError),
+    /// Core refused the erasure (`core`, nothing changed in Core) and the Keycloak account,
+    /// disabled before, could not be re-enabled (`restore`): the user cannot sign in until an
+    /// administrator re-enables it in Keycloak.
+    KeycloakNotRestored {
+        core: Box<Self>,
+        restore: SyncError,
+    },
 }
 
 impl std::fmt::Display for EraseUserError {
@@ -44,6 +51,10 @@ impl std::fmt::Display for EraseUserError {
                 f,
                 "The account was erased in Mairie 360 and disabled in Keycloak, but the Keycloak account could not be deleted ({error}): delete it in Keycloak."
             ),
+            Self::KeycloakNotRestored { core, restore } => write!(
+                f,
+                "The account was not erased ({core}), but its Keycloak account, disabled before the erasure, could not be re-enabled ({restore}): re-enable it in Keycloak."
+            ),
         }
     }
 }
@@ -59,7 +70,8 @@ impl ResponseError for EraseUserError {
             }
             Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Keycloak(SyncError::KeycloakForbidden | SyncError::KeycloakUnavailable)
-            | Self::KeycloakIncomplete(_) => StatusCode::BAD_GATEWAY,
+            | Self::KeycloakIncomplete(_)
+            | Self::KeycloakNotRestored { .. } => StatusCode::BAD_GATEWAY,
         }
     }
 
@@ -68,11 +80,12 @@ impl ResponseError for EraseUserError {
     }
 }
 
-/// `anonymize_user()`, then the closed sessions on the revocation list (MAIR-264).
+/// `anonymize_user()`, then the closed sessions on the revocation list (MAIR-264). The boolean
+/// is `false` when Redis did not accept every revoked session.
 async fn anonymize_in_core(
     state: &AppState,
     user_id: u64,
-) -> Result<AnonymizeUserResult, EraseUserError> {
+) -> Result<(AnonymizeUserResult, bool), EraseUserError> {
     let result: AnonymizeUserResult = state
         .get_smart_db()
         .fetch_one(&AnonymizeUserQueryView::new(user_id))
@@ -85,8 +98,8 @@ async fn anonymize_in_core(
                 EraseUserError::DatabaseError
             }
         })?;
-    publish_revoked_sessions(state.get_redis(), &result.revoked_sessions).await;
-    Ok(result)
+    let published = publish_revoked_sessions(state.get_redis(), &result.revoked_sessions).await;
+    Ok((result, published))
 }
 
 /// The Keycloak account of the user, found while Core still holds its e-mail and link.
@@ -118,8 +131,8 @@ async fn erase_user(
         None => None,
     };
     let (Some(admin), Some(keycloak_id)) = (admin, keycloak_id) else {
-        let result = anonymize_in_core(state, user_id).await?;
-        return Ok(ErasureView::new(&result, false));
+        let (result, published) = anonymize_in_core(state, user_id).await?;
+        return Ok(ErasureView::new(&result, published, false));
     };
 
     // Disabled (and signed out) before Core erases the account, re-enabled if Core refuses, deleted
@@ -127,13 +140,17 @@ async fn erase_user(
     disable_account(admin, &keycloak_id)
         .await
         .map_err(EraseUserError::Keycloak)?;
-    let result = match anonymize_in_core(state, user_id).await {
-        Ok(result) => result,
+    let (result, published) = match anonymize_in_core(state, user_id).await {
+        Ok(done) => done,
         Err(error) => {
             if let Err(restore) = enable_account(admin, &keycloak_id).await {
                 tracing::error!(
                     "Keycloak sync: Core refused to erase user {user_id} and the Keycloak account {keycloak_id} could not be re-enabled: {restore}"
                 );
+                return Err(EraseUserError::KeycloakNotRestored {
+                    core: Box::new(error),
+                    restore,
+                });
             }
             return Err(error);
         }
@@ -145,7 +162,7 @@ async fn erase_user(
         );
         return Err(EraseUserError::KeycloakIncomplete(error));
     }
-    Ok(ErasureView::new(&result, true))
+    Ok(ErasureView::new(&result, published, true))
 }
 
 #[utoipa::path(
@@ -164,7 +181,9 @@ async fn erase_user(
                    and cannot be restored. Administrators only. Erasing an account twice changes \
                    nothing (`already_anonymized`).\n\n\
                    The sessions closed are published to the revocation list, so their JWTs are \
-                   refused by every API at once.\n\n\
+                   refused by every API at once; `revocation_published` is `false` when Redis did \
+                   not accept every one of them (Core refuses them anyway, the other APIs only \
+                   until they expire).\n\n\
                    **Keycloak (MAIR-142).** With a confidential Keycloak client, the Keycloak \
                    account of the user (recorded link, then e-mail) is disabled and signed out \
                    **before** Core erases the account, re-enabled if Core refuses, and **deleted** \
@@ -178,7 +197,7 @@ async fn erase_user(
         (status = 404, description = "No account has this id.", body = String, content_type = "text/plain", example = json!("Unknown user")),
         (status = 409, description = "The account is the seeded administrator, or no other active administrator can take over its groups, projects and events. Nothing is changed.", body = String, content_type = "text/plain", example = json!("This account cannot be erased: it is the seeded administrator, or no other active administrator can take over its groups, projects and events")),
         (status = 500, description = "Database error. Nothing is changed.", body = String, content_type = "text/plain", example = json!("Database error occurred")),
-        (status = 502, description = "Keycloak could not be reached or refused Core's service account before the erasure (nothing is changed), or the account was erased in Core but its Keycloak account, disabled, could not be deleted.", body = String, content_type = "text/plain", example = json!("Keycloak is unavailable."))
+        (status = 502, description = "Keycloak could not be reached or refused Core's service account before the erasure (nothing is changed), the account was erased in Core but its Keycloak account, disabled, could not be deleted, or Core refused the erasure and the disabled Keycloak account could not be re-enabled (re-enable it in Keycloak).", body = String, content_type = "text/plain", example = json!("Keycloak is unavailable."))
     ),
     tag = "Admin - Users",
     security(("jwt" = []))
@@ -197,4 +216,25 @@ pub async fn admin_erase_user(
     )
     .await?;
     Ok(HttpResponse::Ok().json(erased))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EraseUserError;
+    use crate::keycloak::sync::SyncError;
+    use actix_web::{error::ResponseError, http::StatusCode};
+
+    /// Review of MAIR-289: a Keycloak account left disabled after Core refused the erasure is a
+    /// partial state the administrator must hear about, not the plain Core refusal.
+    #[test]
+    fn a_keycloak_account_left_disabled_is_reported() {
+        let error = EraseUserError::KeycloakNotRestored {
+            core: Box::new(EraseUserError::Refused),
+            restore: SyncError::KeycloakUnavailable,
+        };
+        assert_eq!(error.status_code(), StatusCode::BAD_GATEWAY);
+        let text = error.to_string();
+        assert!(text.contains("was not erased"), "{text}");
+        assert!(text.contains("re-enable it in Keycloak"), "{text}");
+    }
 }
