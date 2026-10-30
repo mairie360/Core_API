@@ -9,13 +9,12 @@ version: 1
 journey: gdpr-marker.yaml
 personas: 4
 erased: 1
-# The marker journey already archives every persona, the only "deletion" Core offers today: the
-# erase step archives again (404 once archived). It becomes the anonymization of MAIR-289 once
-# Core exposes it; until then the erasure findings of the analysis are expected failures.
+# The marker journey archives every persona; the erase step then erases it for good through the
+# anonymization of MAIR-289 (`anonymize_user()`), which also works on an archived account.
 erase:
-  - name: erase the persona (archive, until the anonymization of MAIR-289)
+  - name: erase the persona (anonymization, MAIR-289)
     request:
-      method: DELETE
-      path: "/api/v1/admin/users/{{user_id}}/"
+      method: POST
+      path: "/api/v1/admin/users/{{user_id}}/erase"
       headers: {Authorization: "Bearer {{env.ADMIN_JWT}}"}
-    expect: [204, 404]
+    expect: [200]
