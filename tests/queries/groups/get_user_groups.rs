@@ -1,4 +1,5 @@
 use crate::common::get_pool;
+use crate::common::users::{create_user, unique_marker};
 use core_api::database::groups::get_group::Group;
 use core_api::database::groups::get_user_groups::GetUserGroupsQuerView;
 use mairie360_api_lib::test_setup::queries_setup::GROUP_OWNER_ID;
@@ -22,7 +23,10 @@ async fn get_user_groups_success() {
 async fn get_user_groups_without_groups() {
     let pool = get_pool().await;
 
-    let view = GetUserGroupsQuerView::new(3);
+    // A fresh account: a fixed id may belong to a group created by another test of the binary
+    // (the shared database is seeded in test order).
+    let user = create_user(&pool, "Lonely", &unique_marker("nogroup")).await;
+    let view = GetUserGroupsQuerView::new(u64::try_from(user).unwrap());
     let result: Result<Vec<Group>, _> = pool.fetch_all(&view).await;
     assert!(result.is_ok(), "{result:?}");
     assert!(result.unwrap().is_empty());
