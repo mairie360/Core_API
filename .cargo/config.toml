@@ -18,12 +18,12 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs
 
 # Version of the ghcr.io/mairie360/database and liquibase-migrations images the integration tests
 # run against (read by mairie360_api_lib::test_setup), kept equal to the compose files: the dev
-# build of Database main `dev-ec4f539`, the first carrying the one-role-per-user key of MAIR-564
-# (`mair-564-01`, `user_roles_pkey` on `user_id`) that the grant's `ON CONFLICT (user_id)` needs.
-# Database v3.1.0 is not released yet: switch to "3.1.0" here and in the compose files once it
-# is. mairie360_api_lib passes -Dallow_template_admin=true, so the migration seeds the template
-# admin past MAIR-413.
+# build of Database main `dev-76437e3`, the first carrying `anonymize_user()` /
+# `export_user_data()` (MAIR-289) on top of the one-role-per-user key of MAIR-564. Switch to the
+# Database release that ships them (3.4.0) here and in the compose files once it is published.
+# mairie360_api_lib passes -Dallow_template_admin=true, so the migration seeds the template admin
+# past MAIR-413.
 # An exported TEST_DB_VERSION still wins.
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database
-TEST_DB_VERSION = "dev-ec4f539"
+TEST_DB_VERSION = "dev-76437e3"

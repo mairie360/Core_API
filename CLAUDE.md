@@ -403,11 +403,8 @@ is found first (link, then e-mail, while Core still has them), disabled before t
 re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
 other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
 `GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
-The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` is `#[ignore]` until a
-Database image with #166 is pinned in `TEST_DB_VERSION`: run it with
-`TEST_DB_VERSION=<tag> cargo test --test integration_test erasure -- --ignored` (a local build of
-the Database branch, tagged `ghcr.io/mairie360/database:<tag>` and
-`ghcr.io/mairie360/liquibase-migrations:<tag>`, works).
+The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the
+`TEST_DB_VERSION` image (`dev-76437e3`, Database main with #166).
 
 ### Access matrix (MAIR-288)
 

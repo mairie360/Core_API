@@ -2,17 +2,15 @@
 //! (`GET /api/v1/user/me/export`, `GET /api/v1/admin/users/{userId}/export`) of a user, on the
 //! `anonymize_user()` / `export_user_data()` functions of Devops/Database (MAIR-289).
 //!
-//! The functions ship with Database #166 (release folder v3.0.1). Until a Database image with them
-//! is published and pinned in `.cargo/config.toml` (`TEST_DB_VERSION`), these tests are ignored:
-//! run them against a local build with
-//! `TEST_DB_VERSION=<tag> cargo test --test integration_test erasure -- --ignored`.
+//! The functions ship with Database #166: `TEST_DB_VERSION` (`.cargo/config.toml`) pins an image
+//! that has them.
 
 use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
-use core_api::session_jwt::generate_session_jwt;
+use core_api::session_jwt::{generate_session_jwt, user_role_name};
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::test_setup::redis_setup::{
     get_redis_connection, start_redis_container, RedisTestConfig,
@@ -86,14 +84,15 @@ async fn open_session(state: &AppState, user_id: u64) -> (Uuid, String) {
         ))
         .await
         .unwrap();
+    let role = user_role_name(state, user_id).await.unwrap();
     (
         session_id,
-        generate_session_jwt(user_id, session_id).unwrap(),
+        generate_session_jwt(user_id, session_id, role).unwrap(),
     )
 }
 
-async fn fresh_user(host: &str, name: &str) -> u64 {
-    let pool = get_pool(host.to_string()).await;
+async fn fresh_user(name: &str) -> u64 {
+    let pool = get_pool().await;
     u64::try_from(create_user(&pool, name, &unique_marker("erasure")).await).unwrap()
 }
 
@@ -103,11 +102,10 @@ fn admin() -> u64 {
 
 #[tokio::test]
 #[serial]
-#[ignore = "needs a Database image with anonymize_user() / export_user_data() (Database #166, MAIR-289)"]
 async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "Erased").await;
+    let user = fresh_user("Erased").await;
     let (first, jwt) = open_session(&env.state, user).await;
     let (second, _) = open_session(&env.state, user).await;
     let (_, admin_jwt) = open_session(&env.state, admin()).await;
@@ -177,11 +175,10 @@ async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
 
 #[tokio::test]
 #[serial]
-#[ignore = "needs a Database image with anonymize_user() / export_user_data() (Database #166, MAIR-289)"]
 async fn a_user_and_an_admin_export_the_data_of_the_account() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "Exported").await;
+    let user = fresh_user("Exported").await;
     let (_, jwt) = open_session(&env.state, user).await;
     let (_, admin_jwt) = open_session(&env.state, admin()).await;
     let get = |uri: String, token: &str| {
