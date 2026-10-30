@@ -206,7 +206,7 @@ async fn admin_password_reset_publishes_every_session() {
 async fn admin_archiving_revokes_the_sessions_and_blocks_the_account() {
     let env = env().await;
     let app = init_app!(env.state);
-    let user = fresh_user(&env.host, "Archived").await;
+    let user = fresh_user("Archived").await;
     let (first, jwt, refresh_token) = open_session(&env.state, user).await;
     let (second, _, _) = open_session(&env.state, user).await;
     let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
