@@ -397,6 +397,23 @@ async fn every_role_gets_what_the_matrix_says() {
     );
 }
 
+/// Sets `DIRECTORY_GUEST_ACCESS=none` and removes it when dropped, a failed assertion included,
+/// so that the tests run after this one read the default.
+struct GuestAccessClosed;
+
+impl GuestAccessClosed {
+    fn set() -> Self {
+        std::env::set_var("DIRECTORY_GUEST_ACCESS", "none");
+        Self
+    }
+}
+
+impl Drop for GuestAccessClosed {
+    fn drop(&mut self) {
+        std::env::remove_var("DIRECTORY_GUEST_ACCESS");
+    }
+}
+
 /// `DIRECTORY_GUEST_ACCESS=none` closes the directory to the agents who only hold the Guest role;
 /// they still read their own record, and the other roles are not affected.
 #[tokio::test]
@@ -418,7 +435,7 @@ async fn the_directory_can_be_closed_to_guests() {
             .to_request()
     };
 
-    std::env::set_var("DIRECTORY_GUEST_ACCESS", "none");
+    let closed = GuestAccessClosed::set();
     let directory = status!(
         app,
         get("/api/v1/user/".into(), bearer(&state, guest).await)
@@ -441,7 +458,7 @@ async fn the_directory_can_be_closed_to_guests() {
         app,
         get("/api/v1/user/".into(), bearer(&state, agent).await)
     );
-    std::env::remove_var("DIRECTORY_GUEST_ACCESS");
+    drop(closed);
     let reopened = status!(
         app,
         get("/api/v1/user/".into(), bearer(&state, guest).await)
