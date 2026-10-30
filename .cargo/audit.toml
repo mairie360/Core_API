@@ -17,5 +17,11 @@ ignore = [
     # archive from a user, and is not in the binary. Drop these once utoipa-swagger-ui moves to zip 9.
     "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
-    "RUSTSEC-2026-0369"
+    "RUSTSEC-2026-0369",
+    # crypto-bigint 0.5 (via elliptic-curve 0.13, p256/p384 of jsonwebtoken `rust_crypto`),
+    # timing variability in operations meant to be constant-time (fixed in crypto-bigint >= 0.7.6,
+    # which the elliptic-curve 0.13 line cannot use). It leaks through secret scalars; Core holds
+    # no EC private key and only verifies ES256/ES384 signatures with public keys. Drop it once
+    # jsonwebtoken moves to elliptic-curve 0.14.
+    "RUSTSEC-2026-0387"
 ]

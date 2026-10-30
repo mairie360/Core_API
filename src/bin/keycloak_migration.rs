@@ -3,7 +3,7 @@
 //! operators.
 //!
 //! Reads the same `DB_*`, `REDIS_URL` and `KEYCLOAK_*` variables as the API, prints the run
-//! report as JSON on stdout and exits with `1` when the run could not complete or at least one
+//! report as JSON on stdout (without the e-mails: stdout is a job log, MAIR-290) and exits with `1` when the run could not complete or at least one
 //! account failed, so a replay is scheduled. `--send-password-setup-email` asks Keycloak to
 //! e-mail a password set-up link to every account created by this run.
 
@@ -50,7 +50,7 @@ async fn main() -> ExitCode {
 
     match migrate_users(state.get_smart_db(), &admin, options).await {
         Ok(report) => {
-            match serde_json::to_string_pretty(&report) {
+            match serde_json::to_string_pretty(&report.clone().without_emails()) {
                 Ok(json) => println!("{json}"),
                 Err(e) => eprintln!("Cannot serialise the migration report: {e}"),
             }

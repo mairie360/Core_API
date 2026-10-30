@@ -210,10 +210,10 @@ async fn register_user(
     complete_keycloak_account(admin, smart_db, register_view.email(), &account)
         .await
         .map_err(|error| {
+            // The Keycloak id, never the e-mail: a log names no personal data (MAIR-290).
             tracing::error!(
-                "Keycloak sync: account {} created for {} but not completed: {error}",
-                account.keycloak_id,
-                register_view.email()
+                "Keycloak sync: account {} created but not completed: {error}",
+                account.keycloak_id
             );
             CreateUserError::KeycloakIncomplete(error)
         })

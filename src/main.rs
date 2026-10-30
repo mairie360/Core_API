@@ -15,6 +15,7 @@ use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
 use mairie360_api_lib::logging::telemetry::{init_telemetry, TracingLogger};
+use mairie360_api_lib::request_log::{hide_query, restore_query, RedactedRootSpanBuilder};
 use mairie360_api_lib::state::AppState;
 use std::time::{Duration, Instant};
 use utoipa::OpenApi;
@@ -126,8 +127,12 @@ async fn main() -> std::io::Result<()> {
             ),
             None => app,
         };
-        // Outermost: one root span per request, including the ones the JWT / session guards refuse.
-        app.wrap(TracingLogger::default())
+        // One root span per request, including the ones the JWT / session guards refuse. It
+        // records the path without the query string and no error `Debug` (MAIR-290, see
+        // `request_log`): `hide_query` runs before it, `restore_query` right after it.
+        app.wrap(middleware::from_fn(restore_query))
+            .wrap(TracingLogger::<RedactedRootSpanBuilder>::new())
+            .wrap(middleware::from_fn(hide_query))
             // Every response is JSON or plain text: forbid browsers from sniffing it as HTML.
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             .service(health::health)

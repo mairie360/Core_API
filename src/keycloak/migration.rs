@@ -147,6 +147,17 @@ pub struct MigrationReport {
 }
 
 impl MigrationReport {
+    /// The report without the e-mails, for a job log (MAIR-290): the job's stdout ends up in
+    /// the cluster logs, where no personal data belongs. The accounts stay identified by
+    /// `user_id` and `keycloak_id`.
+    #[must_use]
+    pub fn without_emails(mut self) -> Self {
+        for user in &mut self.users {
+            user.email.clear();
+        }
+        self
+    }
+
     fn push(&mut self, result: UserMigrationResult) {
         self.total += 1;
         match result.status {
@@ -250,9 +261,10 @@ async fn migrate_user(
         match admin.send_password_setup_email(&keycloak_id).await {
             Ok(()) => result.password_email_sent = true,
             Err(e) => {
+                // The user id, never the e-mail: a log names no personal data (MAIR-290).
                 tracing::error!(
-                    "Keycloak migration: password set-up e-mail not sent to {}: {e}",
-                    user.email
+                    "Keycloak migration: password set-up e-mail not sent to user {}: {e}",
+                    user.id
                 );
                 result.error = Some(format!("The password set-up e-mail could not be sent: {e}"));
             }
@@ -295,5 +307,28 @@ async fn provision(
             Ok(Some((existing.id, UserMigrationStatus::Updated)))
         }
         Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MigrationReport, UserMigrationResult, UserMigrationStatus};
+
+    #[test]
+    fn the_job_report_holds_no_email() {
+        let mut report = MigrationReport::default();
+        report.push(UserMigrationResult {
+            user_id: 42,
+            email: "jean.dupont@mairie360.fr".to_string(),
+            status: UserMigrationStatus::Created,
+            keycloak_id: Some("f3b2c1d0".to_string()),
+            enabled: true,
+            roles_added: vec![],
+            password_email_sent: false,
+            error: None,
+        });
+        let json = serde_json::to_string(&report.without_emails()).unwrap();
+        assert!(!json.contains("jean.dupont"), "{json}");
+        assert!(json.contains("\"user_id\":42"), "{json}");
     }
 }
