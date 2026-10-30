@@ -49,14 +49,11 @@ async fn trigger_list_directory_users(
         return Err(DirectoryError::BadRequest);
     }
 
-    let users: Vec<DirectoryUser> = state
-        .get_smart_db()
-        .fetch_all(&ListDirectoryUsersQueryView::new(
-            query.search(),
-            &ids,
-            &group_ids,
-            limit,
-        ))
+    let view = ListDirectoryUsersQueryView::new(query.search(), &ids, &group_ids, limit);
+    let key = ListDirectoryUsersQueryView::cache_key(query.search(), &ids, &group_ids, limit);
+    let smart_db = state.get_smart_db();
+    let users: Vec<DirectoryUser> = smart_db
+        .cached(&key, async || smart_db.fetch_all(&view).await)
         .await
         .map_err(|error| {
             tracing::error!("{error:?}");
@@ -69,21 +66,29 @@ async fn trigger_list_directory_users(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Rechercher dans l'annuaire des utilisateurs",
-    description = "Renvoie les utilisateurs non archivés, avec leurs rôles et les identifiants des \
-                   groupes auxquels ils appartiennent. Sert à alimenter les sélecteurs \
-                   d'utilisateurs des autres modules (assignation de tâche, invitation à un \
-                   événement, ajout à une conversation).\n\n\
-                   Les filtres se cumulent : un utilisateur doit satisfaire **tous** ceux qui sont \
-                   fournis. Sans aucun filtre, les 1000 premiers utilisateurs non archivés sont \
-                   renvoyés.\n\n\
-                   Vue restreinte volontairement : ni téléphone, ni statut, ni date. Pour la fiche \
-                   complète d'un utilisateur, voir `GET /api/v1/user/{id}/`.",
+    summary = "Search the user directory",
+    description = "Returns the non-archived users, with their role and the ids of the groups \
+                   they belong to. A user holds one role (MAIR-564): read `role`; `roles` is \
+                   deprecated, it holds at most that role. Feeds the user pickers of the other modules (task \
+                   assignment, event invitation, adding someone to a conversation).\n\n\
+                   The filters add up: a user must match **every** filter given. Without any \
+                   filter, the first 1000 non-archived users are returned.\n\n\
+                   Deliberately restricted view: no phone, status nor date. For a user's full \
+                   record, call `GET /api/v1/user/{id}/`.\n\n\
+                   **Cache (MAIR-524):** the page does not depend on the caller, so it is cached \
+                   in Redis for 60 seconds, one entry per set of filters shared by every caller \
+                   (`search` trimmed, `ids` / `group_ids` compared as sets). Every write through \
+                   Core_API that changes what the directory shows invalidates it at once: \
+                   account creation, admin patch and archive, `PATCH /api/v1/user/me/`, role \
+                   grant/revoke, role rename/replace/delete, group creation and deletion, group \
+                   member add/remove. A change made outside Core_API (direct SQL) shows up at \
+                   the latest after the 60 seconds. When Redis is unreachable the page is read \
+                   from Postgres, never failed.",
     params(DirectoryUsersQuery),
     responses(
         (
             status = 200,
-            description = "Utilisateurs correspondant aux filtres. La liste est vide si aucun ne correspond.",
+            description = "Users matching the filters, possibly served from the 60-second cache. The list is empty if none matches.",
             body = DirectoryUsersResultView,
             example = json!({
                 "users": [
@@ -92,6 +97,7 @@ async fn trigger_list_directory_users(
                         "first_name": "Jean",
                         "last_name": "Dupont",
                         "email": "jean.dupont@mairie360.fr",
+                        "role": "agent",
                         "roles": ["agent"],
                         "group_ids": [3, 7]
                     },
@@ -100,7 +106,8 @@ async fn trigger_list_directory_users(
                         "first_name": "Amina",
                         "last_name": "Bensaïd",
                         "email": "amina.bensaid@mairie360.fr",
-                        "roles": ["admin", "agent"],
+                        "role": "admin",
+                        "roles": ["admin"],
                         "group_ids": []
                     }
                 ]
@@ -115,14 +122,14 @@ async fn trigger_list_directory_users(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la lecture de l'annuaire.",
+            description = "Database error while reading the directory (on a cache miss).",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

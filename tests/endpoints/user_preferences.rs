@@ -1,3 +1,4 @@
+use crate::common::core_db_url;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
@@ -7,9 +8,7 @@ use core_api::endpoints::v1::user::me::preferences::view::{
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use serial_test::serial;
 
@@ -59,8 +58,7 @@ async fn fresh_user_jwt(state: &web::Data<AppState>) -> String {
 #[serial]
 async fn preferences_require_a_jwt() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
 
     for uri in [PREFERENCES, NOTIFICATIONS] {
@@ -80,8 +78,7 @@ async fn preferences_require_a_jwt() {
 #[serial]
 async fn preferences_round_trip() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     let bearer = ("Authorization", format!("Bearer {jwt}"));
@@ -129,8 +126,7 @@ async fn preferences_round_trip() {
 #[serial]
 async fn invalid_preferences_answer_400() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     let bearer = ("Authorization", format!("Bearer {jwt}"));
@@ -174,8 +170,7 @@ async fn invalid_preferences_answer_400() {
 #[serial]
 async fn allowed_preference_values_are_stored() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     let bearer = ("Authorization", format!("Bearer {jwt}"));
@@ -205,8 +200,7 @@ async fn allowed_preference_values_are_stored() {
 #[serial]
 async fn notification_settings_round_trip() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     let bearer = ("Authorization", format!("Bearer {jwt}"));

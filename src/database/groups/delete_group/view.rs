@@ -25,6 +25,12 @@ impl DeleteGroupQueryView {
 }
 
 impl ApiRequestDto for DeleteGroupQueryView {
+    // The deletion cascades to the memberships shown in the directory (`group_ids`): drop its
+    // cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "DELETE FROM groups WHERE id = $1"
     }

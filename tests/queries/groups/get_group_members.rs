@@ -3,14 +3,13 @@ use core_api::database::groups::{
     get_group::Group, get_group_members::GetGroupUsersQueryView,
     get_user_groups::GetUserGroupsQuerView,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, GROUP_OWNER_ID};
+use mairie360_api_lib::test_setup::queries_setup::GROUP_OWNER_ID;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn get_group_members_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetUserGroupsQuerView::new(*GROUP_OWNER_ID.get().unwrap() as u64);
     println!("{view}");
@@ -47,8 +46,7 @@ async fn get_group_members_success() {
 #[tokio::test]
 #[serial]
 async fn get_group_members_bad_group_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetGroupUsersQueryView::new(999);
     let result: Result<Vec<i32>, _> = pool.fetch_all(&view).await;

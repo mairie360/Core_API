@@ -34,8 +34,19 @@ impl AddRolesQueryView {
 }
 
 impl ApiRequestDto for AddRolesQueryView {
+    // The directory (`GET /api/v1/user/`) shows this change: drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
+    // A user holds one role (MAIR-564, Database 3.1.0: `user_roles` is keyed by the user): the
+    // grant replaces the role in place. Returns the granted role id, no row when the user already
+    // held it. A user or role that does not exist is a foreign key violation.
     fn query_sql(&self) -> &'static str {
-        "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)"
+        "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) \
+         ON CONFLICT (user_id) DO UPDATE SET role_id = EXCLUDED.role_id \
+         WHERE user_roles.role_id IS DISTINCT FROM EXCLUDED.role_id \
+         RETURNING to_jsonb(role_id)"
     }
 
     fn query_params(&self) -> &[QueryParam] {

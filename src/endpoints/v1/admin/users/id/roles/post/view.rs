@@ -2,7 +2,8 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Role to grant to the user of the path.
+/// Role to give the user of the path. It replaces the role the user holds (one role per user,
+/// MAIR-564).
 #[derive(Deserialize, ToSchema)]
 pub struct AddRoleToUserView {
     /// Id of the role to grant, as returned by `GET /api/v1/admin/roles/`.

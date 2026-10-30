@@ -1,3 +1,4 @@
+use crate::common::core_db_url;
 use crate::common::get_raw_pool;
 use crate::common::keycloak_mock::{
     id_token_claims, sign, subject_for, KeycloakMock, TestKey, REDIRECT_URI,
@@ -44,8 +45,7 @@ macro_rules! init_app {
 
 async fn app_state() -> web::Data<AppState> {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    web::Data::new(AppState::new(String::new(), host.clone()).await)
+    web::Data::new(AppState::new(String::new(), core_db_url().await).await)
 }
 
 fn body() -> Value {

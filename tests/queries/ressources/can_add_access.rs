@@ -1,14 +1,13 @@
 use crate::common::get_pool;
 use core_api::database::ressources::can_add_access::CanAddAccessQueryView;
 use core_api::endpoints::v1::ressources::AccessType;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, GROUP_OWNER_ID};
+use mairie360_api_lib::test_setup::queries_setup::GROUP_OWNER_ID;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         2,
@@ -22,8 +21,7 @@ async fn success() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_owner_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = CanAddAccessQueryView::new(
         (*GROUP_OWNER_ID.get().unwrap() as u64) + 1,
         2,
@@ -37,8 +35,7 @@ async fn failure_bad_owner_id() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_ressource_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         2,
@@ -52,8 +49,7 @@ async fn failure_bad_ressource_id() {
 #[tokio::test]
 #[serial]
 async fn failure_access_type_error() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = CanAddAccessQueryView::new(
         *GROUP_OWNER_ID.get().unwrap() as u64,
         1,

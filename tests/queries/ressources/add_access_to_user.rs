@@ -6,14 +6,12 @@ use core_api::database::{
     },
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let id = id as u64;
@@ -33,8 +31,7 @@ async fn success() {
 #[tokio::test]
 #[serial]
 async fn failure_add_all_right() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = AddAccessToUserQueryView::new(2, id as u64, 1, 1);
@@ -44,8 +41,7 @@ async fn failure_add_all_right() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_target_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = AddAccessToUserQueryView::new(10, id as u64, 1, 1);
@@ -55,8 +51,7 @@ async fn failure_bad_target_id() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_ressource_type_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = AddAccessToUserQueryView::new(10, 100, 1, 1);
     assert!(pool.execute(view).await.is_err());
 }
@@ -64,8 +59,7 @@ async fn failure_bad_ressource_type_id() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_ressource_instance_type_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = AddAccessToUserQueryView::new(10, id as u64, 100, 1);
@@ -75,8 +69,7 @@ async fn failure_bad_ressource_instance_type_id() {
 #[tokio::test]
 #[serial]
 async fn failure_bad_access_type_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
     let id: i32 = pool.fetch_scalar(&view).await.unwrap();
     let view = AddAccessToUserQueryView::new(10, id as u64, 1, 100);

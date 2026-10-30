@@ -43,6 +43,7 @@ docker compose -f "$COMPOSE_FILE" up -d
 
 echo "==> [2/4] Waiting for the journey to finish..."
 docker compose -f "$COMPOSE_FILE" wait gdpr-marker
+JOURNEY_EXIT=$?
 
 echo "==> [3/4] Saving the logs of every container..."
 docker compose -f "$COMPOSE_FILE" logs --no-color > "$REPORT_DIR/containers.log"
@@ -52,7 +53,15 @@ docker compose -f "$COMPOSE_FILE" down -v
 echo "==> [4/4] Searching the logs for the marker..."
 docker run --rm -v "$PWD/$REPORT_DIR:/report" -v "$PWD/$CICD_DIR/tests/gdpr:/engine:ro" \
     node:24-bookworm-slim node /engine/marker/scan.mjs /report
-EXIT_CODE=$?
+SCAN_EXIT=$?
+
+# A journey that failed did not send every value: the scan alone would be a false pass.
+EXIT_CODE=0
+if [ "$JOURNEY_EXIT" -ne 0 ]; then
+    echo "The marker journey failed (exit $JOURNEY_EXIT)."
+    EXIT_CODE=1
+fi
+[ "$SCAN_EXIT" -eq 0 ] || EXIT_CODE=1
 
 echo "----------------------------------------"
 echo "Final exit code: $EXIT_CODE"

@@ -15,7 +15,7 @@ fn ids(users: &[DirectoryUser]) -> Vec<i32> {
 #[serial]
 async fn directory_searches_non_archived_users_sorted_by_name() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("Directory");
     let zoe = create_user(&pool, "Zoe", &marker).await;
@@ -60,8 +60,7 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
 #[tokio::test]
 #[serial]
 async fn directory_matches_the_full_name() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("FullName");
     let adam = create_user(&pool, "Adam", &marker).await;
     create_user(&pool, "Zoe", &marker).await;
@@ -82,8 +81,7 @@ async fn directory_matches_the_full_name() {
 #[tokio::test]
 #[serial]
 async fn directory_filters_by_ids_and_groups_and_exposes_roles() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let marker = unique_marker("Scoped");
     let member = create_user(&pool, "Member", &marker).await;
     let other = create_user(&pool, "Other", &marker).await;

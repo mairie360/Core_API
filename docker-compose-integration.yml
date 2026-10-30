@@ -14,14 +14,16 @@ x-common-env: &common-env
   REDIS_URL: redis://redis:6379
   DB_TYPE: postgres
   DB_NAME: mairie_360_database
-  DB_USER: postgres
+  # Core connects with its own role, like in staging/prod (MAIR-556): a query its grants do not
+  # cover fails here. The superuser stays for postgres, liquibase and the seeder.
+  DB_USER: core_api
   DB_HOST: postgres
-  DB_PASSWORD: password
+  DB_PASSWORD: core-api-password
   DB_PORT: 5432
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:dev-3c50ecb
+    image: ghcr.io/mairie360/database:dev-ec4f539
     restart: always
     container_name: mairie360-db-core-api-integration
     environment:
@@ -41,7 +43,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:dev-3c50ecb
+    image: ghcr.io/mairie360/liquibase-migrations:dev-ec4f539
     container_name: mairie360-liquibase-core-api-integration
     depends_on:
       postgres:
@@ -58,6 +60,7 @@ services:
       --changelog-file=changelog.xml
       update
       -Dallow_template_admin=true
+      -Dcore_api_password=core-api-password
     networks:
       - backend
 
@@ -99,11 +102,11 @@ services:
       JWT_TIMEOUT: 3600
       # Serves /api-docs/openapi.json, read by the collection (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
-      SMTP_HOST: "mailpit"
-      SMTP_PORT: "1025"
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
-      EMAIL_FROM: "noreply.mairie360@dev.local"
+      # E-mails go to the fake Resend (MAIR-522), from no-reply@mairie360.local.
+      RESEND_API_KEY: "re_fake_local"
+      RESEND_BASE_URL: "http://fake-resend:8080"
+      EMAIL_DOMAIN: "mairie360.local"
+      EMAIL_SENDER_NAME: "Mairie 360 (test)"
     depends_on:
       liquibase:
         condition: service_completed_successfully
@@ -124,12 +127,16 @@ services:
     networks:
       - backend
 
-  mailpit:
-    image: axllent/mailpit:v1.31
-    container_name: mairie360-mailpit-integration
+  # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
+  fake-resend:
+    image: wiremock/wiremock:3.13.2
+    container_name: mairie360-fake-resend-integration
     restart: always
+    command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
+    volumes:
+      - ./tests/fake-resend/mappings:/home/wiremock/mappings:ro
     expose:
-      - "1025"
+      - "8080"
     networks:
       - backend
 
@@ -146,7 +153,7 @@ services:
     depends_on:
       core-ready:
         condition: service_completed_successfully
-      mailpit:
+      fake-resend:
         condition: service_started
     command: >
       run /etc/newman/collection.json

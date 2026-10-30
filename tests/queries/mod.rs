@@ -1,5 +1,6 @@
 mod admin;
 mod auth;
+mod db_role;
 mod get_user_id;
 mod groups;
 mod ressources;

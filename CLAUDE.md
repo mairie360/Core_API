@@ -28,7 +28,7 @@ Build/run:
 ```bash
 cargo build
 cargo build --release
-docker compose up --build --watch   # full stack: postgres, liquibase migrations, redis, core (hot reload), mailpit, nginx
+docker compose up --build --watch   # full stack: postgres, liquibase migrations, redis, core (hot reload), fake-resend, nginx
 ```
 
 Probes (MAIR-423): `GET /health` is the liveness probe (the process answers), `GET /ready` the readiness probe
@@ -38,11 +38,24 @@ exits with an error if it never answers, instead of serving `500`s. The compose 
 chart's readiness probe (`Devops/Deploiment`) must point at it too.
 
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
-`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET`, `JWT_TIMEOUT` and
-`SMTP_*`/`EMAIL_FROM` env vars — all fetched with `get_critical_env_var` (panics on missing var), see
+`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET` and `JWT_TIMEOUT`
+— all fetched with `get_critical_env_var` (panics on missing var) — plus the e-mail variables below, see
 `docker-compose.yml` for the dev values. The Postgres URL is assembled by
 `database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
 `DB_PASSWORD` may contain any character.
+
+E-mails (MAIR-522, `src/emails/`): every e-mail is a **published Resend template** filled in by Core,
+never a body written in the code. `emails::PasswordResetEmail` implements the lib's `EmailTemplate` (alias
+`account-password-reset`, variables `USER_FIRST_NAME`, `RESET_URL`, `EXPIRE_MINUTES`, optional
+`MAIRIE_NAME`); `emails::AccountEmails` (app data built by `main`, which refuses to start without it) sends
+it through `mairie360_api_lib::email::ResendMailer`. The sender is always `no-reply@<EMAIL_DOMAIN>`, no
+`Reply-To`: only the domain is configurable. Variables: `RESEND_API_KEY`, `EMAIL_DOMAIN` (verified in
+Resend), `PUBLIC_URL` (login front, the reset link is `<PUBLIC_URL>/reset-password?token=…`), optional
+`EMAIL_SENDER_NAME` and `MAIRIE_NAME`. The reset token lives 15 minutes (`FORGOT_PASSWORD_TTL_SECONDS`)
+and is dropped when Resend refuses the e-mail. A new e-mail = a template published in Resend + a struct
+implementing `EmailTemplate` here. The compose stacks run a fake Resend (WireMock, `tests/fake-resend/`)
+reached through `RESEND_BASE_URL`; the dev stack exposes its journal on `localhost:8025/__admin/requests`.
+The integration tests use the one of `tests/common/fake_resend.rs`.
 
 Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
 `get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
@@ -122,7 +135,7 @@ run in the `reads` scenario (ramping up to 100 VUs) as the Admin against a group
 methods in the `writes` scenario (10 VUs), each handler creating and deleting its own accounts, roles and groups so they are
 order-independent (deleted accounts stay archived). The auth flows run end to end on throwaway accounts: register →
 login `412` → `force_change_password` → login → refresh → revoke, and `forgot_password` → `reset_password` with the
-token read from the Mailpit API (`MAILPIT_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
+token read from the fake Resend's request journal (`FAKE_RESEND_URL`). A third scenario, `login_rush`, replays the morning rush (up to 20
 password logins/s on accounts created in `setup()`, `op:login_rush`, 1 s budget). One `p(95)` threshold per `op` tag
 (200 ms reads, 500 ms writes), `http_req_failed == 0` (the expected `412` of the fixture logins is excluded through
 `responseCallback`), `checks == 100%` (status and seeded rows) and no dropped iteration. Two load profiles (`K6_PROFILE`, passed by the compose file): `ci` (default) is what the 4 vCPU CI runner holds with the strict thresholds (30 readers, 4 writers, login rush at 8/s); `stress` is the high load (100 readers, 10 writers, 20 logins/s), run by hand with `K6_PROFILE=stress ./performance_test.sh`, not on every push. The k6 stack's seeder also runs `init-perf.sql`
@@ -150,7 +163,13 @@ refuses a non-admin (plain and percent-encoded path) and that every `jwt`-secure
 forged token, so a new operation is covered as soon as it is documented.
 
 Integration tests need **Docker running** — `get_shared_db()` (from `mairie360_api_lib::test_setup`) spins up a
-shared Postgres testcontainer on first use and hands back a pool. Tests that touch shared/seeded rows are
+shared Postgres testcontainer on first use and hands back its **superuser** URL, used by the fixtures only
+(`tests/common::get_raw_pool`). Everything that runs Core's code connects as the `core_api` role, like in
+staging (MAIR-556): `tests/common::get_pool()` (query views) and `AppState::new(…, core_db_url().await)`
+(endpoints). A query outside the grants of Database's `api_grants.sql` then fails the test with
+`permission denied`: add the grant there, never connect the code under test as the superuser. The compose stacks
+connect `core` as `core_api` too (`-Dcore_api_password` passed to Liquibase); postgres, liquibase and the seeder
+keep the superuser. Tests that touch shared/seeded rows are
 annotated `#[serial]` (the `serial_test` crate) to avoid interference between tests running against the same
 container.
 
@@ -240,8 +259,8 @@ logs it through `tracing` and returns its `DbFailure`: `Conflict` (unique constr
 or foreign key → `404`), `Invalid` (SQLSTATE `22xxx` / `23xxx` → `400`), `Unavailable` (pool down → `503`),
 `Internal` (anything else → `500`). Map the kinds the endpoint documents, answer the others with its generic `500`,
 and never send the Postgres message to the client. Logs go through `tracing` (`tracing::error!` / `warn!`, no
-`eprintln!` outside `src/bin/`): `telemetry::init()` always installs the stdout layer (filtered by `RUST_LOG`,
-default `info`), with the OTLP export on top when it is enabled.
+`eprintln!` outside `src/bin/`): the lib's `init_telemetry("core-api")` always installs the stdout layer
+(filtered by `RUST_LOG`, default `info`), with the OTLP export on top when it is enabled.
 
 ### Phone numbers (MAIR-480)
 
@@ -263,6 +282,38 @@ statement. The first read of a transaction locks what the checks depend on (`Loc
 revoke the sessions in the same transaction through `session_revocation::revoke_all_user_sessions_in`
 and publish them to Redis only after the commit. `tests/endpoints/transactions.rs` checks the rollbacks.
 
+### Directory read cache (MAIR-524)
+
+`GET /api/v1/user/` (the directory, `list_directory_users`) is served through the lib's
+`ReadCache`: `database::users::list_directory::DIRECTORY_CACHE` (namespace `directory`, 60 s,
+`DIRECTORY_CACHE_TTL_SECONDS`) with `ReadCache::shared` keys, because the page does not depend on
+the caller (no ACL, same rows whoever asks). `ListDirectoryUsersQueryView::cache_key` only applies
+normalisations the SQL ignores (search trimmed, `ids` / `group_ids` sorted and deduplicated); the
+search case is kept. Entries are `core-api:read-cache:directory:<generation>:shared:<sha256>` under
+the chart ACL. **Every write view that changes what the directory shows returns
+`INVALIDATES_DIRECTORY` from `invalidated_read_caches`**: `RegisterUserQueryView` (admin creation),
+`PatchUserQueryView` (admin patch and `PATCH /user/me/`), `DeleteUserQueryView` (archive),
+`AddRolesQueryView` / `RemoveRolesQueryView`, `PatchRoleQueryView` / `ChangeRoleQueryView` /
+`DeleteRoleQueryView` (role names), `CreateGroupQueryView` (the trigger adds the owner),
+`DeleteGroupQueryView` (cascade), `AddUserToGroupQueryView` / `DeleteUserFromGroupQueryView`. A new
+write on `users`, `user_roles`, `roles.name` or `group_members` must do the same; inside a
+transaction the namespace is bumped on `commit()`. Changes outside Core (raw SQL, another service)
+show up after the TTL. `tests/endpoints/directory_cache.rs` covers the hits and every invalidation
+against the ACL Redis. Without a reachable Redis (most tests) the cache is bypassed.
+
+### One role per user (MAIR-564)
+
+The database keys `user_roles` by the user (Database 3.1.0, `mair-564-01`): a user holds at most
+one role. `POST /api/v1/admin/users/{userId}/roles/` **replaces** the role
+(`AddRolesQueryView`: `INSERT … ON CONFLICT (user_id) DO UPDATE … RETURNING`, no row = the role was
+already held, `409`), and its Keycloak mirror unmaps the former Core role before Core writes
+(mapped back if Core refuses). An account registered without a role holds `Guest`; the schema's
+`tr_user_roles_replace_default` lets a raw `INSERT INTO user_roles` replace that default Guest,
+any other second role is a `23505`. The responses expose the role as `role` (`/user/{id}/`,
+`/user/me/`, the directory, the admin list and record); the `roles` lists are deprecated (at most
+one entry) and kept for the BFFs until they move to `role`. The upsert needs the new key: Core
+must run on a Database image that has `mair-564-01`.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and
@@ -272,6 +323,13 @@ logging in, forcing a password change via `force_change_password`. On success it
 (`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
+
+The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
+`role` (the user's role, one per user since MAIR-564, empty string when none).
+`session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
+so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
+`sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no
+`roles` claim any more (tokens signed with one still decode: unknown claims are ignored).
 
 Argon2 (MAIR-474): hash and verify passwords through `crate::passwords::{hash, verify}`, which run on actix's
 blocking pool (`web::block`), never by calling `mairie360_api_lib::password::{hash_password, verify_password}` from a
@@ -285,7 +343,6 @@ Security knobs added by MAIR-390, all optional:
 - `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
   keycloak, forgot/reset/force_change_password and refresh (`429` + `Retry-After`). Handlers take
   `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
-- `SMTP_INSECURE=true` allows a plaintext SMTP relay other than `mailpit` / `localhost`; otherwise STARTTLS.
 
 ### Database schema
 
@@ -297,32 +354,42 @@ against the `ghcr.io/mairie360/database` image; its source is `../../Devops/Data
 
 - `API.md` — informal endpoint list (partial/stale in places, e.g. missing rows).
 
-### Observability (MAIR-131)
+### Logs and observability (MAIR-131, MAIR-503)
 
-`src/telemetry.rs` exports traces over OTLP/HTTP (protobuf), opt-in and driven by the standard
-`OTEL_*` variables: nothing changes unless `OTEL_EXPORTER_OTLP_ENDPOINT` (or
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set, and `OTEL_SDK_DISABLED=true` forces it off. The
-endpoint is an agent that relays to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
-`http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
-`OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one. `RUST_LOG` (default
-`info`) filters the stdout logs, always on since MAIR-421. A failure to build the exporter is
-printed and never stops the API.
+Logs and traces come from `mairie360_api_lib::logging::telemetry` (feature `otel`), shared by every
+API since MAIR-503 (Core hosted the original POC of MAIR-131 in `src/telemetry.rs`, now removed):
+`main.rs` only calls `init_telemetry("core-api")` and keeps the guard. Read the lib for the details.
 
-- `main.rs` wraps the app in `tracing_actix_web::TracingLogger` (outermost, so requests refused by
-  the JWT / session guards get a span too; it replaces `middleware::Logger`). Root spans are named
+- Logs on stdout in the format of every API: coloured text (`RUST_LOG`, default `info`), one JSON
+  object per line with `LOG_FORMAT=json`. They are always on (MAIR-421): the handlers report their
+  database errors through `tracing`, export or not. The request root span is hidden from them (it
+  holds the client address and the query string, MAIR-290).
+- Traces over OTLP/HTTP (protobuf), opt-in: nothing is exported unless
+  `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is set,
+  `OTEL_SDK_DISABLED=true` forces it off, a failing exporter is logged and never stops the API. The
+  endpoint is an agent relaying to Scaleway Cockpit (OTel Collector or Grafana Alloy, e.g.
+  `http://alloy:4318`, `/v1/traces` is appended); `OTEL_SERVICE_NAME` defaults to `core-api`,
+  `OTEL_EXPORTER_OTLP_HEADERS` carries a token when the endpoint needs one.
+- `main.rs` wraps the app in the lib's `TracingLogger` (outermost, so requests refused by the JWT /
+  session guards get a span too; there is no `middleware::Logger`). Root spans are named
   `<METHOD> <route pattern>`, carry `http.*` attributes and continue an incoming `traceparent`.
-  `http.target` includes the query string (directory search terms): do not put secrets in query
-  strings.
+- No personal data leaves in a span: the lib's `Redact` span processor drops `http.client_ip` and
+  the query string of `http.target` (directory search terms) before the export. Build test
+  providers with `telemetry::tracer_provider(processor, "core-api")`, never
+  `SdkTracerProvider::builder()`, so the redaction always applies.
 - The SQL of `mairie360_api_lib` (sqlx) appears as span **events** (`db.statement` with `$n`
   placeholders, never the bound values, plus `elapsed` and the row counts), not as child spans:
   sqlx reports statements as `tracing` events of the `sqlx::query` target. Real `db` spans need a
   change in `API_lib`.
-- The `opentelemetry*`, `opentelemetry-otlp`, `opentelemetry_sdk`, `tracing-opentelemetry` and
-  `tracing-actix-web` versions are coupled (`tracing-actix-web` 0.7 supports OpenTelemetry up to
-  0.32, `tracing-opentelemetry` 0.33): bump them together, never one alone.
+- Never add `opentelemetry*`, `tracing-opentelemetry` or `tracing-actix-web` to `Cargo.toml`: use
+  the lib's re-exports (`logging::telemetry::{opentelemetry, opentelemetry_sdk, TracingLogger}`),
+  their versions are coupled and bumped in the lib. `tracing-subscriber` is only a dev-dependency
+  (the telemetry tests build their own registry).
 - CPU/RAM of the pod are not app metrics: they come from the cluster agent, not from this crate.
-- `tests/endpoints/telemetry.rs` asserts the span, the continued trace id and the SQL events
-  against an in-memory exporter (Docker needed like the other integration tests).
+- `tests/endpoints/telemetry.rs` asserts, against an in-memory exporter, the span of a real route
+  (status, route, continued trace id, SQL events, neither client address nor query string) and of a
+  `401` (Docker needed like the other integration tests); the redaction of logs and spans and
+  `init_telemetry` are tested in the lib.
 
 ## CI
 
@@ -330,9 +397,25 @@ printed and never stops the API.
 push, with no input other than the package name and the CICD version. The `uses:` is pinned by commit SHA with the
 tag in a comment, `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
 the two secrets the workflow declares are passed (no `secrets: inherit`). Both Dockerfiles build on the template's
-Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the `integration_tests`, `integration_and_security` and `performance_isolated` jobs run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
+Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the staging gates of `promote-staging.yml` (MAIR-494) run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
 PRs.
 
 ## Pull request reviewers
 
 Every PR requests a review from the whole team, minus its author: `CarolinHugo`, `LAURETbenjamin`, `MathTek` and `Quentintnrl` (`gh pr create … --reviewer CarolinHugo,LAURETbenjamin,MathTek`). `.github/CODEOWNERS` makes GitHub request them automatically as well.
+
+## Postgres pool settings (MAIR-565)
+
+Since `mairie360_api_lib` 3.4.0, `Database` reads three optional env vars through `DbPoolConfig::from_env`:
+`DB_POOL_MIN_CONNECTIONS` (default 1, sqlx's was 0: the API keeps one connection open, so the first request after a
+pause no longer reconnects), `DB_POOL_MAX_CONNECTIONS` (default 10) and `DB_POOL_IDLE_TIMEOUT_SECS` (default 600). An
+invalid value falls back to its default with a `warn!`. Per-instance values are set by the `Deploiment` chart
+(`APIs.dbPool`); the compose stacks set none and use the defaults.
+
+## Promotion to staging and prod (MAIR-494)
+
+A push to `main` only releases dev (`cicd.yml` stops at `release-dev`). Staging and prod are manual:
+`gh workflow run promote-staging.yml -R mairie360/Core_API [-f sha=<sha>]`, then `promote-prod.yml`
+(environments `Staging` / `Prod`). Staging refuses a commit without `dev-<sha>` and a green main run, and runs
+the integration, ZAP and k6 stacks on that image; prod refuses one without `staging-<sha>` and tags the version semantic-release computes
+for that commit. `cicd.yml`, `promote-staging.yml` and `promote-prod.yml` pin the same mairie360/CICD release.

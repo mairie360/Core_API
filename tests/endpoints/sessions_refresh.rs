@@ -1,3 +1,4 @@
+use crate::common::core_db_url;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::{
     create_session::CreateSessionQueryView, revoke_session_by_token::RevokeSessionByTokenQueryView,
@@ -5,9 +6,7 @@ use core_api::database::sessions::{
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::refresh_token;
-use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
 use serial_test::serial;
 
@@ -51,8 +50,7 @@ async fn create_session(state: &web::Data<AppState>, token: &str) {
 #[serial]
 async fn test_refresh_works_with_expired_jwt() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
 
     let token = format!("refresh_expired_jwt_{}", uuid::Uuid::new_v4());
@@ -79,8 +77,7 @@ async fn test_refresh_works_with_expired_jwt() {
 #[serial]
 async fn test_refresh_revoked_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
 
     let token = format!("refresh_revoked_{}", uuid::Uuid::new_v4());
@@ -107,8 +104,7 @@ async fn test_refresh_revoked_token_returns_401() {
 #[serial]
 async fn test_refresh_unknown_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
 
     let req = test::TestRequest::post()
@@ -124,8 +120,7 @@ async fn test_refresh_unknown_token_returns_401() {
 #[serial]
 async fn test_other_session_routes_still_require_jwt() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
 
     let req = test::TestRequest::post()
