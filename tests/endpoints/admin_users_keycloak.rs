@@ -4,7 +4,7 @@
 
 use crate::common::keycloak_mock::{KeycloakMock, CLIENT_ID, CLIENT_SECRET};
 use crate::common::users::{link_identity, unique_marker, user_identities};
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::{core_db_url, get_pool, get_raw_pool};
 use actix_web::http::Method;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
@@ -42,8 +42,8 @@ async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
     Env {
-        state: web::Data::new(AppState::new(String::new(), host.clone()).await),
-        pool: get_pool(host.clone()).await,
+        state: web::Data::new(AppState::new(String::new(), core_db_url().await).await),
+        pool: get_pool().await,
         raw: get_raw_pool(host.clone()).await,
     }
 }
@@ -700,11 +700,44 @@ async fn test_grant_role_unmaps_the_realm_role_when_core_refuses() {
     )
     .await;
 
-    // Already granted: the unique constraint answers 409 (MAIR-421).
+    // Already granted: the grant changes no row and answers 409.
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     assert!(
         mock.user(&keycloak_id).unwrap().realm_roles.is_empty(),
         "the mapping added by the call is removed"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn mair_564_grant_role_replaces_the_former_realm_role() {
+    let env = env().await;
+    let mock = KeycloakMock::start();
+    let role_id = test_role_id(&env).await;
+    // Registered without a role: Guest in Core, mirrored in Keycloak by the migration.
+    let (user_id, email) = fresh_user(&env, "Replaced").await;
+    let keycloak_id = mock.seed_user(&email, true);
+    mock.map_role(&keycloak_id, "Guest");
+    mock.map_role(&keycloak_id, "offline_access");
+    link_identity(&env.pool, user_id, &keycloak_id).await;
+
+    let (status, body) = call(
+        &env,
+        Some(mock.admin_client()),
+        Method::POST,
+        &format!("{USERS_PATH}{user_id}/roles/"),
+        Some(&json!({ "role_id": role_id })),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(core_roles(&env, user_id).await, vec![TEST_ROLE.to_string()]);
+    // The former Core role is unmapped; roles held only in Keycloak are kept.
+    let mut realm_roles = mock.user(&keycloak_id).unwrap().realm_roles;
+    realm_roles.sort();
+    assert_eq!(
+        realm_roles,
+        vec![TEST_ROLE.to_string(), "offline_access".to_string()]
     );
 }
 

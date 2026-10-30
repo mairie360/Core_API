@@ -9,7 +9,7 @@ use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, health, public_config, ready};
-use core_api::session_jwt::generate_session_jwt;
+use core_api::session_jwt::{generate_session_jwt, user_role_name};
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
@@ -183,7 +183,12 @@ async fn session(state: &AppState, user_id: u64) -> (String, String) {
     (
         format!(
             "Bearer {}",
-            generate_session_jwt(user_id, session_id).unwrap()
+            generate_session_jwt(
+                user_id,
+                session_id,
+                user_role_name(state, user_id).await.unwrap()
+            )
+            .unwrap()
         ),
         refresh_token,
     )

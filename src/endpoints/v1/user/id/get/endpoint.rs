@@ -130,7 +130,8 @@ async fn trigger_get_user(
                    The phone number is visible to every agent (MAIR-288). With \
                    `DIRECTORY_GUEST_ACCESS=none`, an agent who only holds the Guest role gets `403` \
                    on any record but their own.\n\n\
-                   `role` is deprecated: read `roles`, which lists every role.",
+                   A user holds one role (MAIR-564): read `role`. `roles` is deprecated, it \
+                   holds at most that role.",
     params(
         ("id" = u64, Path, description = "Id of the user to read.", example = 42)
     ),

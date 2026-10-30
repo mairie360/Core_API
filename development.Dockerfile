@@ -1,5 +1,5 @@
 # Same toolchain as the production `Dockerfile`, pinned by digest (MAIR-427).
-FROM rust:1.99-bookworm@sha256:114c7a4425406451c2866b6aafe69fe29b1b298832db1277d411ac73c82d04d6 AS development
+FROM rust:1.99-bookworm@sha256:48b7f435b8fc6378ce43b44f15e3a47fd8919b2825f835c39bd4bd3da50af5b8 AS development
 
 RUN apt update && apt install -y curl && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-watch --locked
@@ -18,6 +18,10 @@ RUN cargo build --locked && rm -rf src
 # -----------------------------
 
 COPY src ./src
+# The placeholder sources of the dependency cache are newer than the real ones: without this
+# touch, cargo keeps the empty `fn main() {}` binary and the container never serves (same as the
+# production Dockerfile).
+RUN touch src/main.rs src/lib.rs src/bin/keycloak_migration.rs
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

@@ -74,6 +74,11 @@ impl PatchRoleQueryView {
 }
 
 impl ApiRequestDto for PatchRoleQueryView {
+    // The directory (`GET /api/v1/user/`) shows this change: drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "UPDATE roles SET \
             name = CASE WHEN $1 THEN $2 ELSE name END, \

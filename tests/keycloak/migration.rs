@@ -10,8 +10,7 @@ use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID, ALIC
 use serial_test::serial;
 
 async fn run(mock: &KeycloakMock, options: MigrationOptions) -> MigrationReport {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     migrate_users(&pool, &mock.admin_client(), options)
         .await
         .expect("migration run")
@@ -207,7 +206,7 @@ async fn test_migration_adopts_an_account_created_by_hand() {
 #[serial]
 async fn test_migration_never_moves_a_linked_identity() {
     let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("migconflict");
     // `first` is processed before `owner` (lower id). Keycloak knows `first`'s e-mail under an
@@ -311,8 +310,7 @@ async fn test_migration_reports_a_failed_password_email_without_failing_the_acco
 #[tokio::test]
 #[serial]
 async fn test_migration_requires_a_confidential_client() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let mock = KeycloakMock::start();
     let admin = KeycloakAdminClient::new(mock.public_config());
 
@@ -326,8 +324,7 @@ async fn test_migration_requires_a_confidential_client() {
 #[tokio::test]
 #[serial]
 async fn test_migration_stops_when_keycloak_refuses_the_service_account() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let denied = KeycloakMock::start();
     denied.deny_service_account();
@@ -353,8 +350,7 @@ async fn test_migration_stops_when_keycloak_refuses_the_service_account() {
 #[tokio::test]
 #[serial]
 async fn test_migration_stops_when_keycloak_is_unreachable() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let admin = KeycloakAdminClient::new(KeycloakConfig::new(
         "http://127.0.0.1:9/realms/test",
         None,

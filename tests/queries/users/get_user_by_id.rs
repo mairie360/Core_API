@@ -1,13 +1,12 @@
 use crate::common::get_pool;
 use core_api::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
+use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn get_user_by_id_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetUserByIdQueryView::new(*ALICE_ID.get().unwrap() as u64);
     println!("{view}");
@@ -40,8 +39,7 @@ async fn get_user_by_id_success() {
 #[tokio::test]
 #[serial]
 async fn get_user_by_id_bad_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = GetUserByIdQueryView::new(999_999);
     let result: Result<GetUserByIdQueryResultView, _> = pool.fetch_one(&view).await;

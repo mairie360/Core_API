@@ -10,5 +10,18 @@ ignore = [
     # h2 0.3 (via actix-http), unbounded empty DATA frames (HTTP/2 denial of service, fixed in
     # h2 >= 0.4.16). actix-http 3 still pins h2 0.3, and Core only serves plain-text HTTP/1.1
     # (`HttpServer::bind`, TLS ends at the ingress): its HTTP/2 code path is unreachable.
-    "RUSTSEC-2026-0258"
+    "RUSTSEC-2026-0258",
+    # zip 8 (build-dependency of utoipa-swagger-ui 10, which requires zip ^8.6), unconfined
+    # permissions, symlinks and SUID bits on extraction (fixed in zip >= 9.0.0). zip only runs in
+    # utoipa-swagger-ui's build script, extracting the Swagger UI archive it ships, never an
+    # archive from a user, and is not in the binary. Drop these once utoipa-swagger-ui moves to zip 9.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+    # crypto-bigint 0.5 (via elliptic-curve 0.13, p256/p384 of jsonwebtoken `rust_crypto`),
+    # timing variability in operations meant to be constant-time (fixed in crypto-bigint >= 0.7.6,
+    # which the elliptic-curve 0.13 line cannot use). It leaks through secret scalars; Core holds
+    # no EC private key and only verifies ES256/ES384 signatures with public keys. Drop it once
+    # jsonwebtoken moves to elliptic-curve 0.14.
+    "RUSTSEC-2026-0387"
 ]

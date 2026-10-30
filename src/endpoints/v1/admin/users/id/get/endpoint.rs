@@ -121,6 +121,7 @@ async fn get_user(
                     "status": "active",
                     "is_archived": false
                 },
+                "role": { "id": 2, "name": "agent", "description": "Agent municipal" },
                 "roles": [{ "id": 2, "name": "agent", "description": "Agent municipal" }],
                 "groups": [
                     { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }

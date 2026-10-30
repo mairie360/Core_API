@@ -3,15 +3,13 @@ use core_api::database::auth::change_password::ChangePasswordQueryView;
 use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryView};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn change_password_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let email = format!("change_password_{}@example.com", uuid::Uuid::new_v4());
     let _: bool = pool
@@ -51,8 +49,7 @@ async fn change_password_success() {
 #[tokio::test]
 #[serial]
 async fn change_password_bad_user_id() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let view = ChangePasswordQueryView::new(seed_password_hash(), 999_999);
     let result = pool.execute(view).await;
