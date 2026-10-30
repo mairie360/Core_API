@@ -109,6 +109,11 @@ impl PatchUserQueryView {
 }
 
 impl ApiRequestDto for PatchUserQueryView {
+    // The directory (`GET /api/v1/user/`) shows this change: drop its cached pages (MAIR-524).
+    fn invalidated_read_caches(&self) -> &'static [&'static str] {
+        crate::database::users::list_directory::INVALIDATES_DIRECTORY
+    }
+
     fn query_sql(&self) -> &'static str {
         "UPDATE users SET \
             first_name = CASE WHEN $1 THEN $2 ELSE first_name END, \

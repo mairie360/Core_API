@@ -3,16 +3,13 @@ use core_api::database::sessions::{
     create_session::CreateSessionQueryView,
     get_active_session_user_id::GetActiveSessionUserIdQueryView,
 };
-use mairie360_api_lib::{
-    database::error::DbError, error::ApiLibError, test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{database::error::DbError, error::ApiLibError};
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_get_active_session_user_id_success() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let token = format!("active_session_user_id_{}", uuid::Uuid::new_v4());
 
     pool.execute(CreateSessionQueryView::new(
@@ -35,8 +32,7 @@ async fn test_get_active_session_user_id_success() {
 #[tokio::test]
 #[serial]
 async fn test_get_active_session_user_id_unknown_token() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     let result: Result<i32, _> = pool
         .fetch_scalar(&GetActiveSessionUserIdQueryView::new("unknown_token"))

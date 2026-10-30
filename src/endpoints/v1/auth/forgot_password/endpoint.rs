@@ -1,10 +1,12 @@
 use crate::client_ip::client_ip;
-use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
+use crate::database::auth::reset_recipient::{
+    ResetRecipientQueryResultView, ResetRecipientQueryView,
+};
+use crate::emails::AccountEmails;
 use crate::endpoints::v1::auth::forgot_password::view::ForgotPasswordView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FORGOT_PASSWORD_TTL_SECONDS};
-use crate::{build_email, get_email_sender, send_email, EmailDestination};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -54,95 +56,67 @@ impl ResponseError for ResetPasswordError {
     }
 }
 
-/// Whether a reset e-mail may be sent to `email`: a non-archived account uses it. Activated
-/// accounts are eligible too (MAIR-390): before, only accounts still waiting for their first
-/// connection were, so a user who forgot their password silently received nothing.
-async fn is_eligible(smart_db: &SmartDatabase, email: &str) -> Result<bool, ResetPasswordError> {
+/// First name of the account a reset e-mail may be sent to: a non-archived account uses `email`.
+/// `None` when there is none. Activated accounts are eligible too (MAIR-390): before, only
+/// accounts still waiting for their first connection were, so a user who forgot their password
+/// silently received nothing.
+async fn reset_recipient(
+    smart_db: &SmartDatabase,
+    email: &str,
+) -> Result<Option<String>, ResetPasswordError> {
     smart_db
-        .fetch_scalar::<i32, _>(&GetActiveUserIdByEmailQueryView::new(email))
+        .fetch_all::<ResetRecipientQueryResultView, _>(&ResetRecipientQueryView::new(email))
         .await
-        .map(|user_id| user_id > 0)
+        .map(|rows| rows.first().map(|row| row.first_name().to_string()))
         .map_err(|e| {
             tracing::error!("Forgot password DB Error: {e}");
             ResetPasswordError::Database
         })
 }
 
-async fn handle_forgot_password(
-    temporary_token: String,
-    dest: &str,
+async fn trigger(
+    state: &AppState,
+    emails: Option<&AccountEmails>,
+    email: &str,
+    first_name: &str,
 ) -> Result<(), ResetPasswordError> {
-    // Étape 1 : On récupère où envoyer le mail (les adresses fixes de la CI)
-    let destination = EmailDestination {
-        from: match get_email_sender() {
-            Ok(sender) => sender,
-            Err(e) => {
-                tracing::error!("Email Sender Error: {e}");
-                return Err(ResetPasswordError::Mail);
-            }
-        },
-        to: dest.to_string(),
+    let Some(emails) = emails else {
+        tracing::error!("Forgot password: no mailer is registered, the e-mail cannot be sent");
+        return Err(ResetPasswordError::Mail);
     };
-
-    // Préparation du contenu du mail
-    let subject = "Réinitialisation de votre mot de passe";
-    let body = format!("Bonjour, voici votre jeton de réinitialisation : {temporary_token}");
-
-    // Étape 2 : On construit le mail avec les bonnes infos
-    let email = match build_email(&destination, subject, &body) {
-        Ok(email) => email,
-        Err(e) => {
-            tracing::error!("Email Build Error: {e}");
-            return Err(ResetPasswordError::Mail);
-        }
-    };
-
-    // Étape 3 : On l'envoie via le serveur SMTP
-    match send_email(email).await {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            tracing::error!("Mail Error: {e}");
-            Err(ResetPasswordError::Mail)
-        }
-    }
-}
-
-async fn trigger(state: &AppState, email: &str) -> Result<(), ResetPasswordError> {
     let token = Uuid::new_v4().to_string();
     let redis = state.get_redis();
-    set_token(
-        redis,
-        &format!("{email}/forgot_password_token"),
-        &token,
-        FORGOT_PASSWORD_TTL_SECONDS,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Redis Error: {e}");
-        ResetPasswordError::Redis
-    })?;
-    set_token(
-        redis,
-        &format!("{token}/forgot_password_email"),
-        email,
-        FORGOT_PASSWORD_TTL_SECONDS,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Redis Error: {e}");
-        ResetPasswordError::Redis
-    })?;
-    match handle_forgot_password(token, email).await {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            tracing::error!("Forgot password: the e-mail could not be sent: {e}");
-            Err(ResetPasswordError::Mail)
+    let token_key = format!("{email}/forgot_password_token");
+    let email_key = format!("{token}/forgot_password_email");
+    set_token(redis, &token_key, &token, FORGOT_PASSWORD_TTL_SECONDS)
+        .await
+        .map_err(|e| {
+            tracing::error!("Redis Error: {e}");
+            ResetPasswordError::Redis
+        })?;
+    set_token(redis, &email_key, email, FORGOT_PASSWORD_TTL_SECONDS)
+        .await
+        .map_err(|e| {
+            tracing::error!("Redis Error: {e}");
+            ResetPasswordError::Redis
+        })?;
+    if let Err(e) = emails.send_password_reset(email, first_name, &token).await {
+        tracing::error!("Forgot password: the e-mail could not be sent: {e}");
+        // Nobody received this token: drop it, otherwise the pending reset would silence every
+        // new request for this address until it expires.
+        for key in [&token_key, &email_key] {
+            if let Err(e) = redis.secure_delete(key).await {
+                tracing::warn!("Forgot password: could not drop an unsent token: {e}");
+            }
         }
+        return Err(ResetPasswordError::Mail);
     }
+    Ok(())
 }
 
 async fn forgot_password_trigger(
     state: web::Data<AppState>,
+    emails: Option<&AccountEmails>,
     view: ForgotPasswordView,
 ) -> Result<(), ResetPasswordError> {
     let token = state
@@ -154,8 +128,8 @@ async fn forgot_password_trigger(
         return Ok(());
     }
 
-    if is_eligible(state.get_smart_db(), view.email()).await? {
-        trigger(&state, view.email()).await?;
+    if let Some(first_name) = reset_recipient(state.get_smart_db(), view.email()).await? {
+        trigger(&state, emails, view.email(), &first_name).await?;
     }
     Ok(())
 }
@@ -164,9 +138,11 @@ async fn forgot_password_trigger(
     post,
     path = "",
     summary = "Request a password reset",
-    description = "If the e-mail matches an account, generates a one-time reset token, stores it \
-                   in Redis and e-mails it to the user. The token is then sent to \
-                   `POST /api/v1/auth/reset_password`.\n\n\
+    description = "If the e-mail matches an account, generates a one-time reset token valid \
+                   **15 minutes**, stores it in Redis and e-mails the user the Resend template \
+                   `account-password-reset`, sent from `no-reply@<EMAIL_DOMAIN>`. The e-mail \
+                   holds a link to the login front, `<PUBLIC_URL>/reset-password?token=<token>`: \
+                   that page sends the token to `POST /api/v1/auth/reset_password`.\n\n\
                    Public route: `JwtMiddleware` lets everything under `/auth` through.\n\n\
                    To avoid revealing which e-mails have an account, the answer is **always the \
                    same empty `200`**, whether the address is unknown, already has a pending \
@@ -206,7 +182,7 @@ async fn forgot_password_trigger(
         ),
         (
             status = 500,
-            description = "Database or Redis failure, or the e-mail could not be sent.",
+            description = "Database or Redis failure, or Resend refused or could not receive the e-mail. The unsent token is dropped, so the request can be retried at once.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while sending the email.")
@@ -222,6 +198,7 @@ pub async fn forgot_password(
     state: web::Data<AppState>,
     body: ValidatedJson<ForgotPasswordView>,
     limits: Option<web::Data<RateLimits>>,
+    emails: Option<web::Data<AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, ResetPasswordError> {
     let view = body.into_inner();
@@ -236,6 +213,6 @@ pub async fn forgot_password(
             })
             .map_err(|refused| ResetPasswordError::TooManyRequests(refused.retry_after_seconds))?;
     }
-    forgot_password_trigger(state, view).await?;
+    forgot_password_trigger(state, emails.as_ref().map(web::Data::get_ref), view).await?;
     Ok(HttpResponse::Ok())
 }

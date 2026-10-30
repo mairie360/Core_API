@@ -1,22 +1,24 @@
-//! OpenTelemetry tracing (MAIR-131): each request yields a root span carrying the route and the
-//! status, continues an incoming `traceparent`, and carries the SQL it ran as span events.
+//! OpenTelemetry tracing (MAIR-131, MAIR-503, `mairie360_api_lib::logging::telemetry`): each
+//! request yields a root span carrying the route and the status, continues an incoming
+//! `traceparent`, carries the SQL it ran as span events, and leaves without the client address
+//! nor the query string (MAIR-290). The redaction of the logs and spans themselves is tested in
+//! the lib.
 
+use crate::common::core_db_url;
 use actix_web::{test, web, App};
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use core_api::endpoints::{config, public_config};
-use core_api::telemetry::trace_layer;
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use mairie360_api_lib::{
-    security::JwtMiddleware, state::AppState, test_setup::queries_setup::get_shared_db,
+use mairie360_api_lib::logging::telemetry::opentelemetry::{global, Value};
+use mairie360_api_lib::logging::telemetry::opentelemetry_sdk::propagation::TraceContextPropagator;
+use mairie360_api_lib::logging::telemetry::opentelemetry_sdk::trace::{
+    InMemorySpanExporter, SdkTracerProvider, SimpleSpanProcessor, SpanData,
 };
-use opentelemetry::global;
-use opentelemetry::Value;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider, SpanData};
+use mairie360_api_lib::logging::telemetry::{trace_layer, tracer_provider, TracingLogger};
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
+use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serial_test::serial;
-use tracing_actix_web::TracingLogger;
 use tracing_subscriber::layer::SubscriberExt;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -40,6 +42,14 @@ macro_rules! init_app {
         )
         .await
     };
+}
+
+/// Provider exporting to memory through the lib's redaction (`tracer_provider` wraps the
+/// processor in `Redact`), as in production.
+fn in_memory_provider() -> (InMemorySpanExporter, SdkTracerProvider) {
+    let exporter = InMemorySpanExporter::default();
+    let provider = tracer_provider(SimpleSpanProcessor::new(exporter.clone()), "core-api");
+    (exporter, provider)
 }
 
 /// Registers a fresh user and returns a JWT for it.
@@ -74,24 +84,22 @@ fn attribute<'a>(span: &'a SpanData, key: &str) -> Option<&'a Value> {
 #[serial]
 async fn a_request_is_exported_as_a_span_with_its_sql() {
     std::sync::LazyLock::force(&INIT);
-    let exporter = InMemorySpanExporter::default();
-    let provider = SdkTracerProvider::builder()
-        .with_simple_exporter(exporter.clone())
-        .build();
+    let (exporter, provider) = in_memory_provider();
     let _subscriber = tracing::subscriber::set_default(
         tracing_subscriber::registry().with(trace_layer(&provider)),
     );
 
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     let jwt = fresh_user_jwt(&state).await;
     exporter.reset();
 
     let trace_id = "4bf92f3577b34da6a3ce929d0e0e4736";
+    // The query string and the forwarded client address are personal data the span must drop.
     let req = test::TestRequest::get()
-        .uri(PREFERENCES)
+        .uri(&format!("{PREFERENCES}?search=Dupont"))
         .insert_header(("Authorization", format!("Bearer {jwt}")))
+        .insert_header(("x-forwarded-for", "203.0.113.7"))
         .insert_header(("traceparent", format!("00-{trace_id}-00f067aa0ba902b7-01")))
         .to_request();
     let response = test::call_service(&app, req).await;
@@ -119,6 +127,21 @@ async fn a_request_is_exported_as_a_span_with_its_sql() {
         attribute(request, "http.route"),
         Some(&Value::from("/api/v1/user/me/preferences/"))
     );
+    assert_eq!(
+        attribute(request, "http.target"),
+        Some(&Value::from(PREFERENCES)),
+        "the query string must not be exported"
+    );
+    assert_eq!(
+        attribute(request, "http.client_ip"),
+        None,
+        "the client address must not be exported"
+    );
+    let exported = format!("{request:?}");
+    assert!(
+        !exported.contains("Dupont") && !exported.contains("203.0.113.7"),
+        "personal data in the exported span: {exported}"
+    );
 
     // `sqlx` logs each statement as a `sqlx::query` event; the values stay bound parameters.
     let has_sql = request.events.iter().any(|event| {
@@ -140,16 +163,12 @@ async fn a_request_is_exported_as_a_span_with_its_sql() {
 #[serial]
 async fn a_refused_request_still_gets_its_span() {
     std::sync::LazyLock::force(&INIT);
-    let exporter = InMemorySpanExporter::default();
-    let provider = SdkTracerProvider::builder()
-        .with_simple_exporter(exporter.clone())
-        .build();
+    let (exporter, provider) = in_memory_provider();
     let _subscriber = tracing::subscriber::set_default(
         tracing_subscriber::registry().with(trace_layer(&provider)),
     );
 
-    let (_container, host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), host.clone()).await);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let app = init_app!(state);
     exporter.reset();
 

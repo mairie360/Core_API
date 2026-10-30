@@ -1,6 +1,7 @@
 //! Authorization and authentication fixes of the 2026-10-02 audit (MAIR-390).
 
 use crate::common::acl_redis::AclRedis;
+use crate::common::core_db_url;
 use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
@@ -45,8 +46,9 @@ macro_rules! init_app {
 async fn setup() -> (web::Data<AppState>, PgPool) {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
-    let state =
-        web::Data::new(AppState::new("redis://127.0.0.1:6379".to_string(), host.clone()).await);
+    let state = web::Data::new(
+        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
+    );
     (state, get_raw_pool(host.clone()).await)
 }
 
@@ -90,7 +92,7 @@ async fn first_connection_token_requires_the_password() {
     std::env::remove_var("REDIS_KEY_PREFIX");
     std::env::remove_var("REDIS_USERNAME");
     std::env::set_var("REDIS_URL", redis.url_as("core-api"));
-    let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     let raw = get_raw_pool(host.clone()).await;
     let app = init_app!(state);
     let (_, email) = create_account(&raw, true, false).await;

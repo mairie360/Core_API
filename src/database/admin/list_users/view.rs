@@ -48,7 +48,8 @@ fn search_term(search: Option<&str>) -> Option<String> {
 /// user (18-29 ms for the last page of 10 000 users, 3 ms this way); with one, the matches are
 /// collected first through the trigram indexes (`MATERIALIZED`), then sorted. In one statement,
 /// the generic plan of the prepared query walked the name index for a selective search too (2 ms
-/// to 20 ms). In both, the roles are only aggregated for the rows of the page.
+/// to 20 ms). In both, the roles are only aggregated for the rows of the page; `role` is the first
+/// (and, since MAIR-564, only) one.
 #[derive(Debug, serde::Deserialize)]
 pub struct AdminListUsersQueryView {
     params: Vec<QueryParam>,
@@ -83,7 +84,7 @@ impl ApiRequestDto for AdminListUsersQueryView {
                 " ), page AS ( \
                     SELECT id FROM matched ORDER BY last_name, first_name, id \
                     LIMIT $3 OFFSET $4) \
-                 SELECT to_jsonb(t) FROM (",
+                 SELECT to_jsonb(t) || jsonb_build_object('role', t.roles -> 0) FROM (",
                 admin_users_row!(),
                 ") t"
             )
@@ -95,7 +96,7 @@ impl ApiRequestDto for AdminListUsersQueryView {
                         SELECT 1 FROM group_members gm WHERE gm.user_id = o.id AND gm.group_id = $1) \
                     ORDER BY o.last_name, o.first_name, o.id \
                     LIMIT $2 OFFSET $3) \
-                 SELECT to_jsonb(t) FROM (",
+                 SELECT to_jsonb(t) || jsonb_build_object('role', t.roles -> 0) FROM (",
                 admin_users_row!(),
                 ") t"
             )
@@ -201,7 +202,14 @@ pub struct AdminUserRow {
     /// `GET /api/v1/user/`, et ne peuvent plus se connecter.
     #[schema(example = false)]
     pub is_archived: bool,
-    /// Rôles portés par l'utilisateur. Un compte créé sans rôle reçoit `Guest` par défaut.
+    /// The user's role: a user holds one role (MAIR-564), an account created without one gets
+    /// `Guest`. `null` when the user has none.
+    #[schema(required = true)]
+    #[serde(default)]
+    pub role: Option<AdminUserRole>,
+    /// Deprecated: `role` as a list, kept for the clients written when a user could hold several
+    /// roles. At most one entry, empty when the user has none. Read `role` instead.
+    #[schema(deprecated)]
     pub roles: Vec<AdminUserRole>,
 }
 

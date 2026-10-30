@@ -5,15 +5,14 @@ use core_api::database::sessions::{
 };
 use mairie360_api_lib::{
     database::error::DbError, database::query_views::IsSessionTokenValidQueryView,
-    error::ApiLibError, test_setup::queries_setup::get_shared_db,
+    error::ApiLibError,
 };
 use serial_test::serial;
 
 #[tokio::test]
 #[serial]
 async fn test_get_session_by_token() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     // Create a session
     let _ = pool
@@ -52,8 +51,7 @@ async fn test_get_session_by_token() {
 #[tokio::test]
 #[serial]
 async fn test_get_session_by_unknow_token() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
 
     // Create a session
     let _ = pool

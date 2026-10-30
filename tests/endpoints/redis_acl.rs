@@ -3,7 +3,9 @@
 //! forgot-password and first-connection flows work end to end.
 
 use crate::common::acl_redis::AclRedis;
-use crate::common::{get_pool, get_raw_pool, users::create_user, users::unique_marker};
+use crate::common::{
+    core_db_url, get_pool, get_raw_pool, users::create_user, users::unique_marker,
+};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
@@ -44,6 +46,7 @@ macro_rules! init_app {
         test::init_service(
             App::new()
                 .app_data($state.clone())
+                .app_data(crate::common::fake_resend::account_emails())
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -89,14 +92,10 @@ async fn forgot_password_flow_works_under_the_acl() {
     let (_container, host) = get_shared_db().await;
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
-    let smtp_port = super::forgot_password::start_fake_smtp().await;
-    std::env::set_var("SMTP_HOST", "localhost");
-    std::env::set_var("SMTP_PORT", smtp_port.to_string());
-    std::env::remove_var("SMTP_USERNAME");
 
-    let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     let app = init_app!(state);
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user = create_user(&pool, "Forgot", &unique_marker("acl")).await;
     let email = email_of(host, user).await;
 
@@ -148,9 +147,9 @@ async fn first_connection_flow_works_under_the_acl() {
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
 
-    let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     let app = init_app!(state);
-    let pool = get_pool(host.clone()).await;
+    let pool = get_pool().await;
     let user = create_user(&pool, "FirstLogin", &unique_marker("acl")).await;
     let email = email_of(host, user).await;
 
@@ -210,11 +209,10 @@ async fn first_connection_flow_works_under_the_acl() {
 #[serial]
 async fn revocation_list_stays_unprefixed_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
 
-    let state = web::Data::new(AppState::new(redis.url_as("core-api"), host.clone()).await);
+    let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     let sid = uuid::Uuid::new_v4();
     core_api::session_revocation::publish_revoked_session(state.get_redis(), sid, 60)
         .await

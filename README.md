@@ -30,7 +30,7 @@ leave `IMAGE_REF` empty and the script builds `core-api:local` from `development
 ./integration_test.sh
 ```
 
-The script starts `docker-compose-integration.yml` (Postgres + Liquibase + Redis + Mailpit + API +
+The script starts `docker-compose-integration.yml` (Postgres + Liquibase + Redis + fake Resend + API +
 newman), waits for the `newman` service, prints its report and exits with its status (`--bail`
 stops at the first failing request). To iterate on the collection against a stack already running
 on `localhost:3000`:
@@ -42,6 +42,14 @@ docker run --rm --network host -v "$PWD/tests/postman:/etc/newman:ro" postman/ne
 
 The collection is also importable in the Postman app for manual debugging (`baseUrl` defaults to
 `http://localhost:3000`).
+
+## ⚡ Directory cache
+
+The user directory `GET /api/v1/user/` is cached in Redis for 60 seconds, one entry per set of
+filters shared by every caller (MAIR-524). Every write through Core that changes what it shows
+(account creation, update, archive, role grant/revoke/rename/delete, group creation/deletion,
+group member add/remove) invalidates it immediately; a change made directly in the database shows
+up after at most 60 seconds. When Redis is unavailable the directory is read from Postgres.
 
 ## 🔐 Keycloak single sign-on
 

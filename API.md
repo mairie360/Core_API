@@ -9,6 +9,7 @@
 | `POST` | `/users` | Create a new user |
 | `GET` | `/users` | List all users |
 | `GET` | `/users/:user_id` | Get a single user |
+| `GET` | `/api/v1/user/` | User directory (`search`, `ids`, `group_ids`, `limit`), cached 60 s in Redis and invalidated by every Core write that changes it (MAIR-524) |
 id
 ---
 
