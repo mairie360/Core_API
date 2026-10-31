@@ -39,3 +39,10 @@ gdpr-report
 gdpr-marker.yaml
 gdpr_marker_test.sh
 docker-compose-gdpr-marker.yml
+
+# GDPR usage simulation (MAIR-497)
+gdpr-simulation
+gdpr-simulation.yaml
+gdpr_simulation_test.sh
+docker-compose-gdpr-simulation.yml
+gdpr-accepted-risks.yaml
