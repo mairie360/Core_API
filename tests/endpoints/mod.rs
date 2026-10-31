@@ -5,6 +5,7 @@ mod auth_hardening;
 mod auth_password;
 mod db_errors;
 mod directory_cache;
+mod erasure;
 mod forgot_password;
 mod free_text;
 mod id_aliases;

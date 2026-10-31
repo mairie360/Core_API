@@ -1,5 +1,6 @@
 pub mod admin_guard;
 pub mod db_error;
+pub mod export_data;
 pub mod health;
 pub mod pagination;
 pub mod ready;
