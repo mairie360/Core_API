@@ -47,7 +47,9 @@ async fn success() {
 #[serial]
 async fn unknow_ressource() {
     let pool = get_pool().await;
-    let view = GetAccessByRessourceQueryView::new(2, "groups");
+    // A group id no test creates: group 2 exists once other tests (access matrix, erasure
+    // hand-over) have created groups and their ACL rows in the shared database.
+    let view = GetAccessByRessourceQueryView::new(2_000_000_000, "groups");
     let result: Vec<core_api::database::ressources::get_access_by_ressource::Access> =
         pool.fetch_all(&view).await.unwrap();
     assert!(result.is_empty(), "{result:?}");
