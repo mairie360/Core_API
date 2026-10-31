@@ -1,3 +1,4 @@
+use crate::endpoints::v1::user::me::export::endpoint::__path_export_my_data;
 use crate::endpoints::v1::user::me::get::endpoint::__path_get_me;
 use crate::endpoints::v1::user::me::notifications::endpoint::{
     __path_get_my_notification_settings, __path_patch_my_notification_settings,
@@ -12,6 +13,7 @@ use utoipa::OpenApi;
 #[openapi(
     paths(
         get_me,
+        export_my_data,
         patch_me,
         get_my_preferences,
         patch_my_preferences,

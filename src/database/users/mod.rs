@@ -15,6 +15,7 @@ macro_rules! user_search_text_sql {
 
 pub mod add_role;
 pub mod delete_user;
+pub mod erasure;
 pub mod get_notification_settings;
 pub mod get_preferences;
 pub mod get_roles;

@@ -1,3 +1,4 @@
+pub mod directory_access;
 pub mod doc;
 mod get;
 pub mod id;

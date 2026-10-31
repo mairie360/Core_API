@@ -391,6 +391,36 @@ API since MAIR-503 (Core hosted the original POC of MAIR-131 in `src/telemetry.r
   `401` (Docker needed like the other integration tests); the redaction of logs and spans and
   `init_telemetry` are tested in the lib.
 
+### Erasure and export (MAIR-289)
+
+`POST /api/v1/admin/users/{userId}/erase` (admin) erases an account for good, unlike the archiving
+of `DELETE /api/v1/admin/users/{userId}/`: it calls `anonymize_user()` of Devops/Database (MAIR-289,
+`SECURITY DEFINER`, granted to `core_api`), which applies the `erasure` of `gdpr/inventory.yaml`
+(identity cleared, memberships and sessions deleted, private events deleted, groups / projects /
+events handed over to an active admin, audit identity hashed), then publishes the returned
+`revoked_sessions` to the revocation list. With a confidential Keycloak client the Keycloak account
+is found first (link, then e-mail, while Core still has them), disabled before the Core erasure,
+re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
+other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
+`GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
+The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the
+`TEST_DB_VERSION` image (`dev-76437e3`, Database main with #166).
+
+### Access matrix (MAIR-288)
+
+`access-matrix.yaml` (root) is the access decision of every operation of the OpenAPI: `access`
+(`public` / `authenticated` / `admin`), the `roles` that pass whatever the instance, the
+`ownership` that also passes (`self`, `owner` = owner or ACL, `member`), the `personal` fields of
+the answer, `token: true` when the body carries a credential. `tests/endpoints/access_matrix.rs`
+fails when an operation of `ApiDoc` is missing from the file (or the file names one that does not
+exist), then calls every operation as a user of each role, as the owner of the instance and
+without a session, on fresh fixtures: an allowed caller never gets 401 / 403, any other gets 403.
+A new endpoint therefore needs its line in the matrix, decided with the mairie. Decisions recorded
+there: the phone is visible to every agent (`GET /api/v1/user/{id}/`), an archived account only
+to itself and the administrators; `DIRECTORY_GUEST_ACCESS=none` (read on every call, default
+`all`) closes `GET /api/v1/user/` and the other users' records to the agents who only hold the
+Guest role (`src/endpoints/v1/user/directory_access.rs`).
+
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every

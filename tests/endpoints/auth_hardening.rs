@@ -121,6 +121,59 @@ async fn archived_account_cannot_log_in() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+/// MAIR-287: a refused login tells nothing about the account. Unknown e-mail, wrong password,
+/// first connection with a wrong password and archived account (with its right password) answer
+/// the same status, body and headers, so the answer cannot be used to list the accounts.
+#[tokio::test]
+#[serial]
+async fn login_refusals_are_indistinguishable() {
+    let (state, raw) = setup().await;
+    let app = init_app!(state);
+    let (_, active) = create_account(&raw, false, false).await;
+    let (_, first_connection) = create_account(&raw, true, false).await;
+    let (_, archived) = create_account(&raw, false, true).await;
+    let unknown = format!("unknown.{}@example.com", uuid::Uuid::new_v4());
+
+    let mut answers = Vec::new();
+    for (case, email, password) in [
+        ("unknown e-mail", unknown.as_str(), PASSWORD),
+        ("wrong password", active.as_str(), "Wrong!Pass123"),
+        (
+            "first connection, wrong password",
+            first_connection.as_str(),
+            "Wrong!Pass123",
+        ),
+        ("archived account", archived.as_str(), PASSWORD),
+    ] {
+        let resp = test::call_service(&app, login_request(email, password).to_request()).await;
+        let status = resp.status();
+        let mut headers: Vec<String> = resp
+            .headers()
+            .iter()
+            .map(|(name, value)| format!("{name}: {}", value.to_str().unwrap_or("")))
+            .collect();
+        headers.sort();
+        let body = test::read_body(resp).await;
+        answers.push((case, status, headers, body));
+    }
+    let (_, status, headers, body) = &answers[0];
+    assert_eq!(*status, StatusCode::UNAUTHORIZED);
+    for (case, other_status, other_headers, other_body) in &answers[1..] {
+        assert_eq!(
+            other_status, status,
+            "{case}: status differs from an unknown e-mail"
+        );
+        assert_eq!(
+            other_headers, headers,
+            "{case}: headers differ from an unknown e-mail"
+        );
+        assert_eq!(
+            other_body, body,
+            "{case}: body differs from an unknown e-mail"
+        );
+    }
+}
+
 #[tokio::test]
 #[serial]
 async fn encoded_admin_path_is_still_guarded() {
@@ -243,7 +296,7 @@ async fn refresh_tokens_are_hashed_and_rotated() {
 
 #[tokio::test]
 #[serial]
-async fn other_users_record_hides_phone_and_archived_accounts() {
+async fn other_users_record_shows_phone_and_hides_archived_accounts() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
     let (reader, _) = create_account(&raw, false, false).await;
@@ -255,17 +308,16 @@ async fn other_users_record_hides_phone_and_archived_accounts() {
             .uri(&format!("/api/v1/user/{id}/"))
             .insert_header(bearer(as_user))
     };
-    let body: Value =
-        test::read_body_json(test::call_service(&app, get(target, reader).to_request()).await)
-            .await;
-    assert!(body["phone"].is_null());
-    assert!(body["phone_country"].is_null());
-    let body: Value =
-        test::read_body_json(test::call_service(&app, get(target, target).to_request()).await)
-            .await;
+    // MAIR-288: the phone is visible to every agent (decision of the mairie, professional use).
     // Inserted the legacy way (French national number, no country), read back in E.164.
-    assert_eq!(body["phone"], "+33612345678");
-    assert_eq!(body["phone_country"], "FR");
+    for as_user in [reader, target] {
+        let body: Value =
+            test::read_body_json(test::call_service(&app, get(target, as_user).to_request()).await)
+                .await;
+        assert_eq!(body["phone"], "+33612345678");
+        assert_eq!(body["phone_country"], "FR");
+    }
+    // An archived account stays hidden from the other agents (MAIR-390, MAIR-288).
     let resp = test::call_service(&app, get(archived, reader).to_request()).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
