@@ -1,6 +1,8 @@
 # Images are pinned by digest (Renovate bumps tag and digest together): a re-pushed tag cannot
-# change what gets built. Same toolchain as API_template (MAIR-427).
-FROM rust:1.99-slim-bookworm@sha256:60aef4c3c41e9837d5dd9a140ad6f2db4721620448e72e505d73d9d0ff0acc63 AS builder
+# change what gets built. Same toolchain as API_template (MAIR-427). Builder, runtime and
+# development.Dockerfile share one Debian release (13 "trixie"), so the binary links against the
+# glibc and OpenSSL the runtime image ships (MAIR-741: Debian 12's distroless libssl3 is unpatched).
+FROM rust:1.99-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -29,7 +31,7 @@ RUN touch src/main.rs src/lib.rs src/bin/keycloak_migration.rs \
 # `:nonroot` runs as uid/gid 65532. The binary stays owned by root and is only readable and
 # executable by that user: the API never writes to the filesystem (configuration comes from
 # environment variables, state lives in Postgres and Redis), so a read-only root filesystem works.
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:3ee00291cf386ec52a552e6a858d555debd74776eb4bfa53fa3df2cd6677515e
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
