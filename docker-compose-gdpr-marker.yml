@@ -178,7 +178,7 @@ services:
       - backend
 
   gdpr-marker:
-    image: node:24-bookworm-slim
+    image: node:26-bookworm-slim
     user: "${GDPR_UID:-0}:${GDPR_GID:-0}"
     depends_on:
       core-ready:
