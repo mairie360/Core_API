@@ -15,6 +15,9 @@ use uuid::Uuid;
 pub enum LogoutError {
     TooManyRequests(u64),
     Database,
+    /// The session is revoked in Postgres but not on the Redis revocation list: the other APIs
+    /// would accept its JWTs. Retrying publishes it again.
+    RevocationNotPublished,
 }
 
 impl std::fmt::Display for LogoutError {
@@ -22,6 +25,9 @@ impl std::fmt::Display for LogoutError {
         match self {
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::Database => write!(f, "An error occurred while accessing the database."),
+            Self::RevocationNotPublished => {
+                write!(f, "The logout could not be completed, please try again.")
+            }
         }
     }
 }
@@ -31,13 +37,16 @@ impl ResponseError for LogoutError {
         match self {
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Database => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RevocationNotPublished => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
         match self {
             Self::TooManyRequests(retry_after) => too_many_requests_response(*retry_after),
-            Self::Database => HttpResponse::build(self.status_code()).body(self.to_string()),
+            Self::Database | Self::RevocationNotPublished => {
+                HttpResponse::build(self.status_code()).body(self.to_string())
+            }
         }
     }
 }
@@ -55,8 +64,12 @@ async fn logout_request(view: &LogoutView, state: &AppState) -> Result<(), Logou
             LogoutError::Database
         })?;
     // Other APIs refuse the session's JWTs through the shared revocation list (MAIR-264).
-    publish_revoked_sessions(state.get_redis(), &revoked).await;
-    Ok(())
+    // A retry publishes it again: the query also returns an already revoked session.
+    if publish_revoked_sessions(state.get_redis(), &revoked).await {
+        Ok(())
+    } else {
+        Err(LogoutError::RevocationNotPublished)
+    }
 }
 
 #[utoipa::path(
@@ -73,13 +86,14 @@ async fn logout_request(view: &LogoutView, state: &AppState) -> Result<(), Logou
                    (`revoked:<session id>`, for `JWT_TIMEOUT`), by the other APIs. The user's \
                    other sessions stay active.\n\n\
                    The answer is the same `204` whether the token matched an active session, an \
-                   expired or already revoked one, or nothing at all: it never tells whether a \
+                   expired or already revoked one (published again to the revocation list), or \
+                   nothing at all: it never tells whether a \
                    token exists, and logging out twice is harmless. Rate limited per client \
                    address with the refresh budget (60 per minute).",
     request_body(
         content = LogoutView,
         description = "Refresh token of the session to end.",
-        example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+        example = json!({ "refresh_token": "example-refresh-token" })
     ),
     responses(
         (
@@ -106,6 +120,13 @@ async fn logout_request(view: &LogoutView, state: &AppState) -> Result<(), Logou
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
+        ),
+        (
+            status = 503,
+            description = "The session is revoked but could not be published to the Redis revocation list, so the other APIs would still accept its JWTs. Retry the same call: it publishes the revocation again.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The logout could not be completed, please try again.")
         )
     ),
     tag = "Auth"

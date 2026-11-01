@@ -2,7 +2,9 @@ use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
 /// Revokes the active session whose refresh token digest is `token_hash`, whoever owns it, and
-/// returns its id as one JSON string (`fetch_all::<Uuid>`, empty when nothing was revoked).
+/// returns its id as one JSON string (`fetch_all::<Uuid>`), also when that session was already
+/// revoked: a logout retried after a failed Redis publication publishes it again. Empty when no
+/// session has this token.
 ///
 /// Holding the refresh token is the proof (MAIR-692): it already renews the session without a JWT
 /// (`POST /api/v1/sessions/refresh`), so it may also end it.
@@ -25,10 +27,15 @@ impl RevokeSessionByTokenHashQueryView {
 
 impl ApiRequestDto for RevokeSessionByTokenHashQueryView {
     fn query_sql(&self) -> &'static str {
+        // The second SELECT reads the snapshot taken before the UPDATE: it only adds a session
+        // that was revoked before this call.
         "WITH revoked AS (\
             UPDATE sessions SET revoked_at = $1 \
             WHERE token_hash = $2 AND revoked_at IS NULL RETURNING id\
-        ) SELECT to_json(id) FROM revoked"
+        ) SELECT to_json(id) FROM (\
+            SELECT id FROM revoked \
+            UNION SELECT id FROM sessions WHERE token_hash = $2 AND revoked_at IS NOT NULL\
+        ) AS ids"
     }
 
     fn query_params(&self) -> &[QueryParam] {

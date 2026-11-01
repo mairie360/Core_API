@@ -7,10 +7,7 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct LogoutView {
     /// Refresh token of the session, as returned by the login, the reset or the last refresh.
-    #[schema(
-        max_length = 512,
-        example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE"
-    )]
+    #[schema(max_length = 512, example = "example-refresh-token")]
     refresh_token: String,
 }
 

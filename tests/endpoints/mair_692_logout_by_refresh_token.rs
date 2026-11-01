@@ -229,3 +229,41 @@ async fn mair_692_logout_validates_the_body() {
         );
     }
 }
+
+#[tokio::test]
+#[serial]
+async fn mair_692_logout_retried_after_a_redis_failure_publishes_the_revocation() {
+    init_env();
+    // Review finding: once Postgres holds the revocation, a failed Redis write must not be lost.
+    let down =
+        web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), core_db_url().await).await);
+    let app_down = init_app!(down);
+    let (session_id, refresh_token) = open_session(&down).await;
+    let body = json!({ "refresh_token": refresh_token });
+
+    // Revoked in Postgres, not published: 503, so the client retries.
+    assert_eq!(
+        status!(app_down, post(LOGOUT_PATH, &body).to_request()),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+
+    // The retry, with Redis back, publishes the already revoked session.
+    let (_redis, redis) = start_redis_container().await;
+    let up = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app_up = init_app!(up);
+    assert_eq!(
+        status!(app_up, post(LOGOUT_PATH, &body).to_request()),
+        StatusCode::NO_CONTENT
+    );
+    let mut redis_conn = redis::Client::open(redis.url.as_str())
+        .unwrap()
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
+    let published: bool = redis::cmd("EXISTS")
+        .arg(format!("revoked:{session_id}"))
+        .query_async(&mut redis_conn)
+        .await
+        .unwrap();
+    assert!(published, "the retry published the revocation");
+}
