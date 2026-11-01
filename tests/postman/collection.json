@@ -1312,7 +1312,8 @@
               "path": [
                 "api",
                 "v1",
-                "sessions"
+                "sessions",
+                ""
               ]
             }
           },
