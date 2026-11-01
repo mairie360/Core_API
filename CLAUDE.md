@@ -166,6 +166,11 @@ committed default (`http://localhost:3000`) stays usable from a host shell. The 
 slashes, and utoipa replaces (does not merge) two `nest` entries that end on the same path, so operations sharing
 a path must be merged into one document first (see `admin/users/doc.rs`).
 
+`tests/operation_ids_test.rs` (MAIR-692) fails when two operations share a client name: orval names the generated
+functions after the `operationId` (the handler name by default, camel-cased), and a clash renames an existing one
+(`logout` → `logout2`) without any compile error in the consumers. Give a new handler whose name is taken an
+`operation_id`.
+
 `cargo cov` (what CI runs) fails under 60 % of lines covered, `src/endpoints/` included (MAIR-419): the
 authorization and validation logic lives there, so a refusal path needs an integration test.
 `tests/endpoints/access_denials.rs` walks the published contract and asserts that every `/admin` operation
