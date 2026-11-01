@@ -655,6 +655,220 @@
       ]
     },
     {
+      "name": "Session JWT signed by Core (MAIR-680)",
+      "description": "MAIR-680: only Core signs session JWTs, with its Ed25519 key (EdDSA, kid, iss mairie360-core, aud mairie360); the other services hold the public key only. The stack signs with this run's key pair (stack_secrets.sh); JWT_SECRET is still set for the transition, so the HS256 admin JWT of the collection keeps working.",
+      "item": [
+        {
+          "name": "MAIR-680 The public keys are published as a JWKS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/jwks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "jwks"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"One Ed25519 public key, no private part\", function () {",
+                  "    const keys = pm.response.json().keys;",
+                  "    pm.expect(keys).to.be.an('array').with.lengthOf(1);",
+                  "    pm.expect(keys[0]).to.include({ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig' });",
+                  "    pm.expect(keys[0]).to.not.have.property('d');",
+                  "    pm.environment.set('jwks_kid', keys[0].kid);",
+                  "    pm.environment.set('jwks_x', keys[0].x);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-680 The login JWT is signed with Core's key and accepted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const cryptoJs = require('crypto-js');",
+                  "const part = (token, i) => JSON.parse(cryptoJs.enc.Base64.parse(token.split('.')[i].replace(/-/g, '+').replace(/_/g, '/')).toString(cryptoJs.enc.Utf8));",
+                  "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "const encode = (value) => b64url(cryptoJs.enc.Utf8.parse(JSON.stringify(value)));",
+                  "pm.test(\"EdDSA with the published kid, iss and aud\", function () {",
+                  "    const jwt = pm.environment.get('jwt');",
+                  "    const header = part(jwt, 0);",
+                  "    pm.expect(header.alg).to.eql('EdDSA');",
+                  "    pm.expect(header.kid).to.eql(pm.environment.get('jwks_kid'));",
+                  "    const claims = part(jwt, 1);",
+                  "    pm.expect(claims.iss).to.eql('mairie360-core');",
+                  "    pm.expect(claims.aud).to.eql('mairie360');",
+                  "    pm.expect(claims.sid).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-680 A JWT whose claims were changed to Admin is refused",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_tampered_680}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cryptoJs = require('crypto-js');",
+                  "const part = (token, i) => JSON.parse(cryptoJs.enc.Base64.parse(token.split('.')[i].replace(/-/g, '+').replace(/_/g, '/')).toString(cryptoJs.enc.Utf8));",
+                  "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "const encode = (value) => b64url(cryptoJs.enc.Utf8.parse(JSON.stringify(value)));",
+                  "// Keep Core's signature, change the claims: sub 1 (the seeded Admin), role Admin.",
+                  "const jwt = pm.environment.get('jwt');",
+                  "const claims = Object.assign(part(jwt, 1), { sub: '1', role: 'Admin' });",
+                  "const [header, , signature] = jwt.split('.');",
+                  "pm.environment.set('jwt_tampered_680', `${header}.${encode(claims)}.${signature}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-680 A JWT switched to HS256 and signed with the public key is refused",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_confused_680}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cryptoJs = require('crypto-js');",
+                  "const part = (token, i) => JSON.parse(cryptoJs.enc.Base64.parse(token.split('.')[i].replace(/-/g, '+').replace(/_/g, '/')).toString(cryptoJs.enc.Utf8));",
+                  "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "const encode = (value) => b64url(cryptoJs.enc.Utf8.parse(JSON.stringify(value)));",
+                  "// Algorithm confusion: the public key is public, it must never verify an HMAC.",
+                  "const claims = Object.assign(part(pm.environment.get('jwt'), 1), { sub: '1', role: 'Admin' });",
+                  "const unsigned = `${encode({ alg: 'HS256', typ: 'JWT', kid: pm.environment.get('jwks_kid') })}.${encode(claims)}`;",
+                  "pm.environment.set('jwt_confused_680', `${unsigned}.${b64url(cryptoJs.HmacSHA256(unsigned, pm.environment.get('jwks_x')))}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Sessions",
       "item": [
         {

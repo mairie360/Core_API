@@ -478,6 +478,7 @@ async fn only_the_authentication_routes_are_public() {
     assert_eq!(
         public,
         [
+            "GET /api/v1/auth/jwks",
             "POST /api/v1/auth/force_change_password",
             "POST /api/v1/auth/forgot_password",
             "POST /api/v1/auth/keycloak",

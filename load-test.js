@@ -241,6 +241,9 @@ const spec = loadSpec();
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
+  // MAIR-680: the public keys of the session JWTs; empty set while the stack signs with JWT_SECRET.
+  'GET /api/v1/auth/jwks': ({ request }) =>
+    check(request(), { 'jwks 200': (r) => r.status === 200 && Array.isArray(r.json('keys')) }),
 
   // Directory and profile.
   // The directory is cached in Redis for 60 s, one entry per filter set (MAIR-524). Three

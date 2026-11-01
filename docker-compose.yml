@@ -133,6 +133,11 @@ services:
       # Well-known dev value: mairie360_api_lib >= 2.0.0 refuses it at startup unless
       # JWT_ALLOW_WEAK_SECRET is set (MAIR-428). Never set that flag in a real deployment.
       JWT_SECRET: b"secret"
+      # MAIR-680: Ed25519 session keys, taken from the shell and never committed (a private key in
+      # the repo trips Semgrep/Gitleaks). Unset, Core signs HS256 tokens with JWT_SECRET (transition).
+      # To try EdDSA locally: `source ./stack_secrets.sh` before `docker compose up --watch`.
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
       JWT_ALLOW_WEAK_SECRET: "true"
       JWT_TIMEOUT: 3600
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
