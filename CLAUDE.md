@@ -38,11 +38,21 @@ exits with an error if it never answers, instead of serving `500`s. The compose 
 chart's readiness probe (`Devops/Deploiment`) must point at it too.
 
 The dev stack is reached via nginx at `http://development.mairie360.fr`. `core` requires `HOST`, `PORT`,
-`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `JWT_SECRET` and `JWT_TIMEOUT`
-— all fetched with `get_critical_env_var` (panics on missing var) — plus the e-mail variables below, see
-`docker-compose.yml` for the dev values. The Postgres URL is assembled by
+`REDIS_URL`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME` and `JWT_TIMEOUT`
+— all fetched with `get_critical_env_var` (panics on missing var) — plus the session keys and the e-mail
+variables below, see `docker-compose.yml` for the dev values. The Postgres URL is assembled by
 `database::pg_url::build_pg_url`, which percent-encodes user, password and database name, so
 `DB_PASSWORD` may contain any character.
+
+Session keys (MAIR-680): Core is the only service that signs session JWTs. `JWT_PRIVATE_KEY` (Ed25519 PKCS#8
+PEM, `openssl genpkey -algorithm ed25519`) + `JWT_PUBLIC_KEY` (its public key, `openssl pkey -pubout`; a second
+`PUBLIC KEY` block during a rotation) make Core sign `EdDSA` JWTs with `kid`, `iss` `mairie360-core` and `aud`
+`mairie360`; the other APIs and BFFs only get `JWT_PUBLIC_KEY`. `JWT_SECRET` is the transition: while it is set,
+HS256 tokens are still accepted (and signed when no private key is set); removing it ends the transition. Signing
+and verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib::jwt_manager`).
+`GET /api/v1/auth/jwks` publishes the public keys (informational: nothing fetches it at runtime). The test stacks
+get a fresh key pair per run from `stack_secrets.sh`; the dev compose uses the lib's committed test pair, accepted
+only with `JWT_ALLOW_WEAK_SECRET=true`.
 
 E-mails (MAIR-522, `src/emails/`): every e-mail is a **published Resend template** filled in by Core,
 never a body written in the code. `emails::PasswordResetEmail` implements the lib's `EmailTemplate` (alias
@@ -325,7 +335,8 @@ logging in, forcing a password change via `force_change_password`. On success it
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
-`role` (the user's role, one per user since MAIR-564, empty string when none).
+`role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also
+carry `iss` and `aud`.
 `session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
 so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
 `sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no
