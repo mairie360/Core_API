@@ -267,3 +267,49 @@ async fn mair_692_logout_retried_after_a_redis_failure_publishes_the_revocation(
         .unwrap();
     assert!(published, "the retry published the revocation");
 }
+
+#[tokio::test]
+#[serial]
+async fn mair_692_overlapping_logouts_both_get_the_session_to_publish() {
+    init_env();
+    // Review finding: a logout that waited on another one's row lock skipped the row and read a
+    // snapshot taken before that revocation, so it answered 204 without publishing anything.
+    let state =
+        web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), core_db_url().await).await);
+    let (session_id, refresh_token) = open_session(&state).await;
+    let (_container, host) = mairie360_api_lib::test_setup::queries_setup::get_shared_db().await;
+    let raw = crate::common::get_raw_pool(host.clone()).await;
+
+    // A first logout revokes the session and has not committed yet.
+    let mut first = raw.begin().await.unwrap();
+    let first_revoked_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
+        "UPDATE sessions SET revoked_at = now() - interval '1 minute' WHERE id = $1 RETURNING revoked_at",
+    )
+    .bind(session_id)
+    .fetch_one(&mut *first)
+    .await
+    .unwrap();
+
+    // The second one starts meanwhile and waits for the row lock.
+    let view = core_api::database::sessions::revoke_session_by_token_hash::RevokeSessionByTokenHashQueryView::new(
+        &core_api::refresh_token::hash(&refresh_token),
+    );
+    let db = state.clone();
+    let second = tokio::spawn(async move { db.get_smart_db().fetch_all::<Uuid, _>(&view).await });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(
+        !second.is_finished(),
+        "the second logout waits for the first one"
+    );
+    first.commit().await.unwrap();
+
+    assert_eq!(second.await.unwrap().unwrap(), vec![session_id]);
+    // The first revocation time is kept.
+    let revoked_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT revoked_at FROM sessions WHERE id = $1")
+            .bind(session_id)
+            .fetch_one(&raw)
+            .await
+            .unwrap();
+    assert_eq!(revoked_at, first_revoked_at);
+}

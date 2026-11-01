@@ -27,15 +27,12 @@ impl RevokeSessionByTokenHashQueryView {
 
 impl ApiRequestDto for RevokeSessionByTokenHashQueryView {
     fn query_sql(&self) -> &'static str {
-        // The second SELECT reads the snapshot taken before the UPDATE: it only adds a session
-        // that was revoked before this call.
-        "WITH revoked AS (\
-            UPDATE sessions SET revoked_at = $1 \
-            WHERE token_hash = $2 AND revoked_at IS NULL RETURNING id\
-        ) SELECT to_json(id) FROM (\
-            SELECT id FROM revoked \
-            UNION SELECT id FROM sessions WHERE token_hash = $2 AND revoked_at IS NOT NULL\
-        ) AS ids"
+        // One row-locked UPDATE for both cases (MAIR-692): a logout that overlaps another one
+        // waits for its lock and still gets the id, so it can publish the revocation if the first
+        // call failed to. COALESCE keeps the first revocation time; the logout log triggers only
+        // fire when revoked_at was NULL, so a repeated logout writes no second log.
+        "UPDATE sessions SET revoked_at = COALESCE(revoked_at, $1) \
+         WHERE token_hash = $2 RETURNING to_json(id)"
     }
 
     fn query_params(&self) -> &[QueryParam] {
