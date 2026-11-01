@@ -3,6 +3,7 @@ pub mod force_change_password;
 pub mod forgot_password;
 pub mod keycloak;
 pub mod login;
+pub mod logout;
 pub mod reset_password;
 
 use actix_web::web;
@@ -17,6 +18,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(forgot_password::endpoint::forgot_password)
             .service(keycloak::endpoint::keycloak_login)
             .service(login::endpoint::login)
+            .service(logout::endpoint::logout)
             .service(reset_password::endpoint::reset_password),
     );
 }

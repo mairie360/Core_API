@@ -11,6 +11,7 @@ mod free_text;
 mod id_aliases;
 mod keycloak_login;
 mod keycloak_migration;
+mod mair_692_logout_by_refresh_token;
 mod pagination;
 mod rate_limits;
 mod readiness;

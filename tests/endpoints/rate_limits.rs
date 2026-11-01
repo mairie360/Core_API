@@ -274,3 +274,29 @@ async fn refresh_is_rate_limited_per_address() {
     spend!(app, 60, |_| post(REFRESH_PATH, body(), CLIENT));
     assert_limited!(app, post(REFRESH_PATH, body(), CLIENT));
 }
+
+/// MAIR-692: the logout by refresh token is public, so it spends the refresh budget of the
+/// client address (60 per minute) like `POST /api/v1/sessions/refresh`.
+#[tokio::test]
+#[serial]
+async fn mair_692_logout_shares_the_refresh_budget() {
+    let state = setup().await;
+    let app = init_app!(state);
+    let body = |_| json!({ "refresh_token": format!("unknown_{}", uuid::Uuid::new_v4()) });
+
+    spend!(app, 60, |attempt| post(
+        "/api/v1/auth/logout",
+        body(attempt),
+        CLIENT
+    ));
+    assert_limited!(
+        app,
+        post(REFRESH_PATH, json!({ "refresh_token": "x" }), CLIENT)
+    );
+    let resp = test::call_service(
+        &app,
+        post("/api/v1/auth/logout", body(0), OTHER_CLIENT).to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}

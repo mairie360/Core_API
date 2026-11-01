@@ -11,6 +11,7 @@ pub mod revoke_current_session;
 pub mod revoke_session;
 pub mod revoke_session_by_id;
 pub mod revoke_session_by_token;
+pub mod revoke_session_by_token_hash;
 pub mod revoke_user_sessions;
 pub mod rotate_refresh_token;
 
