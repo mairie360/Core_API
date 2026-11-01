@@ -1,9 +1,10 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
-/// Revokes the active session whose refresh token digest is `token_hash`, whoever owns it, and
-/// returns its id as one JSON string (`fetch_all::<Uuid>`), also when that session was already
-/// revoked: a logout retried after a failed Redis publication publishes it again. Empty when no
+/// Revokes the session whose refresh token digest is `token_hash` and returns its id.
+///
+/// The id comes back as one JSON string (`fetch_all::<Uuid>`), also when the session was already
+/// revoked, so a logout retried after a failed Redis publication publishes it again. Empty when no
 /// session has this token.
 ///
 /// Holding the refresh token is the proof (MAIR-692): it already renews the session without a JWT
