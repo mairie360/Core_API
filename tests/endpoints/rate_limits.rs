@@ -236,6 +236,104 @@ async fn forgot_password_is_rate_limited_per_address() {
     );
 }
 
+/// Pod address of a BFF: a private address, so a trusted proxy by default (`client_ip.rs`).
+const BFF_POD: &str = "10.42.0.15:50000";
+
+/// `POST path` relayed by a BFF for `client`: the BFF sets `X-Forwarded-For` to the client address
+/// (`asAnonymousClient` of bffs-lib, MAIR-679).
+fn relayed(path: &str, body: Value, client: &str) -> test::TestRequest {
+    test::TestRequest::post()
+        .uri(path)
+        .peer_addr(BFF_POD.parse::<SocketAddr>().unwrap())
+        .insert_header(("X-Forwarded-For", client))
+        .set_json(body)
+}
+
+/// MAIR-679: every public auth request reaches Core through a BFF. The budget must be the client's,
+/// relayed by the BFF, not the BFF pod's: otherwise 10 requests of anyone lock password recovery
+/// for the whole instance.
+#[tokio::test]
+#[serial]
+async fn mair_679_forgot_password_through_a_bff_counts_the_relayed_client() {
+    let state = setup().await;
+    let app = init_app!(state);
+
+    spend!(app, 10, |_| relayed(
+        FORGOT_PASSWORD_PATH,
+        json!({ "email": unique_email() }),
+        "203.0.113.50"
+    ));
+    assert_limited!(
+        app,
+        relayed(
+            FORGOT_PASSWORD_PATH,
+            json!({ "email": unique_email() }),
+            "203.0.113.50"
+        )
+    );
+
+    // Same BFF pod, another client: its own budget.
+    let resp = test::call_service(
+        &app,
+        relayed(
+            FORGOT_PASSWORD_PATH,
+            json!({ "email": unique_email() }),
+            "198.51.100.50",
+        )
+        .to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// MAIR-679: the per-e-mail budget holds whatever client address the BFFs relay.
+#[tokio::test]
+#[serial]
+async fn mair_679_forgot_password_per_email_holds_across_relayed_clients() {
+    let state = setup().await;
+    let app = init_app!(state);
+    let email = unique_email();
+
+    spend!(app, 3, |attempt| relayed(
+        FORGOT_PASSWORD_PATH,
+        json!({ "email": email }),
+        &format!("198.51.100.{}", attempt + 1)
+    ));
+    assert_limited!(
+        app,
+        relayed(
+            FORGOT_PASSWORD_PATH,
+            json!({ "email": email }),
+            "198.51.100.200"
+        )
+    );
+}
+
+/// MAIR-679: the sign-in budget is the relayed client's too.
+#[tokio::test]
+#[serial]
+async fn mair_679_login_through_a_bff_counts_the_relayed_client() {
+    let state = setup().await;
+    let app = init_app!(state);
+
+    // 30 per minute and per address, each on another account.
+    spend!(app, 30, |_| relayed(
+        LOGIN_PATH,
+        login_body(&unique_email()),
+        "203.0.113.51"
+    ));
+    assert_limited!(
+        app,
+        relayed(LOGIN_PATH, login_body(&unique_email()), "203.0.113.51")
+    );
+    let resp = test::call_service(
+        &app,
+        relayed(LOGIN_PATH, login_body(&unique_email()), "198.51.100.51").to_request(),
+    )
+    .await;
+    assert_ne!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
 #[tokio::test]
 #[serial]
 async fn password_token_routes_share_one_budget() {
