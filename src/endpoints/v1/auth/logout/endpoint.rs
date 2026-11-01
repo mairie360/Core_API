@@ -74,6 +74,7 @@ async fn logout_request(view: &LogoutView, state: &AppState) -> Result<(), Logou
 
 #[utoipa::path(
     post,
+    operation_id = "logout_with_refresh_token",
     path = "",
     summary = "Log out with the refresh token alone",
     description = "Ends the session designated by its refresh token, **without a JWT**: it works \
