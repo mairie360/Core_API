@@ -38,6 +38,7 @@ operations:
   POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
   POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}
   POST /api/v1/auth/keycloak: {access: public}
+  POST /api/v1/auth/logout: {access: public, token: true, note: "needs the refresh token of the session it ends; same 204 for an unknown token (MAIR-692)"}
   POST /api/v1/sessions/refresh: {access: public, token: true, note: "needs the refresh token"}
 
   # --- The caller's own account and sessions ---

@@ -338,6 +338,13 @@ const writeHandlers = {
     }
     deleteUser(account.id);
   },
+  // MAIR-692: logout from the refresh token alone, no JWT.
+  'POST /api/v1/auth/logout': ({ request }) => {
+    const account = activeAccount('auth-logout');
+    const session = login(account);
+    check(request({ body: { refresh_token: session.refresh } }), { 'auth logout 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
   'POST /api/v1/sessions/logout': ({ request }) => {
     const account = activeAccount('logout');
     const session = login(account);
