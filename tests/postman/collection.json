@@ -955,6 +955,15 @@
                   "    const sessions = pm.response.json().sessions;",
                   "    pm.expect(sessions).to.be.an(\"array\").that.is.not.empty;",
                   "    pm.expect(sessions.map(s => s.device_info)).to.include(\"newman\");",
+                  "});",
+                  "pm.test(\"MAIR-767 session dates are ISO 8601 UTC\", function () {",
+                  "    const iso = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;",
+                  "    for (const s of pm.response.json().sessions) {",
+                  "        pm.expect(s.created_at, \"created_at\").to.match(iso);",
+                  "        pm.expect(s.expires_at, \"expires_at\").to.match(iso);",
+                  "        pm.expect(Date.parse(s.expires_at)).to.be.above(Date.parse(s.created_at));",
+                  "        pm.expect(s.revoked_at, \"revoked_at\").to.eql(null);",
+                  "    }",
                   "});"
                 ]
               }
@@ -1157,6 +1166,259 @@
                   "pm.test(\"History lists the newman session\", function () {",
                   "    const sessions = pm.response.json().sessions;",
                   "    pm.expect(sessions).to.be.an(\"array\").that.is.not.empty;",
+                  "    pm.expect(sessions.map(s => s.device_info)).to.include(\"newman\");",
+                  "});",
+                  "pm.test(\"MAIR-767 history dates are ISO 8601 UTC\", function () {",
+                  "    const iso = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;",
+                  "    for (const s of pm.response.json().sessions) {",
+                  "        pm.expect(s.created_at, \"created_at\").to.match(iso);",
+                  "        pm.expect(s.expires_at, \"expires_at\").to.match(iso);",
+                  "        if (s.revoked_at !== null) pm.expect(s.revoked_at, \"revoked_at\").to.match(iso);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-767 Log in on a second device",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_user_email}}\",\n  \"password\": \"{{test_user_new_password}}\",\n  \"device_info\": \"newman-second-device\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The second device gets its own refresh token\", function () {",
+                  "    const token = pm.response.json().refresh_token;",
+                  "    pm.expect(token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(token).to.not.eql(pm.environment.get(\"refresh_token\"));",
+                  "    pm.environment.set(\"second_device_refresh_token\", token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-767 Both devices are listed as active",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The second device is an active session with ISO 8601 dates\", function () {",
+                  "    const iso = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;",
+                  "    const second = pm.response.json().sessions.find(s => s.device_info === \"newman-second-device\");",
+                  "    pm.expect(second, \"second device session\").to.be.an(\"object\");",
+                  "    pm.expect(second.created_at).to.match(iso);",
+                  "    pm.expect(second.revoked_at).to.eql(null);",
+                  "    pm.environment.set(\"second_device_session_id\", second.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-767 Revoke the other device",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/revoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "revoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{second_device_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-767 The other device is shown revoked in the history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The revoked device carries an ISO 8601 revoked_at\", function () {",
+                  "    const iso = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/;",
+                  "    const id = pm.environment.get(\"second_device_session_id\");",
+                  "    const second = pm.response.json().sessions.find(s => s.id === id);",
+                  "    pm.expect(second, \"revoked session in history\").to.be.an(\"object\");",
+                  "    pm.expect(second.revoked_at).to.match(iso);",
+                  "    pm.expect(Date.parse(second.revoked_at)).to.be.at.least(Date.parse(second.created_at));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-767 The revoked device left the active sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Only this device is still active\", function () {",
+                  "    const sessions = pm.response.json().sessions;",
+                  "    pm.expect(sessions.map(s => s.id)).to.not.include(pm.environment.get(\"second_device_session_id\"));",
                   "    pm.expect(sessions.map(s => s.device_info)).to.include(\"newman\");",
                   "});"
                 ]

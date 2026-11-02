@@ -78,8 +78,8 @@ async fn get_user_info(
                         "id": "1",
                         "device_info": "Chrome 140 sur Windows 11",
                         "ip_address": "203.0.113.24",
-                        "created_at": "2026-09-16 08:42:11 UTC",
-                        "expires_at": "2026-09-23 08:42:11 UTC",
+                        "created_at": "2026-09-16T08:42:11Z",
+                        "expires_at": "2026-09-23T08:42:11Z",
                         "revoked_at": null
                     }
                 ]
