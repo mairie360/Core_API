@@ -1,7 +1,7 @@
 use crate::database::{
     admin::get_user::view::{AdminGetUserQueryResultView, RoleQueryResult, User},
     groups::get_group::Group,
-    sessions::Session,
+    sessions::{format_session_timestamp, Session},
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -19,13 +19,13 @@ struct SessionResultView {
     /// Adresse IP depuis laquelle la session a été ouverte.
     #[schema(example = "203.0.113.24")]
     ip_address: String,
-    /// Date d'ouverture de la session, au format `AAAA-MM-JJ HH:MM:SS UTC`.
-    #[schema(example = "2026-09-16 08:42:11 UTC")]
+    /// Session opening date, RFC 3339 / ISO 8601 in UTC (`AAAA-MM-JJTHH:MM:SSZ`).
+    #[schema(example = "2026-09-16T08:42:11Z")]
     created_at: String,
-    /// Date au-delà de laquelle le jeton de rafraîchissement n'est plus accepté.
-    #[schema(example = "2026-09-23 08:42:11 UTC")]
+    /// Date after which the refresh token is no longer accepted, RFC 3339 / ISO 8601 in UTC.
+    #[schema(example = "2026-09-23T08:42:11Z")]
     expires_at: String,
-    /// Date de révocation, ou `null` si la session n'a jamais été révoquée.
+    /// Revocation date, RFC 3339 / ISO 8601 in UTC, or `null` if the session was never revoked.
     #[schema(example = json!(null))]
     revoked_at: Option<String>,
 }
@@ -36,9 +36,9 @@ impl From<&Session> for SessionResultView {
             id: value.id().to_string(),
             device_info: value.device_info().to_string(),
             ip_address: value.ip_address().to_string(),
-            created_at: value.created_at().to_string(),
-            expires_at: value.expires_at().to_string(),
-            revoked_at: value.revoked_at().map(std::string::ToString::to_string),
+            created_at: format_session_timestamp(value.created_at()),
+            expires_at: format_session_timestamp(value.expires_at()),
+            revoked_at: value.revoked_at().map(format_session_timestamp),
         }
     }
 }
@@ -113,5 +113,30 @@ impl From<AdminGetUserQueryResultView> for GetUserResultView {
                 .map(std::convert::Into::into)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod mair_767_tests {
+    use super::SessionResultView;
+    use crate::database::sessions::Session;
+    use chrono::{TimeZone, Utc};
+
+    /// MAIR-767: the administration user record lists sessions with ISO 8601 UTC dates too.
+    #[test]
+    fn mair_767_admin_session_dates_are_iso_8601_utc() {
+        let session = Session::new(
+            uuid::Uuid::nil(),
+            2,
+            "Firefox".to_string(),
+            "203.0.113.24".parse().unwrap(),
+            Utc.with_ymd_and_hms(2026, 9, 16, 8, 42, 11).unwrap(),
+            Utc.with_ymd_and_hms(2026, 9, 23, 8, 42, 11).unwrap(),
+            Some(Utc.with_ymd_and_hms(2026, 9, 18, 7, 15, 2).unwrap()),
+        );
+        let json = serde_json::to_value(SessionResultView::from(&session)).unwrap();
+        assert_eq!(json["created_at"], "2026-09-16T08:42:11Z");
+        assert_eq!(json["expires_at"], "2026-09-23T08:42:11Z");
+        assert_eq!(json["revoked_at"], "2026-09-18T07:15:02Z");
     }
 }
