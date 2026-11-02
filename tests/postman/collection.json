@@ -869,6 +869,230 @@
       ]
     },
     {
+      "name": "Password checks of the profile (MAIR-746)",
+      "description": "Changing the e-mail through `PATCH /user/me` checks the current password: a session holder gets at most 5 checks per 15 minutes, right or wrong, then 429 with Retry-After. Changes without e-mail are not limited, and nothing is changed.",
+      "item": [
+        {
+          "name": "MAIR-746 A wrong current password answers 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{mair_746_new_email}}\", \"current_password\": \"Wrong!Pass123\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"mair_746_new_email\")) {",
+                  "    pm.environment.set(\"mair_746_new_email\", `moved.${Date.now()}@example.com`);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// MAIR-746: 5 wrong current passwords in a row, each one still answered 403.",
+                  "const attempt = Number(pm.environment.get(\"mair_746_attempt\") || 0) + 1;",
+                  "pm.environment.set(\"mair_746_attempt\", attempt);",
+                  "pm.test(`Wrong password ${attempt}/5 answers 403`, function () {",
+                  "    pm.response.to.have.status(403);",
+                  "    pm.expect(pm.response.text()).to.eql(\"The current password is incorrect.\");",
+                  "});",
+                  "if (attempt < 5) {",
+                  "    postman.setNextRequest(\"MAIR-746 A wrong current password answers 403\");",
+                  "} else {",
+                  "    pm.environment.unset(\"mair_746_attempt\");",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-746 The 6th check answers 429, even with the right password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"{{mair_746_new_email}}\", \"current_password\": \"{{test_user_new_password}}\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 429\", function () {",
+                  "    pm.response.to.have.status(429);",
+                  "});",
+                  "pm.test(\"Retry-After gives the seconds to wait\", function () {",
+                  "    const retryAfter = Number(pm.response.headers.get(\"Retry-After\"));",
+                  "    pm.expect(retryAfter).to.be.above(0).and.at.most(900);",
+                  "});",
+                  "pm.test(\"The body does not tell how many attempts are left\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Too many requests, please try again later.\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-746 A change without e-mail is not limited",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"first_name\": \"Jean\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-746 The e-mail address was not changed",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The e-mail is still the registered one\", function () {",
+                  "    pm.expect(pm.response.json().email).to.eql(pm.environment.get(\"test_user_email\"));",
+                  "    pm.environment.unset(\"mair_746_new_email\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Sessions",
       "item": [
         {

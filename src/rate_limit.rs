@@ -135,6 +135,10 @@ pub struct RateLimits {
     pub password_token_per_ip: RateLimiter,
     /// `POST /sessions/refresh`, per client address.
     pub refresh_per_ip: RateLimiter,
+    /// Checks of the current password by an authenticated route (`PATCH /user/me` changing the
+    /// e-mail), per user (MAIR-746). Counted per account, not per address: the caller is a BFF
+    /// pod, and a stolen session must not get unlimited guesses whatever address it comes from.
+    pub password_check_per_user: RateLimiter,
 }
 
 impl Default for RateLimits {
@@ -147,6 +151,7 @@ impl Default for RateLimits {
             forgot_password_per_email: RateLimiter::new(3, 60 * MINUTE),
             password_token_per_ip: RateLimiter::new(10, 15 * MINUTE),
             refresh_per_ip: RateLimiter::new(60, MINUTE),
+            password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
         }
     }
 }
@@ -165,6 +170,12 @@ impl RateLimits {
 #[must_use]
 pub fn ip_key(ip: IpAddr) -> String {
     ip.to_string()
+}
+
+/// Key of a per-user budget of an authenticated route: the user id of the JWT.
+#[must_use]
+pub fn user_key(user_id: u64) -> String {
+    format!("user:{user_id}")
 }
 
 /// Key of a per-account budget: the e-mail address, trimmed and lowercased so case variants share

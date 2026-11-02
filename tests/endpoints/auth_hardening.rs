@@ -352,6 +352,66 @@ async fn email_change_requires_the_current_password() {
     assert_eq!(resp.status(), StatusCode::OK);
 }
 
+/// MAIR-746: a session holder (stolen cookie, workstation left open) could guess the current
+/// password through the e-mail change without any limit. 5 checks per user per 15 minutes, right
+/// or wrong, then 429 with Retry-After; other users and changes without e-mail are not affected.
+#[tokio::test]
+#[serial]
+async fn mair_746_current_password_checks_are_rate_limited_per_user() {
+    let (state, raw) = setup().await;
+    let limits = web::Data::new(RateLimits::default());
+    let app = init_app!(state, App::new().app_data(limits));
+    let (user_id, email) = create_account(&raw, false, false).await;
+    let (other_id, _) = create_account(&raw, false, false).await;
+    let new_email = format!("moved.{}@example.com", uuid::Uuid::new_v4());
+
+    let patch = |as_user: i32, body: Value| {
+        test::TestRequest::patch()
+            .uri("/api/v1/user/me/")
+            .insert_header(bearer(as_user))
+            .set_json(body)
+    };
+    let wrong = json!({ "email": new_email, "current_password": "Wrong!Pass123" });
+    for attempt in 0..5 {
+        let resp = test::call_service(&app, patch(user_id, wrong.clone()).to_request()).await;
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN, "attempt {attempt}");
+    }
+    // The budget is spent: even the right password is refused, before being checked.
+    let right = json!({ "email": new_email, "current_password": PASSWORD });
+    let resp = test::call_service(&app, patch(user_id, right.clone()).to_request()).await;
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(resp.headers().contains_key("retry-after"));
+    let body = test::read_body(resp).await;
+    assert_eq!(body, "Too many requests, please try again later.");
+
+    // Nothing changed, and a change without e-mail checks no password: not limited.
+    let stored: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    assert_eq!(stored, email);
+    let resp = test::call_service(
+        &app,
+        patch(user_id, json!({ "first_name": "Jeanne" })).to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // The budget is per user: another account still changes its e-mail.
+    let other_email = format!("moved.{}@example.com", uuid::Uuid::new_v4());
+    let resp = test::call_service(
+        &app,
+        patch(
+            other_id,
+            json!({ "email": other_email, "current_password": PASSWORD }),
+        )
+        .to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 #[tokio::test]
 #[serial]
 async fn login_is_rate_limited_per_email() {
