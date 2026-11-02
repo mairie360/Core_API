@@ -1,77 +1,67 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "7dfccfc8b5b6d43d5fda49a82ba756c921fa1974", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-02 17:23 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "1843364ab74100fca9f48b402a482bab1fea568a", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-02 17:51 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
 | staging | — | `cea777d` | 2026-10-21 03:14 UTC |
-| dev | — | `7dfccfc` | 2026-11-02 17:23 UTC |
+| dev | — | `1843364` | 2026-11-02 17:51 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.2.0)
 
 #### Nouveautés
-
-- `GET /api/v1/auth/jwks` (route publique) publie les clés publiques Ed25519 des JWT de session au format JWKS, sans partie privée, avec `Cache-Control: public, max-age=300`. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- `POST /api/v1/auth/logout` (route publique) révoque la session désignée par son `refresh_token`, sans JWT, et répond toujours 204 ; la session est ajoutée à la liste de révocation Redis. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- `POST /api/v1/admin/users/{userId}/erase` (admin) efface définitivement un compte via `anonymize_user()` et publie les sessions révoquées ; `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` renvoient les données de l'utilisateur via `export_user_data()`. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- Matrice d'accès `access-matrix.yaml` vérifiée contre l'OpenAPI ; avec `DIRECTORY_GUEST_ACCESS=none`, `GET /api/v1/user/` et la fiche d'un autre utilisateur répondent 403 aux agents qui n'ont que le rôle Guest. Le téléphone d'un agent est désormais visible à tous les agents sur `GET /api/v1/user/{id}/`. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
-- Pipeline RGPD : simulation d'usage et détection de données personnelles dans les journaux (outils de test, sans effet sur l'API). (MAIR-497, [#273](https://github.com/mairie360/Core_API/pull/273) ; MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
+- `POST /api/v1/auth/logout` (nouveau, public) : ferme la session désignée par son refresh token, sans JWT, y compris quand le JWT d'accès a expiré. Répond toujours `204` (token inconnu, déjà révoqué ou valide), `400` si le corps est mal formé, `429` au-delà de 60 appels par minute et par adresse, et `503` si la révocation n'a pas pu être publiée sur Redis (à réessayer). (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
+- `GET /api/v1/auth/jwks` (nouveau, public) : publie les clés publiques des JWT de session au format JWKS, jamais la clé privée. Le tableau `keys` est vide tant que l'instance signe en HS256. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
+- `POST /api/v1/admin/users/{userId}/erase` (admin) : effacement définitif d'un compte via `anonymize_user()`, avec révocation de ses sessions. Répond `404` pour un utilisateur inconnu et `409` si le compte est celui de l'administrateur initial ou s'il n'existe aucun autre administrateur actif pour reprendre groupes, projets et événements. Réponse : `user_id`, `already_anonymized`, `handed_over_to`, `deleted_private_events`, `revoked_sessions`, `keycloak_account_deleted`. Avec un client Keycloak confidentiel, le compte Keycloak est désactivé avant l'effacement, réactivé si Core refuse, puis supprimé ; `502` si seule cette dernière étape échoue. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
+- `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` : export des données de l'utilisateur tel que renvoyé par `export_user_data()`, `404` pour un utilisateur inconnu. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
+- Variable `DIRECTORY_GUEST_ACCESS=none` : ferme l'annuaire aux agents qui n'ont que le rôle Guest. `GET /api/v1/user/` et `GET /api/v1/user/{id}/` d'un autre utilisateur répondent alors `403`, leur propre fiche reste lisible. Valeur par défaut `all`, donc sans effet tant qu'elle n'est pas posée. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
 
 #### Changements de comportement
-
-- Les dates de session (`created_at`, `expires_at`, `revoked_at`) renvoyées par `GET /api/v1/sessions/`, `GET /api/v1/sessions/history` et `GET /api/v1/admin/users/{userId}/` passent du format `2026-09-16 08:42:11 UTC` à ISO 8601 UTC `2026-09-16T08:42:11Z` ; les champs restent des chaînes. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Les JWT de session sont signés en EdDSA (`kid`, `iss` `mairie360-core`, `aud` `mairie360`) quand `JWT_PRIVATE_KEY` est défini ; sans lui, Core signe encore en HS256 et accepte HS256 tant que `JWT_SECRET` est défini. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- Retirer le rôle Admin au dernier administrateur actif, lui attribuer un autre rôle ou l'archiver répond 409 `LAST_ADMIN_MESSAGE` et ne change rien. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- L'opération OpenAPI du nouveau `POST /api/v1/auth/logout` s'appelle `logout_with_refresh_token` : les clients générés gardent `logout()` pour `POST /api/v1/sessions/logout`. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
-- Le rôle Guest seul ne lit plus le répertoire quand `DIRECTORY_GUEST_ACCESS=none` (403) ; sans cette variable, rien ne change.
+- `GET /api/v1/user/{id}/` : le numéro de téléphone d'un agent est désormais visible de tout agent (il était masqué). Un compte archivé ne répond plus qu'à lui-même et aux administrateurs, `404` pour les autres. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
+- `GET /api/v1/roles/` et les routes de l'annuaire restent ouvertes aux cinq rôles ; seul le réglage `DIRECTORY_GUEST_ACCESS=none` ferme l'annuaire aux agents Guest. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
 
 #### Corrections
-
-- Dates de session : avant, les dates `… UTC` n'étaient pas lues par `SessionList` (« Date indisponible », bouton de révocation absent) ; maintenant elles sont en ISO 8601. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Déconnexion : avant, elle échouait avec un JWT expiré et le refresh token restait valide ; maintenant `POST /api/v1/auth/logout` révoque la session avec le seul refresh token. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- Dernier administrateur : avant, un appel pouvait retirer le dernier administrateur ; maintenant la écriture est annulée (409) et deux demandes concurrentes ne passent pas toutes les deux. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- Refus de connexion : avant, les réponses pouvaient révéler l'existence d'un compte ; les quatre cas testés répondent désormais à l'identique (test ajouté). (MAIR-287, [#268](https://github.com/mairie360/Core_API/pull/268))
-- Journaux : avant, les requêtes pouvaient journaliser une adresse e-mail (query string) ou un jeton ; maintenant les valeurs ne sont plus journalisées. (MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
-- Images : l'image d'exécution passe de Debian 12 à Debian 13 (distroless, `libssl3` corrigée). (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339))
+- Dates des sessions (`GET /api/v1/sessions/`, `GET /api/v1/sessions/history`, `GET /api/v1/admin/users/{userId}/`) : avant, `created_at`, `expires_at` et `revoked_at` étaient au format `2026-09-16 08:42:11 UTC`, que `SessionList` ne sait pas lire : les paramètres et l'administration affichaient « Date indisponible » ou « État indéterminé » et le bouton de révocation n'apparaissait pas. Maintenant, ce sont des dates ISO 8601 UTC à la seconde (`2026-09-16T08:42:11Z`). Le type reste `string`. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
+- Rôle Admin : avant, `PATCH` ou `PUT /api/v1/admin/roles/{id}` avec `can_be_deleted: true` retirait la protection du rôle système `Admin`, qui pouvait ensuite être renommé ou supprimé, laissant l'instance sans administrateur. Maintenant, la requête répond `403` (`System roles stay protected: can_be_deleted cannot be changed.`) et un rôle personnalisé protégé le reste. Sur PATCH, `null` est traité comme un champ absent. (MAIR-678, [#355](https://github.com/mairie360/Core_API/pull/355))
+- Dernier administrateur actif : avant, `POST /api/v1/admin/users/{id}/roles/`, `DELETE /api/v1/admin/users/{id}/roles/{roleId}` et `DELETE /api/v1/admin/users/{id}/` pouvaient retirer le dernier administrateur. Maintenant, ces écritures répondent `409` (`This user is the last active administrator: give the Admin role to another active user first.`) et ne modifient rien. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
 
 #### Technique
-
-- Tests et CI : tests d'intégration RGPD, tests de limitation de débit derrière un BFF, tests de contrat des noms d'opération, garde Dockerfile Debian 13, checklist RGPD sur les PR.
-- Dépendances et versions : `mairie360_api_lib` 4.2.0 → 4.3.0, base de données `dev-76437e3`, CICD v4.4.0 → v4.4.3, digests Docker `rust:1.99` mis à jour (Renovate), tokio 1.54.1.
+- Noms d'opération : le nouveau handler de `POST /api/v1/auth/logout` porte `operation_id = "logout_with_refresh_token"`, pour que le client généré garde `logout()` sur `POST /api/v1/sessions/logout` (le nouveau est `logoutWithRefreshToken()`). Test `operation_ids_test.rs` ajouté. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
+- Clés de session : `session_jwt.rs` délègue à `mairie360_api_lib` (4.3.0) ; variables `JWT_PRIVATE_KEY` et `JWT_PUBLIC_KEY` dans les compose, `stack_secrets.sh` génère une paire par run. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
+- Logs : les spans de requête n'emportent plus la query string ni le `Debug` des erreurs (mise à jour de `mairie360_api_lib` en 3.0.1 et tests du marqueur RGPD). (MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
+- Matrice d'accès `access-matrix.yaml` et test qui vérifie chaque opération de l'OpenAPI (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274)) ; tests d'authentification RGPD sur les refus de connexion et la révocation après archivage (MAIR-287, [#268](https://github.com/mairie360/Core_API/pull/268)) ; tests de rate limit derrière BFF (MAIR-679, [#342](https://github.com/mairie360/Core_API/pull/342)). Aucun changement de code métier pour ces trois.
+- Image d'exécution des APIs passée en distroless Debian 13 et builder en trixie, avec test `dockerfile_test.rs` (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339)).
+- Simulation d'usage RGPD, checklist RGPD des PR et règle `ignore` de cargo audit (MAIR-497, MAIR-295, [#273](https://github.com/mairie360/Core_API/pull/273), [#272](https://github.com/mairie360/Core_API/pull/272), [#265](https://github.com/mairie360/Core_API/pull/265)).
+- Mises à jour : digests `rust:1.99-bookworm` ([#328](https://github.com/mairie360/Core_API/pull/328), [#332](https://github.com/mairie360/Core_API/pull/332), [#334](https://github.com/mairie360/Core_API/pull/334)), `tokio` 1.54.1 ([#333](https://github.com/mairie360/Core_API/pull/333)), et épinglage de mairie360/CICD de v4.4.0 à v4.4.3 ([#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327), [#330](https://github.com/mairie360/Core_API/pull/330)).
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
 #### Nouveautés
-
-- `GET /api/v1/auth/jwks` (route publique) publie les clés publiques Ed25519 des JWT de session au format JWKS, sans partie privée, avec `Cache-Control: public, max-age=300`. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- `POST /api/v1/auth/logout` (route publique) révoque la session désignée par son `refresh_token`, sans JWT, et répond toujours 204 ; la session est ajoutée à la liste de révocation Redis. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- `POST /api/v1/admin/users/{userId}/erase` (admin) efface définitivement un compte via `anonymize_user()` et publie les sessions révoquées ; `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` renvoient les données de l'utilisateur via `export_user_data()`. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- Matrice d'accès `access-matrix.yaml` vérifiée contre l'OpenAPI ; avec `DIRECTORY_GUEST_ACCESS=none`, `GET /api/v1/user/` et la fiche d'un autre utilisateur répondent 403 aux agents qui n'ont que le rôle Guest. Le téléphone d'un agent est désormais visible à tous les agents sur `GET /api/v1/user/{id}/`. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
-- Pipeline RGPD : simulation d'usage et détection de données personnelles dans les journaux (outils de test, sans effet sur l'API). (MAIR-497, [#273](https://github.com/mairie360/Core_API/pull/273) ; MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
+- `POST /api/v1/auth/logout` (nouveau, public) : ferme la session désignée par son refresh token, sans JWT, y compris quand le JWT d'accès a expiré. Répond toujours `204` (token inconnu, déjà révoqué ou valide), `400` si le corps est mal formé, `429` au-delà de 60 appels par minute et par adresse, et `503` si la révocation n'a pas pu être publiée sur Redis (à réessayer). (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
+- `GET /api/v1/auth/jwks` (nouveau, public) : publie les clés publiques des JWT de session au format JWKS, jamais la clé privée. Le tableau `keys` est vide tant que l'instance signe en HS256. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
+- `POST /api/v1/admin/users/{userId}/erase` (admin) : effacement définitif d'un compte via `anonymize_user()`, avec révocation de ses sessions. Répond `404` pour un utilisateur inconnu et `409` si le compte est celui de l'administrateur initial ou s'il n'existe aucun autre administrateur actif pour reprendre groupes, projets et événements. Réponse : `user_id`, `already_anonymized`, `handed_over_to`, `deleted_private_events`, `revoked_sessions`, `keycloak_account_deleted`. Avec un client Keycloak confidentiel, le compte Keycloak est désactivé avant l'effacement, réactivé si Core refuse, puis supprimé ; `502` si seule cette dernière étape échoue. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
+- `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` : export des données de l'utilisateur tel que renvoyé par `export_user_data()`, `404` pour un utilisateur inconnu. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
+- Variable `DIRECTORY_GUEST_ACCESS=none` : ferme l'annuaire aux agents qui n'ont que le rôle Guest. `GET /api/v1/user/` et `GET /api/v1/user/{id}/` d'un autre utilisateur répondent alors `403`, leur propre fiche reste lisible. Valeur par défaut `all`, donc sans effet tant qu'elle n'est pas posée. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
 
 #### Changements de comportement
-
-- Les dates de session (`created_at`, `expires_at`, `revoked_at`) renvoyées par `GET /api/v1/sessions/`, `GET /api/v1/sessions/history` et `GET /api/v1/admin/users/{userId}/` passent du format `2026-09-16 08:42:11 UTC` à ISO 8601 UTC `2026-09-16T08:42:11Z` ; les champs restent des chaînes. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Les JWT de session sont signés en EdDSA (`kid`, `iss` `mairie360-core`, `aud` `mairie360`) quand `JWT_PRIVATE_KEY` est défini ; sans lui, Core signe encore en HS256 et accepte HS256 tant que `JWT_SECRET` est défini. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- Retirer le rôle Admin au dernier administrateur actif, lui attribuer un autre rôle ou l'archiver répond 409 `LAST_ADMIN_MESSAGE` et ne change rien. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- L'opération OpenAPI du nouveau `POST /api/v1/auth/logout` s'appelle `logout_with_refresh_token` : les clients générés gardent `logout()` pour `POST /api/v1/sessions/logout`. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
-- Le rôle Guest seul ne lit plus le répertoire quand `DIRECTORY_GUEST_ACCESS=none` (403) ; sans cette variable, rien ne change.
+- `GET /api/v1/user/{id}/` : le numéro de téléphone d'un agent est désormais visible de tout agent (il était masqué). Un compte archivé ne répond plus qu'à lui-même et aux administrateurs, `404` pour les autres. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
+- `GET /api/v1/roles/` et les routes de l'annuaire restent ouvertes aux cinq rôles ; seul le réglage `DIRECTORY_GUEST_ACCESS=none` ferme l'annuaire aux agents Guest. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
 
 #### Corrections
-
-- Dates de session : avant, les dates `… UTC` n'étaient pas lues par `SessionList` (« Date indisponible », bouton de révocation absent) ; maintenant elles sont en ISO 8601. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Déconnexion : avant, elle échouait avec un JWT expiré et le refresh token restait valide ; maintenant `POST /api/v1/auth/logout` révoque la session avec le seul refresh token. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- Dernier administrateur : avant, un appel pouvait retirer le dernier administrateur ; maintenant la écriture est annulée (409) et deux demandes concurrentes ne passent pas toutes les deux. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- Refus de connexion : avant, les réponses pouvaient révéler l'existence d'un compte ; les quatre cas testés répondent désormais à l'identique (test ajouté). (MAIR-287, [#268](https://github.com/mairie360/Core_API/pull/268))
-- Journaux : avant, les requêtes pouvaient journaliser une adresse e-mail (query string) ou un jeton ; maintenant les valeurs ne sont plus journalisées. (MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
-- Images : l'image d'exécution passe de Debian 12 à Debian 13 (distroless, `libssl3` corrigée). (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339))
+- Dates des sessions (`GET /api/v1/sessions/`, `GET /api/v1/sessions/history`, `GET /api/v1/admin/users/{userId}/`) : avant, `created_at`, `expires_at` et `revoked_at` étaient au format `2026-09-16 08:42:11 UTC`, que `SessionList` ne sait pas lire : les paramètres et l'administration affichaient « Date indisponible » ou « État indéterminé » et le bouton de révocation n'apparaissait pas. Maintenant, ce sont des dates ISO 8601 UTC à la seconde (`2026-09-16T08:42:11Z`). Le type reste `string`. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
+- Rôle Admin : avant, `PATCH` ou `PUT /api/v1/admin/roles/{id}` avec `can_be_deleted: true` retirait la protection du rôle système `Admin`, qui pouvait ensuite être renommé ou supprimé, laissant l'instance sans administrateur. Maintenant, la requête répond `403` (`System roles stay protected: can_be_deleted cannot be changed.`) et un rôle personnalisé protégé le reste. Sur PATCH, `null` est traité comme un champ absent. (MAIR-678, [#355](https://github.com/mairie360/Core_API/pull/355))
+- Dernier administrateur actif : avant, `POST /api/v1/admin/users/{id}/roles/`, `DELETE /api/v1/admin/users/{id}/roles/{roleId}` et `DELETE /api/v1/admin/users/{id}/` pouvaient retirer le dernier administrateur. Maintenant, ces écritures répondent `409` (`This user is the last active administrator: give the Admin role to another active user first.`) et ne modifient rien. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
 
 #### Technique
-
-- Tests et CI : tests d'intégration RGPD, tests de limitation de débit derrière un BFF, tests de contrat des noms d'opération, garde Dockerfile Debian 13, checklist RGPD sur les PR.
-- Dépendances et versions : `mairie360_api_lib` 4.2.0 → 4.3.0, base de données `dev-76437e3`, CICD v4.4.0 → v4.4.3, digests Docker `rust:1.99` mis à jour (Renovate), tokio 1.54.1.
+- Noms d'opération : le nouveau handler de `POST /api/v1/auth/logout` porte `operation_id = "logout_with_refresh_token"`, pour que le client généré garde `logout()` sur `POST /api/v1/sessions/logout` (le nouveau est `logoutWithRefreshToken()`). Test `operation_ids_test.rs` ajouté. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
+- Clés de session : `session_jwt.rs` délègue à `mairie360_api_lib` (4.3.0) ; variables `JWT_PRIVATE_KEY` et `JWT_PUBLIC_KEY` dans les compose, `stack_secrets.sh` génère une paire par run. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
+- Logs : les spans de requête n'emportent plus la query string ni le `Debug` des erreurs (mise à jour de `mairie360_api_lib` en 3.0.1 et tests du marqueur RGPD). (MAIR-290, [#265](https://github.com/mairie360/Core_API/pull/265))
+- Matrice d'accès `access-matrix.yaml` et test qui vérifie chaque opération de l'OpenAPI (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274)) ; tests d'authentification RGPD sur les refus de connexion et la révocation après archivage (MAIR-287, [#268](https://github.com/mairie360/Core_API/pull/268)) ; tests de rate limit derrière BFF (MAIR-679, [#342](https://github.com/mairie360/Core_API/pull/342)). Aucun changement de code métier pour ces trois.
+- Image d'exécution des APIs passée en distroless Debian 13 et builder en trixie, avec test `dockerfile_test.rs` (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339)).
+- Simulation d'usage RGPD, checklist RGPD des PR et règle `ignore` de cargo audit (MAIR-497, MAIR-295, [#273](https://github.com/mairie360/Core_API/pull/273), [#272](https://github.com/mairie360/Core_API/pull/272), [#265](https://github.com/mairie360/Core_API/pull/265)).
+- Mises à jour : digests `rust:1.99-bookworm` ([#328](https://github.com/mairie360/Core_API/pull/328), [#332](https://github.com/mairie360/Core_API/pull/332), [#334](https://github.com/mairie360/Core_API/pull/334)), `tokio` 1.54.1 ([#333](https://github.com/mairie360/Core_API/pull/333)), et épinglage de mairie360/CICD de v4.4.0 à v4.4.3 ([#325](https://github.com/mairie360/Core_API/pull/325), [#327](https://github.com/mairie360/Core_API/pull/327), [#330](https://github.com/mairie360/Core_API/pull/330)).
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
@@ -82,6 +72,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-02 17:51 UTC | dev | — | `1843364` | [run](https://github.com/mairie360/Core_API/actions/runs/41493127882) |
 | 2026-11-02 17:23 UTC | dev | — | `7dfccfc` | [run](https://github.com/mairie360/Core_API/actions/runs/41488250282) |
 | 2026-11-02 16:58 UTC | dev | — | `6657fe8` | [run](https://github.com/mairie360/Core_API/actions/runs/41484328354) |
 | 2026-11-01 22:33 UTC | dev | — | `72dca5b` | [run](https://github.com/mairie360/Core_API/actions/runs/41356438605) |
