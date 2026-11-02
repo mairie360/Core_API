@@ -16,6 +16,7 @@ enum PatchError {
     NotFound,
     Duplicate,
     ProtectedName,
+    ProtectedFlag,
     DatabaseError,
 }
 
@@ -34,6 +35,12 @@ impl std::fmt::Display for PatchError {
             Self::ProtectedName => {
                 write!(f, "System roles cannot be renamed.")
             }
+            Self::ProtectedFlag => {
+                write!(
+                    f,
+                    "System roles stay protected: can_be_deleted cannot be changed."
+                )
+            }
         }
     }
 }
@@ -44,7 +51,7 @@ impl ResponseError for PatchError {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Duplicate => StatusCode::CONFLICT,
-            Self::ProtectedName => StatusCode::FORBIDDEN,
+            Self::ProtectedName | Self::ProtectedFlag => StatusCode::FORBIDDEN,
         }
     }
 
@@ -74,6 +81,12 @@ async fn patch_role(
         .map_err(database_error)?;
     if role.is_empty() {
         return Err(PatchError::NotFound);
+    }
+    // MAIR-678: a system role (`can_be_deleted = false`, e.g. `Admin`) stays one. Unprotecting it
+    // would let it be renamed or deleted afterwards, which removes every administrator at once.
+    let is_system_role = !role[0];
+    if is_system_role && matches!(payload.can_be_deleted(), Some(flag) if flag != Some(false)) {
+        return Err(PatchError::ProtectedFlag);
     }
     if let Some(name) = payload.name().as_deref() {
         // Checked here: the `protect_role_names` trigger would otherwise abort the update (500).
@@ -106,8 +119,9 @@ async fn patch_role(
                    Un corps vide est accepté et ne déclenche aucune écriture, mais l'existence du \
                    rôle est vérifiée au préalable : un identifiant inconnu répond `404` même sans \
                    rien à modifier.\n\n\
-                   `can_be_deleted` est doublement optionnel : l'omettre laisse la valeur \
-                   actuelle, alors que `null` l'efface. La réponse a un corps vide.",
+                   `can_be_deleted`: omitted or `null` keeps the current value. On a system \
+                   role (`can_be_deleted = false`) only `false` is accepted (MAIR-678). The \
+                   response has an empty body.",
     request_body(
         content = PatchView,
         description = "Champs à modifier. Tous facultatifs.",
@@ -134,7 +148,7 @@ async fn patch_role(
         ),
         (
             status = 403,
-            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), or `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`).",
+            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`), or `can_be_deleted` is set to `true` on a system role, which would let it be renamed or deleted (`System roles stay protected: can_be_deleted cannot be changed.`, MAIR-678).",
             body = String,
             content_type = "text/plain",
             example = json!("System roles cannot be renamed.")

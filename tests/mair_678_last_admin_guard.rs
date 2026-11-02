@@ -337,3 +337,146 @@ async fn mair_678_concurrent_demotions_cannot_remove_both_admins() {
     assert_last_admin_refusal(&answer);
     assert_eq!(active_admins(&fixture.raw).await, vec![caller()]);
 }
+
+fn patch_role(role: i32, body: serde_json::Value) -> TestRequest {
+    TestRequest::patch()
+        .uri(&format!("/api/v1/admin/roles/{role}"))
+        .insert_header(bearer())
+        .set_json(body)
+}
+
+async fn role_can_be_deleted(raw: &PgPool, role: i32) -> Option<bool> {
+    sqlx::query_scalar("SELECT can_be_deleted FROM roles WHERE id = $1")
+        .bind(role)
+        .fetch_one(raw)
+        .await
+        .unwrap()
+}
+
+/// The `Admin` role could be unprotected by `PATCH`ing `can_be_deleted`, then deleted or renamed,
+/// which left the instance without any administrator despite the guards above.
+#[tokio::test]
+#[serial]
+async fn mair_678_admin_role_cannot_be_unprotected_then_deleted() {
+    let fixture = fixture().await;
+    let app = init_app!(fixture.state);
+
+    let (status, text) = read(
+        test::call_service(
+            &app,
+            patch_role(fixture.admin_role, json!({ "can_be_deleted": true })).to_request(),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{text}");
+    assert_eq!(
+        text,
+        "System roles stay protected: can_be_deleted cannot be changed."
+    );
+    assert_eq!(
+        role_can_be_deleted(&fixture.raw, fixture.admin_role).await,
+        Some(false)
+    );
+
+    // Same through `PUT`, which replaces the role.
+    let (status, text) = read(
+        test::call_service(
+            &app,
+            TestRequest::put()
+                .uri(&format!("/api/v1/admin/roles/{}", fixture.admin_role))
+                .insert_header(bearer())
+                .set_json(json!({
+                    "name": "Admin",
+                    "description": "Administrateur",
+                    "can_be_deleted": true
+                }))
+                .to_request(),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{text}");
+    assert_eq!(
+        text,
+        "System roles stay protected: can_be_deleted cannot be changed."
+    );
+    assert_eq!(
+        role_can_be_deleted(&fixture.raw, fixture.admin_role).await,
+        Some(false)
+    );
+
+    // `null` reads as an omitted field: nothing is written, the role stays protected.
+    let resp = test::call_service(
+        &app,
+        patch_role(fixture.admin_role, json!({ "can_be_deleted": null })).to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        role_can_be_deleted(&fixture.raw, fixture.admin_role).await,
+        Some(false)
+    );
+
+    // So the deletion and the rename stay refused, and the administrator keeps the role.
+    let resp = test::call_service(
+        &app,
+        TestRequest::delete()
+            .uri(&format!("/api/v1/admin/roles/{}", fixture.admin_role))
+            .insert_header(bearer())
+            .to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    let resp = test::call_service(
+        &app,
+        patch_role(fixture.admin_role, json!({ "name": "Former admin" })).to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    assert_eq!(active_admins(&fixture.raw).await, vec![caller()]);
+
+    // Restating the protection and editing the description stay allowed.
+    let resp = test::call_service(
+        &app,
+        patch_role(
+            fixture.admin_role,
+            json!({ "can_be_deleted": false, "description": "Administrateur de l'instance" }),
+        )
+        .to_request(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// A role created by the administrators can be protected; once protected it is a system role
+/// like the base ones and cannot be unprotected any more.
+#[tokio::test]
+#[serial]
+async fn mair_678_custom_role_once_protected_stays_protected() {
+    let fixture = fixture().await;
+    let app = init_app!(fixture.state);
+    let role: i32 = sqlx::query_scalar(
+        "INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, 'MAIR-678', true) \
+         RETURNING id",
+    )
+    .bind(format!("mair678-{}", uuid::Uuid::new_v4().simple()))
+    .fetch_one(&fixture.raw)
+    .await
+    .unwrap();
+
+    // Writing `true` on a deletable role is still accepted.
+    for (flag, status, stored) in [
+        (true, StatusCode::OK, Some(true)),
+        (false, StatusCode::OK, Some(false)),
+        (true, StatusCode::FORBIDDEN, Some(false)),
+    ] {
+        let resp = test::call_service(
+            &app,
+            patch_role(role, json!({ "can_be_deleted": flag })).to_request(),
+        )
+        .await;
+        assert_eq!(resp.status(), status, "can_be_deleted = {flag}");
+        assert_eq!(role_can_be_deleted(&fixture.raw, role).await, stored);
+    }
+}
