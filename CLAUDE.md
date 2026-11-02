@@ -329,6 +329,19 @@ any other second role is a `23505`. The responses expose the role as `role` (`/u
 one entry) and kept for the BFFs until they move to `role`. The upsert needs the new key: Core
 must run on a Database image that has `mair-564-01`.
 
+### Last administrator (MAIR-678)
+
+An instance keeps at least one active administrator (role named `Admin`, account not archived, as
+`is_admin()` reads it). The role grant, the role revocation and the archiving
+(`admin/users/{id}/roles` POST / DELETE, `DELETE admin/users/{id}/`) run their write in a
+transaction that first locks the `Admin` role row (`endpoints::last_admin::lock`, `FOR NO KEY
+UPDATE`), then checks `any_left` after the write and rolls back with `409`
+`LAST_ADMIN_MESSAGE` when none is left. The Keycloak paths make an unlocked `is_last` check
+before touching the realm. A new write that can demote or archive a user must do the same.
+`tests/mair_678_last_admin_guard.rs` is its own test binary (it controls how many administrators
+exist). The erasure is guarded by `anonymize_user()` itself (`23001`); renaming or deleting the
+`Admin` role after `PATCH`ing `can_be_deleted` to `true` is not guarded yet.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

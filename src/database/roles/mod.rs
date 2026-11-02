@@ -7,5 +7,6 @@ pub mod get_roles;
 pub mod get_roles_by_id;
 pub mod get_roles_of_user;
 pub mod is_rename_forbidden;
+pub mod last_admin;
 pub mod lock_role;
 pub mod patch_role;

@@ -3,11 +3,13 @@ use crate::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use crate::database::users::add_role::AddRolesQueryView;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::db_error::{self, DbFailure};
+use crate::endpoints::last_admin::{self, ADMIN_ROLE_NAME, LAST_ADMIN_MESSAGE};
 use crate::endpoints::v1::admin::users::id::roles::post::view::AddRoleToUserView;
 use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
 use crate::keycloak::KeycloakAdminClient;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
@@ -16,6 +18,7 @@ enum AddRoleToUserError {
     UserMismatch,
     NotFound,
     AlreadyGranted,
+    LastAdmin,
     DatabaseError,
     Keycloak(SyncError),
 }
@@ -30,6 +33,7 @@ impl std::fmt::Display for AddRoleToUserError {
                 write!(f, "User or role not found.")
             }
             Self::AlreadyGranted => write!(f, "The user already holds this role."),
+            Self::LastAdmin => write!(f, "{LAST_ADMIN_MESSAGE}"),
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -43,7 +47,9 @@ impl ResponseError for AddRoleToUserError {
         match self {
             Self::UserMismatch => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
-            Self::AlreadyGranted | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::AlreadyGranted | Self::LastAdmin | Self::Keycloak(SyncError::EmailTaken) => {
+                StatusCode::CONFLICT
+            }
             Self::DatabaseError
             | Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -60,26 +66,42 @@ impl ResponseError for AddRoleToUserError {
     }
 }
 
+fn grant_failure(e: &ApiLibError) -> AddRoleToUserError {
+    match db_error::log("grant role", e) {
+        // `user_id` or `role_id` matches nothing (foreign key).
+        DbFailure::NotFound => AddRoleToUserError::NotFound,
+        DbFailure::Conflict => AddRoleToUserError::AlreadyGranted,
+        _ => AddRoleToUserError::DatabaseError,
+    }
+}
+
+/// Grants the role in one transaction guarded against demoting the last active administrator
+/// (MAIR-678): the `Admin` role is locked first, the role written, and the transaction rolled
+/// back with [`AddRoleToUserError::LastAdmin`] when no active administrator is left.
 async fn grant_in_core(
     smart_db: &SmartDatabase,
     user_id: u64,
     view: &AddRoleToUserView,
 ) -> Result<(), AddRoleToUserError> {
+    let mut tx = smart_db.begin().await.map_err(|e| grant_failure(&e))?;
+    last_admin::lock(&mut tx)
+        .await
+        .map_err(|e| grant_failure(&e))?;
     // Replaces the user's role (one role per user, MAIR-564); no row when it was already held.
-    let granted: Vec<i32> = smart_db
+    let granted: Vec<i32> = tx
         .fetch_all(&AddRolesQueryView::new(view.role_id(), user_id))
         .await
-        .map_err(|e| match db_error::log("grant role", &e) {
-            // `user_id` or `role_id` matches nothing (foreign key).
-            DbFailure::NotFound => AddRoleToUserError::NotFound,
-            DbFailure::Conflict => AddRoleToUserError::AlreadyGranted,
-            _ => AddRoleToUserError::DatabaseError,
-        })?;
+        .map_err(|e| grant_failure(&e))?;
     if granted.is_empty() {
         return Err(AddRoleToUserError::AlreadyGranted);
     }
-
-    Ok(())
+    if !last_admin::any_left(&mut tx)
+        .await
+        .map_err(|e| grant_failure(&e))?
+    {
+        return Err(AddRoleToUserError::LastAdmin);
+    }
+    tx.commit().await.map_err(|e| grant_failure(&e))
 }
 
 /// Undoes the Keycloak side of a grant Core refused: unmaps `name` when this call mapped it and
@@ -157,6 +179,14 @@ async fn add_role_to_user(
     else {
         return grant_in_core(smart_db, user_id, &view).await;
     };
+    // Refused before Keycloak is touched; the transaction of the write checks again.
+    if name != ADMIN_ROLE_NAME
+        && last_admin::is_last(smart_db, user_id)
+            .await
+            .map_err(|e| grant_failure(&e))?
+    {
+        return Err(AddRoleToUserError::LastAdmin);
+    }
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
         .await
         .map_err(AddRoleToUserError::Keycloak)?
@@ -207,7 +237,12 @@ async fn add_role_to_user(
                    former role mapped back. Roles the user holds only in Keycloak are never \
                    touched. An unknown role or user, or an account unknown to \
                    Keycloak, only goes through Core. Without Keycloak, or with a public client, \
-                   only Core is written.",
+                   only Core is written.\n\n\
+                   **Last administrator (MAIR-678).** An instance keeps at least one active \
+                   administrator (role `Admin`, account not archived): giving another role to the \
+                   only one answers `409` and changes nothing (Keycloak is not touched). The check \
+                   and the write run in one transaction locking the `Admin` role, so two \
+                   concurrent demotions of the two last administrators cannot both succeed.",
     request_body(
         content = AddRoleToUserView,
         description = "Role to grant.",
@@ -251,10 +286,13 @@ async fn add_role_to_user(
         ),
         (
             status = 409,
-            description = "The user already holds the role: nothing changes. The Keycloak mapping, if it had been added, is removed.",
+            description = "The user already holds the role, or the user is the last active administrator and the new role is not `Admin` (MAIR-678): nothing changes. The Keycloak mapping, if it had been added, is removed.",
             body = String,
             content_type = "text/plain",
-            example = json!("The user already holds this role.")
+            examples(
+                ("Already held" = (value = json!("The user already holds this role."))),
+                ("Last administrator" = (value = json!("This user is the last active administrator: give the Admin role to another active user first.")))
+            )
         ),
         (
             status = 500,

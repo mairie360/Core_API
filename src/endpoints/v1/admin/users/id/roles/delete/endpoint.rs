@@ -2,17 +2,20 @@ use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 
 use crate::database::users::remove_role::RemoveRolesQueryView;
 use crate::endpoints::db_error;
+use crate::endpoints::last_admin::{self, ADMIN_ROLE_NAME, LAST_ADMIN_MESSAGE};
 use crate::endpoints::v1::admin::users::id::roles::post::endpoint::role_name;
 use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
 use crate::keycloak::KeycloakAdminClient;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RemoveUserRoleError {
+    LastAdmin,
     DatabaseError,
     Keycloak(SyncError),
 }
@@ -20,6 +23,7 @@ enum RemoveUserRoleError {
 impl std::fmt::Display for RemoveUserRoleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::LastAdmin => write!(f, "{LAST_ADMIN_MESSAGE}"),
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -32,7 +36,7 @@ impl ResponseError for RemoveUserRoleError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::LastAdmin | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
             Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
@@ -48,18 +52,34 @@ impl ResponseError for RemoveUserRoleError {
     }
 }
 
+fn database_error(e: &ApiLibError) -> RemoveUserRoleError {
+    db_error::log("revoke role", e);
+    RemoveUserRoleError::DatabaseError
+}
+
+/// Revokes the role in one transaction guarded against removing the `Admin` role of the last
+/// active administrator (MAIR-678): the `Admin` role is locked first, the role revoked, and the
+/// transaction rolled back with [`RemoveUserRoleError::LastAdmin`] when no active administrator
+/// is left.
 async fn revoke_in_core(
     smart_db: &SmartDatabase,
     user_id: u64,
     role_id: u64,
 ) -> Result<(), RemoveUserRoleError> {
-    let view = RemoveRolesQueryView::new(role_id, user_id);
-    smart_db.execute(view).await.map_err(|e| {
-        db_error::log("revoke role", &e);
-        RemoveUserRoleError::DatabaseError
-    })?;
-
-    Ok(())
+    let mut tx = smart_db.begin().await.map_err(|e| database_error(&e))?;
+    last_admin::lock(&mut tx)
+        .await
+        .map_err(|e| database_error(&e))?;
+    tx.execute(&RemoveRolesQueryView::new(role_id, user_id))
+        .await
+        .map_err(|e| database_error(&e))?;
+    if !last_admin::any_left(&mut tx)
+        .await
+        .map_err(|e| database_error(&e))?
+    {
+        return Err(RemoveUserRoleError::LastAdmin);
+    }
+    tx.commit().await.map_err(|e| database_error(&e))
 }
 
 async fn remove_role_from_user(
@@ -85,6 +105,14 @@ async fn remove_role_from_user(
     else {
         return revoke_in_core(smart_db, user_id, role_id).await;
     };
+    // Refused before Keycloak is touched; the transaction of the write checks again.
+    if name == ADMIN_ROLE_NAME
+        && last_admin::is_last(smart_db, user_id)
+            .await
+            .map_err(|e| database_error(&e))?
+    {
+        return Err(RemoveUserRoleError::LastAdmin);
+    }
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
         .await
         .map_err(RemoveUserRoleError::Keycloak)?
@@ -122,7 +150,12 @@ async fn remove_role_from_user(
                    writes; if Core then refuses (`404`), the mapping is restored. Roles the user \
                    holds only in Keycloak are never touched. An unknown role or user, or an \
                    account unknown to Keycloak, only goes through Core. Without Keycloak, or with \
-                   a public client, only Core is written.",
+                   a public client, only Core is written.\n\n\
+                   **Last administrator (MAIR-678).** An instance keeps at least one active \
+                   administrator (role `Admin`, account not archived): revoking `Admin` from the \
+                   only one answers `409` and changes nothing (Keycloak is not touched). The check \
+                   and the write run in one transaction locking the `Admin` role, so two \
+                   concurrent revocations from the two last administrators cannot both succeed.",
     params(
         ("userId" = u64, Path, description = "User id.", example = 42),
         ("roleId" = u64, Path, description = "Id of the role to revoke.", example = 2)
@@ -153,6 +186,13 @@ async fn remove_role_from_user(
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 409,
+            description = "`roleId` is `Admin` and the user is the last active administrator (MAIR-678): nothing changes, in Core or in Keycloak.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("This user is the last active administrator: give the Admin role to another active user first.")
         ),
         (
             status = 500,

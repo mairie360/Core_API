@@ -67,6 +67,30 @@
       "value": "",
       "type": "default",
       "enabled": true
+    },
+    {
+      "key": "admin_role_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "user_role_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "second_admin_email",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "second_admin_id",
+      "value": "",
+      "type": "default",
+      "enabled": true
     }
   ]
 }
