@@ -119,8 +119,9 @@ async fn patch_role(
                    Un corps vide est accepté et ne déclenche aucune écriture, mais l'existence du \
                    rôle est vérifiée au préalable : un identifiant inconnu répond `404` même sans \
                    rien à modifier.\n\n\
-                   `can_be_deleted` est doublement optionnel : l'omettre laisse la valeur \
-                   actuelle, alors que `null` l'efface. La réponse a un corps vide.",
+                   `can_be_deleted`: omitted or `null` keeps the current value. On a system \
+                   role (`can_be_deleted = false`) only `false` is accepted (MAIR-678). The \
+                   response has an empty body.",
     request_body(
         content = PatchView,
         description = "Champs à modifier. Tous facultatifs.",
@@ -147,7 +148,7 @@ async fn patch_role(
         ),
         (
             status = 403,
-            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`), or `can_be_deleted` is set to `true` or `null` on a system role, which would let it be renamed or deleted (`System roles stay protected: can_be_deleted cannot be changed.`, MAIR-678).",
+            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`), or `can_be_deleted` is set to `true` on a system role, which would let it be renamed or deleted (`System roles stay protected: can_be_deleted cannot be changed.`, MAIR-678).",
             body = String,
             content_type = "text/plain",
             example = json!("System roles cannot be renamed.")

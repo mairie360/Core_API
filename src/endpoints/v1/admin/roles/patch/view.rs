@@ -17,8 +17,8 @@ pub struct PatchView {
         example = "Agent municipal habilité à instruire les dossiers"
     )]
     description: Option<String>,
-    /// Doublement optionnel : omettre le champ laisse la valeur actuelle, alors que `null`
-    /// l'efface. `false` protège le rôle contre sa suppression.
+    /// Omitted or `null`: the current value is kept. `false` protects the role against deletion
+    /// and renaming for good: a system role cannot be set back to `true` (MAIR-678).
     #[schema(example = true)]
     #[allow(clippy::option_option)] // Tri-state on purpose: omitted, `null`, or a value.
     can_be_deleted: Option<Option<bool>>,

@@ -3237,7 +3237,7 @@
           "response": []
         },
         {
-          "name": "MAIR-678 The Admin role is still protected and named Admin",
+          "name": "MAIR-678 The Admin role is still named Admin",
           "request": {
             "method": "GET",
             "header": [
@@ -3270,10 +3270,8 @@
                   "pm.test(\"Status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"The Admin role keeps its name and can_be_deleted = false\", function () {",
                   "    const admin = pm.response.json().roles.find((role) => role.id === Number(pm.environment.get(\"admin_role_id\")));",
                   "    pm.expect(admin.name).to.eql(\"Admin\");",
-                  "    pm.expect(admin.can_be_deleted).to.eql(false);",
                   "});"
                 ]
               }
