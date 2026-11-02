@@ -1,5 +1,6 @@
 use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::last_admin::{self, LAST_ADMIN_MESSAGE};
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -21,6 +22,7 @@ const RESTRICT_VIOLATION: &str = "23001";
 enum DeleteUserError {
     UnknownUser,
     OwnsResources,
+    LastAdmin,
     DatabaseError,
     Keycloak(SyncError),
 }
@@ -33,6 +35,7 @@ impl std::fmt::Display for DeleteUserError {
                 f,
                 "The user still owns groups, events or projects: transfer them first"
             ),
+            Self::LastAdmin => write!(f, "{LAST_ADMIN_MESSAGE}"),
             Self::DatabaseError => write!(f, "Database error occurred"),
             Self::Keycloak(error) => write!(f, "{error}"),
         }
@@ -43,7 +46,9 @@ impl ResponseError for DeleteUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::UnknownUser => StatusCode::NOT_FOUND,
-            Self::OwnsResources | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::OwnsResources | Self::LastAdmin | Self::Keycloak(SyncError::EmailTaken) => {
+                StatusCode::CONFLICT
+            }
             Self::DatabaseError
             | Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -71,6 +76,10 @@ fn is_restrict_violation(error: &ApiLibError) -> bool {
 /// Archives the account in one transaction (MAIR-420): the user's row is locked first, so no
 /// session can be opened between reading the active sessions and the archiving, which drops
 /// them. The sessions read are published to the revocation list once committed (MAIR-264).
+///
+/// The `Admin` role is locked before the user (MAIR-678), like every write guarded against
+/// leaving no active administrator, and the archiving is rolled back with
+/// [`DeleteUserError::LastAdmin`] when it archived the last one.
 async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUserError> {
     let database_error = |e: ApiLibError| {
         if is_restrict_violation(&e) {
@@ -81,6 +90,7 @@ async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUse
         }
     };
     let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    last_admin::lock(&mut tx).await.map_err(database_error)?;
     let active: bool = tx
         .fetch_scalar(&IsUserActiveQueryView::locked(user_id))
         .await
@@ -97,6 +107,12 @@ async fn archive_in_core(state: &AppState, user_id: u64) -> Result<(), DeleteUse
     tx.execute(&DeleteUserQueryView::new(user_id))
         .await
         .map_err(database_error)?;
+    if !last_admin::any_left(&mut tx)
+        .await
+        .map_err(database_error)?
+    {
+        return Err(DeleteUserError::LastAdmin);
+    }
     tx.commit().await.map_err(database_error)?;
 
     publish_revoked_sessions(state.get_redis(), &sessions).await;
@@ -131,6 +147,14 @@ async fn delete_user(
     else {
         return archive_in_core(&state, user_id).await;
     };
+    // Refused before the Keycloak account is disabled (which ends its Keycloak sessions); the
+    // transaction of the archiving checks again.
+    if last_admin::is_last(smart_db, user_id).await.map_err(|e| {
+        tracing::error!("Admin delete user {user_id} DB Error: {e}");
+        DeleteUserError::DatabaseError
+    })? {
+        return Err(DeleteUserError::LastAdmin);
+    }
     let Some(keycloak_id) = find_account(smart_db, admin, &user)
         .await
         .map_err(DeleteUserError::Keycloak)?
@@ -165,7 +189,12 @@ async fn delete_user(
                    account is **disabled** (never deleted) and its Keycloak sessions are ended \
                    **before** Core archives it. If Core then refuses, the Keycloak account is \
                    re-enabled. An account unknown to Keycloak only goes through Core, as does any \
-                   call without a confidential client.",
+                   call without a confidential client.\n\n\
+                   **Last administrator (MAIR-678).** An instance keeps at least one active \
+                   administrator (role `Admin`, account not archived): archiving the only one \
+                   answers `409` and changes nothing (its Keycloak account is not disabled). The \
+                   check and the archiving run in one transaction locking the `Admin` role, so \
+                   two concurrent archivings of the two last administrators cannot both succeed.",
     params(
         ("userId" = u64, Path, description = "User id.", example = 42)
     ),
@@ -204,10 +233,13 @@ async fn delete_user(
         ),
         (
             status = 409,
-            description = "The user still owns groups, events or projects.",
+            description = "The user still owns groups, events or projects, or the user is the last active administrator (MAIR-678). Nothing is changed.",
             body = String,
             content_type = "text/plain",
-            example = json!("The user still owns groups, events or projects: transfer them first")
+            examples(
+                ("Owns resources" = (value = json!("The user still owns groups, events or projects: transfer them first"))),
+                ("Last administrator" = (value = json!("This user is the last active administrator: give the Admin role to another active user first.")))
+            )
         ),
         (
             status = 500,

@@ -2,6 +2,7 @@ pub mod admin_guard;
 pub mod db_error;
 pub mod export_data;
 pub mod health;
+pub mod last_admin;
 pub mod pagination;
 pub mod ready;
 pub mod session_guard;
