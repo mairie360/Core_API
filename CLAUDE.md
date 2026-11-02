@@ -259,7 +259,9 @@ Lists that grow with the data take `endpoints::pagination::PageQuery` (`limit` 1
 0-1000000, `400` otherwise) through `ValidatedQuery`: `GET /sessions/history`, `GET /groups/`,
 `GET /groups/{id}/users/`. Their query views have `new` (first page) and `page(id, PageQuery)`, with a stable
 `ORDER BY`. The admin user list and the directory had their own bounds already (`page_size`, `limit`). Rate
-limiting covers the public authentication routes (MAIR-390); the authenticated routes rely on the ingress.
+limiting covers the public authentication routes (MAIR-390) and, since MAIR-746, the check of the current password
+by `PATCH /user/me/` (e-mail change, `password_check_per_user`: 5 checks per user per 15 minutes, right or wrong);
+the other authenticated routes rely on the ingress.
 
 ### Ids (MAIR-422)
 
@@ -372,7 +374,9 @@ Security knobs added by MAIR-390, all optional:
   `Forwarded` is trusted; loopback + private ranges by default, empty string = trust none. Read client
   addresses with `client_ip::client_ip`, never `realip_remote_addr()`.
 - `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
-  keycloak, forgot/reset/force_change_password and refresh (`429` + `Retry-After`). Handlers take
+  keycloak, forgot/reset/force_change_password, refresh and the current-password check of
+  `PATCH /user/me/` (per user, MAIR-746) (`429` + `Retry-After`). A new route that checks a password
+  spends `password_check_per_user` before comparing the hash. Handlers take
   `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
 
 ### Database schema

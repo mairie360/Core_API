@@ -11,6 +11,7 @@ use crate::database::users::patch_user::PatchUserQueryView;
 use crate::endpoints::v1::auth::login::endpoint::is_password_valid;
 use crate::endpoints::v1::user::me::patch::view::PatchMeView;
 use crate::endpoints::validation::ValidatedJson;
+use crate::rate_limit::{too_many_requests_response, user_key, RateLimits};
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchMeError {
@@ -18,6 +19,8 @@ enum PatchMeError {
     EmailAlreadyUsed,
     DatabaseError,
     WrongPassword,
+    /// The user used up their budget of password checks (MAIR-746): seconds before retrying.
+    TooManyRequests(u64),
 }
 
 impl std::fmt::Display for PatchMeError {
@@ -31,6 +34,7 @@ impl std::fmt::Display for PatchMeError {
                 write!(f, "An error occurred while accessing the database.")
             }
             Self::WrongPassword => write!(f, "The current password is incorrect."),
+            Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
         }
     }
 }
@@ -42,11 +46,15 @@ impl ResponseError for PatchMeError {
             Self::EmailAlreadyUsed => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::WrongPassword => StatusCode::FORBIDDEN,
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
+        match self {
+            Self::TooManyRequests(retry_after) => too_many_requests_response(*retry_after),
+            _ => HttpResponse::build(self.status_code()).body(self.to_string()),
+        }
     }
 }
 
@@ -75,8 +83,24 @@ async fn trigger_patch_me(
     state: web::Data<AppState>,
     view: PatchMeView,
     user_id: u64,
+    limits: Option<&RateLimits>,
 ) -> Result<(), PatchMeError> {
     if view.email().is_some() {
+        // MAIR-746: every check spends the user's budget, right or wrong, and before the hash is
+        // compared, so parallel guesses cannot all slip in before the first failure is counted.
+        if let Some(limits) = limits {
+            limits
+                .password_check_per_user
+                .hit(&user_key(user_id))
+                .map_err(|refused| {
+                    tracing::warn!(
+                        user_id,
+                        retry_after = refused.retry_after_seconds,
+                        "Current password checks rate limited on PATCH /user/me"
+                    );
+                    PatchMeError::TooManyRequests(refused.retry_after_seconds)
+                })?;
+        }
         check_current_password(&state, user_id, view.current_password().unwrap_or_default())
             .await?;
     }
@@ -163,6 +187,14 @@ async fn trigger_patch_me(
             example = json!("The current password is incorrect.")
         ),
         (
+            status = 429,
+            description = "`email` was sent while the user already had their current password checked 5 times in the last 15 minutes, right or wrong (MAIR-746). Nothing is checked nor changed; the `Retry-After` header gives the seconds to wait. Changes without `email` are not limited.",
+            body = String,
+            content_type = "text/plain",
+            headers(("Retry-After" = u64, description = "Seconds to wait before retrying")),
+            example = json!("Too many requests, please try again later.")
+        ),
+        (
             status = 409,
             description = "`email` is already used by another account.",
             body = String,
@@ -187,7 +219,14 @@ pub async fn patch_me(
     state: web::Data<AppState>,
     view: ValidatedJson<PatchMeView>,
     auth_user: AuthenticatedUser,
+    limits: Option<web::Data<RateLimits>>,
 ) -> Result<impl Responder, PatchMeError> {
-    trigger_patch_me(state, view.into_inner(), auth_user.id).await?;
+    trigger_patch_me(
+        state,
+        view.into_inner(),
+        auth_user.id,
+        limits.as_ref().map(web::Data::get_ref),
+    )
+    .await?;
     Ok(HttpResponse::Ok())
 }
