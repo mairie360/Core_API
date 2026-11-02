@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -69,4 +69,11 @@ impl Session {
     pub const fn revoked_at(&self) -> Option<&DateTime<Utc>> {
         self.revoked_at.as_ref()
     }
+}
+
+/// Formats a session timestamp as RFC 3339 / ISO 8601 UTC with second precision
+/// (`2026-09-16T08:42:11Z`), the format the shared `SessionList` parses (MAIR-767).
+#[must_use]
+pub fn format_session_timestamp(value: &DateTime<Utc>) -> String {
+    value.to_rfc3339_opts(SecondsFormat::Secs, true)
 }

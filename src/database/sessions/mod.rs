@@ -16,4 +16,4 @@ pub mod revoke_user_sessions;
 pub mod rotate_refresh_token;
 
 mod view;
-pub use view::Session;
+pub use view::{format_session_timestamp, Session};
