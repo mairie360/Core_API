@@ -339,8 +339,10 @@ UPDATE`), then checks `any_left` after the write and rolls back with `409`
 `LAST_ADMIN_MESSAGE` when none is left. The Keycloak paths make an unlocked `is_last` check
 before touching the realm. A new write that can demote or archive a user must do the same.
 `tests/mair_678_last_admin_guard.rs` is its own test binary (it controls how many administrators
-exist). The erasure is guarded by `anonymize_user()` itself (`23001`); renaming or deleting the
-`Admin` role after `PATCH`ing `can_be_deleted` to `true` is not guarded yet.
+exist). The erasure is guarded by `anonymize_user()` itself (`23001`). A system role (`can_be_deleted =
+false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` answer `403` to
+`can_be_deleted: true`, so the role can be neither renamed nor deleted afterwards. A custom role
+that an administrator protects becomes a system role for good.
 
 ### Sessions / auth flow
 
