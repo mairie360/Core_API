@@ -81,7 +81,7 @@ async fn refresh_request(
         tracing::error!("Get user roles DB Error: {e}");
         RefreshError::DatabaseError
     })?;
-    let jwt = generate_session_jwt(user_id, session.id(), role).map_err(|e| {
+    let jwt = generate_session_jwt(user_id, session.id(), &role).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;

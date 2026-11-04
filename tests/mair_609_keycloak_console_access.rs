@@ -2,13 +2,13 @@
 //!
 //! `POST /api/v1/admin/keycloak/console-access` gives an Admin a single-use, 2-minute link;
 //! `GET /admin-access?token=` turns it into a 30-minute console cookie bound to `/admin`;
-//! `GET /internal/keycloak-console/verify` (Traefik ForwardAuth) accepts that cookie only while
+//! `GET /internal/keycloak-console/verify` (Traefik `ForwardAuth`) accepts that cookie only while
 //! its user is still an active Admin. Console tokens and session JWTs are not interchangeable.
 //!
 //! Own test binary: the Ed25519 key variables are process-wide (like MAIR-680's tests).
 #![allow(clippy::future_not_send, clippy::cast_sign_loss)]
 
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 mod common;
 
 use actix_web::{http::StatusCode, test, web, App};

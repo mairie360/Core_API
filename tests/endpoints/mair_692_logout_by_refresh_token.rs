@@ -137,7 +137,7 @@ async fn mair_692_logout_with_an_expired_jwt_revokes_the_refresh_token() {
         StatusCode::UNAUTHORIZED
     );
     // ...and so is any JWT of the session, even one that has not expired.
-    let fresh = generate_session_jwt(1, session_id, String::new()).unwrap();
+    let fresh = generate_session_jwt(1, session_id, "").unwrap();
     assert_eq!(
         status!(app, get_sessions(&fresh).to_request()),
         StatusCode::UNAUTHORIZED
@@ -196,7 +196,7 @@ async fn mair_692_logout_keeps_the_other_sessions() {
         StatusCode::NO_CONTENT
     );
 
-    let jwt = generate_session_jwt(1, other_id, String::new()).unwrap();
+    let jwt = generate_session_jwt(1, other_id, "").unwrap();
     assert_eq!(
         status!(app, get_sessions(&jwt).to_request()),
         StatusCode::OK

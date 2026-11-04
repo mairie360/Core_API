@@ -187,7 +187,7 @@ async fn session(state: &AppState, user_id: u64) -> (String, String) {
             generate_session_jwt(
                 user_id,
                 session_id,
-                user_role_name(state, user_id).await.unwrap()
+                &user_role_name(state, user_id).await.unwrap()
             )
             .unwrap()
         ),
