@@ -78,7 +78,7 @@ impl ResponseError for ConsoleAccessError {
             description = "Link issued. Open `url` before `expires_in` seconds; it works once.",
             body = KeycloakConsoleAccessView,
             example = json!({
-                "url": "https://auth.dev.mairie360-eip.fr/admin-access?token=eyJhbGciOiJFZERTQSIsInR5cCI6ImtjLWNvbnNvbGUtbGluaytqd3QifQ.eyJzdWIiOiIxIn0.c2lnbmF0dXJl",
+                "url": "https://auth.dev.mairie360-eip.fr/admin-access?token=<link token: a signed JWT>",
                 "expires_in": 120
             })
         ),

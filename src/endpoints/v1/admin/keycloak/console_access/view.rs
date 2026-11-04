@@ -9,7 +9,7 @@ pub struct KeycloakConsoleAccessView {
     /// sets the console cookie and redirects to `/admin/<realm>/console/`. Never stored, never
     /// logged; ask for a new link when it expired.
     #[schema(
-        example = "https://auth.dev.mairie360-eip.fr/admin-access?token=eyJhbGciOiJFZERTQSIsInR5cCI6ImtjLWNvbnNvbGUtbGluaytqd3QifQ.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"
+        example = "https://auth.dev.mairie360-eip.fr/admin-access?token=<link token: a signed JWT>"
     )]
     pub url: String,
     /// Seconds the link stays valid from now (120). The console session it opens then lasts 30

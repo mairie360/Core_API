@@ -19,12 +19,8 @@ const MAX_TOKEN_LENGTH: usize = 4096;
 pub struct AdminAccessQuery {
     /// The link token returned in `url` by `POST /api/v1/admin/keycloak/console-access`.
     /// Single use, valid 120 seconds.
-    #[param(
-        example = "eyJhbGciOiJFZERTQSIsInR5cCI6ImtjLWNvbnNvbGUtbGluaytqd3QifQ.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"
-    )]
-    #[schema(
-        example = "eyJhbGciOiJFZERTQSIsInR5cCI6ImtjLWNvbnNvbGUtbGluaytqd3QifQ.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"
-    )]
+    #[param(example = "<link token: a signed JWT>")]
+    #[schema(example = "<link token: a signed JWT>")]
     pub token: Option<String>,
 }
 
