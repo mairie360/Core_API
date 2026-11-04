@@ -4,3 +4,7 @@ a3def8b9e1957a89c18c438792f726a10b7e21cd:src/endpoints/v1/sessions/refresh/endpo
 # Same false positive for the example of POST /api/v1/auth/logout (MAIR-692), replaced by a low-entropy value in
 # the next commit.
 64734229879bbd36f0a7875effcf532cca48f2ba:src/endpoints/v1/auth/logout/endpoint.rs:generic-api-key:82
+# Same false positive for the console link example of POST /api/v1/admin/keycloak/console-access
+# (MAIR-609), replaced by a low-entropy value in a later commit.
+d856b767fedca9873a2c51702c0925fe3ba1764c:src/endpoints/v1/admin/keycloak/console_access/view.rs:generic-api-key:12
+d856b767fedca9873a2c51702c0925fe3ba1764c:src/endpoints/v1/admin/keycloak/console_access/endpoint.rs:generic-api-key:81
