@@ -24,11 +24,11 @@ jobs:
       contents: write
       packages: write
       actions: read
-    uses: mairie360/CICD/.github/workflows/promote-prod.yml@9804aed718d436254e96a5d51cc23e8dd9dec1ca # v5.2.2
+    uses: mairie360/CICD/.github/workflows/promote-prod.yml@ccf7d3acc8c6fb9d5f57b95347e6aceb94df6f69 # v5.5.0
     with:
       stack: apis
       package_name: core-api
-      cicd_version: v5.2.2
+      cicd_version: v5.5.0
       sha: ${{ inputs.sha }}
     secrets:
       N8N_WEBHOOK_SECRET: ${{ secrets.N8N_WEBHOOK_SECRET }}
