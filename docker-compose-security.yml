@@ -85,7 +85,7 @@ services:
       - backend
 
   redis:
-    image: redis:8.4.0-bookworm
+    image: redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
     container_name: mairie360-redis-core-api
     restart: always
     expose:
@@ -101,7 +101,7 @@ services:
       retries: 5
 
   seeder:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     depends_on:
       liquibase:
         condition: service_completed_successfully
@@ -155,7 +155,7 @@ services:
   # healthcheck: this sidecar polls /ready (Postgres and Redis reachable) and the services that need the API wait for it to
   # complete instead.
   core-ready:
-    image: curlimages/curl:latest
+    image: curlimages/curl:latest@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
     depends_on:
       core:
         condition: service_started
@@ -167,7 +167,7 @@ services:
 
   # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
   fake-resend:
-    image: wiremock/wiremock:3.13.2
+    image: wiremock/wiremock:3.13.2@sha256:0d4ecb3e4dc8213fd7a4d37d6a78f6e6b553a6d2e15bd51b0999781282ac61b3
     container_name: mairie360-fake-resend
     restart: always
     command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
@@ -192,7 +192,7 @@ services:
   #       condition: service_completed_successfully
 
   security-scan:
-    image: zaproxy/zap-stable
+    image: zaproxy/zap-stable@sha256:030d3df57735dacbb83464854758e674dd9ad01d79d12a129a8e58b1fd384238
     networks:
       - backend
     depends_on:

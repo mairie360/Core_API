@@ -86,7 +86,7 @@ services:
       - backend
 
   redis:
-    image: redis:8.4.0-bookworm
+    image: redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
     container_name: mairie360-redis-core-api
     restart: always
     expose:
@@ -102,7 +102,7 @@ services:
       retries: 5
 
   seeder:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
     depends_on:
       liquibase:
         condition: service_completed_successfully
@@ -168,7 +168,7 @@ services:
   # is the coverage reference of load-test.js (openapi.json is gitignored, so the CI checkout has
   # none, and the served spec is the one of the exact image being tested).
   core-ready:
-    image: curlimages/curl:latest
+    image: curlimages/curl:latest@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
     # Root, to write into the freshly created `openapi-spec` volume.
     user: "0"
     depends_on:
@@ -185,7 +185,7 @@ services:
 
   # Fake Resend API (MAIR-522): records the e-mails Core sends (tests/fake-resend/README.md).
   fake-resend:
-    image: wiremock/wiremock:3.13.2
+    image: wiremock/wiremock:3.13.2@sha256:0d4ecb3e4dc8213fd7a4d37d6a78f6e6b553a6d2e15bd51b0999781282ac61b3
     container_name: mairie360-fake-resend
     restart: always
     command: ["--port", "8080", "--global-response-templating", "--max-request-journal-entries", "10000"]
@@ -197,7 +197,7 @@ services:
       - backend
 
   k6-perf-test:
-    image: grafana/k6:latest
+    image: grafana/k6:latest@sha256:3e4186aea62e11a45560bfc51e19eeafe82fc07ce069c78aff44b7ff893d9a5e
     networks:
       - backend
     # load-test.js declares one handler per operation of the spec through the shared OpenAPI
