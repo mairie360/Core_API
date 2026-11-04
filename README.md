@@ -106,3 +106,26 @@ Keycloak is called **before** Core writes, and put back as it was when Core refu
 a failure on either side (`409`, `502`, ...) leaves nothing half done. Accounts that Keycloak does
 not know yet (not migrated) are left to the migration; without `KEYCLOAK_CLIENT_SECRET`, only Core
 is written.
+
+### Temporary access to the Keycloak admin console (MAIR-609)
+
+The realm admin console (`/admin/<realm>/console/` on the Keycloak host) is closed by default.
+Core opens it for a short time to the town-hall administrators, without giving them a Keycloak
+admin account. It needs the public realm URL (`KEYCLOAK_ISSUER`, else `KEYCLOAK_REALM_URL`) and
+Core's Ed25519 session key (`JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY`, MAIR-680); without them the
+three routes answer `503`.
+
+1. `POST /api/v1/admin/keycloak/console-access` (Admin only, at most 10 per administrator per 15
+   minutes) answers `{ "url": "<keycloak host>/admin-access?token=…", "expires_in": 120 }`: a
+   link valid 2 minutes, usable once.
+2. `GET /admin-access?token=…`, routed to Core on the Keycloak host, checks the link, records it
+   as used (Redis) and checks again that its user is still an active Admin. It then sets the
+   `__Secure-mairie360-kc-console` cookie (`Path=/admin`, `HttpOnly`, `Secure`,
+   `SameSite=Strict`, 30 minutes) and redirects (`303`) to the realm console.
+3. `GET /internal/keycloak-console/verify` is the Traefik `ForwardAuth` check in front of
+   `/admin` (MAIR-610, `Devops/Deploiment`): `200` while the cookie is valid **and** its user is
+   still an active Admin, `401` otherwise. A demoted or archived administrator loses the console
+   on the next request.
+
+Link tokens, console cookies and session JWTs are signed with the same key but carry their own
+`typ` and `aud`: none of them is accepted in place of another.

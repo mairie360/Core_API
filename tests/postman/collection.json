@@ -2495,6 +2495,550 @@
       ]
     },
     {
+      "name": "Keycloak console access (MAIR-609)",
+      "item": [
+        {
+          "name": "MAIR-609 Log in as a plain user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{test_user_email}}\",\n  \"password\": \"{{test_user_new_password}}\",\n  \"device_info\": \"newman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.environment.set(\"jwt_user_609\", pm.response.headers.get(\"Authorization\").substring(\"Bearer \".length));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-609 Asking for a console link without a JWT answers 401",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/keycloak/console-access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "keycloak",
+                "console-access"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 A plain user is refused a console link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_user_609}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/keycloak/console-access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "keycloak",
+                "console-access"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 An administrator gets a single-use console link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/keycloak/console-access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "keycloak",
+                "console-access"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The answer is not cached\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\");",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"The body matches the contract\", function () {",
+                  "    pm.expect(body).to.have.all.keys(\"url\", \"expires_in\");",
+                  "    pm.expect(body.expires_in).to.eql(120);",
+                  "    pm.expect(body.url).to.match(/^http:\\/\\/auth\\.development\\.mairie360\\.fr\\/admin-access\\?token=[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+$/);",
+                  "});",
+                  "pm.environment.set(\"kc_link_token\", body.url.split(\"token=\")[1]);"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 The console is closed without the cookie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/keycloak-console/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "keycloak-console",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.test(\"The answer is not cached\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 Opening the link sets the console cookie and redirects to the console",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-access?token={{kc_link_token}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-access"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{kc_link_token}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 303\", function () {",
+                  "    pm.response.to.have.status(303);",
+                  "});",
+                  "pm.test(\"The answer is not cached\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\");",
+                  "});",
+                  "pm.test(\"Redirects to the realm admin console\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"/admin/mairie360/console/\");",
+                  "});",
+                  "pm.test(\"The link token does not leak through the Referer\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Referrer-Policy\")).to.eql(\"no-referrer\");",
+                  "});",
+                  "const setCookie = pm.response.headers.all().filter((h) => h.key.toLowerCase() === \"set-cookie\").map((h) => h.value).find((v) => v.startsWith(\"__Secure-mairie360-kc-console=\"));",
+                  "pm.test(\"The console cookie is HttpOnly, Secure, SameSite=Strict, bound to /admin for 30 minutes\", function () {",
+                  "    pm.expect(setCookie, \"console Set-Cookie\").to.be.a(\"string\");",
+                  "    pm.expect(setCookie).to.include(\"HttpOnly\");",
+                  "    pm.expect(setCookie).to.include(\"Secure\");",
+                  "    pm.expect(setCookie).to.include(\"SameSite=Strict\");",
+                  "    pm.expect(setCookie).to.include(\"Path=/admin\");",
+                  "    pm.expect(setCookie).to.include(\"Max-Age=1800\");",
+                  "});",
+                  "pm.environment.set(\"kc_console_cookie\", setCookie.split(\";\")[0].substring(\"__Secure-mairie360-kc-console=\".length));"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true,
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "MAIR-609 The console cookie opens the console",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__Secure-mairie360-kc-console={{kc_console_cookie}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/keycloak-console/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "keycloak-console",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The answer is not cached\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\");",
+                  "});",
+                  "pm.test(\"Body is OK\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"OK\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 A link works only once",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-access?token={{kc_link_token}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-access"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{kc_link_token}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.test(\"The answer is not cached\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Cache-Control\")).to.include(\"no-store\");",
+                  "});",
+                  "pm.test(\"No console cookie is set\", function () {",
+                  "    pm.expect(pm.response.headers.all().some((h) => h.key.toLowerCase() === \"set-cookie\" && h.value.startsWith(\"__Secure-mairie360-kc-console=\"))).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true,
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "MAIR-609 A session JWT is refused as a console cookie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__Secure-mairie360-kc-console={{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/keycloak-console/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "keycloak-console",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "MAIR-609 The console cookie is refused as a console link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin-access?token={{kc_console_cookie}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin-access"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{kc_console_cookie}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true,
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "MAIR-609 A console cookie whose claims were changed is refused",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__Secure-mairie360-kc-console={{kc_console_cookie_tampered}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/keycloak-console/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "keycloak-console",
+                "verify"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cryptoJs = require(\"crypto-js\");",
+                  "const part = (token, i) => JSON.parse(cryptoJs.enc.Base64.parse(token.split(\".\")[i].replace(/-/g, \"+\").replace(/_/g, \"/\")).toString(cryptoJs.enc.Utf8));",
+                  "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+                  "// Keep Core's signature, push the expiry one day further.",
+                  "const cookie = pm.environment.get(\"kc_console_cookie\");",
+                  "const claims = part(cookie, 1);",
+                  "claims.exp += 86400;",
+                  "const [header, , signature] = cookie.split(\".\");",
+                  "pm.environment.set(\"kc_console_cookie_tampered\", `${header}.${b64url(cryptoJs.enc.Utf8.parse(JSON.stringify(claims)))}.${signature}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"The error is a plain-text message\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/plain\");",
+                  "    pm.expect(pm.response.text()).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin",
       "item": [
         {
@@ -3494,6 +4038,7 @@
                   "pm.test(\"Status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
+                  "pm.test(\"The Admin role is still named Admin\", function () {",
                   "    const admin = pm.response.json().roles.find((role) => role.id === Number(pm.environment.get(\"admin_role_id\")));",
                   "    pm.expect(admin.name).to.eql(\"Admin\");",
                   "});"
