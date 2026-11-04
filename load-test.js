@@ -71,6 +71,8 @@ const ADMIN_PAGE_SIZE = 20;
 
 const READ_METHODS = ['get', 'head', 'options'];
 
+const CONSOLE_COOKIE = '__Secure-mairie360-kc-console';
+
 /** The served spec restricted to the operations whose method passes `keep`. */
 function specSubset(spec, keep) {
   const paths = {};
@@ -303,6 +305,23 @@ const readHandlers = {
   'GET /api/v1/admin/users/{userId}/': ({ request }) =>
     check(request({ path: { userId: MEMBER_ID } }), { 'admin user 200': (r) => r.status === 200 }),
   'GET /api/v1/admin/roles/': ({ request }) => check(request(), { 'admin roles 200': (r) => r.status === 200 }),
+
+  // Keycloak console access (MAIR-609), with the console cookie and the used link of setup().
+  // Traefik calls verify on every request of the console: it re-reads the Admin role each time.
+  'GET /internal/keycloak-console/verify': ({ request, data }) =>
+    check(request({ headers: { Cookie: `${CONSOLE_COOKIE}=${data.consoleCookie}` } }), {
+      'console verify 200': (r) => r.status === 200,
+    }),
+  // A link works once: replaying the one of setup() measures the full check (signature, used-link
+  // record in Redis) and answers 401, expected so it does not count in `http_req_failed`.
+  'GET /admin-access': ({ request, data }) =>
+    check(
+      request({
+        query: { token: data.usedLinkToken },
+        params: { redirects: 0, responseCallback: http.expectedStatuses(401) },
+      }),
+      { 'used console link 401': (r) => r.status === 401 },
+    ),
 };
 
 const writeHandlers = {
@@ -486,6 +505,12 @@ const writeHandlers = {
       }),
       { 'keycloak sign-in 503 (not configured)': (r) => r.status === 503 },
     ),
+  // MAIR-609: docker-compose-performance.yml sets RATE_LIMIT_ENABLED=false, so no 429 here (the
+  // 10 links per 15 minutes are tested in tests/mair_609_keycloak_console_access.rs).
+  'POST /api/v1/admin/keycloak/console-access': ({ request }) =>
+    check(request(), {
+      'console link 200': (r) => r.status === 200 && r.json('expires_in') === 120,
+    }),
   'POST /api/v1/admin/keycloak/migration': ({ request }) =>
     check(request({ params: { responseCallback: http.expectedStatuses(503) } }), {
       'keycloak migration 503 (not configured)': (r) => r.status === 503,
@@ -618,15 +643,32 @@ export const options = {
   },
 };
 
-/** Read fixture: a group with user 2 as member. Login rush: active accounts. */
+/**
+ * Read fixtures: a group with user 2 as member, a Keycloak console cookie and the (now used) link
+ * that opened it (MAIR-609). Login rush: active accounts.
+ */
+function consoleAccess() {
+  const url = fixture('POST', '/api/v1/admin/keycloak/console-access').json('url');
+  const usedLinkToken = url.split('token=')[1];
+  const res = http.get(`${BASE_URL}/admin-access?token=${usedLinkToken}`, {
+    redirects: 0,
+    tags: { op: 'fixture' },
+    responseCallback: http.expectedStatuses(303),
+  });
+  const cookie = (res.cookies[CONSOLE_COOKIE] || [])[0];
+  if (res.status !== 303 || !cookie) fail(`fixture GET /admin-access answered ${res.status}: ${res.body}`);
+  return { consoleCookie: cookie.value, usedLinkToken };
+}
+
 export function setup() {
   const groupId = createGroup('read');
   addGroupMember(groupId, MEMBER_ID);
+  const { consoleCookie, usedLinkToken } = consoleAccess();
   const rushAccounts = [];
   for (let i = 0; i < LOGIN_RUSH_ACCOUNTS; i += 1) {
     rushAccounts.push(activeAccount('rush'));
   }
-  return { groupId, rushAccounts };
+  return { groupId, rushAccounts, consoleCookie, usedLinkToken };
 }
 
 export function teardown(data) {

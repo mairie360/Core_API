@@ -48,7 +48,9 @@ impl ResponseError for RemoveUserRoleError {
     }
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status_code()).body(self.to_string())
+        HttpResponse::build(self.status_code())
+            .content_type("text/plain; charset=utf-8")
+            .body(self.to_string())
     }
 }
 

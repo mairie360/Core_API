@@ -41,6 +41,8 @@ operations:
   POST /api/v1/auth/logout: {access: public, token: true, note: "needs the refresh token of the session it ends; same 204 for an unknown token (MAIR-692)"}
   GET /api/v1/auth/jwks: {access: public, note: "public keys only (MAIR-680), never the private key"}
   POST /api/v1/sessions/refresh: {access: public, token: true, note: "needs the refresh token"}
+  GET /admin-access: {access: public, token: true, note: "needs the single-use link token of POST /api/v1/admin/keycloak/console-access; re-checks the Admin role (MAIR-609)"}
+  GET /internal/keycloak-console/verify: {access: public, token: true, note: "needs the console cookie set by /admin-access; in-cluster only, called by the Traefik ForwardAuth (MAIR-609)"}
 
   # --- The caller's own account and sessions ---
   GET /api/v1/user/me/:
@@ -133,3 +135,4 @@ operations:
   PATCH /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
   POST /api/v1/admin/keycloak/migration: {access: admin, roles: [Admin]}
+  POST /api/v1/admin/keycloak/console-access: {access: admin, roles: [Admin], token: true, note: "the answer carries a single-use link token to the Keycloak admin console (MAIR-609)"}

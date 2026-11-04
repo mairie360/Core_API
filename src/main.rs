@@ -7,9 +7,10 @@ use core_api::database::pg_url::build_pg_url;
 use core_api::emails::AccountEmails;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::{is_swagger_enabled, ApiDoc};
-use core_api::endpoints::{config, public_config};
+use core_api::endpoints::{config, keycloak_console_config, public_config};
 use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
+use core_api::keycloak_console::ConsoleAccessConfig;
 use core_api::rate_limit::RateLimits;
 use mairie360_api_lib::security::JwtMiddleware;
 
@@ -100,6 +101,9 @@ async fn main() -> std::io::Result<()> {
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
+    // Temporary access to the Keycloak realm admin console (MAIR-609), from the public issuer:
+    // without it the console routes answer 503.
+    let console_access = ConsoleAccessConfig::from_env().map(web::Data::new);
     // Swagger UI and the spec are only served where SWAGGER_ENABLED=true (MAIR-424).
     let swagger = is_swagger_enabled(get_env_var).then(ApiDoc::openapi);
     let host = get_critical_env_var("HOST");
@@ -121,6 +125,10 @@ async fn main() -> std::io::Result<()> {
             Some(limits) => app.app_data(limits.clone()),
             None => app,
         };
+        let app = match &console_access {
+            Some(console) => app.app_data(console.clone()),
+            None => app,
+        };
         let app = match &swagger {
             Some(spec) => app.service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", spec.clone()),
@@ -137,6 +145,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::DefaultHeaders::new().add(("X-Content-Type-Options", "nosniff")))
             .service(health::health)
             .service(ready::ready)
+            // Keycloak console access (MAIR-609): `/admin-access` (browser, through the ingress
+            // of auth.<domain>) and `/internal/keycloak-console/verify` (Traefik ForwardAuth),
+            // outside the JWT-protected `/api` scope.
+            .configure(keycloak_console_config)
             // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
             .configure(public_config)
             // 3. Endpoints Protégés par JWT

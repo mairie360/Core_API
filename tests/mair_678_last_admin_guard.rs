@@ -248,6 +248,35 @@ async fn mair_678_last_admin_cannot_be_archived() {
     assert_eq!(active_admins(&fixture.raw).await, vec![caller()]);
 }
 
+/// The fronts display the refusal as text: the `409` says so in its `Content-Type`, like the
+/// spec documents (the newman "Error envelope" check failed on the demotion without it).
+#[tokio::test]
+#[serial]
+async fn mair_678_refusals_are_sent_as_plain_text() {
+    let fixture = fixture().await;
+    let app = init_app!(fixture.state);
+
+    for (case, request) in [
+        ("demotion", grant(caller(), fixture.user_role)),
+        ("revocation", revoke(caller(), fixture.admin_role)),
+        ("archiving", archive(caller())),
+    ] {
+        let resp = test::call_service(&app, request.to_request()).await;
+        assert_eq!(resp.status(), StatusCode::CONFLICT, "{case}");
+        let content_type = resp
+            .headers()
+            .get(actix_web::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        assert!(
+            content_type.starts_with("text/plain"),
+            "{case}: {content_type:?}"
+        );
+    }
+    assert_eq!(active_admins(&fixture.raw).await, vec![caller()]);
+}
+
 #[tokio::test]
 #[serial]
 async fn mair_678_archived_admin_does_not_count() {

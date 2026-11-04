@@ -87,8 +87,8 @@ pub async fn user_role_name(state: &AppState, user_id: u64) -> Result<String, Ap
 ///
 /// Returns an error when no signing key is configured, `JWT_TIMEOUT` is missing, or the token
 /// cannot be signed.
-pub fn generate_session_jwt(user_id: u64, session_id: Uuid, role: String) -> Result<String, Error> {
-    sign_session_jwt(&user_id.to_string(), &role, Some(&session_id.to_string()))
+pub fn generate_session_jwt(user_id: u64, session_id: Uuid, role: &str) -> Result<String, Error> {
+    sign_session_jwt(&user_id.to_string(), role, Some(&session_id.to_string()))
 }
 
 /// Decodes and verifies `jwt` like every API does (`mairie360_api_lib::jwt_manager::decode_jwt`:

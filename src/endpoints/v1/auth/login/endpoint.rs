@@ -117,7 +117,7 @@ pub async fn generate_session(
         tracing::error!("Get user roles DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    let jwt = generate_session_jwt(user_id, session_id, role).map_err(|e| {
+    let jwt = generate_session_jwt(user_id, session_id, &role).map_err(|e| {
         tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;

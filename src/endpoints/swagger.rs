@@ -1,4 +1,5 @@
 use crate::endpoints::health::HealthDoc;
+use crate::endpoints::keycloak_console::KeycloakConsoleDoc;
 use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
@@ -68,13 +69,15 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (name = "Groups", description = "Groupes d'utilisateurs et gestion de leurs membres."),
         (name = "Admin - Users", description = "Administration des comptes utilisateurs. Réservé aux administrateurs."),
         (name = "Admin - Roles", description = "Administration des rôles et de leurs permissions. Réservé aux administrateurs."),
-        (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on). Reserved to administrators."),
+        (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on), and temporary links to the realm admin console. Reserved to administrators."),
+        (name = "Keycloak console", description = "Browser and ingress routes of the temporary access to the Keycloak admin console (MAIR-609): served under `auth.<domain>` (`/admin-access`) or in the cluster only (`/internal/keycloak-console/verify`, Traefik ForwardAuth). Not for the BFFs."),
         (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
     ),
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
         (path = "/", api = ReadyDoc),
+        (path = "/", api = KeycloakConsoleDoc),
     ),
     modifiers(&SecurityAddon) // On ajoute le modifier ici
 )]

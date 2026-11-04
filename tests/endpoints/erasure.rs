@@ -87,7 +87,7 @@ async fn open_session(state: &AppState, user_id: u64) -> (Uuid, String) {
     let role = user_role_name(state, user_id).await.unwrap();
     (
         session_id,
-        generate_session_jwt(user_id, session_id, role).unwrap(),
+        generate_session_jwt(user_id, session_id, &role).unwrap(),
     )
 }
 
