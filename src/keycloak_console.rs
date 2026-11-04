@@ -93,7 +93,13 @@ impl ConsoleAccessConfig {
             && realm
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-        let valid_url = public_url.starts_with("https://") || public_url.starts_with("http://");
+        // `<scheme>://<host>[:port]` only: the link (`/admin-access`) and the redirect
+        // (`/admin/<realm>/console/`) are both served at the root of the Keycloak host.
+        let valid_url = ["https://", "http://"].iter().any(|scheme| {
+            public_url
+                .strip_prefix(scheme)
+                .is_some_and(|host| !host.is_empty() && !host.contains('/'))
+        });
         (valid_realm && valid_url).then(|| Self {
             public_url: public_url.to_string(),
             realm: realm.to_string(),
@@ -247,6 +253,12 @@ fn now() -> u64 {
         .map_or(0, |elapsed| elapsed.as_secs())
 }
 
+/// Whether Core holds a valid Ed25519 session key to sign console tokens with.
+#[must_use]
+pub fn signing_configured() -> bool {
+    matches!(session_signing_key(), Ok(Some(_)))
+}
+
 /// Issues a console token of `kind` for `user_id`, signed with Core's Ed25519 session key.
 /// Returns the token and its `jti`.
 ///
@@ -340,6 +352,12 @@ mod tests {
             ConsoleAccessConfig::from_realm_url("https://auth.example.org/realms/a%2Fb").is_none()
         );
         assert!(ConsoleAccessConfig::from_realm_url("javascript:x/realms/town").is_none());
+        // A path prefix (legacy `/auth`): the link and the redirect would not agree.
+        assert!(
+            ConsoleAccessConfig::from_realm_url("https://auth.example.org/auth/realms/town")
+                .is_none()
+        );
+        assert!(ConsoleAccessConfig::from_realm_url("https:///realms/town").is_none());
     }
 
     #[test]

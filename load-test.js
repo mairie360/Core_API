@@ -505,13 +505,11 @@ const writeHandlers = {
       }),
       { 'keycloak sign-in 503 (not configured)': (r) => r.status === 503 },
     ),
-  // MAIR-609: at most 10 links per administrator per 15 minutes, every handler shares the static
-  // Admin: past the 10th, 429 is the expected answer (with its Retry-After).
+  // MAIR-609: docker-compose-performance.yml sets RATE_LIMIT_ENABLED=false, so no 429 here (the
+  // 10 links per 15 minutes are tested in tests/mair_609_keycloak_console_access.rs).
   'POST /api/v1/admin/keycloak/console-access': ({ request }) =>
-    check(request({ params: { responseCallback: http.expectedStatuses(200, 429) } }), {
-      'console link 200 or 429 (rate limited)': (r) =>
-        (r.status === 200 && r.json('expires_in') === 120) ||
-        (r.status === 429 && !!r.headers['Retry-After']),
+    check(request(), {
+      'console link 200': (r) => r.status === 200 && r.json('expires_in') === 120,
     }),
   'POST /api/v1/admin/keycloak/migration': ({ request }) =>
     check(request({ params: { responseCallback: http.expectedStatuses(503) } }), {

@@ -110,8 +110,8 @@ is written.
 ### Temporary access to the Keycloak admin console (MAIR-609)
 
 The realm admin console (`/admin/<realm>/console/` on the Keycloak host) is closed by default.
-Core opens it for a short time to the town-hall administrators, without giving them a Keycloak
-admin account. It needs the public realm URL (`KEYCLOAK_ISSUER`, else `KEYCLOAK_REALM_URL`) and
+Core opens it for a short time to the town-hall administrators; Keycloak then still asks them to
+sign in with a realm account holding the `realm-management` roles. It needs the public realm URL (`KEYCLOAK_ISSUER`, else `KEYCLOAK_REALM_URL`) and
 Core's Ed25519 session key (`JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY`, MAIR-680); without them the
 three routes answer `503`.
 

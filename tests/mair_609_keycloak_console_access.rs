@@ -509,4 +509,14 @@ async fn mair_609_console_access_answers_503_when_not_configured() {
     );
     let resp = test::call_service(&app, open_link(&token).to_request()).await;
     assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    // Without the configuration, ForwardAuth keeps the console closed even for a valid cookie.
+    let cookie = sign(
+        CONSOLE_COOKIE_TYPE,
+        CONSOLE_COOKIE_AUDIENCE,
+        admin,
+        now() + 60,
+        false,
+    );
+    let resp = test::call_service(&app, verify_with(&cookie).to_request()).await;
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
 }

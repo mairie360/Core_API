@@ -1,5 +1,7 @@
 use super::is_active_admin;
-use crate::keycloak_console::{verify, ConsoleTokenKind, CONSOLE_COOKIE_NAME};
+use crate::keycloak_console::{
+    verify, ConsoleAccessConfig, ConsoleTokenError, ConsoleTokenKind, CONSOLE_COOKIE_NAME,
+};
 use actix_web::http::header::{CacheControl, CacheDirective};
 use actix_web::{get, http::StatusCode, web, HttpRequest, HttpResponse, ResponseError};
 use mairie360_api_lib::state::AppState;
@@ -10,6 +12,8 @@ pub enum VerifyError {
     Unauthorized,
     /// The administrator could not be checked in the database.
     Internal,
+    /// Console access is not configured on this instance (no realm URL or no Ed25519 key).
+    Unavailable,
 }
 
 impl std::fmt::Display for VerifyError {
@@ -20,6 +24,10 @@ impl std::fmt::Display for VerifyError {
                 "Keycloak console access expired or missing. Ask for a new link from the Mairie 360 administration."
             ),
             Self::Internal => write!(f, "The console access could not be checked."),
+            Self::Unavailable => write!(
+                f,
+                "Keycloak console access is not available on this instance."
+            ),
         }
     }
 }
@@ -29,6 +37,7 @@ impl ResponseError for VerifyError {
         match self {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -81,6 +90,13 @@ impl ResponseError for VerifyError {
             body = String,
             content_type = "text/plain",
             example = json!("The console access could not be checked.")
+        ),
+        (
+            status = 503,
+            description = "Console access is not configured on this instance: no Keycloak realm URL (`KEYCLOAK_ISSUER` / `KEYCLOAK_REALM_URL`) or no Ed25519 session key (`JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY`). The console stays closed.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Keycloak console access is not available on this instance.")
         )
     ),
     tag = "Keycloak console"
@@ -91,13 +107,21 @@ impl ResponseError for VerifyError {
 pub async fn verify_keycloak_console_access(
     req: HttpRequest,
     state: web::Data<AppState>,
+    console: Option<web::Data<ConsoleAccessConfig>>,
 ) -> Result<HttpResponse, VerifyError> {
+    if console.is_none() {
+        return Err(VerifyError::Unavailable);
+    }
     let cookie = req
         .cookie(CONSOLE_COOKIE_NAME)
         .ok_or(VerifyError::Unauthorized)?;
     let claims = verify(ConsoleTokenKind::Cookie, cookie.value()).map_err(|e| {
         tracing::warn!(reason = %e, "Keycloak console cookie refused");
-        VerifyError::Unauthorized
+        if e == ConsoleTokenError::NotConfigured {
+            VerifyError::Unavailable
+        } else {
+            VerifyError::Unauthorized
+        }
     })?;
     let user_id = claims.user_id().ok_or(VerifyError::Unauthorized)?;
     if !is_active_admin(&state, user_id)

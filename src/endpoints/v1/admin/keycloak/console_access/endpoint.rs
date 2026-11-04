@@ -1,7 +1,8 @@
 use super::view::KeycloakConsoleAccessView;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::keycloak_console::{
-    issue, ConsoleAccessConfig, ConsoleTokenError, ConsoleTokenKind, LINK_TOKEN_TTL_SECONDS,
+    issue, signing_configured, ConsoleAccessConfig, ConsoleTokenError, ConsoleTokenKind,
+    LINK_TOKEN_TTL_SECONDS,
 };
 use crate::rate_limit::{too_many_requests_response, user_key, RateLimits};
 use actix_web::http::header::{CacheControl, CacheDirective};
@@ -131,6 +132,10 @@ pub async fn request_keycloak_console_access(
     limits: Option<web::Data<RateLimits>>,
 ) -> Result<HttpResponse, ConsoleAccessError> {
     let console = console.ok_or(ConsoleAccessError::NotConfigured)?;
+    // Without a signing key every request would fail: do not spend the admin's budget on it.
+    if !signing_configured() {
+        return Err(ConsoleAccessError::NotConfigured);
+    }
     if let Some(limits) = limits {
         limits
             .console_access_per_user
