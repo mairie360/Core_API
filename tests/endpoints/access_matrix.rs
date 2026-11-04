@@ -8,7 +8,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
-use core_api::endpoints::{config, health, public_config, ready};
+use core_api::endpoints::{config, health, keycloak_console_config, public_config, ready};
 use core_api::session_jwt::{generate_session_jwt, user_role_name};
 use mairie360_api_lib::password::hash_password;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
@@ -127,6 +127,7 @@ macro_rules! init_app {
                 .app_data($state.clone())
                 .service(health::health)
                 .service(ready::ready)
+                .configure(keycloak_console_config)
                 .configure(public_config)
                 .service(
                     web::scope("/api")

@@ -7,6 +7,7 @@ pub mod database;
 pub mod emails;
 pub mod endpoints;
 pub mod keycloak;
+pub mod keycloak_console;
 pub mod passwords;
 pub mod phone;
 pub mod rate_limit;

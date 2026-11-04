@@ -139,6 +139,9 @@ pub struct RateLimits {
     /// e-mail), per user (MAIR-746). Counted per account, not per address: the caller is a BFF
     /// pod, and a stolen session must not get unlimited guesses whatever address it comes from.
     pub password_check_per_user: RateLimiter,
+    /// `POST /admin/keycloak/console-access`, per administrator (MAIR-609): each call signs a
+    /// console link, a handful per quarter of an hour is plenty.
+    pub console_access_per_user: RateLimiter,
 }
 
 impl Default for RateLimits {
@@ -152,6 +155,7 @@ impl Default for RateLimits {
             password_token_per_ip: RateLimiter::new(10, 15 * MINUTE),
             refresh_per_ip: RateLimiter::new(60, MINUTE),
             password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
+            console_access_per_user: RateLimiter::new(10, 15 * MINUTE),
         }
     }
 }
