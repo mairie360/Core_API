@@ -1,75 +1,90 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "690f32b51732e10d965811e4538ee90e86aaba33", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-04 14:39 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "4902160849b8b6eab7b073c7f5ec96f95a3947ad", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-06 04:36 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
 | staging | — | `cea777d` | 2026-10-21 03:14 UTC |
-| dev | — | `690f32b` | 2026-11-04 14:39 UTC |
+| dev | — | `4902160` | 2026-11-06 04:36 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.2.0)
 
-#### Nouveautés
-- Accès temporaire à la console Keycloak : `POST /api/v1/admin/keycloak/console-access` (Admin, 10 par administrateur et par 15 minutes) répond `{ url, expires_in: 120 }` avec un lien à usage unique valable 2 minutes. `GET /admin-access?token=` pose le cookie `__Secure-mairie360-kc-console` (30 minutes) et redirige en `303` vers la console du realm. `GET /internal/keycloak-console/verify` (ForwardAuth Traefik) répond `200` ou `401`. Les trois routes répondent `503` sans `KEYCLOAK_ISSUER` (ou `KEYCLOAK_REALM_URL`) et sans les clés de session. (MAIR-609, [#364](https://github.com/mairie360/Core_API/pull/364))
-- `GET /api/v1/auth/jwks` publie les clés publiques des JWT de session au format JWKS, sans clé privée. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- `POST /api/v1/auth/logout` : déconnexion avec le seul refresh token, sans JWT. Répond toujours `204`, révoque la session et la publie sur la liste de révocation Redis. Budget de 60 par minute et par adresse. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- `POST /api/v1/admin/users/{userId}/erase` : effacement définitif (anonymisation via `anonymize_user()`, sessions révoquées, compte Keycloak supprimé). Répond `409` pour le compte administrateur d'origine ou s'il n'existe aucun autre administrateur actif pour reprendre groupes, projets et événements. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` renvoient les données du compte (`export_user_data()`), identifiants exclus, et `404` pour un compte inconnu. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- `DIRECTORY_GUEST_ACCESS=none` ferme l'annuaire aux agents qui n'ont que le rôle Guest : `GET /api/v1/user/` et la fiche des autres utilisateurs répondent `403`, leur propre fiche reste accessible. Par défaut (`all`), rien ne change. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
-
-#### Changements de comportement
-- Les JWT de session sont signés en EdDSA (`kid`, `iss` `mairie360-core`, `aud` `mairie360`) dès que `JWT_PRIVATE_KEY` et `JWT_PUBLIC_KEY` sont définis. Les HS256 restent acceptés tant que `JWT_SECRET` est défini. Les autres services doivent recevoir `JWT_PUBLIC_KEY`. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- L'opération OpenAPI de `POST /api/v1/auth/logout` s'appelle `logout_with_refresh_token` : le client généré l'expose sous `logoutWithRefreshToken()`, et `logout()` reste sur `POST /api/v1/sessions/logout`. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
-- `POST /api/v1/admin/users/{userId}/roles/`, `DELETE /api/v1/admin/users/{userId}/roles/{roleId}` et `DELETE /api/v1/admin/users/{userId}/` répondent `409` (message « This user is the last active administrator ») si l'opération ne laisse aucun administrateur actif. Rien n'est modifié. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- `PATCH` et `PUT /api/v1/admin/roles/{id}` avec `can_be_deleted: true` sur un rôle système (`can_be_deleted = false`, par exemple `Admin`) répondent `403` : « System roles stay protected: can_be_deleted cannot be changed. ». Sur un tel rôle, `PATCH` n'accepte plus que `false` ou une absence du champ. (MAIR-678, [#355](https://github.com/mairie360/Core_API/pull/355))
-
-#### Corrections
-- Dates de session : `GET /api/v1/sessions/`, `GET /api/v1/sessions/history` et `GET /api/v1/admin/users/{userId}/` renvoyaient `2026-09-16 08:42:11 UTC`, que `SessionList` ne lit pas (« Date indisponible », bouton de révocation absent). Maintenant `2026-09-16T08:42:11Z` (ISO 8601 UTC). Les champs restent des chaînes. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Changement d'e-mail par `PATCH /api/v1/user/me/` : avant, le mot de passe actuel pouvait être essayé sans limite. Maintenant, 5 vérifications par utilisateur et par 15 minutes, justes ou fausses ; au-delà, `429` avec `Retry-After`, sans rien vérifier ni modifier. Les changements sans e-mail ne sont pas limités. (MAIR-746, [#359](https://github.com/mairie360/Core_API/pull/359))
-- Dernier administrateur : avant, un administrateur pouvait en rétrograder, retirer ou archiver le dernier actif, puis renommer ou supprimer le rôle `Admin` après l'avoir déprotégé. Maintenant ces opérations répondent `409` ou `403`. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352) et [#355](https://github.com/mairie360/Core_API/pull/355))
-- Déconnexion avec un JWT expiré : avant, `POST /api/v1/sessions/logout` répondait `401` et le refresh token restait valable 30 jours. Maintenant `POST /api/v1/auth/logout` révoque la session sans JWT. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-
-#### Technique
-- Dépendances et images : `mairie360_api_lib` passe en 4.3.0, mises à jour actix-web, redis, uuid et tokio, digests Docker épinglés (Renovate), image d'exécution en distroless Debian 13 (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339)), base de test `dev-76437e3`.
-- CI et tests : pins CICD passés de v4.4.0 à v5.2.2 avec contrôle de version (MAIR-771, [#357](https://github.com/mairie360/Core_API/pull/357)), checklist RGPD des PR et simulation d'usage RGPD ([#272](https://github.com/mairie360/Core_API/pull/272), [#273](https://github.com/mairie360/Core_API/pull/273)), matrice d'accès vérifiée depuis l'OpenAPI ([#274](https://github.com/mairie360/Core_API/pull/274)), tests de limitation par client relayé par les BFF ([#342](https://github.com/mairie360/Core_API/pull/342)) et journaux sans valeurs personnelles ([#265](https://github.com/mairie360/Core_API/pull/265)).
+- chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
+- feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
+- chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
+- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#363) ([#363](https://github.com/mairie360/Core_API/pull/363))
+- chore(deps): update rust dependencies (#335) ([#335](https://github.com/mairie360/Core_API/pull/335))
+- chore(deps): pin dependencies (#350) ([#350](https://github.com/mairie360/Core_API/pull/350))
+- fix: MAIR-746 [Audit 30/10] BFF_Settings / Core : vérification du mot de passe sans limiteur via PATCH /settings/profile (N4) (#359) ([#359](https://github.com/mairie360/Core_API/pull/359))
+- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#357) ([#357](https://github.com/mairie360/Core_API/pull/357))
+- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#355) ([#355](https://github.com/mairie360/Core_API/pull/355))
+- fix: MAIR-767 Core API - Renvoyer les dates de session au format ISO 8601 ([#354](https://github.com/mairie360/Core_API/pull/354))
+- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#352) ([#352](https://github.com/mairie360/Core_API/pull/352))
+- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#349) ([#349](https://github.com/mairie360/Core_API/pull/349))
+- feat: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) (#346) ([#346](https://github.com/mairie360/Core_API/pull/346))
+- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#344) ([#344](https://github.com/mairie360/Core_API/pull/344))
+- test: MAIR-679 [Audit 23/10] BFF_user / bffs_lib / Core : « mot de passe oublié » verrouillable pour toute l'instance (A6) (#342) ([#342](https://github.com/mairie360/Core_API/pull/342))
+- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#339) ([#339](https://github.com/mairie360/Core_API/pull/339))
+- feat: MAIR-497 Simulation d'usage RGPD et revue IA des logs et de la base avant la prod (#273) ([#273](https://github.com/mairie360/Core_API/pull/273))
+- feat: MAIR-289 Anonymiser et exporter les données d'un utilisateur, avec tests d'effacement (#277) ([#277](https://github.com/mairie360/Core_API/pull/277))
+- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#274) ([#274](https://github.com/mairie360/Core_API/pull/274))
+- test: MAIR-287 Tester l'authentification de Core_API contre les exigences RGPD et bloquer les comptes archivés (#268) ([#268](https://github.com/mairie360/Core_API/pull/268))
+- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#265) ([#265](https://github.com/mairie360/Core_API/pull/265))
+- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#272) ([#272](https://github.com/mairie360/Core_API/pull/272))
+- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#334) ([#334](https://github.com/mairie360/Core_API/pull/334))
+- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#332) ([#332](https://github.com/mairie360/Core_API/pull/332))
+- chore(deps): update rust crate tokio to v1.54.1 (#333) ([#333](https://github.com/mairie360/Core_API/pull/333))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#330) ([#330](https://github.com/mairie360/Core_API/pull/330))
+- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#328) ([#328](https://github.com/mairie360/Core_API/pull/328))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#327) ([#327](https://github.com/mairie360/Core_API/pull/327))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#325) ([#325](https://github.com/mairie360/Core_API/pull/325))
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
-#### Nouveautés
-- Accès temporaire à la console Keycloak : `POST /api/v1/admin/keycloak/console-access` (Admin, 10 par administrateur et par 15 minutes) répond `{ url, expires_in: 120 }` avec un lien à usage unique valable 2 minutes. `GET /admin-access?token=` pose le cookie `__Secure-mairie360-kc-console` (30 minutes) et redirige en `303` vers la console du realm. `GET /internal/keycloak-console/verify` (ForwardAuth Traefik) répond `200` ou `401`. Les trois routes répondent `503` sans `KEYCLOAK_ISSUER` (ou `KEYCLOAK_REALM_URL`) et sans les clés de session. (MAIR-609, [#364](https://github.com/mairie360/Core_API/pull/364))
-- `GET /api/v1/auth/jwks` publie les clés publiques des JWT de session au format JWKS, sans clé privée. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- `POST /api/v1/auth/logout` : déconnexion avec le seul refresh token, sans JWT. Répond toujours `204`, révoque la session et la publie sur la liste de révocation Redis. Budget de 60 par minute et par adresse. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-- `POST /api/v1/admin/users/{userId}/erase` : effacement définitif (anonymisation via `anonymize_user()`, sessions révoquées, compte Keycloak supprimé). Répond `409` pour le compte administrateur d'origine ou s'il n'existe aucun autre administrateur actif pour reprendre groupes, projets et événements. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- `GET /api/v1/user/me/export` et `GET /api/v1/admin/users/{userId}/export` renvoient les données du compte (`export_user_data()`), identifiants exclus, et `404` pour un compte inconnu. (MAIR-289, [#277](https://github.com/mairie360/Core_API/pull/277))
-- `DIRECTORY_GUEST_ACCESS=none` ferme l'annuaire aux agents qui n'ont que le rôle Guest : `GET /api/v1/user/` et la fiche des autres utilisateurs répondent `403`, leur propre fiche reste accessible. Par défaut (`all`), rien ne change. (MAIR-288, [#274](https://github.com/mairie360/Core_API/pull/274))
-
-#### Changements de comportement
-- Les JWT de session sont signés en EdDSA (`kid`, `iss` `mairie360-core`, `aud` `mairie360`) dès que `JWT_PRIVATE_KEY` et `JWT_PUBLIC_KEY` sont définis. Les HS256 restent acceptés tant que `JWT_SECRET` est défini. Les autres services doivent recevoir `JWT_PUBLIC_KEY`. (MAIR-680, [#346](https://github.com/mairie360/Core_API/pull/346))
-- L'opération OpenAPI de `POST /api/v1/auth/logout` s'appelle `logout_with_refresh_token` : le client généré l'expose sous `logoutWithRefreshToken()`, et `logout()` reste sur `POST /api/v1/sessions/logout`. (MAIR-692, [#349](https://github.com/mairie360/Core_API/pull/349))
-- `POST /api/v1/admin/users/{userId}/roles/`, `DELETE /api/v1/admin/users/{userId}/roles/{roleId}` et `DELETE /api/v1/admin/users/{userId}/` répondent `409` (message « This user is the last active administrator ») si l'opération ne laisse aucun administrateur actif. Rien n'est modifié. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352))
-- `PATCH` et `PUT /api/v1/admin/roles/{id}` avec `can_be_deleted: true` sur un rôle système (`can_be_deleted = false`, par exemple `Admin`) répondent `403` : « System roles stay protected: can_be_deleted cannot be changed. ». Sur un tel rôle, `PATCH` n'accepte plus que `false` ou une absence du champ. (MAIR-678, [#355](https://github.com/mairie360/Core_API/pull/355))
-
-#### Corrections
-- Dates de session : `GET /api/v1/sessions/`, `GET /api/v1/sessions/history` et `GET /api/v1/admin/users/{userId}/` renvoyaient `2026-09-16 08:42:11 UTC`, que `SessionList` ne lit pas (« Date indisponible », bouton de révocation absent). Maintenant `2026-09-16T08:42:11Z` (ISO 8601 UTC). Les champs restent des chaînes. (MAIR-767, [#354](https://github.com/mairie360/Core_API/pull/354))
-- Changement d'e-mail par `PATCH /api/v1/user/me/` : avant, le mot de passe actuel pouvait être essayé sans limite. Maintenant, 5 vérifications par utilisateur et par 15 minutes, justes ou fausses ; au-delà, `429` avec `Retry-After`, sans rien vérifier ni modifier. Les changements sans e-mail ne sont pas limités. (MAIR-746, [#359](https://github.com/mairie360/Core_API/pull/359))
-- Dernier administrateur : avant, un administrateur pouvait en rétrograder, retirer ou archiver le dernier actif, puis renommer ou supprimer le rôle `Admin` après l'avoir déprotégé. Maintenant ces opérations répondent `409` ou `403`. (MAIR-678, [#352](https://github.com/mairie360/Core_API/pull/352) et [#355](https://github.com/mairie360/Core_API/pull/355))
-- Déconnexion avec un JWT expiré : avant, `POST /api/v1/sessions/logout` répondait `401` et le refresh token restait valable 30 jours. Maintenant `POST /api/v1/auth/logout` révoque la session sans JWT. (MAIR-692, [#344](https://github.com/mairie360/Core_API/pull/344))
-
-#### Technique
-- Dépendances et images : `mairie360_api_lib` passe en 4.3.0, mises à jour actix-web, redis, uuid et tokio, digests Docker épinglés (Renovate), image d'exécution en distroless Debian 13 (MAIR-741, [#339](https://github.com/mairie360/Core_API/pull/339)), base de test `dev-76437e3`.
-- CI et tests : pins CICD passés de v4.4.0 à v5.2.2 avec contrôle de version (MAIR-771, [#357](https://github.com/mairie360/Core_API/pull/357)), checklist RGPD des PR et simulation d'usage RGPD ([#272](https://github.com/mairie360/Core_API/pull/272), [#273](https://github.com/mairie360/Core_API/pull/273)), matrice d'accès vérifiée depuis l'OpenAPI ([#274](https://github.com/mairie360/Core_API/pull/274)), tests de limitation par client relayé par les BFF ([#342](https://github.com/mairie360/Core_API/pull/342)) et journaux sans valeurs personnelles ([#265](https://github.com/mairie360/Core_API/pull/265)).
+- chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
+- feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
+- chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
+- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#363) ([#363](https://github.com/mairie360/Core_API/pull/363))
+- chore(deps): update rust dependencies (#335) ([#335](https://github.com/mairie360/Core_API/pull/335))
+- chore(deps): pin dependencies (#350) ([#350](https://github.com/mairie360/Core_API/pull/350))
+- fix: MAIR-746 [Audit 30/10] BFF_Settings / Core : vérification du mot de passe sans limiteur via PATCH /settings/profile (N4) (#359) ([#359](https://github.com/mairie360/Core_API/pull/359))
+- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#357) ([#357](https://github.com/mairie360/Core_API/pull/357))
+- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#355) ([#355](https://github.com/mairie360/Core_API/pull/355))
+- fix: MAIR-767 Core API - Renvoyer les dates de session au format ISO 8601 ([#354](https://github.com/mairie360/Core_API/pull/354))
+- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#352) ([#352](https://github.com/mairie360/Core_API/pull/352))
+- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#349) ([#349](https://github.com/mairie360/Core_API/pull/349))
+- feat: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) (#346) ([#346](https://github.com/mairie360/Core_API/pull/346))
+- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#344) ([#344](https://github.com/mairie360/Core_API/pull/344))
+- test: MAIR-679 [Audit 23/10] BFF_user / bffs_lib / Core : « mot de passe oublié » verrouillable pour toute l'instance (A6) (#342) ([#342](https://github.com/mairie360/Core_API/pull/342))
+- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#339) ([#339](https://github.com/mairie360/Core_API/pull/339))
+- feat: MAIR-497 Simulation d'usage RGPD et revue IA des logs et de la base avant la prod (#273) ([#273](https://github.com/mairie360/Core_API/pull/273))
+- feat: MAIR-289 Anonymiser et exporter les données d'un utilisateur, avec tests d'effacement (#277) ([#277](https://github.com/mairie360/Core_API/pull/277))
+- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#274) ([#274](https://github.com/mairie360/Core_API/pull/274))
+- test: MAIR-287 Tester l'authentification de Core_API contre les exigences RGPD et bloquer les comptes archivés (#268) ([#268](https://github.com/mairie360/Core_API/pull/268))
+- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#265) ([#265](https://github.com/mairie360/Core_API/pull/265))
+- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#272) ([#272](https://github.com/mairie360/Core_API/pull/272))
+- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#334) ([#334](https://github.com/mairie360/Core_API/pull/334))
+- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#332) ([#332](https://github.com/mairie360/Core_API/pull/332))
+- chore(deps): update rust crate tokio to v1.54.1 (#333) ([#333](https://github.com/mairie360/Core_API/pull/333))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#330) ([#330](https://github.com/mairie360/Core_API/pull/330))
+- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#328) ([#328](https://github.com/mairie360/Core_API/pull/328))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#327) ([#327](https://github.com/mairie360/Core_API/pull/327))
+- ci: MAIR-612 Release prod: align internal versions and deploy (#325) ([#325](https://github.com/mairie360/Core_API/pull/325))
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
 _Rien._
+
+> Résumé Claude indisponible pour ce passage : listes brutes des commits.
 
 ## Historique des passages
 
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-06 04:36 UTC | dev | — | `4902160` | [run](https://github.com/mairie360/Core_API/actions/runs/42162275244) |
 | 2026-11-04 14:39 UTC | dev | — | `690f32b` | [run](https://github.com/mairie360/Core_API/actions/runs/41847588630) |
 | 2026-11-04 14:17 UTC | dev | — | `b0a53b8` | [run](https://github.com/mairie360/Core_API/actions/runs/41843590397) |
 | 2026-11-04 07:06 UTC | dev | — | `6bc9630` | [run](https://github.com/mairie360/Core_API/actions/runs/41788343275) |
