@@ -2,7 +2,7 @@
 # change what gets built. Same toolchain as API_template (MAIR-427). Builder, runtime and
 # development.Dockerfile share one Debian release (13 "trixie"), so the binary links against the
 # glibc and OpenSSL the runtime image ships (MAIR-741: Debian 12's distroless libssl3 is unpatched).
-FROM rust:1.99-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS builder
+FROM rust:1.99-slim-trixie@sha256:f6c4a35d21dbb3c89d7a8d056c193e94fc09037f2b58dd858b09c39a47dd02d7 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
