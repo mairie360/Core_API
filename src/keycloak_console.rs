@@ -63,6 +63,14 @@ pub const ADMIN_ACCESS_PATH: &str = "/admin-access";
 /// Path of the route the `ForwardAuth` middleware calls, in the cluster only.
 pub const VERIFY_PATH: &str = "/internal/keycloak-console/verify";
 
+/// Seconds the used-link marker outlives its token (MAIR-1001).
+///
+/// The signature check accepts a token
+/// during the very second of its `exp` (expired only once `exp < now`, no leeway): a marker that
+/// expires at `exp` left that second open, and a replayed link opened the console a second time.
+/// The margin also absorbs a small clock drift between Core and Redis.
+pub const USED_LINK_GRACE_SECONDS: u64 = 5;
+
 /// Redis key (prefixed with the role by the lib) recording a used link token until it expires.
 #[must_use]
 pub fn used_link_key(jti: &str) -> String {
@@ -174,6 +182,19 @@ impl ConsoleClaims {
     #[must_use]
     pub fn remaining_lifetime(&self) -> u64 {
         self.exp.saturating_sub(now())
+    }
+
+    /// Lifetime, in seconds, of the Redis marker that records this token as used: it must outlive
+    /// the token, see [`USED_LINK_GRACE_SECONDS`].
+    #[must_use]
+    pub fn used_marker_ttl(&self) -> u64 {
+        self.used_marker_ttl_at(now())
+    }
+
+    const fn used_marker_ttl_at(&self, now: u64) -> u64 {
+        self.exp
+            .saturating_sub(now)
+            .saturating_add(USED_LINK_GRACE_SECONDS)
     }
 }
 
@@ -366,6 +387,45 @@ mod tests {
             verify(ConsoleTokenKind::Link, "not-a-jwt").unwrap_err(),
             ConsoleTokenError::Malformed
         );
+    }
+
+    fn link_claims(exp: u64) -> ConsoleClaims {
+        ConsoleClaims {
+            sub: "1".to_string(),
+            iss: SESSION_JWT_ISSUER.to_string(),
+            aud: ConsoleTokenKind::Link.audience().to_string(),
+            iat: exp - LINK_TOKEN_TTL_SECONDS,
+            exp,
+            jti: "link".to_string(),
+        }
+    }
+
+    /// MAIR-1001: the used-link marker expired in the second of `exp`, while the token was still
+    /// accepted, so a replay in that second opened the console again (seen by the k6 gate).
+    #[test]
+    fn mair_1001_used_link_marker_outlives_the_token() {
+        let exp = 1_000_000;
+        let claims = link_claims(exp);
+        for used_at in (exp - LINK_TOKEN_TTL_SECONDS)..=exp {
+            let marker_expires_at = used_at + claims.used_marker_ttl_at(used_at);
+            // The token is accepted up to `exp` included: the marker must still exist after it.
+            assert!(
+                marker_expires_at > exp,
+                "used at {used_at}: marker gone at {marker_expires_at}, token valid until {exp}"
+            );
+        }
+    }
+
+    #[test]
+    fn mair_1001_used_link_marker_has_a_bounded_lifetime() {
+        let exp = 1_000_000;
+        let claims = link_claims(exp);
+        assert_eq!(
+            claims.used_marker_ttl_at(exp - LINK_TOKEN_TTL_SECONDS),
+            LINK_TOKEN_TTL_SECONDS + USED_LINK_GRACE_SECONDS
+        );
+        // Already expired (refused by the signature check anyway): still a positive TTL for Redis.
+        assert_eq!(claims.used_marker_ttl_at(exp + 10), USED_LINK_GRACE_SECONDS);
     }
 
     #[test]
