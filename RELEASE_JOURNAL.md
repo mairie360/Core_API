@@ -1,51 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-12 22:24 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-12 22:24 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
-| prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
+| prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
 | dev | — | `a7458a5` | 2026-11-12 22:24 UTC |
 
-## Ajouté sur main depuis la dernière release prod (v2.2.0)
+## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
-- fix: MAIR-1001 Release staging: align internal versions and deploy ([#381](https://github.com/mairie360/Core_API/pull/381))
-- fix: MAIR-1001 Release staging: align internal versions and deploy ([#379](https://github.com/mairie360/Core_API/pull/379))
-- fix: MAIR-262 Integration tests - API functional tests, BFF business tests and regression tests (#375) ([#375](https://github.com/mairie360/Core_API/pull/375))
-- chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#340) ([#340](https://github.com/mairie360/Core_API/pull/340))
-- fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#374) ([#374](https://github.com/mairie360/Core_API/pull/374))
-- chore(deps): update rust:1.99-trixie docker digest to 8a4e90c (#369) ([#369](https://github.com/mairie360/Core_API/pull/369))
-- chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
-- feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
-- chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
-- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#363) ([#363](https://github.com/mairie360/Core_API/pull/363))
-- chore(deps): update rust dependencies (#335) ([#335](https://github.com/mairie360/Core_API/pull/335))
-- chore(deps): pin dependencies (#350) ([#350](https://github.com/mairie360/Core_API/pull/350))
-- fix: MAIR-746 [Audit 30/10] BFF_Settings / Core : vérification du mot de passe sans limiteur via PATCH /settings/profile (N4) (#359) ([#359](https://github.com/mairie360/Core_API/pull/359))
-- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#357) ([#357](https://github.com/mairie360/Core_API/pull/357))
-- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#355) ([#355](https://github.com/mairie360/Core_API/pull/355))
-- fix: MAIR-767 Core API - Renvoyer les dates de session au format ISO 8601 ([#354](https://github.com/mairie360/Core_API/pull/354))
-- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#352) ([#352](https://github.com/mairie360/Core_API/pull/352))
-- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#349) ([#349](https://github.com/mairie360/Core_API/pull/349))
-- feat: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) (#346) ([#346](https://github.com/mairie360/Core_API/pull/346))
-- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#344) ([#344](https://github.com/mairie360/Core_API/pull/344))
-- test: MAIR-679 [Audit 23/10] BFF_user / bffs_lib / Core : « mot de passe oublié » verrouillable pour toute l'instance (A6) (#342) ([#342](https://github.com/mairie360/Core_API/pull/342))
-- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#339) ([#339](https://github.com/mairie360/Core_API/pull/339))
-- feat: MAIR-497 Simulation d'usage RGPD et revue IA des logs et de la base avant la prod (#273) ([#273](https://github.com/mairie360/Core_API/pull/273))
-- feat: MAIR-289 Anonymiser et exporter les données d'un utilisateur, avec tests d'effacement (#277) ([#277](https://github.com/mairie360/Core_API/pull/277))
-- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#274) ([#274](https://github.com/mairie360/Core_API/pull/274))
-- test: MAIR-287 Tester l'authentification de Core_API contre les exigences RGPD et bloquer les comptes archivés (#268) ([#268](https://github.com/mairie360/Core_API/pull/268))
-- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#265) ([#265](https://github.com/mairie360/Core_API/pull/265))
-- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#272) ([#272](https://github.com/mairie360/Core_API/pull/272))
-- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#334) ([#334](https://github.com/mairie360/Core_API/pull/334))
-- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#332) ([#332](https://github.com/mairie360/Core_API/pull/332))
-- chore(deps): update rust crate tokio to v1.54.1 (#333) ([#333](https://github.com/mairie360/Core_API/pull/333))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#330) ([#330](https://github.com/mairie360/Core_API/pull/330))
-- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#328) ([#328](https://github.com/mairie360/Core_API/pull/328))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#327) ([#327](https://github.com/mairie360/Core_API/pull/327))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#325) ([#325](https://github.com/mairie360/Core_API/pull/325))
+_Rien._
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
@@ -53,49 +19,14 @@ _Rien._
 
 ## Différence staging → prod (en staging, pas encore en prod)
 
-- fix: MAIR-1001 Release staging: align internal versions and deploy ([#381](https://github.com/mairie360/Core_API/pull/381))
-- fix: MAIR-1001 Release staging: align internal versions and deploy ([#379](https://github.com/mairie360/Core_API/pull/379))
-- fix: MAIR-262 Integration tests - API functional tests, BFF business tests and regression tests (#375) ([#375](https://github.com/mairie360/Core_API/pull/375))
-- chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#340) ([#340](https://github.com/mairie360/Core_API/pull/340))
-- fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#374) ([#374](https://github.com/mairie360/Core_API/pull/374))
-- chore(deps): update rust:1.99-trixie docker digest to 8a4e90c (#369) ([#369](https://github.com/mairie360/Core_API/pull/369))
-- chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
-- feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
-- chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
-- chore(deps): update rust:1.99-trixie docker digest to 4c4c8ec (#363) ([#363](https://github.com/mairie360/Core_API/pull/363))
-- chore(deps): update rust dependencies (#335) ([#335](https://github.com/mairie360/Core_API/pull/335))
-- chore(deps): pin dependencies (#350) ([#350](https://github.com/mairie360/Core_API/pull/350))
-- fix: MAIR-746 [Audit 30/10] BFF_Settings / Core : vérification du mot de passe sans limiteur via PATCH /settings/profile (N4) (#359) ([#359](https://github.com/mairie360/Core_API/pull/359))
-- ci: MAIR-771 APIs, BFFs, Database : monter CICD en v5.2.2 pour activer les contrôles RGPD (#357) ([#357](https://github.com/mairie360/Core_API/pull/357))
-- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#355) ([#355](https://github.com/mairie360/Core_API/pull/355))
-- fix: MAIR-767 Core API - Renvoyer les dates de session au format ISO 8601 ([#354](https://github.com/mairie360/Core_API/pull/354))
-- fix: MAIR-678 [Audit 23/10] Core_API : empêcher de rétrograder ou retirer le dernier administrateur (A5) (#352) ([#352](https://github.com/mairie360/Core_API/pull/352))
-- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#349) ([#349](https://github.com/mairie360/Core_API/pull/349))
-- feat: MAIR-680 [Audit 23/10] Toutes les APIs et BFFs : remplacer le secret JWT HS256 partagé par 12 services (A1) (#346) ([#346](https://github.com/mairie360/Core_API/pull/346))
-- fix: MAIR-692 [Audit 23/10] Core_API : la déconnexion échoue avec un JWT expiré, le refresh token n'est pas révoqué (E4) (#344) ([#344](https://github.com/mairie360/Core_API/pull/344))
-- test: MAIR-679 [Audit 23/10] BFF_user / bffs_lib / Core : « mot de passe oublié » verrouillable pour toute l'instance (A6) (#342) ([#342](https://github.com/mairie360/Core_API/pull/342))
-- fix: MAIR-741 APIs : passer l'image d'exécution en distroless Debian 13 (CVE-2026-84782) (#339) ([#339](https://github.com/mairie360/Core_API/pull/339))
-- feat: MAIR-497 Simulation d'usage RGPD et revue IA des logs et de la base avant la prod (#273) ([#273](https://github.com/mairie360/Core_API/pull/273))
-- feat: MAIR-289 Anonymiser et exporter les données d'un utilisateur, avec tests d'effacement (#277) ([#277](https://github.com/mairie360/Core_API/pull/277))
-- feat: MAIR-288 Définir la matrice d'accès des APIs et la vérifier depuis l'OpenAPI (#274) ([#274](https://github.com/mairie360/Core_API/pull/274))
-- test: MAIR-287 Tester l'authentification de Core_API contre les exigences RGPD et bloquer les comptes archivés (#268) ([#268](https://github.com/mairie360/Core_API/pull/268))
-- fix: MAIR-290 Détecter les données personnelles dans les journaux avec un test du marqueur (#265) ([#265](https://github.com/mairie360/Core_API/pull/265))
-- ci: MAIR-295 Ajouter une checklist RGPD aux PR et des rappels d'échéances automatiques (#272) ([#272](https://github.com/mairie360/Core_API/pull/272))
-- chore(deps): update rust:1.99-bookworm docker digest to 48b7f43 (#334) ([#334](https://github.com/mairie360/Core_API/pull/334))
-- chore(deps): update rust:1.99-bookworm docker digest to edaa2a8 (#332) ([#332](https://github.com/mairie360/Core_API/pull/332))
-- chore(deps): update rust crate tokio to v1.54.1 (#333) ([#333](https://github.com/mairie360/Core_API/pull/333))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#330) ([#330](https://github.com/mairie360/Core_API/pull/330))
-- chore(deps): update rust:1.99-bookworm docker digest to 5c1a173 (#328) ([#328](https://github.com/mairie360/Core_API/pull/328))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#327) ([#327](https://github.com/mairie360/Core_API/pull/327))
-- ci: MAIR-612 Release prod: align internal versions and deploy (#325) ([#325](https://github.com/mairie360/Core_API/pull/325))
-
-> Résumé Claude indisponible pour ce passage : listes brutes des commits.
+_Rien._
 
 ## Historique des passages
 
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 23:53 UTC | prod | v2.3.0 | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43330527369) |
 | 2026-11-12 22:33 UTC | staging | — | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43319667465) |
 | 2026-11-12 22:24 UTC | dev | — | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43317856707) |
 | 2026-11-12 21:36 UTC | dev | — | `e5abbf8` | [run](https://github.com/mairie360/Core_API/actions/runs/43308414825) |
