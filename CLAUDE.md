@@ -175,8 +175,12 @@ stack and stay in the handler tests. Three collection-level scripts, identical i
   and expects a documented `401 text/plain`;
 - `OpenAPI coverage`, the last request, fails when an operation has no success case or a documented status above
   was never answered, and when an entry of the collection variable `openapi_coverage_exceptions` (`"METHOD /path
-  STATUS": "reason"`, `2xx` for the success) is no longer needed. The only exceptions are the Keycloak routes,
-  which answer `503` without a realm (covered by `tests/endpoints/keycloak_login.rs` / `keycloak_migration.rs`).
+  STATUS": "reason"`, `2xx` for the success) is no longer needed. The exceptions are the Keycloak routes,
+  which answer `503` without a realm (covered by `tests/endpoints/keycloak_login.rs` / `keycloak_migration.rs`),
+  the `403` of `GET /admin-access` (needs a second administrator demoted after the link was issued:
+  `tests/mair_609_keycloak_console_access.rs`) and the directory `403`s, only produced with
+  `DIRECTORY_GUEST_ACCESS=none` (`tests/endpoints/access_matrix.rs`). The run ends by dropping `openapi_spec` and
+  `openapi_covered`, so a next run in the Postman app starts from the spec of the image it tests.
 
 A new endpoint therefore fails the integration stack until the collection tests it. The refusal cases need a second
 plain account: the collection creates it through the admin route and forges its JWT (`jwt_other`) like the Admin's.

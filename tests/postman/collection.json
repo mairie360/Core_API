@@ -106,12 +106,20 @@
           "        if (!response) return;",
           "        openapi.record(`${method.toUpperCase()} ${found.template} ${code}`);",
           "        const media = Object.keys(response.content || {});",
-          "        if (!media.length) return;",
+          "        if (!media.length) {",
+          "            pm.test(`Contract: ${code} of ${method.toUpperCase()} ${found.template} has no body`, () => {",
+          "                pm.expect(text, 'the spec documents no content').to.be.empty;",
+          "            });",
+          "            return;",
+          "        }",
+          "        // The media type without its parameters (`; charset=utf-8`), compared whole so that",
+          "        // `application/jsonp` is not taken for `application/json`.",
+          "        const answered = (contentType || '').split(';')[0].trim().toLowerCase();",
           "        pm.test(`Contract: ${code} answers ${media.join(' or ')}`, () => {",
-          "            pm.expect(media.some((type) => (contentType || '').startsWith(type)), `content-type ${contentType}`).to.be.true;",
+          "            pm.expect(media, `content-type ${contentType}`).to.include(answered);",
           "        });",
           "        const json = response.content['application/json'];",
-          "        if (json && json.schema && (contentType || '').startsWith('application/json')) {",
+          "        if (json && json.schema && answered === 'application/json') {",
           "            pm.test(`Contract: ${code} body matches the schema of ${method.toUpperCase()} ${found.template}`, () => {",
           "                const schema = openapi.clean(spec, json.schema);",
           "                const errors = [];",
@@ -8059,6 +8067,600 @@
       ]
     },
     {
+      "name": "Export and erasure of personal data (MAIR-289)",
+      "description": "Right of access and portability (`GET /user/me/export`, `GET /admin/users/{userId}/export`) and right to erasure (`POST /admin/users/{userId}/erase`) on a throwaway account.",
+      "item": [
+        {
+          "name": "MAIR-289 I export my own data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The export is mine, with my data by table\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.user.email).to.eql(pm.environment.get(\"test_user_email\"));",
+                  "    pm.expect(body.data).to.be.an(\"object\");",
+                  "    pm.expect(body.exported_at).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 The export of an account that no longer exists answers 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// MAIR-289: a JWT whose user does not exist (the forge of the collection pre-request, for an id",
+                  "// no account has).",
+                  "const cryptoJs = require('crypto-js');",
+                  "const b64url = (words) => cryptoJs.enc.Base64.stringify(words).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "const header = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));",
+                  "const payload = b64url(cryptoJs.enc.Utf8.parse(JSON.stringify({ sub: '2147483647', role: '', exp: Math.floor(Date.now() / 1000) + 3600 })));",
+                  "pm.variables.set('jwt_ghost', `${header}.${payload}.${b64url(cryptoJs.HmacSHA256(`${header}.${payload}`, pm.environment.get('jwt_secret')))}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_ghost}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 An administrator exports the data of an account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The export is the one of the second account\", function () {",
+                  "    pm.expect(pm.response.json().user.id).to.eql(Number(pm.environment.get(\"other_user_id\")));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{other_user_id}}/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{other_user_id}}",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 An export with a path id that is not an integer answers 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/abc/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "abc",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 A plain user cannot export another account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{other_user_id}}/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{other_user_id}}",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 The export of an unknown account answers 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/2147483647/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "2147483647",
+                "export"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 Create an account to erase",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.environment.set(\"erased_user_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Paul\",\n  \"last_name\": \"Efface\",\n  \"email\": \"newman.erased.{{$timestamp}}@mairie360.test\",\n  \"password\": \"{{test_user_password}}\",\n  \"phone_number\": \"0611223344\",\n  \"phone_country\": \"FR\"\n}"
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 A plain user cannot erase an account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{erased_user_id}}/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{erased_user_id}}",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 An erasure with a path id that is not an integer answers 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/abc/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "abc",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 The erasure of an unknown account answers 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/2147483647/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "2147483647",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 The seeded administrator cannot be erased",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{admin_user_id}}/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{admin_user_id}}",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 An administrator erases the account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The account was erased now\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.user_id).to.eql(Number(pm.environment.get(\"erased_user_id\")));",
+                  "    pm.expect(body.already_anonymized).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{erased_user_id}}/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{erased_user_id}}",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 Erasing it again changes nothing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The account was already anonymized\", function () {",
+                  "    pm.expect(pm.response.json().already_anonymized).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{erased_user_id}}/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{erased_user_id}}",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-289 The export of the erased account holds no identity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The e-mail address is gone\", function () {",
+                  "    pm.expect(JSON.stringify(pm.response.json())).not.to.include(\"newman.erased.\");",
+                  "    pm.environment.unset(\"erased_user_id\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{erased_user_id}}/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{erased_user_id}}",
+                "export"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin",
       "item": [
         {
@@ -10274,7 +10876,12 @@
                   "});",
                   "pm.test('Every coverage exception is still needed', () => {",
                   "    pm.expect(stale, `stale exceptions:\\n${stale.join('\\n')}`).to.be.empty;",
-                  "});"
+                  "});",
+                  "// End of the run: drop the spec and the recorded pairs, so that a next run in the Postman app (which",
+                  "// keeps collection variables between runs) loads the spec of the image it tests and starts with an",
+                  "// empty coverage instead of counting the answers of this one.",
+                  "pm.collectionVariables.unset('openapi_spec');",
+                  "pm.collectionVariables.unset('openapi_covered');"
                 ]
               }
             }
@@ -10310,7 +10917,7 @@
     },
     {
       "key": "openapi_coverage_exceptions",
-      "value": "{\n  \"POST /api/v1/auth/keycloak 2xx\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/auth/keycloak 401\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/auth/keycloak 403\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/admin/keycloak/migration 2xx\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_migration.rs\"\n}",
+      "value": "{\n  \"POST /api/v1/auth/keycloak 2xx\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/auth/keycloak 401\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/auth/keycloak 403\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_login.rs\",\n  \"POST /api/v1/admin/keycloak/migration 2xx\": \"No Keycloak in the integration stack (503): tests/endpoints/keycloak_migration.rs\",\n  \"GET /admin-access 403\": \"Needs an administrator demoted after the link was issued, the only one is the seeded Admin: tests/mair_609_keycloak_console_access.rs (a_demoted_or_archived_admin_loses_the_console)\",\n  \"GET /api/v1/user/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"GET /api/v1/user/{id}/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\"\n}",
       "type": "string"
     }
   ]
