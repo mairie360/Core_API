@@ -1,16 +1,19 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "4902160849b8b6eab7b073c7f5ec96f95a3947ad", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-06 04:36 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "b27f663886a3b02a61fda126900fe0ed58860535", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-12 12:02 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
 | staging | — | `cea777d` | 2026-10-21 03:14 UTC |
-| dev | — | `4902160` | 2026-11-06 04:36 UTC |
+| dev | — | `b27f663` | 2026-11-12 12:02 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.2.0)
 
+- chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#340) ([#340](https://github.com/mairie360/Core_API/pull/340))
+- fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#374) ([#374](https://github.com/mairie360/Core_API/pull/374))
+- chore(deps): update rust:1.99-trixie docker digest to 8a4e90c (#369) ([#369](https://github.com/mairie360/Core_API/pull/369))
 - chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
 - feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
 - chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
@@ -43,6 +46,9 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): update gcr.io/distroless/cc-debian13:nonroot docker digest to cc66d22 (#340) ([#340](https://github.com/mairie360/Core_API/pull/340))
+- fix(deps): MAIR-740 APIs: fix the cargo audit RustSec alerts (actix-http, libsqlite3-sys) (#374) ([#374](https://github.com/mairie360/Core_API/pull/374))
+- chore(deps): update rust:1.99-trixie docker digest to 8a4e90c (#369) ([#369](https://github.com/mairie360/Core_API/pull/369))
 - chore(deps): update rust:1.99-trixie docker digest to bc2c4c2 (#367) ([#367](https://github.com/mairie360/Core_API/pull/367))
 - feat: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#364) ([#364](https://github.com/mairie360/Core_API/pull/364))
 - chore: MAIR-609 Core/BFF_user - Accès temporaire à la console Keycloak pour les admins de mairie (#365) ([#365](https://github.com/mairie360/Core_API/pull/365))
@@ -84,6 +90,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 12:02 UTC | dev | — | `b27f663` | [run](https://github.com/mairie360/Core_API/actions/runs/43212171580) |
 | 2026-11-06 04:36 UTC | dev | — | `4902160` | [run](https://github.com/mairie360/Core_API/actions/runs/42162275244) |
 | 2026-11-04 14:39 UTC | dev | — | `690f32b` | [run](https://github.com/mairie360/Core_API/actions/runs/41847588630) |
 | 2026-11-04 14:17 UTC | dev | — | `b0a53b8` | [run](https://github.com/mairie360/Core_API/actions/runs/41843590397) |
