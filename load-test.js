@@ -48,6 +48,9 @@ const DEVICE = 'k6 load test';
 const READ_BUDGET_MS = 200;
 const WRITE_BUDGET_MS = 500;
 const LOGIN_RUSH_BUDGET_MS = 1000;
+const EXPORT_BUDGET_MS = 1000;
+// GDPR export iterations per minute (both operations each iteration): rare in real life, kept steady here.
+const EXPORT_RATE_PER_MINUTE = 6;
 
 // Load profile (MAIR-474), K6_PROFILE:
 // - `ci` (default): what the CI runner holds with the same strict thresholds. The runner
@@ -79,7 +82,7 @@ function specSubset(spec, keep) {
   for (const path of Object.keys(spec.paths)) {
     const kept = {};
     for (const method of Object.keys(spec.paths[path])) {
-      if (keep(method)) kept[method] = spec.paths[path][method];
+      if (keep(method, path)) kept[method] = spec.paths[path][method];
     }
     if (Object.keys(kept).length > 0) paths[path] = kept;
   }
@@ -441,6 +444,11 @@ const writeHandlers = {
     const account = registerAccount('delete');
     check(request({ path: { userId: account.id } }), { 'admin delete user 204': (r) => r.status === 204 });
   },
+  // GDPR erasure (MAIR-289) of a throwaway account: nothing to clean up, the row stays anonymized.
+  'POST /api/v1/admin/users/{userId}/erase': ({ request }) => {
+    const account = registerAccount('erase');
+    check(request({ path: { userId: account.id } }), { 'admin erase user 200': (r) => r.status === 200 });
+  },
   'POST /api/v1/admin/users/{userId}/roles/': ({ request }) => {
     const account = registerAccount('grant');
     const roleId = createRole('grant');
@@ -578,8 +586,32 @@ const writeHandlers = {
   },
 };
 
+// GDPR exports (MAIR-289): one full dump of an account (profile, sessions, every group, role and
+// access), asked for a few times a year, never on a hot path. They run in their own low-rate
+// scenario with EXPORT_BUDGET_MS so that 30 VUs hammering them neither measure a load they will
+// never see nor slow down the everyday reads sharing the database.
+const exportHandlers = {
+  // The caller's own data: the seeded Admin, member of the 300 seeded groups, so the export reads a
+  // full account.
+  'GET /api/v1/user/me/export': ({ request }) =>
+    check(request(), {
+      'own export 200': (r) => r.status === 200,
+      'own export is the caller': (r) => r.status === 200 && Object.keys(r.json()).length > 0,
+    }),
+  // An agent's data, exported by the Admin.
+  'GET /api/v1/admin/users/{userId}/export': ({ request }) =>
+    check(request({ path: { userId: MEMBER_ID } }), {
+      'admin export 200': (r) => r.status === 200,
+      'admin export is not empty': (r) => r.status === 200 && Object.keys(r.json()).length > 0,
+    }),
+};
+const isExport = (method, path) => method === 'get' && /\/export\/?$/.test(path);
+
 const reads = createCoverage(readHandlers, {
-  spec: specSubset(spec, (method) => READ_METHODS.includes(method)),
+  spec: specSubset(spec, (method, path) => READ_METHODS.includes(method) && !isExport(method, path)),
+});
+const exportsCoverage = createCoverage(exportHandlers, {
+  spec: specSubset(spec, (method, path) => isExport(method, path)),
 });
 const writes = createCoverage(writeHandlers, {
   spec: specSubset(spec, (method) => !READ_METHODS.includes(method)),
@@ -614,6 +646,15 @@ export const options = {
       vus: PROFILE.writeVus,
       duration: '3m20s',
     },
+    exports: {
+      executor: 'constant-arrival-rate',
+      exec: 'exportScenario',
+      rate: EXPORT_RATE_PER_MINUTE,
+      timeUnit: '1m',
+      duration: '3m',
+      preAllocatedVUs: 2,
+      maxVUs: 4,
+    },
     login_rush: {
       executor: 'ramping-arrival-rate',
       exec: 'loginRushScenario',
@@ -633,6 +674,7 @@ export const options = {
     ...reads.thresholds, // every operation exercised, no handler error (shared counters)
     ...latencyThresholds(reads, READ_BUDGET_MS),
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
+    ...latencyThresholds(exportsCoverage, EXPORT_BUDGET_MS),
     'http_req_duration{op:login_rush}': [`p(95)<${LOGIN_RUSH_BUDGET_MS}`],
     // The login rush must not be shed: every arrival gets a VU.
     dropped_iterations: ['count==0'],
@@ -681,6 +723,11 @@ export function teardown(data) {
 export function readScenario(data) {
   reads.run({ headers: AUTH, data });
   sleep(1);
+}
+
+/** Both GDPR exports once, at EXPORT_RATE_PER_MINUTE (no sleep: the arrival rate paces it). */
+export function exportScenario(data) {
+  exportsCoverage.run({ headers: AUTH, data });
 }
 
 export function writeScenario(data) {
