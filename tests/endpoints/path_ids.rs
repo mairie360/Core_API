@@ -24,8 +24,14 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
+/// The documented invalid-path answers (they never echo the value).
+const INVALID_PATH_BODIES: &[&str] = &[
+    "Invalid path: ids are integers.",
+    "Invalid ID format in URL",
+];
+
 /// Every published operation with a path parameter, as `(method, uri, documented statuses)`,
-/// each path parameter replaced by `abc`.
+/// once per path parameter, replaced by `abc` (the other ids by `1`).
 fn operations_with_a_path_id() -> Vec<(Method, String, Vec<String>)> {
     let document = serde_json::to_value(ApiDoc::openapi()).unwrap();
     let mut operations = Vec::new();
@@ -33,27 +39,39 @@ fn operations_with_a_path_id() -> Vec<(Method, String, Vec<String>)> {
         if !template.contains('{') {
             continue;
         }
-        let uri = template
-            .split('/')
-            .map(|segment| {
-                if segment.starts_with('{') {
-                    "abc"
-                } else {
-                    segment
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("/");
+        let segments: Vec<&str> = template.split('/').collect();
+        let ids = segments.iter().filter(|s| s.starts_with('{')).count();
         for (method, operation) in methods.as_object().unwrap() {
-            let statuses = operation["responses"]
+            let statuses: Vec<String> = operation["responses"]
                 .as_object()
                 .map(|responses| responses.keys().cloned().collect())
                 .unwrap_or_default();
-            operations.push((
-                Method::from_bytes(method.to_uppercase().as_bytes()).unwrap(),
-                uri.clone(),
-                statuses,
-            ));
+            // One request per path id: that id is `abc`, the others a valid integer, so a `400`
+            // caused by another id cannot satisfy the check.
+            for invalid in 0..ids {
+                let mut index = 0;
+                let uri = segments
+                    .iter()
+                    .map(|segment| {
+                        if segment.starts_with('{') {
+                            index += 1;
+                            if index - 1 == invalid {
+                                "abc"
+                            } else {
+                                "1"
+                            }
+                        } else {
+                            segment
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("/");
+                operations.push((
+                    Method::from_bytes(method.to_uppercase().as_bytes()).unwrap(),
+                    uri,
+                    statuses.clone(),
+                ));
+            }
         }
     }
     operations
@@ -120,8 +138,9 @@ async fn a_path_id_that_is_not_an_integer_answers_the_documented_400() {
             .unwrap_or_default();
         if status != StatusCode::BAD_REQUEST || !content_type.starts_with("text/plain") {
             failures.push(format!("{method} {uri}: {status} {content_type} {body}"));
-        } else if body.contains("abc") {
-            failures.push(format!("{method} {uri}: the value is echoed: {body}"));
+        } else if !INVALID_PATH_BODIES.contains(&body.as_ref()) {
+            // The exact message, so that another `400` (a body refused) cannot pass.
+            failures.push(format!("{method} {uri}: unexpected body: {body}"));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
