@@ -23,5 +23,10 @@ ignore = [
     # which the elliptic-curve 0.13 line cannot use). It leaks through secret scalars; Core holds
     # no EC private key and only verifies ES256/ES384 signatures with public keys. Drop it once
     # jsonwebtoken moves to elliptic-curve 0.14.
-    "RUSTSEC-2026-0387"
+    "RUSTSEC-2026-0387",
+    # libsqlite3-sys 0.37 (C SQLite CVE-2026-119375, fixed in >= 0.39), MAIR-740. It is only listed in
+    # Cargo.lock through sqlx's weak `sqlx-sqlite?/...` features: `cargo tree -i libsqlite3-sys
+    # --target all --all-features` prints nothing, it is never compiled into the binary. sqlx 0.9
+    # pins 0.37. Drop it once sqlx moves to libsqlite3-sys >= 0.39.
+    "RUSTSEC-2026-0459"
 ]
