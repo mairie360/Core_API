@@ -1656,7 +1656,7 @@
     },
     {
       "name": "Password checks of the profile (MAIR-746)",
-      "description": "Changing the e-mail through `PATCH /user/me` checks the current password: a session holder gets at most 5 checks per 15 minutes, right or wrong, then 429 with Retry-After. Changes without e-mail are not limited, and nothing is changed.",
+      "description": "Changing the e-mail through `PATCH /user/me` checks the current password: a session holder gets at most 5 checks per 15 minutes, right or wrong, then 429 with Retry-After. Changes without e-mail are not limited, and nothing is changed. Runs as the second account (its password was reset by the administrator to `test_user_new_password`): the limiter counts per user, so the Profile folder keeps the budget of the main test user for its own e-mail change checks.",
       "item": [
         {
           "name": "MAIR-746 A wrong current password answers 403",
@@ -1665,7 +1665,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{jwt}}",
+                "value": "Bearer {{jwt_other}}",
                 "type": "text"
               },
               {
@@ -1734,7 +1734,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{jwt}}",
+                "value": "Bearer {{jwt_other}}",
                 "type": "text"
               },
               {
@@ -1790,7 +1790,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{jwt}}",
+                "value": "Bearer {{jwt_other}}",
                 "type": "text"
               },
               {
@@ -1801,7 +1801,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"first_name\": \"Jean\"}"
+              "raw": "{\"first_name\": \"Marie\"}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/user/me/",
@@ -1839,7 +1839,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{jwt}}",
+                "value": "Bearer {{jwt_other}}",
                 "type": "text"
               }
             ],
@@ -1867,7 +1867,7 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "pm.test(\"The e-mail is still the registered one\", function () {",
-                  "    pm.expect(pm.response.json().email).to.eql(pm.environment.get(\"test_user_email\"));",
+                  "    pm.expect(pm.response.json().email).to.eql(pm.environment.get(\"other_user_email\"));",
                   "    pm.environment.unset(\"mair_746_new_email\");",
                   "});"
                 ]
@@ -9378,67 +9378,6 @@
       ]
     },
     {
-      "name": "OpenAPI coverage",
-      "item": [
-        {
-          "name": "OpenAPI coverage",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// OpenAPI coverage (MAIR-262), last request of the collection: every documented operation has",
-                  "// at least one success case, and each documented 400/401/403/404/409/412 has a case of its own.",
-                  "// 429, 500, 502 and 503 cannot be produced on purpose on a healthy stack: the handler tests",
-                  "// (`cargo test`) cover them. Any other gap is listed in the collection variable",
-                  "// `openapi_coverage_exceptions` ({ \"METHOD /template STATUS\": \"reason\" }, `2xx` for the success",
-                  "// case); an exception that is covered or no longer documented fails too, so it never goes stale.",
-                  "const spec = JSON.parse(pm.collectionVariables.get('openapi_spec'));",
-                  "const covered = JSON.parse(pm.collectionVariables.get('openapi_covered') || '[]');",
-                  "const exceptions = JSON.parse(pm.collectionVariables.get('openapi_coverage_exceptions') || '{}');",
-                  "const required = [];",
-                  "Object.keys(spec.paths).forEach((template) => {",
-                  "    Object.keys(spec.paths[template]).filter((method) => ['get', 'post', 'put', 'patch', 'delete'].includes(method)).forEach((method) => {",
-                  "        const op = `${method.toUpperCase()} ${template}`;",
-                  "        const statuses = Object.keys(spec.paths[template][method].responses);",
-                  "        if (statuses.some((s) => s.startsWith('2'))) {",
-                  "            required.push({ key: `${op} 2xx`, covered: statuses.some((s) => s.startsWith('2') && covered.includes(`${op} ${s}`)) });",
-                  "        }",
-                  "        statuses.filter((s) => ['400', '401', '403', '404', '409', '412'].includes(s))",
-                  "            .forEach((s) => required.push({ key: `${op} ${s}`, covered: covered.includes(`${op} ${s}`) }));",
-                  "    });",
-                  "});",
-                  "const missing = required.filter((r) => !r.covered && !(r.key in exceptions)).map((r) => r.key);",
-                  "const stale = Object.keys(exceptions).filter((key) => !required.some((r) => r.key === key && !r.covered));",
-                  "pm.test(`Every documented operation and status is tested (${covered.length} covered)`, () => {",
-                  "    pm.expect(missing, `not tested:\\n${missing.join('\\n')}`).to.be.empty;",
-                  "});",
-                  "pm.test('Every coverage exception is still needed', () => {",
-                  "    pm.expect(stale, `stale exceptions:\\n${stale.join('\\n')}`).to.be.empty;",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "health"
-              ]
-            },
-            "description": "Fails when a documented operation or status was never tested by this collection."
-          }
-        }
-      ]
-    },
-    {
       "name": "Last administrator (MAIR-678)",
       "item": [
         {
@@ -10293,6 +10232,67 @@
             }
           ],
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "OpenAPI coverage",
+      "item": [
+        {
+          "name": "OpenAPI coverage",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// OpenAPI coverage (MAIR-262), last request of the collection: every documented operation has",
+                  "// at least one success case, and each documented 400/401/403/404/409/412 has a case of its own.",
+                  "// 429, 500, 502 and 503 cannot be produced on purpose on a healthy stack: the handler tests",
+                  "// (`cargo test`) cover them. Any other gap is listed in the collection variable",
+                  "// `openapi_coverage_exceptions` ({ \"METHOD /template STATUS\": \"reason\" }, `2xx` for the success",
+                  "// case); an exception that is covered or no longer documented fails too, so it never goes stale.",
+                  "const spec = JSON.parse(pm.collectionVariables.get('openapi_spec'));",
+                  "const covered = JSON.parse(pm.collectionVariables.get('openapi_covered') || '[]');",
+                  "const exceptions = JSON.parse(pm.collectionVariables.get('openapi_coverage_exceptions') || '{}');",
+                  "const required = [];",
+                  "Object.keys(spec.paths).forEach((template) => {",
+                  "    Object.keys(spec.paths[template]).filter((method) => ['get', 'post', 'put', 'patch', 'delete'].includes(method)).forEach((method) => {",
+                  "        const op = `${method.toUpperCase()} ${template}`;",
+                  "        const statuses = Object.keys(spec.paths[template][method].responses);",
+                  "        if (statuses.some((s) => s.startsWith('2'))) {",
+                  "            required.push({ key: `${op} 2xx`, covered: statuses.some((s) => s.startsWith('2') && covered.includes(`${op} ${s}`)) });",
+                  "        }",
+                  "        statuses.filter((s) => ['400', '401', '403', '404', '409', '412'].includes(s))",
+                  "            .forEach((s) => required.push({ key: `${op} ${s}`, covered: covered.includes(`${op} ${s}`) }));",
+                  "    });",
+                  "});",
+                  "const missing = required.filter((r) => !r.covered && !(r.key in exceptions)).map((r) => r.key);",
+                  "const stale = Object.keys(exceptions).filter((key) => !required.some((r) => r.key === key && !r.covered));",
+                  "pm.test(`Every documented operation and status is tested (${covered.length} covered)`, () => {",
+                  "    pm.expect(missing, `not tested:\\n${missing.join('\\n')}`).to.be.empty;",
+                  "});",
+                  "pm.test('Every coverage exception is still needed', () => {",
+                  "    pm.expect(stale, `stale exceptions:\\n${stale.join('\\n')}`).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Fails when a documented operation or status was never tested by this collection."
+          }
         }
       ]
     }
