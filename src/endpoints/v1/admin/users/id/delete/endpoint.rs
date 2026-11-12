@@ -210,7 +210,7 @@ async fn delete_user(
             description = "`userId` in the path is not an integer.",
             body = String,
             content_type = "text/plain",
-            example = json!("can not parse \"abc\" to a u64")
+            example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,

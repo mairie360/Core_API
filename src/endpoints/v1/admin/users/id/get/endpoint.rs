@@ -143,7 +143,7 @@ async fn get_user(
             description = "L'`userId` du chemin n'est pas un entier.",
             body = String,
             content_type = "text/plain",
-            example = json!("can not parse \"abc\" to a u64")
+            example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
