@@ -1,12 +1,12 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "updated": {"dev": "2026-11-12 22:24 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-10-21 03:14 UTC"}} -->
+<!-- release-journal-state {"dev": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod": "cea777dde46d3a8bf89d22c64897bde045a71b9e", "prod_tag": "v2.2.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-12 22:24 UTC", "prod": "2026-10-21 09:13 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.2.0 | `cea777d` | 2026-10-21 09:13 UTC |
-| staging | — | `cea777d` | 2026-10-21 03:14 UTC |
+| staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
 | dev | — | `a7458a5` | 2026-11-12 22:24 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.2.0)
@@ -49,6 +49,10 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+_Rien._
+
+## Différence staging → prod (en staging, pas encore en prod)
+
 - fix: MAIR-1001 Release staging: align internal versions and deploy ([#381](https://github.com/mairie360/Core_API/pull/381))
 - fix: MAIR-1001 Release staging: align internal versions and deploy ([#379](https://github.com/mairie360/Core_API/pull/379))
 - fix: MAIR-262 Integration tests - API functional tests, BFF business tests and regression tests (#375) ([#375](https://github.com/mairie360/Core_API/pull/375))
@@ -85,10 +89,6 @@
 - ci: MAIR-612 Release prod: align internal versions and deploy (#327) ([#327](https://github.com/mairie360/Core_API/pull/327))
 - ci: MAIR-612 Release prod: align internal versions and deploy (#325) ([#325](https://github.com/mairie360/Core_API/pull/325))
 
-## Différence staging → prod (en staging, pas encore en prod)
-
-_Rien._
-
 > Résumé Claude indisponible pour ce passage : listes brutes des commits.
 
 ## Historique des passages
@@ -96,6 +96,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 22:33 UTC | staging | — | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43319667465) |
 | 2026-11-12 22:24 UTC | dev | — | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43317856707) |
 | 2026-11-12 21:36 UTC | dev | — | `e5abbf8` | [run](https://github.com/mairie360/Core_API/actions/runs/43308414825) |
 | 2026-11-12 13:01 UTC | dev | — | `156a9b9` | [run](https://github.com/mairie360/Core_API/actions/runs/43220637095) |
