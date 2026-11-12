@@ -387,7 +387,7 @@ against the `ghcr.io/mairie360/database` image; its source is `../../Devops/Data
 
 ### Docs referenced in this repo
 
-- `API.md` — informal endpoint list (partial/stale in places, e.g. missing rows).
+- Swagger UI at `/swagger-ui/` (when `SWAGGER_ENABLED=true`) and `cargo open_api` are the endpoint reference; the stale `API.md` was removed (MAIR-245).
 
 ### Logs and observability (MAIR-131, MAIR-503)
 
