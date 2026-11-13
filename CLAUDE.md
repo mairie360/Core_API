@@ -471,7 +471,7 @@ re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (se
 other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
 `GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
 The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the
-`TEST_DB_VERSION` image (`dev-76437e3`, Database main with #166).
+`TEST_DB_VERSION` image (`3.4.0`, Database main with #166).
 
 ### Access matrix (MAIR-288)
 
