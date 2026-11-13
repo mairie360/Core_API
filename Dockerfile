@@ -31,7 +31,7 @@ RUN touch src/main.rs src/lib.rs src/bin/keycloak_migration.rs \
 # `:nonroot` runs as uid/gid 65532. The binary stays owned by root and is only readable and
 # executable by that user: the API never writes to the filesystem (configuration comes from
 # environment variables, state lives in Postgres and Redis), so a read-only root filesystem works.
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cc66d222f0a7ec996b78a99fe76a969bc80b539a5016ad866c14d1949bc6d0ab
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cb87acc574abe719b6e5c547384defa2f7b1f24af9605d3f618cf852495d8be2
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
