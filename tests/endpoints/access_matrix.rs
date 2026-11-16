@@ -315,7 +315,7 @@ macro_rules! status {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn every_role_gets_what_the_matrix_says() {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
@@ -418,7 +418,7 @@ impl Drop for GuestAccessClosed {
 /// `DIRECTORY_GUEST_ACCESS=none` closes the directory to the agents who only hold the Guest role;
 /// they still read their own record, and the other roles are not affected.
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn the_directory_can_be_closed_to_guests() {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");

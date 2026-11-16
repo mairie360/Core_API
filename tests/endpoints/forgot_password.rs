@@ -12,6 +12,7 @@ use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
+use serial_test::serial;
 
 macro_rules! init_app {
     ($state:expr) => {
@@ -45,6 +46,7 @@ macro_rules! forgot {
 }
 
 #[tokio::test]
+#[serial(fake_resend)]
 async fn known_and_unknown_emails_get_the_same_answer() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
@@ -104,6 +106,7 @@ async fn known_email(host: &str, marker: &str) -> (String, i32) {
 /// MAIR-522: the e-mail is the Resend template `account-password-reset`, sent from
 /// `no-reply@<EMAIL_DOMAIN>`, with a 15-minute link to the login front.
 #[tokio::test]
+#[serial(fake_resend)]
 async fn the_reset_email_is_the_resend_template_from_no_reply() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
@@ -136,6 +139,7 @@ async fn the_reset_email_is_the_resend_template_from_no_reply() {
 }
 
 #[tokio::test]
+#[serial(fake_resend)]
 async fn an_archived_account_gets_no_email() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
@@ -153,6 +157,7 @@ async fn an_archived_account_gets_no_email() {
 /// When Resend refuses the e-mail, the token nobody received is dropped: the user can ask again
 /// at once instead of waiting for it to expire.
 #[tokio::test]
+#[serial(fake_resend)]
 async fn an_unsent_email_answers_500_and_can_be_requested_again() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
@@ -179,6 +184,7 @@ async fn an_unsent_email_answers_500_and_can_be_requested_again() {
 
 /// Without a mailer registered, a known address answers `500` and leaves no token behind.
 #[tokio::test]
+#[serial(fake_resend)]
 async fn without_a_mailer_a_known_address_answers_500() {
     let (_container, host) = get_shared_db().await;
     let (_redis, redis_config) = start_redis_container().await;
