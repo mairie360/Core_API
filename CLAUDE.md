@@ -201,18 +201,20 @@ npx orval   # reads openapi.json, writes generated/ (per orval.config.js)
 
 Business logic is split into two mirrored trees under `src/`, one per resource/action:
 
-- `src/database/<domain>/<action>/` — the DB access layer. Each folder is a triad:
-  - `mod.rs` — re-exports the query fn and view types
-  - `query.rs` — an async fn taking a `*QueryView` + `sqlx::PgPool`, returning
-    `Result<T, mairie360_api_lib::database::errors::DatabaseError>`
-  - `view.rs` — a `*QueryView` struct implementing `mairie360_api_lib::database::db_interface::DatabaseQueryView`
-    (its `get_request()` returns the raw SQL string with `$n` placeholders bound positionally by the query fn),
-    plus a `*QueryResultView` (`#[derive(sqlx::FromRow)]`) for the row shape.
+- `src/database/<domain>/<action>/` — the DB access layer, one folder per query:
+  - `mod.rs` — re-exports the view types (`pub use view::…`)
+  - `view.rs` — a `*QueryView` implementing `mairie360_api_lib::database::db_interface::ApiRequestDto`:
+    `query_sql()` returns the SQL with `$n` placeholders, `query_params()` the bound `QueryParam`s
+    (ids go through `crate::database::ids::id_to_sql`), plus the read-cache hooks (`cache_key`,
+    `cache_ttl`, `invalidated_read_caches`, MAIR-524); and a `*QueryResultView` (`serde::Deserialize`)
+    for the row, usually read as one JSON object (`SELECT row_to_json(t) FROM (…) t`).
+  There is no per-query `query.rs` any more: the views are executed by the lib's `SmartDatabase`.
 
 - `src/endpoints/v1/<domain>/<action>/` — the HTTP layer, same triad idea:
   - `endpoint.rs` — the actix handler (`#[get]`/`#[post]`/etc + `#[utoipa::path]`), an `*Error` enum
     implementing `ResponseError` for domain-specific failure→status mapping, and the handler logic that calls
-    into `database::` query functions via `state.db_pool.clone().unwrap()` where `state: web::Data<AppState>`
+    a `database::` view through `state.get_smart_db()` (`fetch_one` / `fetch_all` / `fetch_scalar` /
+    `execute`, `begin()` for a transaction) where `state: web::Data<AppState>`
   - `view.rs` — request/response DTOs (`serde` + `utoipa::ToSchema`)
   - `doc.rs` — a `#[derive(OpenApi)]` struct listing that endpoint's paths/schemas, aggregated upward into a
     per-domain doc, ultimately into `endpoints::swagger::ApiDoc`
@@ -242,16 +244,16 @@ nests further scopes — follow the chain from `main.rs` → `endpoints/mod.rs` 
 
 ### State, DB and Redis
 
-`AppState` (from `mairie360_api_lib::pool`) is built once in `main.rs` from `REDIS_URL` + a constructed Postgres
-URL and shared via `web::Data`. It exposes `db_pool` (a `sqlx::PgPool`, wrapped for shared access — note direct
-`sqlx::PgPool` usage in query fns) and Redis access via `state.get_redis_conn()`. Simple encrypted key/value ops
-against Redis go through `mairie360_api_lib::pool::redis::simple_key::secured::{handle_secure_get, handle_secure_post}`
-(used e.g. for the one-time first-login token, see `endpoints/v1/auth/login/endpoint.rs`).
+`AppState` (`mairie360_api_lib::state`) is built once in `main.rs` from `REDIS_URL` and the Postgres URL
+(`database::pg_url`) and shared via `web::Data`. `state.get_smart_db()` is the only way to the database: a
+`SmartDatabase` around the lib's `sqlx` pool (sized by the `DB_POOL_*` variables, see "Postgres pool
+settings") that runs `ApiRequestDto` views, maps errors to `DbError` (`ApiLibError::Database`) and keeps the
+directory read cache. `state.get_redis()` gives the Redis client (session revocation list, readiness probe,
+the realm console's single-use links).
 
-Note: `Cargo.toml` has no direct `sqlx` dependency — it's pulled in transitively through
-`mairie360_api_lib` (1.2.2), which is why files can `use sqlx::...` without it being listed directly. A
-leftover direct `tokio-postgres` dependency also still exists in `Cargo.toml`; the DB/Redis management story is
-mid-refactor (see current branch), so don't be surprised if both appear for a while.
+`sqlx` is a direct dependency only to read the SQLSTATE of a `DbError::Sqlx` (same version as the lib, no
+default features); the tests enable its Postgres driver. `tokio-postgres` is still listed in `Cargo.toml`
+but no source file uses it.
 
 ### Bounded lists (MAIR-425)
 
