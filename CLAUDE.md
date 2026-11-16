@@ -231,8 +231,11 @@ Business logic is split into two mirrored trees under `src/`, one per resource/a
   - `mod.rs` — re-exports the view types (`pub use view::…`)
   - `view.rs` — a `*QueryView` implementing `mairie360_api_lib::database::db_interface::ApiRequestDto`:
     `query_sql()` returns the SQL with `$n` placeholders, `query_params()` the bound `QueryParam`s
-    (ids go through `crate::database::ids::id_to_sql`), plus the read-cache hooks (`cache_key`,
-    `cache_ttl`, `invalidated_read_caches`, MAIR-524); and a `*QueryResultView` (`serde::Deserialize`)
+    (ids go through `crate::database::ids::id_to_sql` for INT4 columns, which saturates at
+    `i32::MAX`, and `id_to_sql_i64` for INT8 ones, e.g. `RemoveAccessQueryView`). Two separate cache
+    mechanisms: `cache_key` / `cache_ttl` cache this view's own result in `SmartDatabase`, while
+    `invalidated_read_caches` bumps the namespaces of the lib's `ReadCache` (`cached(&key, …)`,
+    MAIR-524) after a write; one never invalidates the other. A `*QueryResultView` (`serde::Deserialize`)
     for the row, usually read as one JSON object (`SELECT row_to_json(t) FROM (…) t`).
   There is no per-query `query.rs` any more: the views are executed by the lib's `SmartDatabase`.
 
