@@ -6,4 +6,5 @@ mod does_role_exist;
 mod get_roles;
 mod get_roles_by_id;
 mod get_roles_of_user;
+mod is_rename_forbidden;
 mod patch_role;

@@ -77,6 +77,13 @@ async fn delete_user_from_group(
             description = "Utilisateur retiré du groupe. Corps vide.",
         ),
         (
+            status = 400,
+            description = "`group_id` or `user_id` in the path is not an integer.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid ID format in URL")
+        ),
+        (
             status = 401,
             description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
             body = String,

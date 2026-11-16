@@ -13,6 +13,7 @@ mod keycloak_login;
 mod keycloak_migration;
 mod mair_692_logout_by_refresh_token;
 mod pagination;
+mod path_ids;
 mod rate_limits;
 mod readiness;
 mod redis_acl;

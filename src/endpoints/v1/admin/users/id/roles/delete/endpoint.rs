@@ -173,7 +173,7 @@ async fn remove_role_from_user(
             description = "`userId` or `roleId` is not an integer.",
             body = String,
             content_type = "text/plain",
-            example = json!("can not parse \"abc\" to a u64")
+            example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
