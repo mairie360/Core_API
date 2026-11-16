@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "baf2bd0f927e73a7106720118d54cffda7e5b91c", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-16 16:38 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "39868daf52c42fb13f9286abeaee54688b4307ff", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-16 16:56 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `baf2bd0` | 2026-11-16 16:38 UTC |
+| dev | — | `39868da` | 2026-11-16 16:56 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- chore(deps): MAIR-243 Bump quinn-udp to the patched 0.5.16 (RUSTSEC-2026-0538) (#393) ([#393](https://github.com/mairie360/Core_API/pull/393))
 - docs: MAIR-245 Rewrite the APIs' README and API.md (#372) ([#372](https://github.com/mairie360/Core_API/pull/372))
 - chore: MAIR-243 Align the test Database version on the 3.4.0 release (#383) ([#383](https://github.com/mairie360/Core_API/pull/383))
 - test: MAIR-238 Test the handlers and access controls of the APIs (#378) ([#378](https://github.com/mairie360/Core_API/pull/378))
@@ -18,6 +19,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): MAIR-243 Bump quinn-udp to the patched 0.5.16 (RUSTSEC-2026-0538) (#393) ([#393](https://github.com/mairie360/Core_API/pull/393))
 - docs: MAIR-245 Rewrite the APIs' README and API.md (#372) ([#372](https://github.com/mairie360/Core_API/pull/372))
 - chore: MAIR-243 Align the test Database version on the 3.4.0 release (#383) ([#383](https://github.com/mairie360/Core_API/pull/383))
 - test: MAIR-238 Test the handlers and access controls of the APIs (#378) ([#378](https://github.com/mairie360/Core_API/pull/378))
@@ -34,6 +36,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-16 16:56 UTC | dev | — | `39868da` | [run](https://github.com/mairie360/Core_API/actions/runs/43909682505) |
 | 2026-11-16 16:38 UTC | dev | — | `baf2bd0` | [run](https://github.com/mairie360/Core_API/actions/runs/43905315143) |
 | 2026-11-13 01:07 UTC | dev | — | `3c43cc5` | [run](https://github.com/mairie360/Core_API/actions/runs/43340075089) |
 | 2026-11-12 23:53 UTC | prod | v2.3.0 | `a7458a5` | [run](https://github.com/mairie360/Core_API/actions/runs/43330527369) |
