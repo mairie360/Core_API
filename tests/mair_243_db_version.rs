@@ -51,13 +51,13 @@ fn database_tags(content: &str) -> Vec<String> {
         .filter_map(|line| {
             let rest = line.split("ghcr.io/mairie360/").nth(1)?;
             let name_end = rest
-                .find([':', '@', '}', '"', ' '])
+                .find([':', '@', '}', '"', '\'', ' '])
                 .unwrap_or(rest.len());
             let (image, after) = rest.split_at(name_end);
             matches!(image, "database" | "liquibase-migrations").then(|| {
                 after
                     .strip_prefix(':')
-                    .map(|tag| tag.trim_end_matches(['}', '"', ' ']).to_string())
+                    .map(|tag| tag.trim_end_matches(['}', '"', '\'', ' ']).to_string())
                     .unwrap_or_default()
             })
         })
@@ -101,15 +101,17 @@ fn compose_files_no_longer_name_the_template_image() {
 }
 
 #[test]
-fn an_untagged_or_digest_pinned_database_image_is_not_skipped() {
+fn an_untagged_digest_pinned_or_quoted_database_image_is_not_skipped() {
     let compose = "image: ghcr.io/mairie360/database:3.4.0\n\
                    image: ghcr.io/mairie360/liquibase-migrations\n\
                    image: ${DB_IMAGE:-ghcr.io/mairie360/database:3.4.0}\n\
                    image: ghcr.io/mairie360/database@sha256:abc\n\
+                   image: 'ghcr.io/mairie360/liquibase-migrations'\n\
+                   image: 'ghcr.io/mairie360/database:3.4.0'\n\
                    image: ghcr.io/mairie360/other:1.0.0";
     assert_eq!(
         database_tags(compose),
-        vec!["3.4.0", "", "3.4.0", ""],
+        vec!["3.4.0", "", "3.4.0", "", "", "3.4.0"],
         "every Database image is listed, a missing tag is an empty one"
     );
 }
