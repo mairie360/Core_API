@@ -13,12 +13,11 @@ use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 use std::net::SocketAddr;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as `auth_hardening`: both modules run in the same test binary.
-    std::env::set_var("JWT_SECRET", "auth_hardening_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
@@ -138,7 +137,6 @@ macro_rules! assert_limited {
 }
 
 #[tokio::test]
-#[serial]
 async fn login_is_rate_limited_per_address() {
     let state = setup().await;
     let app = init_app!(state);
@@ -161,7 +159,6 @@ async fn login_is_rate_limited_per_address() {
 }
 
 #[tokio::test]
-#[serial]
 async fn keycloak_login_shares_the_login_budget() {
     let state = setup().await;
     let app = init_app!(state);
@@ -175,7 +172,6 @@ async fn keycloak_login_shares_the_login_budget() {
 }
 
 #[tokio::test]
-#[serial]
 async fn forgot_password_is_rate_limited_per_email() {
     let state = setup().await;
     let app = init_app!(state);
@@ -215,7 +211,6 @@ async fn forgot_password_is_rate_limited_per_email() {
 }
 
 #[tokio::test]
-#[serial]
 async fn forgot_password_is_rate_limited_per_address() {
     let state = setup().await;
     let app = init_app!(state);
@@ -253,7 +248,6 @@ fn relayed(path: &str, body: Value, client: &str) -> test::TestRequest {
 /// relayed by the BFF, not the BFF pod's: otherwise 10 requests of anyone lock password recovery
 /// for the whole instance.
 #[tokio::test]
-#[serial]
 async fn mair_679_forgot_password_through_a_bff_counts_the_relayed_client() {
     let state = setup().await;
     let app = init_app!(state);
@@ -288,7 +282,6 @@ async fn mair_679_forgot_password_through_a_bff_counts_the_relayed_client() {
 
 /// MAIR-679: the per-e-mail budget holds whatever client address the BFFs relay.
 #[tokio::test]
-#[serial]
 async fn mair_679_forgot_password_per_email_holds_across_relayed_clients() {
     let state = setup().await;
     let app = init_app!(state);
@@ -311,7 +304,6 @@ async fn mair_679_forgot_password_per_email_holds_across_relayed_clients() {
 
 /// MAIR-679: the sign-in budget is the relayed client's too.
 #[tokio::test]
-#[serial]
 async fn mair_679_login_through_a_bff_counts_the_relayed_client() {
     let state = setup().await;
     let app = init_app!(state);
@@ -335,7 +327,6 @@ async fn mair_679_login_through_a_bff_counts_the_relayed_client() {
 }
 
 #[tokio::test]
-#[serial]
 async fn password_token_routes_share_one_budget() {
     let state = setup().await;
     let app = init_app!(state);
@@ -362,7 +353,6 @@ async fn password_token_routes_share_one_budget() {
 }
 
 #[tokio::test]
-#[serial]
 async fn refresh_is_rate_limited_per_address() {
     let state = setup().await;
     let app = init_app!(state);
@@ -376,7 +366,6 @@ async fn refresh_is_rate_limited_per_address() {
 /// MAIR-692: the logout by refresh token is public, so it spends the refresh budget of the
 /// client address (60 per minute) like `POST /api/v1/sessions/refresh`.
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_shares_the_refresh_budget() {
     let state = setup().await;
     let app = init_app!(state);

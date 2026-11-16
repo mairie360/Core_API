@@ -11,7 +11,6 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 use sqlx::PgPool;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -81,7 +80,6 @@ async fn password_of(raw: &PgPool, user_id: i32) -> Option<String> {
 }
 
 #[tokio::test]
-#[serial]
 async fn refused_admin_patch_keeps_the_password_and_the_sessions() {
     let (state, raw, user, other) = setup().await;
     let app = init_app!(state);
@@ -118,7 +116,6 @@ async fn refused_admin_patch_keeps_the_password_and_the_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn role_checks_and_writes_are_one_transaction() {
     let (state, raw, _, _) = setup().await;
     let app = init_app!(state);
@@ -168,7 +165,6 @@ async fn role_checks_and_writes_are_one_transaction() {
 }
 
 #[tokio::test]
-#[serial]
 async fn membership_removal_checks_and_removes_in_one_statement() {
     let (state, raw, owner, member) = setup().await;
     let app = init_app!(state);

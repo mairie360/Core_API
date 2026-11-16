@@ -11,7 +11,6 @@ use mairie360_api_lib::{
     test_setup::queries_setup::{ADMIN_ID, ALICE_ID, BOB_ID, GROUP_OWNER_ID},
 };
 use serde_json::{json, Value};
-use serial_test::serial;
 
 const MIGRATION_PATH: &str = "/api/v1/admin/keycloak/migration";
 
@@ -67,7 +66,6 @@ async fn post_migration(
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_runs_for_an_admin() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -105,7 +103,6 @@ async fn test_keycloak_migration_runs_for_an_admin() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_can_send_password_emails() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -132,7 +129,6 @@ async fn test_keycloak_migration_can_send_password_emails() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_is_forbidden_to_non_admins() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -153,7 +149,6 @@ async fn test_keycloak_migration_is_forbidden_to_non_admins() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_requires_a_jwt() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -165,7 +160,6 @@ async fn test_keycloak_migration_requires_a_jwt() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_without_keycloak_returns_503() {
     let state = app_state().await;
 
@@ -180,7 +174,6 @@ async fn test_keycloak_migration_without_keycloak_returns_503() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_with_a_public_client_returns_503() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -199,7 +192,6 @@ async fn test_keycloak_migration_with_a_public_client_returns_503() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_refused_service_account_returns_502() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -218,7 +210,6 @@ async fn test_keycloak_migration_refused_service_account_returns_502() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_migration_unreachable_keycloak_returns_502() {
     let state = app_state().await;
     let unreachable = KeycloakClient::new(KeycloakConfig::new(

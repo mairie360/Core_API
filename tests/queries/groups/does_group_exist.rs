@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::groups::{
     create_group::CreateGroupQueryView, does_group_exist::DoesGroupExistQuerView,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn does_group_exist_true() {
     let pool = get_pool().await;
 
@@ -24,7 +22,6 @@ async fn does_group_exist_true() {
 }
 
 #[tokio::test]
-#[serial]
 async fn does_group_exist_false() {
     let pool = get_pool().await;
 

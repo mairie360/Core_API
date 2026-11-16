@@ -18,7 +18,6 @@ use mairie360_api_lib::test_setup::redis_setup::{
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::Value;
-use serial_test::serial;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -101,7 +100,6 @@ fn admin() -> u64 {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -178,7 +176,6 @@ async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_user_and_an_admin_export_the_data_of_the_account() {
     let env = env().await;
     let app = init_app!(env.state);

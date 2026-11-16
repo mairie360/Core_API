@@ -11,7 +11,6 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 use sqlx::PgPool;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -94,7 +93,6 @@ macro_rules! get_json {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_granting_a_role_replaces_the_former_one() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -123,7 +121,6 @@ async fn mair_564_granting_a_role_replaces_the_former_one() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_unknown_role_keeps_the_former_one() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -142,7 +139,6 @@ async fn mair_564_unknown_role_keeps_the_former_one() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_responses_expose_one_role() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;

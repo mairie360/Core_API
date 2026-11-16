@@ -11,7 +11,6 @@ use core_api::session_jwt::generate_session_jwt;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -96,7 +95,6 @@ fn get_sessions(jwt: &str) -> test::TestRequest {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_with_an_expired_jwt_revokes_the_refresh_token() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
@@ -157,7 +155,6 @@ async fn mair_692_logout_with_an_expired_jwt_revokes_the_refresh_token() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_answers_204_without_telling_whether_the_token_exists() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
@@ -179,7 +176,6 @@ async fn mair_692_logout_answers_204_without_telling_whether_the_token_exists() 
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_keeps_the_other_sessions() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
@@ -210,7 +206,6 @@ async fn mair_692_logout_keeps_the_other_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_validates_the_body() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
@@ -231,7 +226,6 @@ async fn mair_692_logout_validates_the_body() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_logout_retried_after_a_redis_failure_publishes_the_revocation() {
     init_env();
     // Review finding: once Postgres holds the revocation, a failed Redis write must not be lost.
@@ -269,7 +263,6 @@ async fn mair_692_logout_retried_after_a_redis_failure_publishes_the_revocation(
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_692_overlapping_logouts_both_get_the_session_to_publish() {
     init_env();
     // Review finding: a logout that waited on another one's row lock skipped the row and read a

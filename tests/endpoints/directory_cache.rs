@@ -162,7 +162,7 @@ fn group_ids(entry: &Value) -> Vec<i64> {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn directory_page_is_cached_under_the_acl_until_an_admin_patch() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -218,7 +218,7 @@ async fn directory_page_is_cached_under_the_acl_until_an_admin_patch() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn patch_me_invalidates_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -241,7 +241,7 @@ async fn patch_me_invalidates_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn role_grant_revoke_rename_and_delete_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -329,7 +329,7 @@ async fn role_grant_revoke_rename_and_delete_invalidate_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn group_writes_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -397,7 +397,7 @@ async fn group_writes_invalidate_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn admin_creation_and_archive_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");

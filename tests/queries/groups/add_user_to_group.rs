@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn add_user_to_group_success() {
     let pool = get_pool().await;
 
@@ -26,7 +24,6 @@ async fn add_user_to_group_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn add_user_to_group_duplicate_user() {
     let pool = get_pool().await;
 
@@ -45,7 +42,6 @@ async fn add_user_to_group_duplicate_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn add_user_to_group_unknow_user() {
     let pool = get_pool().await;
 
@@ -62,7 +58,6 @@ async fn add_user_to_group_unknow_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn add_user_to_group_unknow_group() {
     let pool = get_pool().await;
 
@@ -72,7 +67,6 @@ async fn add_user_to_group_unknow_group() {
 }
 
 #[tokio::test]
-#[serial]
 async fn add_user_to_group_unknow_user_and_group() {
     let pool = get_pool().await;
 

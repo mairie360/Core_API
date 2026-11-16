@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::groups::create_group::CreateGroupQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn create_group_success() {
     let pool = get_pool().await;
 
@@ -20,7 +18,6 @@ async fn create_group_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn create_group_duplicate_name() {
     let pool = get_pool().await;
 

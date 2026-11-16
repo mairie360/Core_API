@@ -5,14 +5,12 @@ use core_api::database::groups::{
 };
 use core_api::database::users::list_directory::{DirectoryUser, ListDirectoryUsersQueryView};
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
-use serial_test::serial;
 
 fn ids(users: &[DirectoryUser]) -> Vec<i32> {
     users.iter().map(|user| user.id).collect()
 }
 
 #[tokio::test]
-#[serial]
 async fn directory_searches_non_archived_users_sorted_by_name() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool().await;
@@ -58,7 +56,6 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
 /// A search spanning both columns ("first last") matches the full name, through the search
 /// expression of Database 3.0.1 (`user_search_text_sql!`, MAIR-477).
 #[tokio::test]
-#[serial]
 async fn directory_matches_the_full_name() {
     let pool = get_pool().await;
     let marker = unique_marker("FullName");
@@ -79,7 +76,6 @@ async fn directory_matches_the_full_name() {
 }
 
 #[tokio::test]
-#[serial]
 async fn directory_filters_by_ids_and_groups_and_exposes_roles() {
     let pool = get_pool().await;
     let marker = unique_marker("Scoped");

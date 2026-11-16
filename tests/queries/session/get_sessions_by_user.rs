@@ -3,12 +3,10 @@ use core_api::database::sessions::{
     Session,
 };
 use mairie360_api_lib::database::query_views::IsSessionTokenValidQueryView;
-use serial_test::serial;
 
 use crate::common::get_pool;
 
 #[tokio::test]
-#[serial]
 async fn test_get_sessions_by_user() {
     let pool = get_pool().await;
 
@@ -40,7 +38,6 @@ async fn test_get_sessions_by_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_sessions_by_unknow_user() {
     let pool = get_pool().await;
 

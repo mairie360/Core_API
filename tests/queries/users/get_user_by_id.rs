@@ -1,10 +1,8 @@
 use crate::common::get_pool;
 use core_api::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
 use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_user_by_id_success() {
     let pool = get_pool().await;
 
@@ -37,7 +35,6 @@ async fn get_user_by_id_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_user_by_id_bad_id() {
     let pool = get_pool().await;
 

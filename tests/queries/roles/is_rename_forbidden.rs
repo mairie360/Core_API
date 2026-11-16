@@ -5,7 +5,6 @@ use core_api::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
-use serial_test::serial;
 use sqlx::Row;
 
 async fn insert_role(name: &str, can_be_deleted: bool) -> u64 {
@@ -35,28 +34,24 @@ async fn is_forbidden(id: u64, name: &str) -> Result<bool, ApiLibError> {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_238_system_role_rename_is_forbidden() {
     let id = insert_role("Rename guard system", false).await;
     assert!(is_forbidden(id, "Another name").await.unwrap());
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_238_system_role_same_name_is_allowed() {
     let id = insert_role("Rename guard system same", false).await;
     assert!(!is_forbidden(id, "Rename guard system same").await.unwrap());
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_238_deletable_role_rename_is_allowed() {
     let id = insert_role("Rename guard custom", true).await;
     assert!(!is_forbidden(id, "Another name").await.unwrap());
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_238_unknown_role_is_not_found() {
     let err = is_forbidden(999_999, "Anything").await.unwrap_err();
     assert!(matches!(err, ApiLibError::Database(DbError::NotFound)));

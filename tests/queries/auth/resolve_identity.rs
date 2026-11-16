@@ -5,7 +5,6 @@ use core_api::database::auth::resolve_identity::{
 };
 use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
-use serial_test::serial;
 
 async fn resolve(
     pool: &mairie360_api_lib::smart_db::SmartDatabase,
@@ -21,7 +20,6 @@ async fn resolve(
 }
 
 #[tokio::test]
-#[serial]
 async fn test_resolve_identity_returns_the_linked_active_user() {
     let pool = get_pool().await;
     let marker = unique_marker("resolve");
@@ -36,7 +34,6 @@ async fn test_resolve_identity_returns_the_linked_active_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_resolve_identity_matches_provider_and_subject() {
     let pool = get_pool().await;
     let marker = unique_marker("resolvematch");
@@ -52,7 +49,6 @@ async fn test_resolve_identity_matches_provider_and_subject() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_resolve_identity_refuses_an_archived_user() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool().await;

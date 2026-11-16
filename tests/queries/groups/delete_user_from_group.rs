@@ -3,10 +3,8 @@ use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
     delete_user_from_group::DeleteUserFromGroupQueryView,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn delete_user_to_group_success() {
     let pool = get_pool().await;
 
@@ -29,7 +27,6 @@ async fn delete_user_to_group_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn delete_user_to_group_unknow_group() {
     let pool = get_pool().await;
 
@@ -42,7 +39,6 @@ async fn delete_user_to_group_unknow_group() {
 }
 
 #[tokio::test]
-#[serial]
 async fn delete_user_to_group_unknow_user() {
     let pool = get_pool().await;
 
@@ -55,7 +51,6 @@ async fn delete_user_to_group_unknow_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn delete_user_to_group_unknow_user_and_group() {
     let pool = get_pool().await;
 

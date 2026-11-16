@@ -3,10 +3,8 @@ use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryVi
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_login_user_success() {
     let pool = get_pool().await;
     let result: LoginUserQueryResultView = pool
@@ -24,7 +22,6 @@ async fn test_login_user_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_login_user_wrong_password() {
     let pool = get_pool().await;
 
@@ -39,7 +36,6 @@ async fn test_login_user_wrong_password() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_login_user_unknown_email() {
     let pool = get_pool().await;
 

@@ -1,9 +1,7 @@
 use crate::common::get_pool;
 use core_api::database::get_user_id::GetUserIdQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_user_id_success() {
     let pool = get_pool().await;
 
@@ -15,7 +13,6 @@ async fn get_user_id_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_user_id_unknown_email() {
     let pool = get_pool().await;
 

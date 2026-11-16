@@ -10,7 +10,6 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as `sessions_refresh`: both modules run in the same test binary.
@@ -41,7 +40,6 @@ fn bearer(user_id: i32) -> (&'static str, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn constraint_violations_answer_404_or_409() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;

@@ -8,7 +8,6 @@ use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as `sessions_refresh`: both modules run in the same test binary.
@@ -57,7 +56,6 @@ fn bearer(user_id: i32, role: &str) -> (&'static str, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn profile_phone_is_set_read_in_e164_and_cleared() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -118,7 +116,6 @@ async fn profile_phone_is_set_read_in_e164_and_cleared() {
 }
 
 #[tokio::test]
-#[serial]
 async fn invalid_profile_phones_answer_400_and_change_nothing() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -180,7 +177,6 @@ async fn invalid_profile_phones_answer_400_and_change_nothing() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_creates_and_clears_a_phone() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);

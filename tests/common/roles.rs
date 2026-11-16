@@ -9,8 +9,20 @@ pub static CAN_DELETE_ID: OnceCell<u64> = OnceCell::const_new();
 pub static PATCH_ID: OnceCell<u64> = OnceCell::const_new();
 pub static PATCH_MUTEX: OnceCell<tokio::sync::Mutex<()>> = OnceCell::const_new();
 
+/// Runs once even when tests call it at the same time (they run in parallel since MAIR-1002): the
+/// others wait for the fixtures instead of reading ids that are not set yet.
+static SETUP: OnceCell<()> = OnceCell::const_new();
+
 pub async fn setup_tests() {
-    if COUNT.get().is_none() {
+    SETUP
+        .get_or_init(|| async {
+            setup_fixtures().await;
+        })
+        .await;
+}
+
+async fn setup_fixtures() {
+    {
         let (_container, host) = get_shared_db().await;
         let pool = get_raw_pool(host.clone()).await;
         COUNT.set(0).unwrap();

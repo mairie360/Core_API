@@ -5,10 +5,8 @@ use core_api::database::groups::update_group::UpdateGroupQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn update_group_keeps_fields_that_are_not_provided() {
     let pool = get_pool().await;
     let owner = *ALICE_ID.get().unwrap();
@@ -59,7 +57,6 @@ async fn update_group_keeps_fields_that_are_not_provided() {
 }
 
 #[tokio::test]
-#[serial]
 async fn update_group_unknown_group_returns_no_row() {
     let pool = get_pool().await;
 
@@ -72,7 +69,6 @@ async fn update_group_unknown_group_returns_no_row() {
 }
 
 #[tokio::test]
-#[serial]
 async fn update_group_to_a_taken_name_is_a_unique_violation() {
     let pool = get_pool().await;
     let owner = *ALICE_ID.get().unwrap() as u64;

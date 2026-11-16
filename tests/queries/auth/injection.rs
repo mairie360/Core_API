@@ -1,12 +1,11 @@
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::{get_pool, get_pool_for, get_raw_pool};
 use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryView};
 use core_api::database::auth::register::RegisterUserQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::database::query_views::DoesUserExistByIdQueryView;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
+use mairie360_api_lib::test_setup::isolated::isolated_db;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use serial_test::serial;
 use sqlx::PgPool;
 
 async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -26,7 +25,6 @@ async fn sync_user_sequence(pool: &PgPool) -> Result<(), sqlx::Error> {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_injection_login_email() {
     let pool = get_pool().await;
 
@@ -46,11 +44,12 @@ async fn test_injection_login_email() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_injection_register_fields() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool().await;
-    let raw_pool = get_raw_pool(host.clone()).await;
+    // Its own database (MAIR-1002): resetting the sequence of `users` would make the concurrent
+    // inserts of the other tests collide.
+    let db = isolated_db().await;
+    let pool = get_pool_for(&db).await;
+    let raw_pool = get_raw_pool(db.url()).await;
     sync_user_sequence(&raw_pool).await.unwrap();
 
     let malicious_name = "John'); DROP TABLE users; --";

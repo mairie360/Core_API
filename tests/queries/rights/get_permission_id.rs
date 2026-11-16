@@ -3,10 +3,8 @@ use core_api::database::{
     ressources::get_ressource_type_id::GetRessourceTypeIdQueryView,
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn good_id_and_action() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("users");
@@ -24,7 +22,6 @@ async fn good_id_and_action() {
 }
 
 #[tokio::test]
-#[serial]
 async fn fail_invalid_resource_id() {
     let pool = get_pool().await;
     let view = GetPermissionIdQueryView::new(100, PermissionAction::Read);
@@ -33,7 +30,6 @@ async fn fail_invalid_resource_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn fail_invalid_action() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("users");
@@ -44,7 +40,6 @@ async fn fail_invalid_action() {
 }
 
 #[tokio::test]
-#[serial]
 async fn fail_error_action() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");

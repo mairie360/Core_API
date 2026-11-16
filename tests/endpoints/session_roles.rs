@@ -12,7 +12,6 @@ use mairie360_api_lib::{
     test_setup::queries_setup::get_shared_db,
 };
 use serde_json::{json, Value};
-use serial_test::serial;
 use sqlx::{PgPool, Row};
 
 const PASSWORD: &str = "Correct!Pass123";
@@ -36,7 +35,7 @@ macro_rules! init_app {
 
 async fn setup() -> (web::Data<AppState>, PgPool) {
     // Set on every test, not once: the other modules of this binary set their own secret.
-    std::env::set_var("JWT_SECRET", "session_roles_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
     let (_container, host) = get_shared_db().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -138,7 +137,6 @@ async fn clear_roles(raw: &PgPool, user_id: i32) {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_529_login_jwt_carries_the_user_role_and_no_roles_claim() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -156,7 +154,6 @@ async fn mair_529_login_jwt_carries_the_user_role_and_no_roles_claim() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_role_granted_after_the_default_guest_is_the_jwt_role() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -172,7 +169,6 @@ async fn mair_564_role_granted_after_the_default_guest_is_the_jwt_role() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_529_user_without_role_gets_an_empty_role_claim() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -188,7 +184,6 @@ async fn mair_529_user_without_role_gets_an_empty_role_claim() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_529_refresh_jwt_reflects_role_changes() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -214,9 +209,8 @@ async fn mair_529_refresh_jwt_reflects_role_changes() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_529_jwt_issued_before_the_role_claim_still_decodes() {
-    std::env::set_var("JWT_SECRET", "session_roles_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
     // A JWT signed by the lib (empty `role`, no `sid`), like those issued before MAIR-529.
     let jwt = mairie360_api_lib::jwt_manager::generate_jwt("1", "").unwrap();
@@ -228,9 +222,8 @@ async fn mair_529_jwt_issued_before_the_role_claim_still_decodes() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_529_jwt_still_carrying_a_roles_claim_still_decodes() {
-    std::env::set_var("JWT_SECRET", "session_roles_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     // Signed by Core#293, which added a `roles` array next to `role`: valid until it expires.
     let exp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -240,7 +233,7 @@ async fn mair_529_jwt_still_carrying_a_roles_claim_still_decodes() {
     let jwt = jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         &json!({ "sub": "1", "role": "Admin", "exp": exp, "sid": uuid::Uuid::new_v4(), "roles": ["Admin", "Agent"] }),
-        &jsonwebtoken::EncodingKey::from_secret(b"session_roles_test_secret"),
+        &jsonwebtoken::EncodingKey::from_secret(b"refresh_test_secret"),
     )
     .unwrap();
 

@@ -20,7 +20,6 @@ use mairie360_api_lib::{
     test_setup::queries_setup::{get_shared_db, seed_password_hash, ADMIN_ID},
 };
 use serde_json::{json, Value};
-use serial_test::serial;
 use sqlx::{PgPool, Row};
 
 const USERS_PATH: &str = "/api/v1/admin/users/";
@@ -192,7 +191,6 @@ fn create_body(email: &str) -> Value {
 // --- POST /api/v1/admin/users/ ---------------------------------------------------------------
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_creates_links_and_invites_the_keycloak_account() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -243,7 +241,6 @@ async fn test_create_user_creates_links_and_invites_the_keycloak_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_adopts_an_existing_keycloak_account_without_inviting_it() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -277,7 +274,6 @@ async fn test_create_user_adopts_an_existing_keycloak_account_without_inviting_i
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_creates_nothing_when_keycloak_is_unreachable() {
     let env = env().await;
     let email = format!("claire.{}@mairie360.test", unique_marker("down"));
@@ -300,7 +296,6 @@ async fn test_create_user_creates_nothing_when_keycloak_is_unreachable() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_deletes_the_reserved_account_when_the_invitation_fails() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -329,7 +324,6 @@ async fn test_create_user_deletes_the_reserved_account_when_the_invitation_fails
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_refused_by_core_touches_nothing_in_keycloak() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -354,7 +348,6 @@ async fn test_create_user_refused_by_core_touches_nothing_in_keycloak() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_create_user_without_keycloak_writes_core_only() {
     let env = env().await;
     let email = format!("claire.{}@mairie360.test", unique_marker("nokc"));
@@ -380,7 +373,6 @@ async fn test_create_user_without_keycloak_writes_core_only() {
 // --- PATCH /api/v1/admin/users/{id}/ ---------------------------------------------------------
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_writes_the_new_profile_to_keycloak() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -410,7 +402,6 @@ async fn test_patch_user_writes_the_new_profile_to_keycloak() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_adopts_the_keycloak_account_by_email_when_not_linked_yet() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -432,7 +423,6 @@ async fn test_patch_user_adopts_the_keycloak_account_by_email_when_not_linked_ye
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_restores_the_keycloak_profile_when_core_refuses() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -467,7 +457,6 @@ async fn test_patch_user_restores_the_keycloak_profile_when_core_refuses() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_unknown_to_keycloak_writes_core_only() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -491,7 +480,6 @@ async fn test_patch_user_unknown_to_keycloak_writes_core_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_core_only_fields_do_not_call_keycloak() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -513,7 +501,6 @@ async fn test_patch_user_core_only_fields_do_not_call_keycloak() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_user_changes_nothing_when_keycloak_is_unreachable() {
     let env = env().await;
     let (user_id, email) = fresh_user(&env, "Stuck").await;
@@ -539,7 +526,6 @@ async fn test_patch_user_changes_nothing_when_keycloak_is_unreachable() {
 // --- DELETE /api/v1/admin/users/{id}/ --------------------------------------------------------
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_disables_and_signs_out_the_keycloak_account() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -564,7 +550,6 @@ async fn test_delete_user_disables_and_signs_out_the_keycloak_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_re_enables_the_keycloak_account_when_core_refuses() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -597,7 +582,6 @@ async fn test_delete_user_re_enables_the_keycloak_account_when_core_refuses() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_already_archived_does_not_call_keycloak() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -621,7 +605,6 @@ async fn test_delete_user_already_archived_does_not_call_keycloak() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_changes_nothing_when_keycloak_is_unreachable() {
     let env = env().await;
     let (user_id, _) = fresh_user(&env, "Kept").await;
@@ -643,7 +626,6 @@ async fn test_delete_user_changes_nothing_when_keycloak_is_unreachable() {
 // --- POST / DELETE /api/v1/admin/users/{id}/roles/ ------------------------------------------
 
 #[tokio::test]
-#[serial]
 async fn test_grant_role_maps_the_realm_role() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -676,7 +658,6 @@ async fn test_grant_role_maps_the_realm_role() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_grant_role_unmaps_the_realm_role_when_core_refuses() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -709,7 +690,6 @@ async fn test_grant_role_unmaps_the_realm_role_when_core_refuses() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_grant_role_replaces_the_former_realm_role() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -742,7 +722,6 @@ async fn mair_564_grant_role_replaces_the_former_realm_role() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_grant_role_unknown_role_answers_404_without_keycloak() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -762,7 +741,6 @@ async fn test_grant_role_unknown_role_answers_404_without_keycloak() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_revoke_role_unmaps_the_realm_role() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -801,7 +779,6 @@ async fn test_revoke_role_unmaps_the_realm_role() {
 
 // Core never refuses a revoke (a role not held matches no row): the realm is aligned on Core.
 #[tokio::test]
-#[serial]
 async fn test_revoke_role_not_held_in_core_unmaps_the_realm_role_anyway() {
     let env = env().await;
     let mock = KeycloakMock::start();
@@ -828,7 +805,6 @@ async fn test_revoke_role_not_held_in_core_unmaps_the_realm_role_anyway() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_role_change_answers_502_and_changes_nothing_when_keycloak_is_unreachable() {
     let env = env().await;
     let role_id = test_role_id(&env).await;

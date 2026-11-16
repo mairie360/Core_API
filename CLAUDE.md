@@ -210,9 +210,17 @@ staging (MAIR-556): `tests/common::get_pool()` (query views) and `AppState::new(
 (endpoints). A query outside the grants of Database's `api_grants.sql` then fails the test with
 `permission denied`: add the grant there, never connect the code under test as the superuser. The compose stacks
 connect `core` as `core_api` too (`-Dcore_api_password` passed to Liquibase); postgres, liquibase and the seeder
-keep the superuser. Tests that touch shared/seeded rows are
-annotated `#[serial]` (the `serial_test` crate) to avoid interference between tests running against the same
-container.
+keep the superuser.
+
+Tests run in parallel (MAIR-1002): there is no `#[serial]`. The tests share the seeded database of
+`get_shared_db()` and keep to rows of their own (unique markers). A test that depends on, or changes, what the
+others see (a count of administrators, the whole `users` table, a sequence reset, a migration over every account)
+takes a database of its own with `mairie360_api_lib::test_setup::isolated::isolated_db()`: a copy of the seeded
+template (about 0.2 s), dropped when the guard is dropped, whose URLs are `db.url()` (superuser, fixtures) and
+`db.url_as("<role>")`. `isolated_redis()` gives a Redis client with its own key prefix on one container shared by
+the process. Only a test that sets a process environment variable keeps `#[serial(<group>)]`. The dependencies are
+compiled with `opt-level = 3` (`[profile.dev.package."*"]`): the code of the crate stays in debug, which is what the
+coverage measures, while argon2 and the TLS stack no longer dominate the run.
 
 OpenAPI client generation (consumed by other repos, not by this API itself):
 

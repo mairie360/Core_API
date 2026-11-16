@@ -31,7 +31,7 @@ macro_rules! get {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn ready_needs_postgres_and_redis() {
     std::env::remove_var("REDIS_KEY_PREFIX");
     std::env::remove_var("REDIS_USERNAME");

@@ -1,10 +1,8 @@
 use crate::common::get_pool;
 use crate::common::roles::setup_tests;
 use core_api::database::users::remove_role::RemoveRolesQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_remove_role_success() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -23,7 +21,6 @@ async fn test_remove_role_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_remove_role_bad_role_id() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -39,7 +36,6 @@ async fn test_remove_role_bad_role_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_remove_role_bad_user_id() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -55,7 +51,6 @@ async fn test_remove_role_bad_user_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_remove_role_bad_user_id_and_role_id() {
     setup_tests().await;
     let pool = get_pool().await;

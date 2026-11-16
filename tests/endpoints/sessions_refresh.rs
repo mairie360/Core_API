@@ -8,7 +8,6 @@ use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::refresh_token;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
@@ -47,7 +46,6 @@ async fn create_session(state: &web::Data<AppState>, token: &str) {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_refresh_works_with_expired_jwt() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -74,7 +72,6 @@ async fn test_refresh_works_with_expired_jwt() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_refresh_revoked_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -101,7 +98,6 @@ async fn test_refresh_revoked_token_returns_401() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_refresh_unknown_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -117,7 +113,6 @@ async fn test_refresh_unknown_token_returns_401() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_other_session_routes_still_require_jwt() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);

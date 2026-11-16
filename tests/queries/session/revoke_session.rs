@@ -4,11 +4,9 @@ use core_api::database::sessions::{
     Session,
 };
 use mairie360_api_lib::error::ApiLibError;
-use serial_test::serial;
 use uuid::Uuid;
 
 #[tokio::test]
-#[serial]
 async fn test_revoke_unknowed_session_with_token_and_id() {
     let pool = get_pool().await;
 

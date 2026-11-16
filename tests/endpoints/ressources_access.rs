@@ -9,7 +9,6 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::{ADMIN_ID, GROUP_OWNER_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 /// Seeded group owned by `GROUP_OWNER_ID` (see `mairie360_api_lib::test_setup`).
 const OWNED_GROUP_ID: u64 = 1;
@@ -114,7 +113,6 @@ fn entry_of(body: &str, target: i32) -> Option<i64> {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_can_add_list_and_remove_accesses() {
     let (state, target, _) = setup().await;
     let app = init_app!(state);
@@ -143,7 +141,6 @@ async fn admin_can_add_list_and_remove_accesses() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_can_manage_a_type_without_owner() {
     let (state, target, _) = setup().await;
     let app = init_app!(state);
@@ -156,7 +153,6 @@ async fn admin_can_manage_a_type_without_owner() {
 }
 
 #[tokio::test]
-#[serial]
 async fn owner_can_add_list_and_remove_accesses() {
     let (state, target, _) = setup().await;
     let app = init_app!(state);
@@ -179,7 +175,6 @@ async fn owner_can_add_list_and_remove_accesses() {
 }
 
 #[tokio::test]
-#[serial]
 async fn other_user_gets_403_everywhere() {
     let (state, target, other) = setup().await;
     let app = init_app!(state);
@@ -233,7 +228,6 @@ async fn other_user_gets_403_everywhere() {
 }
 
 #[tokio::test]
-#[serial]
 async fn unauthenticated_calls_get_401() {
     let (state, _, _) = setup().await;
     let app = init_app!(state);
@@ -259,7 +253,6 @@ async fn unauthenticated_calls_get_401() {
 }
 
 #[tokio::test]
-#[serial]
 async fn client_errors_are_not_500() {
     let (state, target, _) = setup().await;
     let app = init_app!(state);

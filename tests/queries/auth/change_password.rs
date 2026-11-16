@@ -4,10 +4,8 @@ use core_api::database::auth::login::{LoginUserQueryResultView, LoginUserQueryVi
 use core_api::database::auth::register::RegisterUserQueryView;
 use core_api::database::get_user_id::GetUserIdQueryView;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn change_password_success() {
     let pool = get_pool().await;
 
@@ -47,7 +45,6 @@ async fn change_password_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn change_password_bad_user_id() {
     let pool = get_pool().await;
 

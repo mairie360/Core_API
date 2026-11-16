@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::v1::auth::create_new_session;
 use mairie360_api_lib::{database::query_views::IsSessionTokenValidQueryView, error::ApiLibError};
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_create_session() {
     let pool = get_pool().await;
 
@@ -38,7 +36,6 @@ async fn test_create_session() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_injection_create_session() {
     let pool = get_pool().await;
 
@@ -60,7 +57,6 @@ async fn test_injection_create_session() {
 /// Régression MAIR-124 : deux appareils vus par Core avec la même IP (celle du BFF) et le même
 /// `device_info` (User-Agent identique) doivent garder chacun leur session active.
 #[tokio::test]
-#[serial]
 async fn test_create_new_session_keeps_other_device_session_active() {
     let pool = get_pool().await;
 

@@ -7,10 +7,8 @@ use core_api::database::{
     },
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn success() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -44,7 +42,6 @@ async fn success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn unknow_ressource() {
     let pool = get_pool().await;
     // A group id no test creates: group 2 exists once other tests (access matrix, erasure

@@ -86,7 +86,7 @@ async fn email_of(host: &str, user_id: i32) -> String {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn forgot_password_flow_works_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -140,7 +140,7 @@ async fn forgot_password_flow_works_under_the_acl() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn first_connection_flow_works_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -206,7 +206,7 @@ async fn first_connection_flow_works_under_the_acl() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(redis_env)]
 async fn revocation_list_stays_unprefixed_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
     let redis = AclRedis::start().await;

@@ -4,10 +4,8 @@ use core_api::database::admin::reset_password::{
     AdminResetPasswordQueryView, AdminResetPasswordResult,
 };
 use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, seed_password_hash};
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn admin_reset_password_updates_password_and_revokes_sessions() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool().await;
@@ -52,7 +50,6 @@ async fn admin_reset_password_updates_password_and_revokes_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_reset_password_unknown_user() {
     let pool = get_pool().await;
 

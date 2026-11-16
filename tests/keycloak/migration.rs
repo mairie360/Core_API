@@ -1,16 +1,18 @@
 use crate::common::keycloak_mock::{KeycloakMock, CLIENT_ID, CLIENT_SECRET};
 use crate::common::users::{create_user, link_identity, unique_marker, user_identities};
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::{get_pool, get_pool_for, get_raw_pool};
 use core_api::keycloak::migration::{
     migrate_users, MigrationError, MigrationOptions, MigrationReport, UserMigrationResult,
     UserMigrationStatus, KEYCLOAK_PROVIDER,
 };
 use core_api::keycloak::{KeycloakAdminClient, KeycloakConfig};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID, ALICE_ID, BOB_ID};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::isolated::{isolated_db, IsolatedDb};
+use mairie360_api_lib::test_setup::queries_setup::{ADMIN_ID, ALICE_ID, BOB_ID};
 
-async fn run(mock: &KeycloakMock, options: MigrationOptions) -> MigrationReport {
-    let pool = get_pool().await;
+/// Migrates the accounts of `db`, the database of the calling test (MAIR-1002): a migration
+/// reads every account, so it cannot share a database with the tests that create some.
+async fn run(db: &IsolatedDb, mock: &KeycloakMock, options: MigrationOptions) -> MigrationReport {
+    let pool = get_pool_for(db).await;
     migrate_users(&pool, &mock.admin_client(), options)
         .await
         .expect("migration run")
@@ -25,13 +27,12 @@ fn result_of(report: &MigrationReport, user_id: i32) -> &UserMigrationResult {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_provisions_every_account_and_links_them() {
-    let (_container, host) = get_shared_db().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let raw = get_raw_pool(db.url()).await;
     let mock = KeycloakMock::start();
 
-    let report = run(&mock, MigrationOptions::default()).await;
+    let report = run(&db, &mock, MigrationOptions::default()).await;
 
     let expected_total: i64 = sqlx::query_scalar("SELECT count(*) FROM users")
         .fetch_one(&raw)
@@ -107,19 +108,18 @@ async fn test_migration_provisions_every_account_and_links_them() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_replay_creates_no_duplicate() {
-    let (_container, host) = get_shared_db().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let raw = get_raw_pool(db.url()).await;
     let mock = KeycloakMock::start();
     let alice_id = *ALICE_ID.get().unwrap();
 
-    let first = run(&mock, MigrationOptions::default()).await;
+    let first = run(&db, &mock, MigrationOptions::default()).await;
     let users_after_first = mock.users();
     let roles_after_first = mock.roles();
     let alice_link = user_identities(&raw, alice_id).await;
 
-    let second = run(&mock, MigrationOptions::default()).await;
+    let second = run(&db, &mock, MigrationOptions::default()).await;
 
     assert_eq!(second.total, first.total);
     assert_eq!(second.created, 0, "{second:?}");
@@ -139,17 +139,16 @@ async fn test_migration_replay_creates_no_duplicate() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_recreates_the_accounts_of_a_rebuilt_realm() {
-    let (_container, host) = get_shared_db().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let raw = get_raw_pool(db.url()).await;
     let mock = KeycloakMock::start();
     let alice_id = *ALICE_ID.get().unwrap();
-    let first = run(&mock, MigrationOptions::default()).await;
+    let first = run(&db, &mock, MigrationOptions::default()).await;
     let old_id = result_of(&first, alice_id).keycloak_id.clone().unwrap();
 
     mock.delete_user(&old_id);
-    let second = run(&mock, MigrationOptions::default()).await;
+    let second = run(&db, &mock, MigrationOptions::default()).await;
 
     let alice = result_of(&second, alice_id);
     assert_eq!(alice.status, UserMigrationStatus::Created);
@@ -164,16 +163,15 @@ async fn test_migration_recreates_the_accounts_of_a_rebuilt_realm() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_adopts_an_account_created_by_hand() {
-    let (_container, host) = get_shared_db().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let raw = get_raw_pool(db.url()).await;
     let mock = KeycloakMock::start();
     let alice_id = *ALICE_ID.get().unwrap();
     let by_hand = mock.seed_user("ALICE@example.com", false);
     let existing_role = mock.seed_role("Admin");
 
-    let report = run(&mock, MigrationOptions::default()).await;
+    let report = run(&db, &mock, MigrationOptions::default()).await;
 
     // A realm role that already exists is reused, never duplicated.
     let admin_roles: Vec<_> = mock
@@ -203,11 +201,10 @@ async fn test_migration_adopts_an_account_created_by_hand() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_never_moves_a_linked_identity() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let pool = get_pool_for(&db).await;
+    let raw = get_raw_pool(db.url()).await;
     let marker = unique_marker("migconflict");
     // `first` is processed before `owner` (lower id). Keycloak knows `first`'s e-mail under an
     // account already linked to `owner`: `first` must fail, the link must stay with `owner`.
@@ -222,7 +219,7 @@ async fn test_migration_never_moves_a_linked_identity() {
     let keycloak_id = mock.seed_user(&first_email, true);
     link_identity(&pool, owner, &keycloak_id).await;
 
-    let report = run(&mock, MigrationOptions::default()).await;
+    let report = run(&db, &mock, MigrationOptions::default()).await;
 
     let failed = result_of(&report, first);
     assert_eq!(failed.status, UserMigrationStatus::Failed);
@@ -248,14 +245,14 @@ async fn test_migration_never_moves_a_linked_identity() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_sends_password_emails_to_new_enabled_accounts_only() {
+    let db = isolated_db().await;
     let mock = KeycloakMock::start();
     let options = MigrationOptions {
         send_password_setup_email: true,
     };
 
-    let first = run(&mock, options).await;
+    let first = run(&db, &mock, options).await;
 
     let alice = result_of(&first, *ALICE_ID.get().unwrap());
     assert!(alice.password_email_sent, "{alice:?}");
@@ -275,7 +272,7 @@ async fn test_migration_sends_password_emails_to_new_enabled_accounts_only() {
     );
 
     // A replay creates nothing, so it e-mails nobody.
-    let second = run(&mock, options).await;
+    let second = run(&db, &mock, options).await;
     assert!(second
         .users
         .iter()
@@ -284,12 +281,13 @@ async fn test_migration_sends_password_emails_to_new_enabled_accounts_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_reports_a_failed_password_email_without_failing_the_account() {
+    let db = isolated_db().await;
     let mock = KeycloakMock::start();
     mock.fail_password_emails();
 
     let report = run(
+        &db,
         &mock,
         MigrationOptions {
             send_password_setup_email: true,
@@ -308,7 +306,6 @@ async fn test_migration_reports_a_failed_password_email_without_failing_the_acco
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_requires_a_confidential_client() {
     let pool = get_pool().await;
     let mock = KeycloakMock::start();
@@ -322,7 +319,6 @@ async fn test_migration_requires_a_confidential_client() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_stops_when_keycloak_refuses_the_service_account() {
     let pool = get_pool().await;
 
@@ -348,7 +344,6 @@ async fn test_migration_stops_when_keycloak_refuses_the_service_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_migration_stops_when_keycloak_is_unreachable() {
     let pool = get_pool().await;
     let admin = KeycloakAdminClient::new(KeycloakConfig::new(

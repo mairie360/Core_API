@@ -10,11 +10,10 @@ use mairie360_api_lib::{
     test_setup::queries_setup::{get_shared_db, ADMIN_ID},
 };
 use serde_json::json;
-use serial_test::serial;
 use sqlx::Row;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "auth_password_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
@@ -89,7 +88,6 @@ fn admin_auth_header() -> (&'static str, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -119,7 +117,6 @@ async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
 }
 
 #[tokio::test]
-#[serial]
 async fn login_migrates_legacy_plaintext_password_to_a_hash() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -149,7 +146,6 @@ async fn login_migrates_legacy_plaintext_password_to_a_hash() {
 }
 
 #[tokio::test]
-#[serial]
 async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migrating() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;
@@ -179,7 +175,6 @@ async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migra
 }
 
 #[tokio::test]
-#[serial]
 async fn login_works_after_a_hashed_login_migration() {
     std::sync::LazyLock::force(&INIT);
     let (_container, host) = get_shared_db().await;

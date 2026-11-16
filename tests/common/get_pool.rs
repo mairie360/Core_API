@@ -1,6 +1,7 @@
 use mairie360_api_lib::database::db_interface::Database;
 use mairie360_api_lib::redis::redis_interface::Redis;
 use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::test_setup::isolated::IsolatedDb;
 use mairie360_api_lib::test_setup::queries_setup::get_shared_db_as;
 
 // Aucune des vues migrées ne déclare de `cache_key`, donc `SmartDatabase` ne touche jamais
@@ -24,4 +25,18 @@ pub async fn get_pool() -> SmartDatabase {
     let redis = Redis::new(TEST_REDIS_URL);
 
     SmartDatabase::new(db, redis)
+}
+
+/// URL of the database of one test (`isolated_db()`, MAIR-1002) as [`CORE_DB_ROLE`], like
+/// [`core_db_url`] for the shared one.
+pub fn core_db_url_for(db: &IsolatedDb) -> String {
+    db.url_as(CORE_DB_ROLE)
+}
+
+/// `SmartDatabase` on the database of one test, connected as [`CORE_DB_ROLE`].
+pub async fn get_pool_for(db: &IsolatedDb) -> SmartDatabase {
+    let database = Database::new(&core_db_url_for(db)).await;
+    let redis = Redis::new(TEST_REDIS_URL);
+
+    SmartDatabase::new(database, redis)
 }

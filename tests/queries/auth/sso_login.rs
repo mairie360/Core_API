@@ -6,10 +6,8 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::test_setup::queries_setup::{
     get_shared_db, seed_password_hash, ALICE_ID, BOB_ID,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_finds_active_user() {
     let pool = get_pool().await;
 
@@ -25,7 +23,6 @@ async fn test_sso_login_finds_active_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_ignores_email_case() {
     let pool = get_pool().await;
 
@@ -42,7 +39,6 @@ async fn test_sso_login_ignores_email_case() {
 /// whatever its case. (The former test created both accounts to check that the exact spelling won,
 /// which the schema no longer allows.)
 #[tokio::test]
-#[serial]
 async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
     let (_container, host) = get_shared_db().await;
     let pool = get_pool().await;
@@ -84,7 +80,6 @@ async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_reports_archived_user() {
     let pool = get_pool().await;
 
@@ -100,7 +95,6 @@ async fn test_sso_login_reports_archived_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_unknown_email() {
     let pool = get_pool().await;
 
