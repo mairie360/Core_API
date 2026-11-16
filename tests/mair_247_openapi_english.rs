@@ -32,6 +32,25 @@ const FRENCH_WORDS: &[&str] = &[
     "corps",
     "chemin",
     "renvoie",
+    // Unaccented words (review of the MAIR-247 PRs: "Nom du projet." and "Oui" went through).
+    "de",
+    "du",
+    "la",
+    "le",
+    "au",
+    "aux",
+    "nom",
+    "oui",
+    "projet",
+    "retourne",
+    "fichier",
+    "liste",
+    "travaux",
+    "voirie",
+    "chantier",
+    "accueil",
+    "urbanisme",
+    "autoroute",
 ];
 
 fn strings(value: &serde_json::Value, out: &mut Vec<String>) {
@@ -70,5 +89,18 @@ fn mair_247_detector_flags_french() {
     assert!(is_french("Identifiant de la conversation."));
     assert!(is_french("Erreur de base de données."));
     assert!(!is_french("Id of the conversation."));
+    // Unaccented French found in review.
+    for text in [
+        "Nom du projet.",
+        "Description du module.",
+        "Retourne la liste.",
+        "Oui",
+        "Travaux de voirie",
+        "Service urbanisme",
+    ] {
+        assert!(is_french(text), "{text}");
+    }
+    assert!(!is_french("Name of the project."));
+    assert!(!is_french("The user in charge of the project."));
     assert!(!is_french("Jeton expiré"));
 }

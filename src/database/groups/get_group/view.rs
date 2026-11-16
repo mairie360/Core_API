@@ -52,7 +52,7 @@ pub struct Group {
     #[schema(example = 2)]
     owner_id: i32,
     /// Name of the group.
-    #[schema(example = "Service urbanisme")]
+    #[schema(example = "Urban planning department")]
     name: String,
     /// Description of the group, or `null` if it has none.
     #[schema(example = "Building permit processing")]

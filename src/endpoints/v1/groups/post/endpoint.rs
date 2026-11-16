@@ -75,7 +75,7 @@ async fn create_group(
         content = PostGroupView,
         description = "Name and description of the group. Both fields are required; pass an empty string for a missing description.",
         example = json!({
-            "name": "Service urbanisme",
+            "name": "Urban planning department",
             "description": "Building permit processing"
         })
     ),

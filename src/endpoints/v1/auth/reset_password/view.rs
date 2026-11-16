@@ -14,7 +14,7 @@ pub struct ResetPasswordView {
         example = "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35"
     )]
     token: String,
-    /// Nouveau mot de passe en clair.
+    /// New password, in plain text.
     #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
     /// Free description of the device, kept on the session opened by this call.

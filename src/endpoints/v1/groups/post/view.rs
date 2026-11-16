@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupView {
     /// Group name. Required, 1 to 64 characters, no control character.
-    #[schema(min_length = 1, max_length = 64, example = "Service urbanisme")]
+    #[schema(min_length = 1, max_length = 64, example = "Urban planning department")]
     name: String,
     /// Description of the group. Required on creation; pass an empty string if there is none.
     #[schema(max_length = 1000, example = "Building permit processing")]

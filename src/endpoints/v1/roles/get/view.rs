@@ -13,7 +13,7 @@ struct Role {
     #[schema(example = "admin")]
     name: String,
     /// Readable description of the role. Empty string if the role has none.
-    #[schema(example = "Administrateur de la plateforme")]
+    #[schema(example = "Platform administrator")]
     description: String,
 }
 

@@ -109,7 +109,7 @@ async fn trigger_patch_group(
             example = json!({
                 "id": 3,
                 "owner_id": 2,
-                "name": "Service urbanisme",
+                "name": "Urban planning department",
                 "description": "Building permits and prior declarations processing"
             })
         ),
