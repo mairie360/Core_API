@@ -156,6 +156,13 @@ async fn trigger_get_user(
             })
         ),
         (
+            status = 400,
+            description = "`id` in the path is not an integer.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid path: ids are integers.")
+        ),
+        (
             status = 401,
             description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
@@ -193,8 +200,8 @@ async fn trigger_get_user(
 pub async fn get_user(
     caller: AuthenticatedUser,
     state: web::Data<AppState>,
-    id: web::Path<String>,
+    id: web::Path<u64>,
 ) -> Result<impl Responder, GetUserError> {
-    let user = trigger_get_user(state, caller.id, id.parse::<u64>().unwrap_or(0)).await?;
+    let user = trigger_get_user(state, caller.id, id.into_inner()).await?;
     Ok(HttpResponse::Ok().json(user))
 }

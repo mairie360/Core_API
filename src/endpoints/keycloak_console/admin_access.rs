@@ -167,14 +167,11 @@ pub async fn open_keycloak_console(
         }
     })?;
     let user_id = claims.user_id().ok_or(AdminAccessError::InvalidLink)?;
-    // Single use: the first visit records the token id until the token expires (`SET NX EX`).
+    // Single use: the first visit records the token id a little past the token's expiry
+    // (`SET NX EX`), so no replay fits between the end of the marker and the end of the token.
     let first_use = state
         .get_redis()
-        .secure_set_ex(
-            &used_link_key(claims.jti()),
-            "1",
-            claims.remaining_lifetime().max(1),
-        )
+        .secure_set_ex(&used_link_key(claims.jti()), "1", claims.used_marker_ttl())
         .await
         .map_err(|e| {
             tracing::error!("Keycloak console link not recorded in Redis: {e}");

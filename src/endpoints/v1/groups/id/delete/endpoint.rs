@@ -61,6 +61,13 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
             description = "Group deleted. Empty body.",
         ),
         (
+            status = 400,
+            description = "`group_id` in the path is not an integer (from the rights check).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid ID format in URL")
+        ),
+        (
             status = 401,
             description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
             body = String,

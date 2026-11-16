@@ -89,7 +89,7 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
             description = "L'`id` du chemin n'est pas un entier.",
             body = String,
             content_type = "text/plain",
-            example = json!("can not parse \"abc\" to a u64")
+            example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
