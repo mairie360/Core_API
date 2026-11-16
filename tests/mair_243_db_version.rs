@@ -43,15 +43,23 @@ fn compose_files() -> Vec<String> {
     names
 }
 
-/// Tags of the Database images of one compose file.
+/// Tags of the Database images of one compose file. An image reference without a tag yields an
+/// empty tag, so it fails the comparison instead of being skipped.
 fn database_tags(content: &str) -> Vec<String> {
     content
         .lines()
         .filter_map(|line| {
             let rest = line.split("ghcr.io/mairie360/").nth(1)?;
-            let (image, tag) = rest.split_once(':')?;
-            matches!(image, "database" | "liquibase-migrations")
-                .then(|| tag.trim_end_matches(['}', '"', ' ']).to_string())
+            let name_end = rest
+                .find([':', '@', '}', '"', ' '])
+                .unwrap_or(rest.len());
+            let (image, after) = rest.split_at(name_end);
+            matches!(image, "database" | "liquibase-migrations").then(|| {
+                after
+                    .strip_prefix(':')
+                    .map(|tag| tag.trim_end_matches(['}', '"', ' ']).to_string())
+                    .unwrap_or_default()
+            })
         })
         .collect()
 }
@@ -90,4 +98,18 @@ fn compose_files_no_longer_name_the_template_image() {
             "{name} still names the template image `service_name`"
         );
     }
+}
+
+#[test]
+fn an_untagged_or_digest_pinned_database_image_is_not_skipped() {
+    let compose = "image: ghcr.io/mairie360/database:3.4.0\n\
+                   image: ghcr.io/mairie360/liquibase-migrations\n\
+                   image: ${DB_IMAGE:-ghcr.io/mairie360/database:3.4.0}\n\
+                   image: ghcr.io/mairie360/database@sha256:abc\n\
+                   image: ghcr.io/mairie360/other:1.0.0";
+    assert_eq!(
+        database_tags(compose),
+        vec!["3.4.0", "", "3.4.0", ""],
+        "every Database image is listed, a missing tag is an empty one"
+    );
 }
