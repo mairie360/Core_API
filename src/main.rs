@@ -1,4 +1,4 @@
-// Voir lib.rs : versions multiples de dépendances transitives hors de notre contrôle.
+// See lib.rs: several versions of transitive dependencies out of our control.
 #![allow(clippy::multiple_crate_versions)]
 
 use actix_web::{middleware, web, App, HttpServer};
@@ -149,9 +149,9 @@ async fn main() -> std::io::Result<()> {
             // of auth.<domain>) and `/internal/keycloak-console/verify` (Traefik ForwardAuth),
             // outside the JWT-protected `/api` scope.
             .configure(keycloak_console_config)
-            // Routes /api publiques (refresh du JWT) : avant le scope protégé, qui sinon les capte
+            // Public /api routes (JWT refresh): before the protected scope, which would catch them otherwise
             .configure(public_config)
-            // 3. Endpoints Protégés par JWT
+            // 3. Endpoints protected by JWT
             // The last `wrap` runs first: JwtMiddleware validates the JWT, then session_guard
             // rejects it if its session was revoked (MAIR-226).
             .service(

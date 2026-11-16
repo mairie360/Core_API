@@ -1,10 +1,10 @@
 use crate::database::groups::get_group::Group;
 use utoipa::ToSchema;
 
-/// Détail d'un groupe.
+/// Detail of a group.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetGroupResultView {
-    /// Le groupe demandé.
+    /// The requested group.
     group: Group,
 }
 

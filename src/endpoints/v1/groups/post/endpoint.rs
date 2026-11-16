@@ -64,25 +64,25 @@ async fn create_group(
 #[utoipa::path(
     post,
     path = "",
-    summary = "Créer un groupe",
-    description = "Crée un groupe dont l'utilisateur porté par le JWT devient le propriétaire \
-                   (`owner_id`). Il n'en est pas membre pour autant : il faut l'ajouter \
-                   explicitement via `POST /api/v1/groups/{group_id}/users/` pour qu'il \
-                   apparaisse dans `GET /api/v1/groups/`.\n\n\
-                   La réponse ne contient que l'identifiant attribué ; relire le groupe complet \
-                   avec `GET /api/v1/groups/{group_id}/`.",
+    summary = "Create a group",
+    description = "Creates a group whose owner (`owner_id`) is the user of the JWT. \
+                   They are not a member of it for all that: add them \
+                   explicitly through `POST /api/v1/groups/{group_id}/users/` for it to \
+                   show up in `GET /api/v1/groups/`.\n\n\
+                   The response only holds the assigned id; read the full group again \
+                   with `GET /api/v1/groups/{group_id}/`.",
     request_body(
         content = PostGroupView,
-        description = "Nom et description du groupe. Les deux champs sont obligatoires ; passer une chaîne vide pour une description absente.",
+        description = "Name and description of the group. Both fields are required; pass an empty string for a missing description.",
         example = json!({
             "name": "Service urbanisme",
-            "description": "Instruction des permis de construire"
+            "description": "Building permit processing"
         })
     ),
     responses(
         (
             status = 200,
-            description = "Groupe créé. Le corps contient l'identifiant attribué.",
+            description = "Group created. The body holds the assigned id.",
             body = PostGroupResultView,
             example = json!({ "id": 3 })
         ),
@@ -95,7 +95,7 @@ async fn create_group(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")

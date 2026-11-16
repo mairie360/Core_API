@@ -84,33 +84,33 @@ async fn trigger_patch_group(
 #[utoipa::path(
     patch,
     path = "",
-    summary = "Modifier un groupe",
-    description = "Met à jour le nom ou la description d'un groupe et renvoie le groupe tel \
-                   qu'enregistré. Modification partielle : un champ absent ou `null` reste \
-                   inchangé.\n\n\
-                   Au moins un des deux champs doit être fourni : un corps vide est refusé en \
-                   `400`. Le nom, une fois nettoyé de ses espaces de bord, ne peut être ni vide ni \
-                   plus long que 255 caractères.\n\n\
+    summary = "Update a group",
+    description = "Updates the name or the description of a group and returns the group as \
+                   saved. Partial update: an absent or `null` field stays \
+                   unchanged.\n\n\
+                   At least one of the two fields must be given: an empty body is refused with \
+                   `400`. The name, once trimmed, can be neither empty nor \
+                   longer than 255 characters.\n\n\
                    Requires the `update` right on the group (owner, `update_all`, or an ACL): \
                    any other caller gets `403` and the group is left untouched.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
+        ("group_id" = u64, Path, description = "Id of the group.", example = 3)
     ),
     request_body(
         content = PatchGroupView,
-        description = "Champs à modifier. Les deux sont facultatifs, mais au moins un doit être présent.",
-        example = json!({ "description": "Instruction des permis de construire et des déclarations préalables" })
+        description = "Fields to update. Both are optional, but at least one must be present.",
+        example = json!({ "description": "Building permits and prior declarations processing" })
     ),
     responses(
         (
             status = 200,
-            description = "Groupe mis à jour.",
+            description = "Group updated.",
             body = Group,
             example = json!({
                 "id": 3,
                 "owner_id": 2,
                 "name": "Service urbanisme",
-                "description": "Instruction des permis de construire et des déclarations préalables"
+                "description": "Building permits and prior declarations processing"
             })
         ),
         (
@@ -122,7 +122,7 @@ async fn trigger_patch_group(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -150,7 +150,7 @@ async fn trigger_patch_group(
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la mise à jour.",
+            description = "Database error during the update.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

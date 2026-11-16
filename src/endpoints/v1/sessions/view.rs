@@ -3,17 +3,17 @@ use utoipa::ToSchema;
 
 use crate::database::sessions::{format_session_timestamp, Session};
 
-/// Session d'un utilisateur (un appareil connecté).
+/// Session of a user (one signed-in device).
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SessionSchema {
-    /// Identifiant de la session, sérialisé en chaîne bien qu'il soit numérique en base.
+    /// Id of the session, serialized as a string although it is numeric in the database.
     #[schema(example = "1")]
     id: String,
-    /// Description de l'appareil, telle que fournie par le client au login.
+    /// Description of the device, as given by the client at sign-in.
     #[schema(example = "Chrome 140 sur Windows 11")]
     device_info: String,
-    /// Adresse IP depuis laquelle la session a été ouverte. Le rafraîchissement et la révocation
-    /// exigent de repasser par cette même adresse.
+    /// IP address the session was opened from. Refresh and revocation
+    /// must come from that same address.
     #[schema(example = "203.0.113.24")]
     ip_address: String,
     /// Session opening date, RFC 3339 / ISO 8601 in UTC (`AAAA-MM-JJTHH:MM:SSZ`).

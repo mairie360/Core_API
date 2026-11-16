@@ -97,13 +97,13 @@ async fn revoke_request(
                    its JWT alone, use `POST /api/v1/sessions/logout`.",
     request_body(
         content = RevokeRequestView,
-        description = "Jeton de rafraîchissement de la session à révoquer.",
+        description = "Refresh token of the session to revoke.",
         example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
     ),
     responses(
         (
             status = 200,
-            description = "Session révoquée.",
+            description = "Session revoked.",
             body = String,
             content_type = "text/plain",
             example = json!("Session revoked successfully")
@@ -117,14 +117,14 @@ async fn revoke_request(
         ),
         (
             status = 401,
-            description = "JWT de la requête absent, invalide ou expiré, ou jeton de rafraîchissement inconnu, déjà révoqué, ou n'appartenant pas à l'utilisateur connecté.",
+            description = "JWT of the request missing, invalid or expired, or refresh token unknown, already revoked, or not belonging to the signed-in user.",
             body = String,
             content_type = "text/plain",
             example = json!("Session not found.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la révocation.",
+            description = "Database error during the revocation.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -136,9 +136,9 @@ async fn revoke_request(
     )
 )]
 #[post("/revoke")]
-// actix-web exécute chaque handler sur un runtime single-threaded par worker : la future
-// n'a pas besoin d'être Send même si elle retient un HttpRequest (non-Send) à travers un
-// .await, contrairement à ce que suppose ce lint pedantic.
+// actix-web runs every handler on a single-threaded runtime per worker: the future
+// does not need to be Send even if it holds an HttpRequest (not Send) across an
+// .await, unlike what this pedantic lint assumes.
 #[allow(clippy::future_not_send)]
 pub async fn revoke(
     user: AuthenticatedUser,

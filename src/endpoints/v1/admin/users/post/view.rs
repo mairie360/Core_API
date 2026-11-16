@@ -7,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Compte utilisateur créé par un administrateur.
+/// User account created by an administrator.
 #[derive(Deserialize, ToSchema)]
 pub struct CreateUserView {
-    /// Prénom de l'utilisateur.
+    /// First name of the user.
     #[schema(min_length = 1, max_length = 64, example = "Jean")]
     first_name: String,
-    /// Nom de famille de l'utilisateur.
+    /// Last name of the user.
     #[schema(min_length = 1, max_length = 64, example = "Dupont")]
     last_name: String,
-    /// Adresse e-mail, unique sur la plateforme. Doit contenir un `@` et un domaine pointé.
+    /// E-mail address, unique on the platform. Must hold an `@` and a dotted domain.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
     /// Temporary password, 8 to 255 characters, no control character. The user must choose

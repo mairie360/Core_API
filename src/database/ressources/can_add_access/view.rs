@@ -57,7 +57,7 @@ impl CanAddAccessQueryView {
 
     /// # Errors
     ///
-    /// Retourne une erreur si la requête vers la base de données échoue.
+    /// Returns an error if the database query fails.
     pub async fn check(&self, smart_db: &SmartDatabase) -> Result<bool, ApiLibError> {
         if self.access_type() == AccessType::Error {
             return Ok(false);

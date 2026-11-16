@@ -55,7 +55,7 @@ async fn trigger_get_groups(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Lister ses groupes",
+    summary = "List one's groups",
     description = "Returns the groups the JWT's user is a member of, as owner or participant, \
                    sorted by name. No endpoint lists every group of the platform.\n\n\
                    Paginated (MAIR-425): `limit` groups (100 by default, 500 at most) from \
@@ -65,11 +65,11 @@ async fn trigger_get_groups(
     responses(
         (
             status = 200,
-            description = "Groupes de l'utilisateur connecté.",
+            description = "Groups of the signed-in user.",
             body = GetGroupsResultView,
             example = json!({
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" },
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" },
                     { "id": 7, "owner_id": 5, "name": "Astreinte week-end", "description": null }
                 ]
             })
@@ -83,7 +83,7 @@ async fn trigger_get_groups(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")

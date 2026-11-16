@@ -2,8 +2,8 @@ use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
-/// Met à jour le nom et/ou la description d'un groupe (un champ absent est conservé) et renvoie le
-/// groupe modifié. Aucune ligne n'est renvoyée si le groupe n'existe pas.
+/// Updates the name and/or the description of a group (an absent field is kept) and returns the
+/// updated group. No row is returned if the group does not exist.
 #[derive(serde::Deserialize)]
 pub struct UpdateGroupQueryView {
     group_id: u64,

@@ -8,17 +8,17 @@ use utoipa::ToSchema;
 /// `groups.name` is `VARCHAR(64)`.
 pub const MAX_GROUP_NAME_LENGTH: usize = crate::endpoints::validation::MAX_NAME_LENGTH;
 
-/// Modification partielle d'un groupe : seuls les champs fournis sont mis à jour.
+/// Partial update of a group: only the given fields are updated.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct PatchGroupView {
     /// New group name. Absent or `null` to leave it unchanged. Once trimmed, 1 to 64 characters,
     /// no control character.
     #[schema(min_length = 1, max_length = 64, example = "Service urbanisme")]
     name: Option<String>,
-    /// Nouvelle description. Absent ou `null` pour ne pas y toucher.
+    /// New description. Absent or `null` to leave it unchanged.
     #[schema(
         max_length = 1000,
-        example = "Instruction des permis de construire et des déclarations préalables"
+        example = "Building permits and prior declarations processing"
     )]
     description: Option<String>,
 }

@@ -61,16 +61,16 @@ async fn get_user_info(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Lister ses sessions actives",
-    description = "Renvoie les sessions encore valides de l'utilisateur porté par le JWT : celles \
-                   qui ne sont ni expirées ni révoquées. Pour l'historique complet, révocations \
-                   comprises, voir `GET /api/v1/sessions/history`.\n\n\
-                   Le champ `revoked_at` est donc toujours `null` ici. La liste peut être vide si \
-                   la seule session en cours vient d'être révoquée.",
+    summary = "List one's active sessions",
+    description = "Returns the still valid sessions of the user of the JWT: those \
+                   neither expired nor revoked. For the full history, revocations \
+                   included, see `GET /api/v1/sessions/history`.\n\n\
+                   The `revoked_at` field is therefore always `null` here. The list can be empty if \
+                   the only current session has just been revoked.",
     responses(
         (
             status = 200,
-            description = "Sessions actives de l'utilisateur connecté.",
+            description = "Active sessions of the signed-in user.",
             body = GetSessionsResultView,
             example = json!({
                 "sessions": [
@@ -87,14 +87,14 @@ async fn get_user_info(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la lecture des sessions.",
+            description = "Database error while reading the sessions.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

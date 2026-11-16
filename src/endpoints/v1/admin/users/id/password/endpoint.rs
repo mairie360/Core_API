@@ -83,24 +83,24 @@ async fn reset_password(
 #[utoipa::path(
     patch,
     path = "password",
-    summary = "Réinitialiser le mot de passe d'un utilisateur (administration)",
-    description = "Attribue un nouveau mot de passe à un compte, sans passer par l'e-mail de \
-                   réinitialisation. Sert à débloquer un utilisateur qui n'a plus accès à sa boîte \
-                   mail. Réservé aux administrateurs.\n\n\
-                   Le mot de passe doit contenir entre 8 et 255 caractères — comptés en \
-                   caractères, pas en octets. La réponse a un corps vide.",
+    summary = "Reset the password of a user (administration)",
+    description = "Gives an account a new password, without going through the reset \
+                   e-mail. Used to unblock a user who no longer has access to their \
+                   mailbox. Reserved to administrators.\n\n\
+                   The password must hold 8 to 255 characters, counted in \
+                   characters, not in bytes. The response has an empty body.",
     params(
-        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
+        ("userId" = u64, Path, description = "Id of the user.", example = 42)
     ),
     request_body(
         content = AdminResetPasswordView,
-        description = "Nouveau mot de passe, de 8 à 255 caractères.",
+        description = "New password, 8 to 255 characters.",
         example = json!({ "new_password": "NouveauMotDePasse!123" })
     ),
     responses(
         (
             status = 204,
-            description = "Mot de passe réinitialisé. Corps vide.",
+            description = "Password reset. Empty body.",
         ),
         (
             status = 400,
@@ -111,28 +111,28 @@ async fn reset_password(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden: User is not an admin.")
         ),
         (
             status = 404,
-            description = "Aucun utilisateur ne porte cet identifiant.",
+            description = "No user has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknown user")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de l'enregistrement du mot de passe.",
+            description = "Database error while saving the password.",
             body = String,
             content_type = "text/plain",
             example = json!("Database error occurred")

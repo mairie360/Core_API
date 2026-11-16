@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Jeton de rafraîchissement à échanger contre un nouveau jeton d'accès.
+/// Refresh token to exchange for a new access token.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct RefreshRequestView {
-    /// Jeton de rafraîchissement obtenu au login, pour la session à renouveler.
+    /// Refresh token obtained at sign-in, for the session to renew.
     #[schema(
         max_length = 512,
         example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE"

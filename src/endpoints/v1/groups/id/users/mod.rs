@@ -20,7 +20,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                         id_param_pattern: Some("group_id"),
                     })
                     .wrap(from_fn(access_guard_middleware))
-                    .service(post::endpoint::add_user_to_group), // On réutilise le service existant avec sa macro
+                    .service(post::endpoint::add_user_to_group), // Reuses the existing service with its macro
             ),
     );
 }

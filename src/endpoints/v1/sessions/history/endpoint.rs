@@ -64,7 +64,7 @@ async fn get_user_info(
 #[utoipa::path(
     get,
     path = "history",
-    summary = "Consulter l'historique de ses sessions",
+    summary = "Read the history of one's sessions",
     description = "Returns the sessions of the JWT's user, expired and revoked ones included, \
                    newest first, so that they can spot a login they do not recognise. To see the \
                    usable sessions only, use `GET /api/v1/sessions/`.\n\n\
@@ -107,14 +107,14 @@ async fn get_user_info(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la lecture des sessions.",
+            description = "Database error while reading the sessions.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

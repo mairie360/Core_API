@@ -60,21 +60,21 @@ async fn delete_user_from_group(
 #[utoipa::path(
     delete,
     path = "/",
-    summary = "Retirer un utilisateur d'un groupe",
-    description = "Détache un utilisateur d'un groupe. Le compte utilisateur et le groupe sont \
-                   conservés ; seul le lien d'appartenance disparaît.\n\n\
-                   Contrairement à la suppression d'un groupe, cet appel n'est pas idempotent : \
-                   retirer un utilisateur qui n'est pas membre répond `404`.\n\n\
+    summary = "Remove a user from a group",
+    description = "Removes a user from a group. The user account and the group are \
+                   kept; only the membership goes away.\n\n\
+                   Unlike the deletion of a group, this call is not idempotent: \
+                   removing a user who is not a member answers `404`.\n\n\
                    Requires the `update` right on the group (owner, `update_all`, or an ACL): \
                    any other caller gets `403` and the membership is kept.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3),
-        ("user_id" = u64, Path, description = "Identifiant de l'utilisateur à retirer.", example = 42)
+        ("group_id" = u64, Path, description = "Id of the group.", example = 3),
+        ("user_id" = u64, Path, description = "Id of the user to remove.", example = 42)
     ),
     responses(
         (
             status = 204,
-            description = "Utilisateur retiré du groupe. Corps vide.",
+            description = "User removed from the group. Empty body.",
         ),
         (
             status = 400,
@@ -85,7 +85,7 @@ async fn delete_user_from_group(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -99,7 +99,7 @@ async fn delete_user_from_group(
         ),
         (
             status = 404,
-            description = "L'utilisateur n'est pas membre de ce groupe, ou l'un des deux identifiants n'existe pas.",
+            description = "The user is not a member of this group, or one of the two ids does not exist.",
             body = String,
             content_type = "text/plain",
             example = json!("Unknow user.")

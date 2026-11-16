@@ -113,26 +113,26 @@ async fn put_role(
 #[utoipa::path(
     put,
     path = "/{id}",
-    summary = "Remplacer un rôle",
-    description = "Remplace intégralement le nom, la description et le caractère supprimable d'un \
-                   rôle existant. Réservé aux administrateurs.\n\n\
-                   Contrairement au `PATCH`, tous les champs du corps sont écrits : un champ omis \
-                   est écrasé par sa valeur par défaut, pas conservé. Pour une modification \
-                   partielle, utiliser `PATCH /api/v1/admin/roles/{id}`.\n\n\
-                   La réponse a un corps vide ; relire le rôle via `GET /api/v1/admin/roles/`.",
+    summary = "Replace a role",
+    description = "Replaces the name, the description and the deletability of an existing \
+                   role entirely. Reserved to administrators.\n\n\
+                   Unlike `PATCH`, every field of the body is written: an omitted field \
+                   is overwritten with its default value, not kept. For a partial \
+                   update, use `PATCH /api/v1/admin/roles/{id}`.\n\n\
+                   The response has an empty body; read the role again with `GET /api/v1/admin/roles/`.",
     request_body(
         content = RoleWriteView,
-        description = "Nouvelle définition complète du rôle.",
+        description = "New full definition of the role.",
         example = json!({
             "name": "agent",
-            "description": "Agent municipal habilité à instruire les dossiers",
+            "description": "Municipal agent allowed to process the files",
             "can_be_deleted": true
         })
     ),
     responses(
         (
             status = 200,
-            description = "Rôle remplacé. Corps vide.",
+            description = "Role replaced. Empty body.",
         ),
         (
             status = 400,
@@ -143,7 +143,7 @@ async fn put_role(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -157,7 +157,7 @@ async fn put_role(
         ),
         (
             status = 404,
-            description = "Aucun rôle ne porte cet identifiant.",
+            description = "No role has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource was not found.")
@@ -171,7 +171,7 @@ async fn put_role(
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la mise à jour, par exemple un nom déjà pris par un autre rôle.",
+            description = "Database error during the update, for instance a name already taken by another role.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

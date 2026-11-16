@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Réinitialisation du mot de passe à partir du jeton reçu par e-mail.
+/// Password reset from the token received by e-mail.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ResetPasswordView {
-    /// Jeton de réinitialisation reçu par e-mail. À usage unique.
+    /// Reset token received by e-mail. Single-use.
     #[schema(
         pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         example = "2f9a1c74-5b3e-4d21-9c8a-7e6f0b1d4a35"
@@ -17,7 +17,7 @@ pub struct ResetPasswordView {
     /// Nouveau mot de passe en clair.
     #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
-    /// Description libre de l'appareil, conservée sur la session ouverte par cet appel.
+    /// Free description of the device, kept on the session opened by this call.
     #[schema(max_length = 512, example = "Chrome 140 sur Windows 11")]
     device_info: String,
 }
@@ -39,10 +39,10 @@ impl ResetPasswordView {
     }
 }
 
-/// Réinitialisation réussie : jeton de rafraîchissement de la nouvelle session.
+/// Successful reset: refresh token of the new session.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ResetPasswordResponseView {
-    /// Jeton opaque permettant d'obtenir un nouveau JWT via `POST /api/v1/sessions/refresh`.
+    /// Opaque token used to get a new JWT through `POST /api/v1/sessions/refresh`.
     #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     refresh_token: String,
 }

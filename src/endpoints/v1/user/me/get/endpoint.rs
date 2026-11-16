@@ -72,16 +72,16 @@ async fn trigger_get_me(
 #[utoipa::path(
     get,
     path = "/",
-    summary = "Consulter son propre profil",
-    description = "Renvoie la fiche de l'utilisateur porté par le JWT, sans avoir à connaître son \
-                   identifiant. C'est l'appel que font les fronts au chargement pour afficher le \
-                   nom et les groupes de l'utilisateur connecté.\n\n\
-                   Même contenu que `GET /api/v1/user/{id}/`, moins le drapeau `is_archived` : un \
-                   utilisateur archivé ne peut pas se connecter.",
+    summary = "Read one's own profile",
+    description = "Returns the record of the user of the JWT, without having to know their \
+                   id. It is the call the fronts make on load to show the \
+                   name and the groups of the signed-in user.\n\n\
+                   Same content as `GET /api/v1/user/{id}/`, minus the `is_archived` flag: an \
+                   archived user cannot sign in.",
     responses(
         (
             status = 200,
-            description = "Profil de l'utilisateur connecté.",
+            description = "Profile of the signed-in user.",
             body = GetMeResponseView,
             example = json!({
                 "first_name": "Jean",
@@ -93,20 +93,20 @@ async fn trigger_get_me(
                 "role": "agent",
                 "roles": ["agent"],
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
                 ]
             })
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la lecture du profil.",
+            description = "Database error while reading the profile.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

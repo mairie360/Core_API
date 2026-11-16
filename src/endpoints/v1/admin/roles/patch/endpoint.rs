@@ -115,24 +115,24 @@ async fn patch_role(
 #[utoipa::path(
     patch,
     path = "/{id}",
-    summary = "Modifier un rôle",
-    description = "Met à jour partiellement un rôle : seuls les champs présents dans le corps sont \
-                   écrits, les autres restent inchangés. Réservé aux administrateurs.\n\n\
-                   Un corps vide est accepté et ne déclenche aucune écriture, mais l'existence du \
-                   rôle est vérifiée au préalable : un identifiant inconnu répond `404` même sans \
-                   rien à modifier.\n\n\
+    summary = "Update a role",
+    description = "Partially updates a role: only the fields present in the body are \
+                   written, the others stay unchanged. Reserved to administrators.\n\n\
+                   An empty body is accepted and writes nothing, but the existence of the \
+                   role is checked first: an unknown id answers `404` even with \
+                   nothing to update.\n\n\
                    `can_be_deleted`: omitted or `null` keeps the current value. On a system \
                    role (`can_be_deleted = false`) only `false` is accepted (MAIR-678). The \
                    response has an empty body.",
     request_body(
         content = PatchView,
-        description = "Champs à modifier. Tous facultatifs.",
-        example = json!({ "description": "Agent municipal habilité à instruire les dossiers" })
+        description = "Fields to update. All optional.",
+        example = json!({ "description": "Municipal agent allowed to process the files" })
     ),
     responses(
         (
             status = 200,
-            description = "Rôle mis à jour, ou rien à mettre à jour. Corps vide.",
+            description = "Role updated, or nothing to update. Empty body.",
         ),
         (
             status = 400,
@@ -143,7 +143,7 @@ async fn patch_role(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -157,7 +157,7 @@ async fn patch_role(
         ),
         (
             status = 404,
-            description = "Aucun rôle ne porte cet identifiant.",
+            description = "No role has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource was not found.")
@@ -171,7 +171,7 @@ async fn patch_role(
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la mise à jour, par exemple un nom déjà pris par un autre rôle.",
+            description = "Database error during the update, for instance a name already taken by another role.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

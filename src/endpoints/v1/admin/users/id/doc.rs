@@ -7,8 +7,8 @@ use crate::endpoints::v1::admin::users::id::patch::doc::PatchUserDoc;
 use crate::endpoints::v1::admin::users::id::roles::doc::RolesDoc;
 use utoipa::OpenApi;
 
-// Cf. `UsersDoc` : GET, PATCH et DELETE partagent le chemin `/{userId}/` et doivent être fusionnés
-// avant l'imbrication, sinon seul le dernier document imbriqué est publié.
+// See `UsersDoc`: GET, PATCH and DELETE share the path `/{userId}/` and must be merged
+// before nesting, otherwise only the last nested document is published.
 #[derive(OpenApi)]
 #[openapi(nest(
     (path = "/roles", api = RolesDoc),

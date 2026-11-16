@@ -11,17 +11,17 @@ pub const MAX_PAGE_SIZE: u64 = 500;
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct AdminListUsersQuery {
-    /// Page demandée, à partir de 1. Une page au-delà de `total_pages` renvoie une liste vide.
+    /// Requested page, from 1. A page past `total_pages` returns an empty list.
     #[param(minimum = 1, example = 1)]
     page: Option<u64>,
-    /// Taille de page, de 1 à 500 (20 par défaut). Hors de cet intervalle, la requête échoue
-    /// en `400`.
+    /// Page size, from 1 to 500 (20 by default). Outside this range, the request fails
+    /// with `400`.
     #[param(minimum = 1, maximum = 500, example = 20)]
     page_size: Option<u64>,
-    /// Recherche sur le prénom, le nom ou l'email. Insensible à la casse et partielle.
+    /// Search on the first name, the last name or the e-mail. Case-insensitive and partial.
     #[param(max_length = 255, example = "dupont")]
     search: Option<String>,
-    /// Restreint la liste aux membres de ce groupe.
+    /// Restricts the list to the members of this group.
     #[param(example = 3)]
     group_id: Option<u64>,
 }
@@ -44,21 +44,21 @@ impl AdminListUsersQuery {
     }
 }
 
-/// Page de la liste d'administration des utilisateurs.
+/// Page of the administration list of users.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminListUsersResultView {
-    /// Utilisateurs de la page demandée, archivés compris. Vide au-delà de la dernière page.
+    /// Users of the requested page, archived ones included. Empty past the last page.
     pub users: Vec<AdminUserRow>,
-    /// Page effectivement renvoyée, telle que demandée ou 1 par défaut.
+    /// Page actually returned, as requested or 1 by default.
     #[schema(example = 1)]
     pub page: u64,
-    /// Taille de page appliquée, telle que demandée ou 20 par défaut.
+    /// Page size applied, as requested or 20 by default.
     #[schema(example = 20)]
     pub page_size: u64,
-    /// Nombre total d'utilisateurs correspondant aux filtres, toutes pages confondues.
+    /// Total number of users matching the filters, across all pages.
     #[schema(example = 137)]
     pub total: u64,
-    /// Nombre de pages, soit `total` divisé par `page_size`, arrondi au supérieur.
+    /// Number of pages: `total` divided by `page_size`, rounded up.
     #[schema(example = 7)]
     pub total_pages: u64,
 }

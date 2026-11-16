@@ -3,16 +3,16 @@ use crate::database::roles::get_roles::RoleQueryResult;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Rôle de la plateforme.
+/// Role of the platform.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 struct Role {
-    /// Identifiant du rôle.
+    /// Id of the role.
     #[schema(example = 2)]
     id: u64,
-    /// Nom technique du rôle, unique sur la plateforme.
+    /// Technical name of the role, unique on the platform.
     #[schema(example = "agent")]
     name: String,
-    /// Description lisible du rôle. Chaîne vide si le rôle n'en a pas.
+    /// Readable description of the role. Empty string if the role has none.
     #[schema(example = "Agent municipal")]
     description: String,
 }
@@ -27,10 +27,10 @@ impl From<RoleQueryResult> for Role {
     }
 }
 
-/// Liste des rôles, vue administrateur.
+/// List of the roles, administrator view.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AdminGetRolesResultView {
-    /// Tous les rôles définis sur la plateforme.
+    /// Every role defined on the platform.
     roles: Vec<Role>,
 }
 
