@@ -1,6 +1,6 @@
-// Les dépendances transitives (via mairie360_api_lib et le reste de l'arbre) imposent plusieurs
-// versions de certains crates (base64, bitflags, ...) ; on ne maîtrise pas ces versions depuis ce
-// repo, donc ce lint clippy::cargo est désactivé plutôt que laissé en échec permanent.
+// The transitive dependencies (through mairie360_api_lib and the rest of the tree) bring several
+// versions of some crates (base64, bitflags, ...); this repo does not control those versions,
+// so this clippy::cargo lint is disabled rather than left failing for good.
 #![allow(clippy::multiple_crate_versions)]
 pub mod client_ip;
 pub mod database;

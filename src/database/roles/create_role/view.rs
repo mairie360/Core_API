@@ -53,12 +53,12 @@ impl CreateRoleQueryView {
 impl ApiRequestDto for CreateRoleQueryView {
     fn query_sql(&self) -> &'static str {
         match self.can_be_deleted {
-            // Si Some, on inclut la colonne et le paramètre $3
+            // When Some, the column and the parameter $3 are included
             Some(_) => {
                 "INSERT INTO roles (name, description, can_be_deleted)
                         VALUES ($1, $2, $3)"
             }
-            // Si None, on omet la colonne : Postgres appliquera son DEFAULT TRUE
+            // When None, the column is left out: Postgres applies its DEFAULT TRUE
             None => {
                 "INSERT INTO roles (name, description)
                      VALUES ($1, $2)"

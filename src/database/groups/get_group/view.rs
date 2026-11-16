@@ -41,21 +41,21 @@ impl Display for GetGroupQuerView {
     }
 }
 
-/// Groupe d'utilisateurs (service, équipe…) et son propriétaire.
+/// Group of users (department, team…) and its owner.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct Group {
-    /// Identifiant du groupe.
+    /// Id of the group.
     #[schema(example = 3)]
     id: i32,
-    /// Identifiant de l'utilisateur propriétaire du groupe : le seul, avec un administrateur,
-    /// à pouvoir le modifier ou le supprimer.
+    /// Id of the user who owns the group: the only one, with an administrator,
+    /// who can update or delete it.
     #[schema(example = 2)]
     owner_id: i32,
-    /// Nom du groupe.
-    #[schema(example = "Service urbanisme")]
+    /// Name of the group.
+    #[schema(example = "Urban planning department")]
     name: String,
-    /// Description du groupe, ou `null` s'il n'en a pas.
-    #[schema(example = "Instruction des permis de construire")]
+    /// Description of the group, or `null` if it has none.
+    #[schema(example = "Building permit processing")]
     description: Option<String>,
 }
 

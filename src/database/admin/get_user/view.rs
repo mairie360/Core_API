@@ -75,16 +75,16 @@ impl RoleQueryResult {
     }
 }
 
-/// Informations de profil d'un utilisateur, telles que vues par un administrateur.
+/// Profile of a user, as seen by an administrator.
 #[derive(ToSchema, Debug, Deserialize, Eq, PartialEq, Serialize, Clone)]
 pub struct User {
-    /// Prénom de l'utilisateur.
+    /// First name of the user.
     #[schema(example = "Jean")]
     first_name: String,
-    /// Nom de famille de l'utilisateur.
+    /// Last name of the user.
     #[schema(example = "Dupont")]
     last_name: String,
-    /// Adresse e-mail, unique sur la plateforme.
+    /// E-mail address, unique on the platform.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
     /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
@@ -96,10 +96,10 @@ pub struct User {
     #[schema(example = "FR")]
     #[serde(default)]
     phone_country: Option<String>,
-    /// Statut du compte tel qu'il est stocké en base.
+    /// Status of the account as stored in the database.
     #[schema(example = "active")]
     status: String,
-    /// `true` si le compte est archivé : il ne peut plus se connecter.
+    /// `true` if the account is archived: it can no longer sign in.
     #[schema(example = false)]
     is_archived: bool,
 }

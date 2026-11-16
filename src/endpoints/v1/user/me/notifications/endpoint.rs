@@ -38,7 +38,7 @@ impl ResponseError for NotificationSettingsError {
 #[utoipa::path(
     get,
     path = "/notifications/",
-    summary = "Lire ses réglages de notification",
+    summary = "Read one's notification settings",
     description = "Returns the notification settings of the user carried by the JWT, per \
                    channel (e-mail, push, desktop) and per module (messages, projects, \
                    calendar). A user who never saved any setting gets every field `null`: the \
@@ -59,7 +59,7 @@ impl ResponseError for NotificationSettingsError {
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -96,7 +96,7 @@ pub async fn get_my_notification_settings(
 #[utoipa::path(
     patch,
     path = "/notifications/",
-    summary = "Modifier ses réglages de notification",
+    summary = "Update one's notification settings",
     description = "Partially updates the notification settings of the user carried by the JWT, \
                    creating them on the first call, and returns the stored state.\n\n\
                    For every field, absent keeps the stored value, `null` resets it to the \
@@ -129,7 +129,7 @@ pub async fn get_my_notification_settings(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")

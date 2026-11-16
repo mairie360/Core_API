@@ -46,14 +46,14 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
 #[utoipa::path(
     delete,
     path = "",
-    summary = "Supprimer un groupe",
+    summary = "Delete a group",
     description = "Deletes a group and the memberships of its members. The user accounts \
                    themselves are untouched.\n\n\
                    Requires the `update` right on the group (owner, `update_all`, or an ACL): \
                    any other caller gets `403` and the group is kept. An unknown group answers \
                    `404` from the rights check.",
     params(
-        ("group_id" = u64, Path, description = "Identifiant du groupe.", example = 3)
+        ("group_id" = u64, Path, description = "Id of the group.", example = 3)
     ),
     responses(
         (
@@ -69,7 +69,7 @@ async fn trigger_delete_group(state: web::Data<AppState>, id: u64) -> Result<(),
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")

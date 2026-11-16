@@ -66,16 +66,16 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
 #[utoipa::path(
     post,
     path = "/",
-    summary = "Créer un rôle",
-    description = "Crée un rôle, identifié par son nom qui doit être unique. Réservé aux \
-                   administrateurs.\n\n\
-                   La réponse a un corps vide et ne renvoie pas l'identifiant attribué : relire la \
-                   liste avec `GET /api/v1/admin/roles/` pour le récupérer.\n\n\
+    summary = "Create a role",
+    description = "Creates a role, identified by its name, which must be unique. Reserved to \
+                   administrators.\n\n\
+                   The response has an empty body and does not return the assigned id: read the \
+                   list again with `GET /api/v1/admin/roles/` to get it.\n\n\
                    Only a duplicate name answers `409`; any other database failure answers \
                    `500`.",
     request_body(
         content = RoleWriteView,
-        description = "Nom, description et caractère supprimable du rôle.",
+        description = "Name, description and deletability of the role.",
         example = json!({
             "name": "agent",
             "description": "Agent municipal",
@@ -85,7 +85,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
     responses(
         (
             status = 200,
-            description = "Rôle créé. Corps vide.",
+            description = "Role created. Empty body.",
         ),
         (
             status = 400,
@@ -96,14 +96,14 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden: User is not an admin.")

@@ -5,16 +5,16 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Profil de l'utilisateur connecté.
+/// Profile of the signed-in user.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetMeResponseView {
-    /// Prénom de l'utilisateur connecté.
+    /// First name of the signed-in user.
     #[schema(example = "Jean")]
     first_name: String,
-    /// Nom de famille de l'utilisateur connecté.
+    /// Last name of the signed-in user.
     #[schema(example = "Dupont")]
     last_name: String,
-    /// Adresse e-mail, unique sur la plateforme.
+    /// E-mail address, unique on the platform.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
     /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
@@ -25,7 +25,7 @@ pub struct GetMeResponseView {
     /// ISO 3166-1 alpha-2 code of the phone number's country (`FR`), `null` when `phone` is.
     #[schema(example = "FR")]
     phone_country: Option<String>,
-    /// Statut du compte tel qu'il est stocké en base.
+    /// Status of the account as stored in the database.
     #[schema(example = "active")]
     status: String,
     /// Name of the user's role: a user holds one role (MAIR-564), the one carried by the `role`
@@ -37,7 +37,7 @@ pub struct GetMeResponseView {
     #[schema(example = json!(["agent"]))]
     #[deprecated(note = "read `role`, a user holds one role")]
     roles: Vec<String>,
-    /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
+    /// Groups the user is a member of. Empty if they belong to none.
     groups: Vec<Group>,
 }
 

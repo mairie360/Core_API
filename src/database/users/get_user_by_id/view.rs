@@ -76,8 +76,8 @@ impl GetUserByIdQueryResultView {
 
     /// # Panics
     ///
-    /// Panique si `Self` ne peut pas être sérialisé en JSON (ne devrait pas arriver : tous les
-    /// champs sont des types `serde`-compatibles standards).
+    /// Panics if `Self` cannot be serialized to JSON (should not happen: every field is a
+    /// standard `serde`-compatible type).
     #[must_use]
     pub fn json(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap()

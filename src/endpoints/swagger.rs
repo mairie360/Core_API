@@ -49,29 +49,29 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
 | `500` | Database, Redis or external service failure. |
 ",
         contact(
-            name = "Équipe Mairie 360",
+            name = "Mairie 360 team",
             url = "https://github.com/mairie360"
         ),
         license(
-            name = "Propriétaire",
+            name = "Proprietary",
             identifier = "LicenseRef-mairie360-proprietary"
         )
     ),
     servers(
-        (url = "http://localhost:3000", description = "Développement local (cargo run)"),
-        (url = "http://development.mairie360.fr", description = "Pile Docker de développement (nginx)")
+        (url = "http://localhost:3000", description = "Local development (cargo run)"),
+        (url = "http://development.mairie360.fr", description = "Development Docker stack (nginx)")
     ),
     tags(
         (name = "Auth", description = "Login and password lifecycle (forgotten password, reset, forced change at first connection). Accounts are created by administrators only (`POST /api/v1/admin/users/`)."),
-        (name = "Sessions", description = "Sessions de l'utilisateur connecté : liste des sessions actives, historique, rafraîchissement et révocation."),
-        (name = "Users", description = "Annuaire des utilisateurs et profil de l'utilisateur connecté."),
-        (name = "Roles", description = "Consultation des rôles disponibles sur la plateforme."),
-        (name = "Groups", description = "Groupes d'utilisateurs et gestion de leurs membres."),
-        (name = "Admin - Users", description = "Administration des comptes utilisateurs. Réservé aux administrateurs."),
-        (name = "Admin - Roles", description = "Administration des rôles et de leurs permissions. Réservé aux administrateurs."),
+        (name = "Sessions", description = "Sessions of the signed-in user: active sessions, history, refresh and revocation."),
+        (name = "Users", description = "Directory of the users and profile of the signed-in user."),
+        (name = "Roles", description = "Reading the roles available on the platform."),
+        (name = "Groups", description = "Groups of users and management of their members."),
+        (name = "Admin - Users", description = "Administration of the user accounts. Reserved to administrators."),
+        (name = "Admin - Roles", description = "Administration of the roles and their permissions. Reserved to administrators."),
         (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on), and temporary links to the realm admin console. Reserved to administrators."),
         (name = "Keycloak console", description = "Browser and ingress routes of the temporary access to the Keycloak admin console (MAIR-609): served under `auth.<domain>` (`/admin-access`) or in the cluster only (`/internal/keycloak-console/verify`, Traefik ForwardAuth). Not for the BFFs."),
-        (name = "Service", description = "Sondes techniques non authentifiées, utilisées par Docker et Kubernetes.")
+        (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes.")
     ),
     nest(
         (path = "/api/v1", api = V1Doc),
@@ -79,7 +79,7 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (path = "/", api = ReadyDoc),
         (path = "/", api = KeycloakConsoleDoc),
     ),
-    modifiers(&SecurityAddon) // On ajoute le modifier ici
+    modifiers(&SecurityAddon)
 )]
 pub struct ApiDoc;
 
@@ -111,8 +111,8 @@ impl Modify for SecurityAddon {
                     .scheme(HttpAuthScheme::Bearer)
                     .bearer_format("JWT")
                     .description(Some(
-                        "JWT obtenu via `POST /api/v1/auth/login` (en-tête de réponse \
-                         `Authorization`) puis renouvelé via `POST /api/v1/sessions/refresh`.",
+                        "JWT obtained from `POST /api/v1/auth/login` (`Authorization` response \
+                         header), then renewed through `POST /api/v1/sessions/refresh`.",
                     ))
                     .build(),
             ),

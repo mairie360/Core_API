@@ -1,10 +1,10 @@
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
-/// Renvoie l'`user_id` de la session active associée à un refresh token.
+/// Returns the `user_id` of the active session tied to a refresh token.
 ///
-/// Sert au refresh du JWT, qui doit fonctionner quand le JWT est expiré : le refresh token est
-/// alors la seule preuve d'identité. Aucune ligne (token inconnu, révoqué ou expiré) donne
+/// Used by the JWT refresh, which must work when the JWT has expired: the refresh token is then
+/// the only proof of identity. No row (unknown, revoked or expired token) gives
 /// `DbError::NotFound`.
 #[derive(serde::Deserialize)]
 pub struct GetActiveSessionUserIdQueryView {

@@ -94,22 +94,22 @@ async fn get_user(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Consulter la fiche complète d'un utilisateur (administration)",
-    description = "Renvoie tout ce que la plateforme sait d'un utilisateur : état civil, \
-                   téléphone, statut, archivage, rôles, groupes et **historique complet de ses \
-                   sessions** (révoquées et expirées comprises). Réservé aux administrateurs.\n\n\
-                   C'est la vue la plus large sur un compte ; `GET /api/v1/user/{id}/`, ouverte à \
-                   tous, ne renvoie ni les sessions ni le détail des rôles.\n\n\
+    summary = "Read the full record of a user (administration)",
+    description = "Returns everything the platform knows about a user: identity, \
+                   phone, status, archiving, roles, groups and **full history of their \
+                   sessions** (revoked and expired ones included). Reserved to administrators.\n\n\
+                   It is the widest view of an account; `GET /api/v1/user/{id}/`, open to \
+                   everyone, returns neither the sessions nor the detail of the roles.\n\n\
                    `sessions` holds the latest 100 sessions of the account, newest first \
                    (MAIR-425), and `groups` its first 100 groups by name.\n\n\
                    An unknown `userId` answers `404`; a database failure answers `500`.",
     params(
-        ("userId" = u64, Path, description = "Identifiant de l'utilisateur.", example = 42)
+        ("userId" = u64, Path, description = "Id of the user.", example = 42)
     ),
     responses(
         (
             status = 200,
-            description = "Fiche complète de l'utilisateur.",
+            description = "Full record of the user.",
             body = GetUserResultView,
             example = json!({
                 "user": {
@@ -124,7 +124,7 @@ async fn get_user(
                 "role": { "id": 2, "name": "agent", "description": "Agent municipal" },
                 "roles": [{ "id": 2, "name": "agent", "description": "Agent municipal" }],
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Service urbanisme", "description": "Instruction des permis de construire" }
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
                 ],
                 "sessions": [
                     {
@@ -140,21 +140,21 @@ async fn get_user(
         ),
         (
             status = 400,
-            description = "L'`userId` du chemin n'est pas un entier.",
+            description = "The `userId` of the path is not an integer.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden: User is not an admin.")

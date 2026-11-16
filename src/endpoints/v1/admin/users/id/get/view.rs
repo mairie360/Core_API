@@ -7,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Session d'un utilisateur, telle que vue par un administrateur.
+/// Session of a user, as seen by an administrator.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 struct SessionResultView {
-    /// Identifiant de la session, sérialisé en chaîne bien qu'il soit numérique en base.
+    /// Id of the session, serialized as a string although it is numeric in the database.
     #[schema(example = "1")]
     id: String,
-    /// Description de l'appareil, telle que fournie par le client au login.
+    /// Description of the device, as given by the client at sign-in.
     #[schema(example = "Chrome 140 sur Windows 11")]
     device_info: String,
-    /// Adresse IP depuis laquelle la session a été ouverte.
+    /// IP address the session was opened from.
     #[schema(example = "203.0.113.24")]
     ip_address: String,
     /// Session opening date, RFC 3339 / ISO 8601 in UTC (`AAAA-MM-JJTHH:MM:SSZ`).
@@ -43,16 +43,16 @@ impl From<&Session> for SessionResultView {
     }
 }
 
-/// Rôle porté par l'utilisateur consulté.
+/// Role held by the user being read.
 #[derive(Deserialize, ToSchema, Serialize, Debug, Clone, PartialEq, Eq)]
 struct RoleResultView {
-    /// Identifiant du rôle.
+    /// Id of the role.
     #[schema(example = 2)]
     id: i32,
-    /// Nom technique du rôle.
+    /// Technical name of the role.
     #[schema(example = "agent")]
     name: String,
-    /// Description du rôle, ou `null` s'il n'en a pas.
+    /// Description of the role, or `null` if it has none.
     #[schema(example = "Agent municipal")]
     description: Option<String>,
 }
@@ -67,10 +67,10 @@ impl From<&RoleQueryResult> for RoleResultView {
     }
 }
 
-/// Fiche complète d'un utilisateur pour l'administration : profil, rôles, groupes et sessions.
+/// Full record of a user for the administration: profile, roles, groups and sessions.
 #[derive(Deserialize, ToSchema, Serialize, Debug, PartialEq, Eq)]
 pub struct GetUserResultView {
-    /// État civil et statut du compte.
+    /// Identity and status of the account.
     user: User,
     /// The user's role: a user holds one role (MAIR-564). `null` when the user has none.
     #[schema(required = true)]
@@ -79,9 +79,9 @@ pub struct GetUserResultView {
     /// roles. At most one entry, empty when the user has none. Read `role` instead.
     #[schema(deprecated)]
     roles: Vec<RoleResultView>,
-    /// Groupes dont l'utilisateur est membre. Vide s'il n'appartient à aucun.
+    /// Groups the user is a member of. Empty if they belong to none.
     groups: Vec<Group>,
-    /// Historique complet des sessions, révoquées et expirées comprises.
+    /// Full history of the sessions, revoked and expired ones included.
     sessions: Vec<SessionResultView>,
 }
 

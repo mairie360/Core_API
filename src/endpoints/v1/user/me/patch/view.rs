@@ -12,13 +12,13 @@ use utoipa::ToSchema;
 #[allow(clippy::option_option)]
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchMeView {
-    /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.
+    /// New first name. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "Jean")]
     first_name: Option<String>,
-    /// Nouveau nom de famille. Absent ou `null` pour ne pas y toucher.
+    /// New last name. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "Dupont")]
     last_name: Option<String>,
-    /// Nouvelle adresse e-mail. Absent ou `null` pour ne pas y toucher.
+    /// New e-mail address. Absent or `null` to leave it unchanged.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: Option<String>,
     /// New phone number, as typed: national format (`06 12 34 56 78`, digits, spaces, `.`, `-`,

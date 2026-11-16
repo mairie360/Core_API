@@ -8,17 +8,17 @@ use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Modification partielle d'un utilisateur par un administrateur : seuls les champs fournis sont mis à jour.
+/// Partial update of a user by an administrator: only the given fields are updated.
 #[allow(clippy::option_option)]
 #[derive(Deserialize, ToSchema)]
 pub struct PatchUserView {
-    /// Nouveau prénom. Absent ou `null` pour ne pas y toucher.
+    /// New first name. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "Jean")]
     first_name: Option<String>,
-    /// Nouveau nom de famille. Absent ou `null` pour ne pas y toucher.
+    /// New last name. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "Dupont")]
     last_name: Option<String>,
-    /// Nouvelle adresse e-mail. Elle doit rester unique, sinon l'appel échoue en `404`.
+    /// New e-mail address. It must stay unique, otherwise the call fails with `404`.
     #[schema(max_length = 320, format = Email, example = "j.dupont@mairie360.fr")]
     email: Option<String>,
     /// New phone number, as typed: national format (`07 98 76 54 32`) with `phone_country`, or

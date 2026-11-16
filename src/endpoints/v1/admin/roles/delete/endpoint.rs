@@ -71,50 +71,50 @@ async fn delete_role(id: u64, state: web::Data<AppState>) -> Result<(), DeleteEr
 #[utoipa::path(
     delete,
     path = "/{id}",
-    summary = "Supprimer un rôle",
-    description = "Supprime un rôle. Réservé aux administrateurs.\n\n\
-                   Certains rôles sont protégés par leur drapeau `can_be_deleted` : leur \
-                   suppression est refusée en `403`. Ce `403` a donc deux causes possibles sur ce \
-                   endpoint : appelant non administrateur, ou rôle non supprimable — le message du \
-                   corps permet de les distinguer.\n\n\
-                   Contrairement à la suppression d'un groupe, l'appel n'est pas idempotent : un \
-                   identifiant inconnu répond `404`.",
+    summary = "Delete a role",
+    description = "Deletes a role. Reserved to administrators.\n\n\
+                   Some roles are protected by their `can_be_deleted` flag: deleting them is \
+                   refused with `403`. This `403` therefore has two possible causes on this \
+                   endpoint: a caller who is not an administrator, or a role that cannot be deleted; \
+                   the message of the body tells them apart.\n\n\
+                   Unlike the deletion of a group, the call is not idempotent: an unknown \
+                   id answers `404`.",
     responses(
         (
             status = 204,
-            description = "Rôle supprimé. Corps vide.",
+            description = "Role deleted. Empty body.",
         ),
         (
             status = 400,
-            description = "L'`id` du chemin n'est pas un entier.",
+            description = "The `id` of the path is not an integer.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid path: ids are integers.")
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'appelant n'est pas administrateur, ou le rôle est marqué non supprimable.",
+            description = "The caller is not an administrator, or the role is marked as not deletable.",
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource cannot be deleted.")
         ),
         (
             status = 404,
-            description = "Aucun rôle ne porte cet identifiant.",
+            description = "No role has this id.",
             body = String,
             content_type = "text/plain",
             example = json!("The requested resource was not found.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la suppression.",
+            description = "Database error during the deletion.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

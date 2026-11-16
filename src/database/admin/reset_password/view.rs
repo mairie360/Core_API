@@ -24,8 +24,8 @@ impl AdminResetPasswordResult {
     }
 }
 
-/// Remplace le mot de passe d'un utilisateur, lève son éventuelle première connexion et révoque ses
-/// sessions actives, en une seule requête. Renvoie `false` si l'utilisateur n'existe pas.
+/// Replaces the password of a user, clears their pending first sign-in if any and revokes their
+/// active sessions, in one query. Returns `false` if the user does not exist.
 #[derive(serde::Deserialize)]
 pub struct AdminResetPasswordQueryView {
     user_id: u64,

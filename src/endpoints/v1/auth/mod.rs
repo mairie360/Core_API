@@ -25,14 +25,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 }
 
-/// Crée une nouvelle session sans toucher aux sessions existantes de l'utilisateur.
+/// Creates a new session without touching the user's existing sessions.
 ///
-/// Chaque connexion (appareil) garde sa propre session active. Les sessions ne se ferment que
-/// par expiration, déconnexion, révocation explicite ou archivage du compte.
+/// Each sign-in (device) keeps its own active session. Sessions only end through
+/// expiry, sign-out, explicit revocation or archiving of the account.
 ///
-/// On ne révoque pas « la session précédente du même appareil » : l'IP vue par Core est celle
-/// du BFF et `device_info` est un User-Agent, donc deux appareils distincts partagent souvent le
-/// même couple et se déconnectaient mutuellement.
+/// "The previous session of the same device" is not revoked: the IP Core sees is the
+/// BFF's and `device_info` is a User-Agent, so two different devices often share the
+/// same pair and used to sign each other out.
 pub async fn create_new_session(smart_db: &SmartDatabase, view: CreateSessionQueryView) {
     smart_db
         .execute(view)

@@ -88,7 +88,7 @@ impl ResponseError for LoginError {
 
 /// # Errors
 ///
-/// Retourne une erreur si la génération du JWT échoue.
+/// Returns an error if the JWT generation fails.
 pub async fn generate_session(
     user_id: u64,
     device_info: &str,

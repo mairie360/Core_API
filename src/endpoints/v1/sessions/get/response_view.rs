@@ -4,10 +4,10 @@ use utoipa::ToSchema;
 
 use crate::endpoints::v1::sessions::view::SessionSchema;
 
-/// Sessions actives de l'utilisateur connecté.
+/// Active sessions of the signed-in user.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GetSessionsResultView {
-    /// Sessions encore valides, de la plus récente à la plus ancienne. Peut être vide.
+    /// Still valid sessions, newest first. Can be empty.
     sessions: Vec<SessionSchema>,
 }
 

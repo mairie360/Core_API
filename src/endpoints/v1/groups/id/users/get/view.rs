@@ -1,11 +1,11 @@
 use crate::database::ids::id_from_sql;
 use utoipa::ToSchema;
 
-/// Membres d'un groupe.
+/// Members of a group.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct GetGroupUsersResultView {
-    /// Identifiants des membres du groupe, à repasser à `GET /api/v1/user/?ids=…` pour obtenir
-    /// leurs fiches. Vide si le groupe n'a aucun membre.
+    /// Ids of the group members, to pass to `GET /api/v1/user/?ids=…` to get
+    /// their records. Empty if the group has no member.
     #[schema(example = json!([1, 2, 5]))]
     users: Vec<u64>,
 }

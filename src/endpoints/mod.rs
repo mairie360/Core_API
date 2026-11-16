@@ -30,7 +30,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.app_data(path_config()).configure(v1::config);
 }
 
-/// Routes sous `/api` accessibles sans JWT valide, à enregistrer avant le scope `/api`.
+/// Routes under `/api` reachable without a valid JWT, to register before the `/api` scope.
 pub fn public_config(cfg: &mut web::ServiceConfig) {
     cfg.configure(v1::sessions::public_config);
 }

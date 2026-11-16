@@ -4,10 +4,10 @@ use utoipa::ToSchema;
 
 use crate::endpoints::v1::sessions::view::SessionSchema;
 
-/// Historique des sessions de l'utilisateur connecté, révoquées et expirées comprises.
+/// History of the sessions of the signed-in user, revoked and expired ones included.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct HistoryResponseView {
-    /// Toutes les sessions de l'utilisateur, expirées et révoquées comprises.
+    /// Every session of the user, expired and revoked ones included.
     sessions: Vec<SessionSchema>,
 }
 

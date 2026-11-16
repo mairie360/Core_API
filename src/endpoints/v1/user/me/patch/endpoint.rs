@@ -136,21 +136,21 @@ async fn trigger_patch_me(
 #[utoipa::path(
     patch,
     path = "/",
-    summary = "Modifier son propre profil",
-    description = "Met à jour l'état civil, l'adresse e-mail ou le téléphone de l'utilisateur \
-                   porté par le JWT. Modification partielle : seuls les champs présents dans le \
-                   corps sont écrits, les autres restent inchangés.\n\n\
-                   Un corps vide est accepté et ne déclenche aucune écriture : la réponse reste \
-                   `200`. Un champ `null` est ignoré, sauf `phone` : `null` ou `\"\"` supprime \
-                   le téléphone (MAIR-480).\n\n\
-                   Le téléphone s'envoie tel que saisi, au format national avec \
-                   `phone_country` (`\"06 12 34 56 78\"` + `\"FR\"`) ou en E.164 \
-                   (`\"+33612345678\"`). Il est validé selon le plan de numérotation du pays et \
-                   relu en E.164 par `GET /api/v1/user/me/`.\n\n\
-                   Le mot de passe et les rôles ne se modifient pas ici : passer par \
-                   `/api/v1/auth/forgot_password` pour le mot de passe et par \
-                   `/api/v1/admin/users/` pour les rôles. La réponse a un corps vide ; il faut \
-                   rappeler `GET /api/v1/user/me/` pour relire le profil.",
+    summary = "Update one's own profile",
+    description = "Updates the identity, the e-mail address or the phone of the user \
+                   of the JWT. Partial update: only the fields present in the \
+                   body are written, the others stay unchanged.\n\n\
+                   An empty body is accepted and writes nothing: the response stays \
+                   `200`. A `null` field is ignored, except `phone`: `null` or `\"\"` removes \
+                   the phone (MAIR-480).\n\n\
+                   The phone is sent as typed, in national format with \
+                   `phone_country` (`\"06 12 34 56 78\"` + `\"FR\"`) or in E.164 \
+                   (`\"+33612345678\"`). It is validated against the numbering plan of the country and \
+                   read back in E.164 by `GET /api/v1/user/me/`.\n\n\
+                   The password and the roles are not changed here: use \
+                   `/api/v1/auth/forgot_password` for the password and \
+                   `/api/v1/admin/users/` for the roles. The response has an empty body; call \
+                   `GET /api/v1/user/me/` again to read the profile back.",
     request_body(
         content = PatchMeView,
         description = "Fields to change, all optional: absent or `null` is ignored, except `phone` where `null` or `\"\"` removes the phone.",
@@ -163,7 +163,7 @@ async fn trigger_patch_me(
     responses(
         (
             status = 200,
-            description = "Profil mis à jour, ou rien à mettre à jour. Corps vide.",
+            description = "Profile updated, or nothing to update. Empty body.",
         ),
         (
             status = 400,
@@ -174,7 +174,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -203,7 +203,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la mise à jour du profil.",
+            description = "Database error while updating the profile.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")

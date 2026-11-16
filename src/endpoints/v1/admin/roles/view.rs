@@ -5,17 +5,17 @@ use crate::endpoints::validation::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Rôle à créer ou à remplacer entièrement.
+/// Role to create or to replace entirely.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RoleWriteView {
-    /// Nom technique du rôle, unique sur la plateforme.
+    /// Technical name of the role, unique on the platform.
     #[schema(min_length = 1, max_length = 64, example = "agent")]
     name: String,
-    /// Description lisible du rôle. Passer une chaîne vide s'il n'y en a pas.
+    /// Readable description of the role. Pass an empty string if there is none.
     #[schema(max_length = 1000, example = "Agent municipal")]
     description: String,
-    /// `false` protège le rôle : `DELETE /api/v1/admin/roles/{id}` le refusera en `403`.
-    /// Absent ou `null` laisse la base appliquer sa valeur par défaut.
+    /// `false` protects the role: `DELETE /api/v1/admin/roles/{id}` refuses it with `403`.
+    /// Absent or `null` lets the database apply its default value.
     #[schema(example = true)]
     can_be_deleted: Option<bool>,
 }

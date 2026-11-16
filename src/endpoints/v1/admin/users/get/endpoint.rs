@@ -76,19 +76,19 @@ async fn list_users(
 #[utoipa::path(
     get,
     path = "",
-    summary = "Lister les utilisateurs (administration)",
-    description = "Vue d'administration paginée sur les comptes utilisateurs, archivés compris, \
-                   avec téléphone, statut et rôles. Réservé aux administrateurs.\n\n\
-                   À distinguer de `GET /api/v1/user/`, qui est l'annuaire ouvert à tous : celui-ci \
-                   masque les comptes archivés, ne pagine pas et ne renvoie ni téléphone ni statut.\n\n\
-                   `total` compte les utilisateurs correspondant aux filtres, toutes pages \
-                   confondues ; `total_pages` en découle. Une `page` au-delà de `total_pages` \
-                   renvoie une liste vide, pas une erreur.",
+    summary = "List the users (administration)",
+    description = "Paginated administration view of the user accounts, archived ones included, \
+                   with phone, status and roles. Reserved to administrators.\n\n\
+                   Not to be confused with `GET /api/v1/user/`, the directory open to everyone: that one \
+                   hides the archived accounts, is not paginated and returns neither phone nor status.\n\n\
+                   `total` counts the users matching the filters, across all \
+                   pages; `total_pages` follows from it. A `page` past `total_pages` \
+                   returns an empty list, not an error.",
     params(AdminListUsersQuery),
     responses(
         (
             status = 200,
-            description = "Page d'utilisateurs correspondant aux filtres.",
+            description = "Page of users matching the filters.",
             body = AdminListUsersResultView,
             example = json!({
                 "users": [
@@ -120,21 +120,21 @@ async fn list_users(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
         ),
         (
             status = 403,
-            description = "L'utilisateur est authentifié mais n'est pas administrateur.",
+            description = "The user is authenticated but is not an administrator.",
             body = String,
             content_type = "text/plain",
             example = json!("Forbidden: User is not an admin.")
         ),
         (
             status = 500,
-            description = "Erreur de base de données lors de la lecture ou du comptage.",
+            description = "Database error while reading or counting.",
             body = String,
             content_type = "text/plain",
             example = json!("Database error occurred")

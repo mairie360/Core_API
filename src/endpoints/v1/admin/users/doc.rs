@@ -3,8 +3,8 @@ use crate::endpoints::v1::admin::users::id::doc::IdDoc;
 use crate::endpoints::v1::admin::users::post::doc::CreateUserDoc;
 use utoipa::OpenApi;
 
-// utoipa remplace (au lieu de fusionner) les opérations de deux `nest` qui aboutissent au même
-// chemin : les opérations de `/` sont donc réunies dans un seul document avant d'être imbriquées.
+// utoipa replaces (instead of merging) the operations of two `nest` that lead to the same
+// path: the operations of `/` are therefore gathered in one document before being nested.
 #[derive(OpenApi)]
 #[openapi(nest(
     (path = "/{userId}", api = IdDoc),

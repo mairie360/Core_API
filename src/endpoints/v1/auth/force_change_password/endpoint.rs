@@ -117,8 +117,8 @@ async fn force_change_password_trigger(
     Ok(())
 }
 
-/// Le jeton de première connexion est à usage unique : une fois le mot de passe enregistré, les deux
-/// clés posées au login sont supprimées. Un échec Redis n'annule pas le changement déjà persisté.
+/// The first sign-in token is single-use: once the password is saved, the two keys
+/// set at sign-in are deleted. A Redis failure does not undo the change already persisted.
 async fn consume_first_connection_token(state: &AppState, token: &str, user_id: u64) {
     let redis = state.get_redis();
     for key in [

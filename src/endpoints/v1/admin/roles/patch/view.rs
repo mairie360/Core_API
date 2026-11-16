@@ -5,16 +5,16 @@ use crate::endpoints::validation::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Modification partielle d'un rôle : seuls les champs fournis sont mis à jour.
+/// Partial update of a role: only the given fields are updated.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PatchView {
-    /// Nouveau nom du rôle. Absent ou `null` pour ne pas y toucher.
+    /// New name of the role. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "agent")]
     name: Option<String>,
-    /// Nouvelle description. Absent ou `null` pour ne pas y toucher.
+    /// New description. Absent or `null` to leave it unchanged.
     #[schema(
         max_length = 1000,
-        example = "Agent municipal habilité à instruire les dossiers"
+        example = "Municipal agent allowed to process the files"
     )]
     description: Option<String>,
     /// Omitted or `null`: the current value is kept. `false` protects the role against deletion

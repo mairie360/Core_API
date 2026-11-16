@@ -39,7 +39,7 @@ impl ResponseError for PreferencesError {
 #[utoipa::path(
     get,
     path = "/preferences/",
-    summary = "Lire ses préférences d'affichage",
+    summary = "Read one's display preferences",
     description = "Returns the display preferences of the user carried by the JWT. A user who \
                    never saved any preference gets every field `null`: the application defaults \
                    apply.",
@@ -62,7 +62,7 @@ impl ResponseError for PreferencesError {
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
@@ -99,7 +99,7 @@ pub async fn get_my_preferences(
 #[utoipa::path(
     patch,
     path = "/preferences/",
-    summary = "Modifier ses préférences d'affichage",
+    summary = "Update one's display preferences",
     description = "Partially updates the display preferences of the user carried by the JWT, \
                    creating them on the first call, and returns the stored state.\n\n\
                    For every field, absent keeps the stored value, `null` resets it to the \
@@ -135,7 +135,7 @@ pub async fn get_my_preferences(
         ),
         (
             status = 401,
-            description = "En-tête `Authorization` absent, JWT invalide ou expiré, ou session révoquée.",
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")

@@ -4,14 +4,14 @@ use crate::endpoints::validation::{
 };
 use utoipa::ToSchema;
 
-/// Groupe à créer ; l'appelant en devient propriétaire.
+/// Group to create; the caller becomes its owner.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupView {
     /// Group name. Required, 1 to 64 characters, no control character.
-    #[schema(min_length = 1, max_length = 64, example = "Service urbanisme")]
+    #[schema(min_length = 1, max_length = 64, example = "Urban planning department")]
     name: String,
-    /// Description du groupe. Obligatoire à la création ; passer une chaîne vide s'il n'y en a pas.
-    #[schema(max_length = 1000, example = "Instruction des permis de construire")]
+    /// Description of the group. Required on creation; pass an empty string if there is none.
+    #[schema(max_length = 1000, example = "Building permit processing")]
     description: String,
 }
 
@@ -25,10 +25,10 @@ impl PostGroupView {
     }
 }
 
-/// Groupe créé.
+/// Group created.
 #[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema)]
 pub struct PostGroupResultView {
-    /// Identifiant attribué au groupe créé, à réutiliser dans `/api/v1/groups/{group_id}/`.
+    /// Id assigned to the created group, to reuse in `/api/v1/groups/{group_id}/`.
     #[schema(example = 3)]
     id: u64,
 }

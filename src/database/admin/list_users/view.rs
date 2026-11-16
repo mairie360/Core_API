@@ -41,7 +41,7 @@ fn search_term(search: Option<&str>) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Page d'utilisateurs pour l'administration, rôles inclus, triée par nom, prénom puis identifiant.
+/// Page of users for the administration, roles included, sorted by last name, first name then id.
 ///
 /// Two statements (MAIR-477, measured by the MAIR-474 load test): without a search, the ids of the
 /// page are read in the order of `idx_users_name_order` (Database 3.0.1) instead of sorting every
@@ -114,7 +114,7 @@ impl Display for AdminListUsersQueryView {
     }
 }
 
-/// Nombre total d'utilisateurs correspondant au même filtre que `AdminListUsersQueryView`.
+/// Total number of users matching the same filter as `AdminListUsersQueryView`.
 #[derive(Debug, serde::Deserialize)]
 pub struct AdminCountUsersQueryView {
     params: Vec<QueryParam>,
@@ -160,30 +160,30 @@ impl Display for AdminCountUsersQueryView {
     }
 }
 
-/// Rôle porté par un utilisateur, dans la liste d'administration.
+/// Role held by a user, in the administration list.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRole {
-    /// Identifiant du rôle.
+    /// Id of the role.
     #[schema(example = 2)]
     pub id: i32,
-    /// Nom technique du rôle.
+    /// Technical name of the role.
     #[schema(example = "agent")]
     pub name: String,
 }
 
-/// Ligne de la liste d'administration des utilisateurs, comptes archivés compris.
+/// Row of the administration list of users, archived accounts included.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub struct AdminUserRow {
-    /// Identifiant de l'utilisateur.
+    /// Id of the user.
     #[schema(example = 42)]
     pub id: i32,
-    /// Prénom de l'utilisateur.
+    /// First name of the user.
     #[schema(example = "Jean")]
     pub first_name: String,
-    /// Nom de famille de l'utilisateur.
+    /// Last name of the user.
     #[schema(example = "Dupont")]
     pub last_name: String,
-    /// Adresse e-mail, unique sur la plateforme.
+    /// E-mail address, unique on the platform.
     #[schema(format = Email, example = "jean.dupont@mairie360.fr")]
     pub email: String,
     /// Phone number in E.164 (`+33612345678`), or `null` when the user has none. A legacy number
@@ -195,11 +195,11 @@ pub struct AdminUserRow {
     #[schema(example = "FR")]
     #[serde(default)]
     pub phone_country: Option<String>,
-    /// Statut du compte tel qu'il est stocké en base.
+    /// Status of the account as stored in the database.
     #[schema(example = "active")]
     pub status: String,
-    /// `true` si le compte est archivé. Ces comptes apparaissent ici mais pas dans
-    /// `GET /api/v1/user/`, et ne peuvent plus se connecter.
+    /// `true` if the account is archived. These accounts show up here but not in
+    /// `GET /api/v1/user/`, and can no longer sign in.
     #[schema(example = false)]
     pub is_archived: bool,
     /// The user's role: a user holds one role (MAIR-564), an account created without one gets
