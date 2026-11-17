@@ -27,7 +27,7 @@ x-depends-on: &depends-on
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:3.4.0
+    image: ghcr.io/mairie360/database:3.5.0
     restart: always
     container_name: mairie360-db-core-api
     environment:
@@ -47,7 +47,7 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:3.4.0
+    image: ghcr.io/mairie360/liquibase-migrations:3.5.0
     container_name: mairie360-liquibase-core-api
     depends_on:
       postgres:
@@ -125,6 +125,8 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY must be set, run the matching *_test.sh script}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY must be set, run the matching *_test.sh script}
       JWT_TIMEOUT: 3600
+      # MAIR-805: seals the TOTP secrets (stack_secrets.sh), the second factor answers 503 without it.
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY must be set, run the matching *_test.sh script}
       # MAIR-609: public realm URL, enables the Keycloak console routes (no Keycloak needed,
       # sign-in stays off without KEYCLOAK_REALM_URL / KEYCLOAK_CLIENT_ID).
       KEYCLOAK_ISSUER: http://auth.development.mairie360.fr/realms/mairie360

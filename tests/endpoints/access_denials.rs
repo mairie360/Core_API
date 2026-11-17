@@ -31,6 +31,13 @@ macro_rules! init_app {
         test::init_service(
             App::new()
                 .app_data($state.clone())
+                // MAIR-805: the second factor routes need their cipher to answer.
+                .app_data(web::Data::new(
+                    core_api::second_factor::SecretCipher::from_base64(
+                        "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=",
+                    )
+                    .unwrap(),
+                ))
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -475,6 +482,7 @@ async fn only_the_authentication_routes_are_public() {
             "POST /api/v1/auth/forgot_password",
             "POST /api/v1/auth/keycloak",
             "POST /api/v1/auth/login",
+            "POST /api/v1/auth/login/2fa",
             "POST /api/v1/auth/logout",
             "POST /api/v1/auth/reset_password",
             "POST /api/v1/sessions/refresh",

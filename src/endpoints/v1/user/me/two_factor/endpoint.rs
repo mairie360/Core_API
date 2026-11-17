@@ -163,7 +163,7 @@ pub async fn get_two_factor_status(
                    base32 for manual entry. The second factor is **not** active until \
                    `POST /api/v1/user/me/2fa/confirm/` receives a first valid code. Calling it \
                    again before the confirmation replaces the pending secret.\n\n\
-                   Rate limited per user: ten codes or enrolments per 15 minutes.",
+                   Rate limited per user: twenty codes or enrolments per 15 minutes.",
     responses(
         (
             status = 200,
@@ -253,7 +253,7 @@ pub async fn setup_two_factor(
     description = "Checks the first code of the authenticator application. When it is right, the \
                    second factor becomes active (from the next login) and ten single-use backup \
                    codes are returned: **this is the only time they are visible**.\n\n\
-                   Rate limited per user: ten codes or enrolments per 15 minutes.",
+                   Rate limited per user: twenty codes or enrolments per 15 minutes.",
     request_body(
         content = TwoFactorCodeView,
         description = "The current code shown by the application.",
@@ -367,7 +367,7 @@ pub async fn confirm_two_factor(
                    current password **and** a valid code (application or backup code), so a stolen \
                    session alone cannot weaken the account. A mairie that made the second factor \
                    mandatory (MAIR-808) refuses it.\n\n\
-                   Rate limited per user: ten codes or enrolments per 15 minutes.",
+                   Rate limited per user: twenty codes or enrolments per 15 minutes.",
     request_body(
         content = DisableTwoFactorView,
         description = "Current password and a valid code.",
@@ -448,13 +448,11 @@ pub async fn disable_two_factor(
         Some(hash) => is_password_valid(id_to_sql(auth_user.id), payload.password(), hash).await,
         None => false,
     };
-    // The code is checked (and spent) even after a wrong password: both answers look the same.
-    let code_ok = two_factor::verify_code(db, secrets, auth_user.id, payload.code()).await;
-    match code_ok {
-        Ok(()) if password_ok => {}
-        Ok(()) | Err(VerifyError::InvalidCode) => return Err(TwoFactorError::InvalidCredentials),
-        Err(e) => return Err(e.into()),
+    // A wrong password must not spend a code: the agent keeps their backup codes.
+    if !password_ok {
+        return Err(TwoFactorError::InvalidCredentials);
     }
+    two_factor::verify_code(db, secrets, auth_user.id, payload.code()).await?;
     let mut tx = db.begin().await.map_err(|e| db_error("begin", &e))?;
     tx.execute(&DeleteBackupCodesQueryView::new(auth_user.id))
         .await
@@ -473,7 +471,7 @@ pub async fn disable_two_factor(
     description = "Replaces the backup codes of the caller with ten new ones; the old ones stop \
                    working. Requires a valid code (application or backup code). The new codes are \
                    visible **only in this response**.\n\n\
-                   Rate limited per user: ten codes or enrolments per 15 minutes.",
+                   Rate limited per user: twenty codes or enrolments per 15 minutes.",
     request_body(
         content = TwoFactorCodeView,
         description = "A valid code of the application, or an unspent backup code.",

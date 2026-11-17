@@ -163,7 +163,7 @@ impl Default for RateLimits {
             refresh_per_ip: RateLimiter::new(60, MINUTE),
             password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
             console_access_per_user: RateLimiter::new(10, 15 * MINUTE),
-            second_factor_per_user: RateLimiter::new(10, 15 * MINUTE),
+            second_factor_per_user: RateLimiter::new(20, 15 * MINUTE),
             login_2fa_per_ip: RateLimiter::new(30, MINUTE),
             login_2fa_per_user: RateLimiter::new(10, 15 * MINUTE),
         }

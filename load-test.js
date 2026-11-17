@@ -24,6 +24,7 @@
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
+import crypto from 'k6/crypto';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -170,6 +171,39 @@ function login(account) {
   return { jwt: res.headers.Authorization.replace(/^Bearer /, ''), refresh: res.json('refresh_token') };
 }
 
+// MAIR-805: second factor. RFC 6238 code of `secret` (base32) at `step`, as an authenticator app computes it.
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function totp(secret, step) {
+  let bits = '';
+  for (const ch of secret) bits += BASE32.indexOf(ch).toString(2).padStart(5, '0');
+  const key = new Uint8Array(Math.floor(bits.length / 8));
+  for (let i = 0; i < key.length; i += 1) key[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  const counter = new Uint8Array(8);
+  for (let i = 7, n = step; i >= 0; i -= 1, n = Math.floor(n / 256)) counter[i] = n % 256;
+  const mac = new Uint8Array(crypto.hmac('sha1', key.buffer, counter.buffer, 'binary'));
+  const o = mac[19] & 0x0f;
+  const n = (((mac[o] & 0x7f) << 24) | (mac[o + 1] << 16) | (mac[o + 2] << 8) | mac[o + 3]) % 1000000;
+  return String(n).padStart(6, '0');
+}
+const currentStep = () => Math.floor(Date.now() / 30000);
+
+/** Active account whose second factor is enrolled: its session, TOTP secret and backup codes. */
+function protectedAccount(tag) {
+  const account = activeAccount(tag);
+  const session = login(account);
+  const headers = bearer(session.jwt);
+  const secret = fixture('POST', '/api/v1/user/me/2fa/setup/', undefined, { headers }).json('secret');
+  const codes = fixture('POST', '/api/v1/user/me/2fa/confirm/', { code: totp(secret, currentStep()) }, { headers }).json('backup_codes');
+  return { account, session, headers, secret, codes };
+}
+
+/** Password login of a protected account: the login token of the second step (202). */
+function loginToken(account) {
+  return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+    expected: [202],
+  }).json('token');
+}
+
 /**
  * Password reset token the API e-mailed to `email`: the `RESET_URL` variable of the
  * `account-password-reset` template, read back from the fake Resend's request journal.
@@ -270,6 +304,8 @@ const readHandlers = {
     });
   },
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
+  'GET /api/v1/user/me/2fa/': ({ request }) =>
+    check(request(), { 'second factor status 200': (r) => r.status === 200 && r.json('enabled') === false }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/preferences/': ({ request }) =>
@@ -413,6 +449,47 @@ const writeHandlers = {
     check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/preferences/': ({ request }) =>
     check(request({ body: { theme: 'light' } }), { 'patch preferences 200': (r) => r.status === 200 }),
+
+  // MAIR-805: second factor, on throwaway accounts (the Admin is never enrolled).
+  'POST /api/v1/user/me/2fa/setup/': ({ request }) => {
+    const account = activeAccount('2fa-setup');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt) }), { '2fa setup 200': (r) => r.status === 200 && !!r.json('secret') });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/2fa/confirm/': ({ request }) => {
+    const account = activeAccount('2fa-confirm');
+    const headers = bearer(login(account).jwt);
+    const secret = fixture('POST', '/api/v1/user/me/2fa/setup/', undefined, { headers }).json('secret');
+    const res = request({ body: { code: totp(secret, currentStep()) }, headers });
+    check(res, { '2fa confirm 200': (r) => r.status === 200 && r.json('backup_codes').length === 10 });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/2fa/backup-codes/': ({ request }) => {
+    const p = protectedAccount('2fa-codes');
+    check(request({ body: { code: p.codes[0] }, headers: p.headers }), {
+      '2fa backup codes 200': (r) => r.status === 200 && r.json('backup_codes').length === 10,
+    });
+    deleteUser(p.account.id);
+  },
+  'POST /api/v1/user/me/2fa/disable/': ({ request }) => {
+    const p = protectedAccount('2fa-disable');
+    check(request({ body: { password: PASSWORD, code: p.codes[0] }, headers: p.headers }), {
+      '2fa disable 204': (r) => r.status === 204,
+    });
+    deleteUser(p.account.id);
+  },
+  'POST /api/v1/auth/login/2fa': ({ request }) => {
+    const p = protectedAccount('2fa-login');
+    const res = request({ body: { token: loginToken(p.account), code: p.codes[0] } });
+    check(res, { '2fa login 200': (r) => r.status === 200 && !!r.headers.Authorization && !!r.json('refresh_token') });
+    deleteUser(p.account.id);
+  },
+  'DELETE /api/v1/admin/users/{userId}/2fa': ({ request }) => {
+    const p = protectedAccount('2fa-reset');
+    check(request({ path: { userId: p.account.id } }), { 'admin reset 2fa 204': (r) => r.status === 204 });
+    deleteUser(p.account.id);
+  },
 
   // Administration of accounts: create → patch → password → roles → delete.
   'POST /api/v1/admin/users/': ({ request }) => {

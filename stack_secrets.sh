@@ -24,6 +24,11 @@ if [ -z "${JWT_PRIVATE_KEY:-}" ] || [ -z "${JWT_PUBLIC_KEY:-}" ]; then
     JWT_PUBLIC_KEY="$(printf '%s\n' "$JWT_PRIVATE_KEY" | openssl pkey -pubout)" || return 1
 fi
 
+# MAIR-805: key sealing the TOTP secrets of the run (base64 of 32 random bytes).
+if [ -z "${TOTP_ENCRYPTION_KEY:-}" ]; then
+    TOTP_ENCRYPTION_KEY="$(openssl rand -base64 32)" || return 1
+fi
+
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
 jwt_header="$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64url)"
@@ -33,4 +38,4 @@ jwt_signature="$(printf '%s.%s' "$jwt_header" "$jwt_payload" \
 ADMIN_JWT="$jwt_header.$jwt_payload.$jwt_signature"
 unset jwt_header jwt_payload jwt_signature
 
-export JWT_SECRET JWT_PRIVATE_KEY JWT_PUBLIC_KEY ADMIN_JWT
+export JWT_SECRET JWT_PRIVATE_KEY JWT_PUBLIC_KEY TOTP_ENCRYPTION_KEY ADMIN_JWT

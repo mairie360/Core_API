@@ -57,6 +57,13 @@ fn database_error(e: &ApiLibError) -> ResetTwoFactorError {
     responses(
         (status = 204, description = "Second factor removed (or there was none). Sessions closed. Empty body."),
         (
+            status = 400,
+            description = "`userId` is not an integer.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid path: ids are integers.")
+        ),
+        (
             status = 401,
             description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
             body = String,

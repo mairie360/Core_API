@@ -18,7 +18,7 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs
 
 # Version of the ghcr.io/mairie360/database and liquibase-migrations images the tests start
 # (mairie360_api_lib::test_setup), kept equal to the compose files and to every other API: the
-# Database release 3.4.0 (MAIR-243). mairie360_api_lib passes -Dallow_template_admin=true where the
+# Database release 3.5.0 (MAIR-243, MAIR-805). mairie360_api_lib passes -Dallow_template_admin=true where the
 # migration needs it. An exported TEST_DB_VERSION still wins.
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database

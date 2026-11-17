@@ -54,6 +54,12 @@ and verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib
 get a fresh key pair per run from `stack_secrets.sh`; the dev compose uses the lib's committed test pair, accepted
 only with `JWT_ALLOW_WEAK_SECRET=true`.
 
+Second factor key (MAIR-805): `TOTP_ENCRYPTION_KEY` (base64 of 32 bytes, `openssl rand -base64 32`) seals the TOTP
+secrets with AES-256-GCM before they reach `user_totp`. Without it `main.rs` registers no `SecretCipher`: the
+`/user/me/2fa/*` setup routes answer `503` and an account that already has a factor cannot log in (`503`, never a
+session without the factor). Losing the key loses every enrolled secret (administrators reset them). The test
+stacks get a random key per run from `stack_secrets.sh`; the dev compose has a throwaway one.
+
 E-mails (MAIR-522, `src/emails/`): every e-mail is a **published Resend template** filled in by Core,
 never a body written in the code. `emails::PasswordResetEmail` implements the lib's `EmailTemplate` (alias
 `account-password-reset`, variables `USER_FIRST_NAME`, `RESET_URL`, `EXPIRE_MINUTES`, optional
@@ -392,6 +398,18 @@ exist). The erasure is guarded by `anonymize_user()` itself (`23001`). A system 
 false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` answer `403` to
 `can_be_deleted: true`, so the role can be neither renamed nor deleted afterwards. A custom role
 that an administrator protects becomes a system role for good.
+
+### Second factor (MAIR-805)
+
+TOTP (RFC 6238, SHA-1, 6 digits, 30 s, ±1 step) plus 10 single-use backup codes, all in `second_factor.rs`
+(primitives, no I/O), `two_factor.rs` (service: verification, anti-replay by `user_totp.last_used_step` spent
+with an atomic `UPDATE … RETURNING`, backup codes stored as Argon2 hashes) and `database/second_factor.rs`
+(query views). Routes: `/user/me/2fa/` (status, `setup`, `confirm`, `disable`, `backup-codes`), `POST
+/auth/login/2fa` and the administrator reset `DELETE /admin/users/{userId}/2fa` (revokes the sessions, `AUDIT`
+log line). A password login on a protected account answers `202 {"status":"2fa_required","token"}` with **no
+session**; the token lives in Redis (`2fa_login/<token>`, 5 minutes, burnt after 5 wrong codes) and opens no
+route. `reset_password` goes through the same second step: owning the mailbox is not a second factor.
+Redis `secure_set_ex` only writes an absent key (`SET NX`); use `set_ex` to overwrite.
 
 ### Sessions / auth flow
 
