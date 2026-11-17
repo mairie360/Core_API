@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "ca11d24654dd8a153b5405a1c2c5102e72b9cc56", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-16 23:11 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "2ba84c16995294b49d607e8445b9d3a724c32771", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 01:34 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `ca11d24` | 2026-11-16 23:11 UTC |
+| dev | — | `2ba84c1` | 2026-11-17 01:34 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#401](https://github.com/mairie360/Core_API/pull/401))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#395) ([#395](https://github.com/mairie360/Core_API/pull/395))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#391) ([#391](https://github.com/mairie360/Core_API/pull/391))
 - docs: MAIR-246 Update the stale CLAUDE.md files (#389) ([#389](https://github.com/mairie360/Core_API/pull/389))
@@ -22,6 +23,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#401](https://github.com/mairie360/Core_API/pull/401))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#395) ([#395](https://github.com/mairie360/Core_API/pull/395))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#391) ([#391](https://github.com/mairie360/Core_API/pull/391))
 - docs: MAIR-246 Update the stale CLAUDE.md files (#389) ([#389](https://github.com/mairie360/Core_API/pull/389))
@@ -42,6 +44,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 01:34 UTC | dev | — | `2ba84c1` | [run](https://github.com/mairie360/Core_API/actions/runs/43992420227) |
 | 2026-11-16 23:11 UTC | dev | — | `ca11d24` | [run](https://github.com/mairie360/Core_API/actions/runs/43974508602) |
 | 2026-11-16 17:46 UTC | dev | — | `a772ae3` | [run](https://github.com/mairie360/Core_API/actions/runs/43919013944) |
 | 2026-11-16 17:29 UTC | dev | — | `611f4c9` | [run](https://github.com/mairie360/Core_API/actions/runs/43916502710) |
