@@ -21,8 +21,9 @@ pub async fn own_db() -> Rc<IsolatedDb> {
         return db;
     }
     let db = Rc::new(isolated_db().await);
-    OWN_DB.with(|cell| *cell.borrow_mut() = Some(db.clone()));
-    db
+    // Two overlapping first calls both create a database: keep the first one stored and drop the
+    // other, so every caller of the test sees the same rows.
+    OWN_DB.with(|cell| cell.borrow_mut().get_or_insert(db).clone())
 }
 
 /// Superuser URL of the database of the calling test, for the fixtures (`get_raw_pool`).
