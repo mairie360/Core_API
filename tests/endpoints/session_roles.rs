@@ -30,10 +30,18 @@ macro_rules! init_app {
     };
 }
 
+/// Sets the JWT environment once: every module of this binary uses the same secret (MAIR-1002), and
+/// the tests run in parallel, so writing it in each test would race with the readers.
+fn init_env() {
+    static JWT_ENV: std::sync::Once = std::sync::Once::new();
+    JWT_ENV.call_once(|| {
+        std::env::set_var("JWT_SECRET", "refresh_test_secret");
+        std::env::set_var("JWT_TIMEOUT", "3600");
+    });
+}
+
 async fn setup() -> (web::Data<AppState>, PgPool) {
-    // Set on every test, not once: the other modules of this binary set their own secret.
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
-    std::env::set_var("JWT_TIMEOUT", "3600");
+    init_env();
     let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     (state, get_raw_pool(host.clone()).await)
@@ -207,8 +215,7 @@ async fn mair_529_refresh_jwt_reflects_role_changes() {
 
 #[tokio::test]
 async fn mair_529_jwt_issued_before_the_role_claim_still_decodes() {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
-    std::env::set_var("JWT_TIMEOUT", "3600");
+    init_env();
     // A JWT signed by the lib (empty `role`, no `sid`), like those issued before MAIR-529.
     let jwt = mairie360_api_lib::jwt_manager::generate_jwt("1", "").unwrap();
 
@@ -220,7 +227,7 @@ async fn mair_529_jwt_issued_before_the_role_claim_still_decodes() {
 
 #[tokio::test]
 async fn mair_529_jwt_still_carrying_a_roles_claim_still_decodes() {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    init_env();
     // Signed by Core#293, which added a `roles` array next to `role`: valid until it expires.
     let exp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
