@@ -93,7 +93,7 @@ read `v_users_sso_export`, find or create each account in the realm through the 
 `realm-management` roles `manage-users`, `view-realm`, `manage-realm`), map Core roles as realm
 roles, disable archived accounts, then link through `link_user_identity()`. Replayable without
 duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
-compose files pin it and `.cargo/config.toml` sets `TEST_DB_VERSION` for the testcontainers.
+compose files and the testcontainers (`TEST_DB_VERSION`) run the Database image of the stage (`${UPSTREAM_TAG:-dev}`, MAIR-998).
 
 Administration mirroring (MAIR-142, `src/keycloak/sync.rs`): when `main.rs` registers a
 `KeycloakAdminClient` as app data (confidential client only), `POST /api/v1/admin/users/`,
@@ -504,7 +504,7 @@ re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (se
 other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
 `GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
 The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the
-`TEST_DB_VERSION` image (`3.4.0`, Database main with #166).
+`TEST_DB_VERSION` image (`dev`, MAIR-998; the functions ship with Database #166).
 
 ### Access matrix (MAIR-288)
 

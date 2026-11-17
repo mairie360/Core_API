@@ -101,3 +101,51 @@ async fn session_history_and_group_members_are_paginated() {
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["users"].as_array().unwrap().len(), 2);
 }
+
+/// MAIR-534: the directory and the members of a group refuse the same out-of-range `limit` / `offset` as the
+/// session history and the group list.
+#[tokio::test]
+async fn directory_and_group_members_refuse_out_of_range_pages() {
+    std::sync::LazyLock::force(&INIT);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let app = test::init_service(
+        App::new()
+            .app_data(state.clone())
+            .configure(public_config)
+            .service(
+                web::scope("/api")
+                    .wrap(actix_web::middleware::from_fn(session_guard))
+                    .wrap(JwtMiddleware)
+                    .configure(config),
+            ),
+    )
+    .await;
+    // An administrator: the bounds are checked for a caller the directory policy lets through.
+    let token = generate_jwt(
+        &mairie360_api_lib::test_setup::queries_setup::ADMIN_ID
+            .get()
+            .unwrap()
+            .to_string(),
+        "admin",
+    )
+    .unwrap();
+    let get = |uri: &str| {
+        test::TestRequest::get()
+            .uri(uri)
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request()
+    };
+
+    for uri in [
+        "/api/v1/user/?limit=0",
+        "/api/v1/user/?limit=abc",
+        "/api/v1/user/?limit=1001",
+        "/api/v1/groups/1/users/?limit=501",
+        "/api/v1/groups/1/users/?limit=0",
+        "/api/v1/groups/1/users/?offset=1000001",
+    ] {
+        let resp = test::call_service(&app, get(uri)).await;
+        let status = resp.status();
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
+    }
+}

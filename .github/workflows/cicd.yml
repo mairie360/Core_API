@@ -14,12 +14,12 @@ permissions:
 
 jobs:
   APIs-cicd:
-    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@f97543ef5161ba2a707812cf92d61c0aa1747269 # v5.6.1
+    uses: mairie360/CICD/.github/workflows/APIs_cicd.yml@v5.11.0
     permissions:
       contents: write
       packages: write
       id-token: write
     with:
       package_name: core-api
-      cicd_version: v5.6.1
+      cicd_version: v5.11.0
     secrets: inherit # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit
