@@ -4,11 +4,10 @@ use crate::common::{get_pool, get_raw_pool};
 use core_api::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use sqlx::Row;
 
 async fn insert_role(name: &str, can_be_deleted: bool) -> u64 {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_raw_pool(host.clone()).await;
     sqlx::query("INSERT INTO roles (name, description, can_be_deleted) VALUES ($1, $1, $2)")
         .bind(name)
@@ -26,7 +25,7 @@ async fn insert_role(name: &str, can_be_deleted: bool) -> u64 {
 }
 
 async fn is_forbidden(id: u64, name: &str) -> Result<bool, ApiLibError> {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let view = IsRenameForbiddenQueryView::new(id, name);
     println!("{view}");

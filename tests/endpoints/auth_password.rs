@@ -3,11 +3,8 @@ use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::{
-    jwt_manager::generate_jwt,
-    password::is_hashed,
-    security::JwtMiddleware,
-    state::AppState,
-    test_setup::queries_setup::{get_shared_db, ADMIN_ID},
+    jwt_manager::generate_jwt, password::is_hashed, security::JwtMiddleware, state::AppState,
+    test_setup::queries_setup::ADMIN_ID,
 };
 use serde_json::json;
 use sqlx::Row;
@@ -90,7 +87,7 @@ fn admin_auth_header() -> (&'static str, String) {
 #[tokio::test]
 async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );
@@ -119,7 +116,7 @@ async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
 #[tokio::test]
 async fn login_migrates_legacy_plaintext_password_to_a_hash() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );
@@ -148,7 +145,7 @@ async fn login_migrates_legacy_plaintext_password_to_a_hash() {
 #[tokio::test]
 async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migrating() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );
@@ -177,7 +174,7 @@ async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migra
 #[tokio::test]
 async fn login_works_after_a_hashed_login_migration() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );

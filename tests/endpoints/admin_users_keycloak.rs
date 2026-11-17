@@ -17,7 +17,7 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::{
     security::JwtMiddleware,
     state::AppState,
-    test_setup::queries_setup::{get_shared_db, seed_password_hash, ADMIN_ID},
+    test_setup::queries_setup::{seed_password_hash, ADMIN_ID},
 };
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
@@ -39,7 +39,7 @@ struct Env {
 
 async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     Env {
         state: web::Data::new(AppState::new(String::new(), core_db_url().await).await),
         pool: get_pool().await,

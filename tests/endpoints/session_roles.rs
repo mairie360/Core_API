@@ -7,10 +7,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::session_jwt::decode_session_jwt;
-use mairie360_api_lib::{
-    password::hash_password, security::JwtMiddleware, state::AppState,
-    test_setup::queries_setup::get_shared_db,
-};
+use mairie360_api_lib::{password::hash_password, security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
@@ -37,7 +34,7 @@ async fn setup() -> (web::Data<AppState>, PgPool) {
     // Set on every test, not once: the other modules of this binary set their own secret.
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     (state, get_raw_pool(host.clone()).await)
 }

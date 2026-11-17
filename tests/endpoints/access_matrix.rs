@@ -11,7 +11,7 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, health, keycloak_console_config, public_config, ready};
 use core_api::session_jwt::{generate_session_jwt, user_role_name};
 use mairie360_api_lib::password::hash_password;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde::Deserialize;
@@ -320,7 +320,7 @@ async fn every_role_gets_what_the_matrix_says() {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
     std::env::remove_var("DIRECTORY_GUEST_ACCESS");
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let raw = get_raw_pool(host.clone()).await;
@@ -422,7 +422,7 @@ impl Drop for GuestAccessClosed {
 async fn the_directory_can_be_closed_to_guests() {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     let raw = get_raw_pool(host.clone()).await;

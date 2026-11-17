@@ -7,7 +7,6 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::Value;
 
@@ -20,7 +19,7 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
 #[tokio::test]
 async fn session_history_and_group_members_are_paginated() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;

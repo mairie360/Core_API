@@ -4,7 +4,7 @@ use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
 use core_api::database::users::list_directory::{DirectoryUser, ListDirectoryUsersQueryView};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
+use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
 
 fn ids(users: &[DirectoryUser]) -> Vec<i32> {
     users.iter().map(|user| user.id).collect()
@@ -12,7 +12,7 @@ fn ids(users: &[DirectoryUser]) -> Vec<i32> {
 
 #[tokio::test]
 async fn directory_searches_non_archived_users_sorted_by_name() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("Directory");

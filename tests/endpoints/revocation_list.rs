@@ -12,7 +12,7 @@ use core_api::session_jwt::generate_session_jwt;
 use core_api::session_revocation::{
     publish_revoked_sessions, revoked_session_key, REVOKED_SESSION_KEY_PREFIX,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::test_setup::redis_setup::{
     get_redis_connection, start_redis_container, RedisTestConfig,
 };
@@ -66,7 +66,7 @@ struct Env {
 
 async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (node, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
     Env {

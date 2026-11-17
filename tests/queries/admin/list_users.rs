@@ -6,7 +6,7 @@ use core_api::database::admin::list_users::{
 use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
+use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
 
 #[tokio::test]
 async fn admin_list_users_searches_and_paginates_by_name() {
@@ -111,7 +111,7 @@ async fn admin_list_users_filters_by_group() {
 /// applies.
 #[tokio::test]
 async fn admin_list_users_without_search_pages_every_user_in_name_order() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = crate::common::get_raw_pool(host.clone()).await;
     let marker = unique_marker("Unsearched");

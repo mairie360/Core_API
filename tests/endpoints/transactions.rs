@@ -8,7 +8,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
 use sqlx::PgPool;
@@ -43,7 +43,7 @@ fn admin_bearer() -> (&'static str, String) {
 
 async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let pool = get_pool().await;
     let first = create_user(&pool, "First", &unique_marker("tx")).await;

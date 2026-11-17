@@ -8,7 +8,6 @@ use crate::common::{
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
@@ -48,7 +47,7 @@ macro_rules! forgot {
 #[tokio::test]
 #[serial(fake_resend)]
 async fn known_and_unknown_emails_get_the_same_answer() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
@@ -108,11 +107,11 @@ async fn known_email(host: &str, marker: &str) -> (String, i32) {
 #[tokio::test]
 #[serial(fake_resend)]
 async fn the_reset_email_is_the_resend_template_from_no_reply() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
-    let (email, _) = known_email(host, &unique_marker("template")).await;
+    let (email, _) = known_email(&host, &unique_marker("template")).await;
 
     let (status, _) = forgot!(app, email);
 
@@ -141,11 +140,11 @@ async fn the_reset_email_is_the_resend_template_from_no_reply() {
 #[tokio::test]
 #[serial(fake_resend)]
 async fn an_archived_account_gets_no_email() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
-    let (email, user_id) = known_email(host, &unique_marker("archived")).await;
+    let (email, user_id) = known_email(&host, &unique_marker("archived")).await;
     archive_user(&get_raw_pool(host.clone()).await, user_id).await;
 
     let (status, _) = forgot!(app, email);
@@ -159,11 +158,11 @@ async fn an_archived_account_gets_no_email() {
 #[tokio::test]
 #[serial(fake_resend)]
 async fn an_unsent_email_answers_500_and_can_be_requested_again() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = init_app!(state);
-    let (email, _) = known_email(host, &unique_marker("unsent")).await;
+    let (email, _) = known_email(&host, &unique_marker("unsent")).await;
 
     {
         let _failing = FailingGuard::set();
@@ -186,7 +185,7 @@ async fn an_unsent_email_answers_500_and_can_be_requested_again() {
 #[tokio::test]
 #[serial(fake_resend)]
 async fn without_a_mailer_a_known_address_answers_500() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let app = test::init_service(
@@ -198,7 +197,7 @@ async fn without_a_mailer_a_known_address_answers_500() {
         ),
     )
     .await;
-    let (email, _) = known_email(host, &unique_marker("nomailer")).await;
+    let (email, _) = known_email(&host, &unique_marker("nomailer")).await;
 
     let (status, _) = forgot!(app, email);
 

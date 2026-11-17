@@ -4,7 +4,6 @@ use core_api::database::auth::resolve_identity::{
     ResolveUserIdentityQueryResultView, ResolveUserIdentityQueryView,
 };
 use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 
 async fn resolve(
     pool: &mairie360_api_lib::smart_db::SmartDatabase,
@@ -50,7 +49,7 @@ async fn test_resolve_identity_matches_provider_and_subject() {
 
 #[tokio::test]
 async fn test_resolve_identity_refuses_an_archived_user() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("resolvearch");

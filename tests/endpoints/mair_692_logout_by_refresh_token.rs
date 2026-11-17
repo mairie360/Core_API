@@ -270,7 +270,7 @@ async fn mair_692_overlapping_logouts_both_get_the_session_to_publish() {
     let state =
         web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), core_db_url().await).await);
     let (session_id, refresh_token) = open_session(&state).await;
-    let (_container, host) = mairie360_api_lib::test_setup::queries_setup::get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let raw = crate::common::get_raw_pool(host.clone()).await;
 
     // A first logout revokes the session and has not committed yet.

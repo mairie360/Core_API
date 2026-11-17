@@ -13,7 +13,7 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mairie360_api_lib::jwt_manager::{generate_jwt, get_jwt_secret, Claims};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
@@ -64,7 +64,7 @@ fn admin() -> i32 {
 
 async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let pool = get_pool().await;
     let caller = create_user(&pool, "Caller", &unique_marker("deny")).await;

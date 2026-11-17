@@ -10,7 +10,6 @@ use core_api::rate_limit::RateLimits;
 use core_api::refresh_token;
 use mairie360_api_lib::{
     jwt_manager::generate_jwt, password::hash_password, security::JwtMiddleware, state::AppState,
-    test_setup::queries_setup::get_shared_db,
 };
 use serde_json::{json, Value};
 use serial_test::serial;
@@ -45,7 +44,7 @@ macro_rules! init_app {
 
 async fn setup() -> (web::Data<AppState>, PgPool) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );
@@ -86,7 +85,7 @@ fn login_request(email: &str, password: &str) -> test::TestRequest {
 #[serial(process_env)]
 async fn first_connection_token_requires_the_password() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     // The token lives in Redis: same ACL Redis as the chart, like `redis_acl.rs`.
     let redis = AclRedis::start().await;
     std::env::remove_var("REDIS_KEY_PREFIX");

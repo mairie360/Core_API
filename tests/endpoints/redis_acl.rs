@@ -10,7 +10,7 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use core_api::redis_keys::{FIRST_CONNECTION_TTL_SECONDS, FORGOT_PASSWORD_TTL_SECONDS};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, SEED_PASSWORD};
+use mairie360_api_lib::test_setup::queries_setup::SEED_PASSWORD;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::{json, Value};
@@ -89,7 +89,7 @@ async fn email_of(host: &str, user_id: i32) -> String {
 #[serial(process_env, fake_resend)]
 async fn forgot_password_flow_works_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
 
@@ -97,7 +97,7 @@ async fn forgot_password_flow_works_under_the_acl() {
     let app = init_app!(state);
     let pool = get_pool().await;
     let user = create_user(&pool, "Forgot", &unique_marker("acl")).await;
-    let email = email_of(host, user).await;
+    let email = email_of(&host, user).await;
 
     let (status, body) = call!(
         app,
@@ -143,7 +143,7 @@ async fn forgot_password_flow_works_under_the_acl() {
 #[serial(process_env, fake_resend)]
 async fn first_connection_flow_works_under_the_acl() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let redis = AclRedis::start().await;
     let _env = RedisUrlGuard::set(&redis.url_as("core-api"));
 
@@ -151,7 +151,7 @@ async fn first_connection_flow_works_under_the_acl() {
     let app = init_app!(state);
     let pool = get_pool().await;
     let user = create_user(&pool, "FirstLogin", &unique_marker("acl")).await;
-    let email = email_of(host, user).await;
+    let email = email_of(&host, user).await;
 
     let (status, body) = call!(
         app,

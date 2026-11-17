@@ -1,5 +1,4 @@
 use crate::common::get_raw_pool;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
 use sqlx::Row;
 use tokio::sync::OnceCell;
 
@@ -23,7 +22,7 @@ pub async fn setup_tests() {
 
 async fn setup_fixtures() {
     {
-        let (_container, host) = get_shared_db().await;
+        let host = crate::common::own_db_url().await;
         let pool = get_raw_pool(host.clone()).await;
         COUNT.set(0).unwrap();
         let _ = sqlx::query(

@@ -16,7 +16,7 @@ use core_api::database::users::list_directory::DIRECTORY_CACHE_TTL_SECONDS;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::smart_db::SmartDatabase;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::{json, Value};
@@ -44,7 +44,7 @@ async fn env() -> Env {
     // The key prefix must come from the URL's user, like in the chart.
     std::env::remove_var("REDIS_KEY_PREFIX");
     std::env::remove_var("REDIS_USERNAME");
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let redis = AclRedis::start().await;
     let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     Env {
