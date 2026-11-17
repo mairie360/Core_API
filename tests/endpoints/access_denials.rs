@@ -13,10 +13,9 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mairie360_api_lib::jwt_manager::{generate_jwt, get_jwt_secret, Claims};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 use sqlx::{PgPool, Row};
 use utoipa::OpenApi;
 
@@ -65,7 +64,7 @@ fn admin() -> i32 {
 
 async fn setup() -> (web::Data<AppState>, PgPool, i32, i32) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let pool = get_pool().await;
     let caller = create_user(&pool, "Caller", &unique_marker("deny")).await;
@@ -132,7 +131,6 @@ async fn add_member(raw: &PgPool, group_id: i32, user_id: i32) {
 }
 
 #[tokio::test]
-#[serial]
 async fn every_admin_operation_refuses_a_non_admin() {
     let (state, raw, caller, target) = setup().await;
     let app = init_app!(state);
@@ -253,7 +251,6 @@ fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
 }
 
 #[tokio::test]
-#[serial]
 async fn every_secured_operation_refuses_a_missing_or_forged_token() {
     let (state, _, _, target) = setup().await;
     let app = init_app!(state);
@@ -306,7 +303,6 @@ async fn every_secured_operation_refuses_a_missing_or_forged_token() {
 /// Control of the sweep above (MAIR-474): a genuine token of an active account passes the
 /// authentication of every secured operation, so the sweep's `401`s come from the token alone.
 #[tokio::test]
-#[serial]
 async fn a_genuine_token_passes_the_authentication_of_every_operation() {
     let (state, _, caller, target) = setup().await;
     let app = init_app!(state);
@@ -330,7 +326,6 @@ async fn a_genuine_token_passes_the_authentication_of_every_operation() {
 }
 
 #[tokio::test]
-#[serial]
 async fn another_user_cannot_modify_or_delete_a_group() {
     let (state, raw, caller, owner) = setup().await;
     let app = init_app!(state);
@@ -375,7 +370,6 @@ async fn another_user_cannot_modify_or_delete_a_group() {
 }
 
 #[tokio::test]
-#[serial]
 async fn the_owner_can_modify_and_delete_its_group() {
     let (state, raw, member, owner) = setup().await;
     let app = init_app!(state);
@@ -408,7 +402,6 @@ async fn the_owner_can_modify_and_delete_its_group() {
 }
 
 #[tokio::test]
-#[serial]
 async fn body_id_cannot_differ_from_the_path_id() {
     let (state, raw, other, target) = setup().await;
     let app = init_app!(state);
@@ -436,7 +429,6 @@ async fn body_id_cannot_differ_from_the_path_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn sessions_of_another_user_are_not_listed() {
     let (state, raw, caller, target) = setup().await;
     let app = init_app!(state);

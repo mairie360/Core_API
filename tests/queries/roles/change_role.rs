@@ -8,7 +8,6 @@ use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use rand::random;
-use serial_test::serial;
 
 // Reprend le pré-check fait par `admin/roles/put/endpoint.rs` avant d'exécuter la mise à jour.
 async fn change_role(
@@ -25,7 +24,6 @@ async fn change_role(
 }
 
 #[tokio::test]
-#[serial]
 async fn test_change_role_success() {
     let pool = get_pool().await;
 
@@ -86,7 +84,6 @@ async fn test_change_role_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_change_role_bad_id() {
     setup_tests().await;
     let pool = get_pool().await;

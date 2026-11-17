@@ -3,10 +3,8 @@ use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
     is_user_member::IsUserMemberQueryView,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn is_user_member_true() {
     let pool = get_pool().await;
 
@@ -30,7 +28,6 @@ async fn is_user_member_true() {
 }
 
 #[tokio::test]
-#[serial]
 async fn is_user_member_false() {
     let pool = get_pool().await;
 
@@ -51,7 +48,6 @@ async fn is_user_member_false() {
 }
 
 #[tokio::test]
-#[serial]
 async fn is_user_member_unknow_user() {
     let pool = get_pool().await;
 
@@ -75,7 +71,6 @@ async fn is_user_member_unknow_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn is_user_member_unknow_group() {
     let pool = get_pool().await;
 
@@ -92,7 +87,6 @@ async fn is_user_member_unknow_group() {
 }
 
 #[tokio::test]
-#[serial]
 async fn is_user_member_unknow_user_and_group() {
     let pool = get_pool().await;
 

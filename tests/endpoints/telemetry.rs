@@ -18,11 +18,10 @@ use mairie360_api_lib::logging::telemetry::opentelemetry_sdk::trace::{
 use mairie360_api_lib::logging::telemetry::{trace_layer, tracer_provider, TracingLogger};
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
-use serial_test::serial;
 use tracing_subscriber::layer::SubscriberExt;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "telemetry_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
     global::set_text_map_propagator(TraceContextPropagator::new());
 });
@@ -81,7 +80,6 @@ fn attribute<'a>(span: &'a SpanData, key: &str) -> Option<&'a Value> {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_request_is_exported_as_a_span_with_its_sql() {
     std::sync::LazyLock::force(&INIT);
     let (exporter, provider) = in_memory_provider();
@@ -160,7 +158,6 @@ async fn a_request_is_exported_as_a_span_with_its_sql() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_refused_request_still_gets_its_span() {
     std::sync::LazyLock::force(&INIT);
     let (exporter, provider) = in_memory_provider();

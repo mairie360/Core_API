@@ -3,11 +3,9 @@
 //! would pass here.
 
 use crate::common::{core_db_url, get_raw_pool};
-use serial_test::serial;
 use sqlx::error::DatabaseError;
 
 #[tokio::test]
-#[serial]
 async fn the_code_under_test_runs_as_core_api() {
     let pool = get_raw_pool(core_db_url().await).await;
     let (user, is_superuser): (String, bool) = sqlx::query_as(
@@ -22,7 +20,6 @@ async fn the_code_under_test_runs_as_core_api() {
 }
 
 #[tokio::test]
-#[serial]
 async fn core_api_is_held_to_its_grants() {
     // Core never reads the project domain: the grants refuse it, as in staging.
     let pool = get_raw_pool(core_db_url().await).await;

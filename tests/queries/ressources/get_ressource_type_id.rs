@@ -1,9 +1,7 @@
 use crate::common::get_pool;
 use core_api::database::ressources::get_ressource_type_id::GetRessourceTypeIdQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn success() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("users");
@@ -14,7 +12,6 @@ async fn success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("invalid");

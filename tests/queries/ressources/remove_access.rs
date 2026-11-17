@@ -6,10 +6,8 @@ use core_api::database::{
     },
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn success() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -28,7 +26,6 @@ async fn success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn bad_id() {
     let pool = get_pool().await;
     let view = RemoveAccessQueryView::new(3);

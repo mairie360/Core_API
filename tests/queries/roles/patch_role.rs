@@ -6,7 +6,6 @@ use core_api::database::roles::{
     get_roles::{GetRolesQueryView, RoleQueryResult},
     patch_role::PatchRoleQueryView,
 };
-use serial_test::serial;
 
 async fn patch_role(
     pool: &mairie360_api_lib::smart_db::SmartDatabase,
@@ -19,7 +18,6 @@ async fn patch_role(
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_role_name() {
     let pool = get_pool().await;
 
@@ -50,7 +48,6 @@ async fn test_patch_role_name() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_role_description() {
     let pool = get_pool().await;
 
@@ -74,7 +71,6 @@ async fn test_patch_role_description() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_patch_role_can_be_deleted_to_false() {
     let pool = get_pool().await;
 

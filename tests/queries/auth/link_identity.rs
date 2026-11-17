@@ -4,13 +4,10 @@ use core_api::database::auth::link_identity::LinkUserIdentityQueryView;
 use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_link_identity_is_replayable_and_relinks_a_new_subject() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("link");
@@ -57,9 +54,8 @@ async fn test_link_identity_is_replayable_and_relinks_a_new_subject() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_link_identity_allows_one_identity_per_provider() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("linkmulti");
@@ -89,7 +85,6 @@ async fn test_link_identity_allows_one_identity_per_provider() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_link_identity_refuses_a_subject_held_by_another_user() {
     let pool = get_pool().await;
     let marker = unique_marker("linkconflict");
@@ -123,7 +118,6 @@ async fn test_link_identity_refuses_a_subject_held_by_another_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_link_identity_refuses_an_unknown_user() {
     let pool = get_pool().await;
 

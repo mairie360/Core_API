@@ -1,10 +1,8 @@
 use crate::common::get_pool;
 use core_api::database::groups::create_group::CreateGroupQueryView;
 use core_api::database::groups::delete_group::DeleteGroupQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn delete_group_success() {
     let pool = get_pool().await;
 
@@ -21,7 +19,6 @@ async fn delete_group_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn delete_group_bad_group_id() {
     let pool = get_pool().await;
     let view = DeleteGroupQueryView::new(999);

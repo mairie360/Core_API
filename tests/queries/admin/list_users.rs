@@ -6,11 +6,9 @@ use core_api::database::admin::list_users::{
 use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
 
 #[tokio::test]
-#[serial]
 async fn admin_list_users_searches_and_paginates_by_name() {
     let pool = get_pool().await;
     let marker = unique_marker("Paging");
@@ -47,7 +45,6 @@ async fn admin_list_users_searches_and_paginates_by_name() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_list_users_includes_roles_and_matches_full_name() {
     let pool = get_pool().await;
 
@@ -70,7 +67,6 @@ async fn admin_list_users_includes_roles_and_matches_full_name() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_list_users_filters_by_group() {
     let pool = get_pool().await;
     let marker = unique_marker("Grouped");
@@ -114,9 +110,8 @@ async fn admin_list_users_filters_by_group() {
 /// pages follow each other exactly, the count covers every user, and the group filter still
 /// applies.
 #[tokio::test]
-#[serial]
 async fn admin_list_users_without_search_pages_every_user_in_name_order() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = crate::common::get_raw_pool(host.clone()).await;
     let marker = unique_marker("Unsearched");

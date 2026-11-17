@@ -26,7 +26,6 @@ use mairie360_api_lib::jwt_manager::{
     generate_jwt, parse_public_keys, parse_signing_key, SESSION_JWT_ISSUER,
 };
 use mairie360_api_lib::test_setup::http_setup::{test_jwt_private_key, TEST_JWT_PUBLIC_KEY};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, get_shared_db_as};
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
@@ -105,9 +104,10 @@ struct Fixture {
 async fn fixture() -> Fixture {
     std::sync::LazyLock::force(&INIT);
     let (redis_container, redis) = start_redis_container().await;
-    let state =
-        web::Data::new(AppState::new(redis.url.clone(), get_shared_db_as("core_api").await).await);
-    let (_, superuser_url) = get_shared_db().await;
+    let state = web::Data::new(
+        AppState::new(redis.url.clone(), common::own_db().await.url_as("core_api")).await,
+    );
+    let superuser_url = common::own_db_url().await;
     let raw = get_raw_pool(superuser_url.clone()).await;
     Fixture {
         _redis: Box::new(redis_container),

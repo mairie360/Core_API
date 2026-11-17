@@ -1,10 +1,8 @@
 use core_api::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
-use serial_test::serial;
 
 use crate::common::{get_pool, roles::setup_tests};
 
 #[tokio::test]
-#[serial]
 async fn test_get_roles_by_id() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -30,7 +28,6 @@ async fn test_get_roles_by_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_roles_by_id_bad_id() {
     setup_tests().await;
     let pool = get_pool().await;

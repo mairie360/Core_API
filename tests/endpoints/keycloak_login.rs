@@ -12,12 +12,9 @@ use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
 use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use mairie360_api_lib::jwt_manager::get_user_id_from_jwt;
 use mairie360_api_lib::{
-    security::JwtMiddleware,
-    state::AppState,
-    test_setup::queries_setup::{get_shared_db, ALICE_ID},
+    security::JwtMiddleware, state::AppState, test_setup::queries_setup::ALICE_ID,
 };
 use serde_json::{json, Value};
-use serial_test::serial;
 
 const KEYCLOAK_PATH: &str = "/api/v1/auth/keycloak";
 
@@ -91,7 +88,6 @@ async fn post_keycloak(
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_opens_core_session() {
     let state = app_state().await;
     let mock = realm_signing_in("alice@example.com", |_| {});
@@ -123,7 +119,6 @@ async fn test_keycloak_login_opens_core_session() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_matches_email_case_insensitively() {
     let state = app_state().await;
     let mock = realm_signing_in("ALICE@example.com", |_| {});
@@ -134,7 +129,6 @@ async fn test_keycloak_login_matches_email_case_insensitively() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_without_configuration_returns_503() {
     let state = app_state().await;
 
@@ -145,7 +139,6 @@ async fn test_keycloak_login_without_configuration_returns_503() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_unknown_account_returns_403() {
     let state = app_state().await;
     let mock = realm_signing_in("stranger@danger.com", |_| {});
@@ -161,7 +154,6 @@ async fn test_keycloak_login_unknown_account_returns_403() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_archived_account_returns_403() {
     let state = app_state().await;
     let mock = realm_signing_in("bob@example.com", |_| {});
@@ -173,7 +165,6 @@ async fn test_keycloak_login_archived_account_returns_403() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_unverified_email_returns_403() {
     let state = app_state().await;
     let mock = realm_signing_in("alice@example.com", |claims| {
@@ -187,7 +178,6 @@ async fn test_keycloak_login_unverified_email_returns_403() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_nonce_mismatch_returns_401() {
     let state = app_state().await;
     let mock = realm_signing_in("alice@example.com", |claims| {
@@ -201,7 +191,6 @@ async fn test_keycloak_login_nonce_mismatch_returns_401() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_rejected_code_returns_401() {
     let state = app_state().await;
     let mock = KeycloakMock::start();
@@ -214,7 +203,6 @@ async fn test_keycloak_login_rejected_code_returns_401() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_unreachable_keycloak_returns_502() {
     let state = app_state().await;
     let client = KeycloakClient::new(KeycloakConfig::new(
@@ -231,7 +219,6 @@ async fn test_keycloak_login_unreachable_keycloak_returns_502() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_missing_field_returns_400() {
     let state = app_state().await;
     let mock = realm_signing_in("alice@example.com", |_| {});
@@ -245,7 +232,6 @@ async fn test_keycloak_login_missing_field_returns_400() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_optional_fields_can_be_omitted() {
     let state = app_state().await;
     let mock = realm_signing_in("alice@example.com", |_| {});
@@ -269,10 +255,9 @@ fn signed_in_user(authorization: Option<&str>) -> i32 {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_links_the_identity_on_first_sign_in() {
     let state = app_state().await;
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("kclink");
     let user_id = create_user(state.get_smart_db(), "Linked", &marker).await;
@@ -295,10 +280,9 @@ async fn test_keycloak_login_links_the_identity_on_first_sign_in() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_prefers_the_recorded_identity_over_the_email() {
     let state = app_state().await;
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("kcsubject");
     let user_id = create_user(state.get_smart_db(), "Renamed", &marker).await;
@@ -316,10 +300,9 @@ async fn test_keycloak_login_prefers_the_recorded_identity_over_the_email() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_never_moves_an_identity_to_another_account() {
     let state = app_state().await;
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("kcconflict");
     let owner = create_user(state.get_smart_db(), "Owner", &marker).await;
@@ -346,10 +329,9 @@ async fn test_keycloak_login_never_moves_an_identity_to_another_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_keycloak_login_linked_archived_account_returns_403() {
     let state = app_state().await;
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("kcarchived");
     let user_id = create_user(state.get_smart_db(), "Gone", &marker).await;

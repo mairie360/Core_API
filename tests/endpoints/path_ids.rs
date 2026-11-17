@@ -5,17 +5,17 @@
 //! Driven by the published contract (`ApiDoc`), so a new operation with a path id is covered as
 //! soon as it is documented.
 
-use crate::common::core_db_url;
+use crate::common::core_db_url_for;
 use actix_web::http::header::CONTENT_TYPE;
 use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::isolated::isolated_db;
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 use utoipa::OpenApi;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -78,11 +78,12 @@ fn operations_with_a_path_id() -> Vec<(Method, String, Vec<String>)> {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_path_id_that_is_not_an_integer_answers_the_documented_400() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, _host) = get_shared_db().await;
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    // Its own database: the walk calls every operation with id 1, deletions and role changes
+    // of the seeded administrator included (MAIR-1002).
+    let db = isolated_db().await;
+    let state = web::Data::new(AppState::new(String::new(), core_db_url_for(&db)).await);
     let app = test::init_service(
         App::new()
             .app_data(state.clone())

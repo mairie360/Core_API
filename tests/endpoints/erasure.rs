@@ -11,14 +11,13 @@ use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use core_api::session_jwt::{generate_session_jwt, user_role_name};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::test_setup::redis_setup::{
     get_redis_connection, start_redis_container, RedisTestConfig,
 };
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::Value;
-use serial_test::serial;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -59,7 +58,7 @@ struct Env {
 
 async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (node, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), host.clone()).await);
     Env {
@@ -101,7 +100,6 @@ fn admin() -> u64 {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -178,7 +176,6 @@ async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn a_user_and_an_admin_export_the_data_of_the_account() {
     let env = env().await;
     let app = init_app!(env.state);

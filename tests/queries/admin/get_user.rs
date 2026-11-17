@@ -9,7 +9,6 @@ use core_api::database::users::get_roles::GetUserRolesQueryView;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
-use serial_test::serial;
 
 // Reprend l'assemblage que fait `admin/users/id/get/endpoint.rs`, pour exercer les vues
 // composées (`AdminGetUserQueryResultView` et consorts) au niveau de la couche base de données.
@@ -50,7 +49,6 @@ async fn get_user(
 }
 
 #[tokio::test]
-#[serial]
 async fn get_user_success() {
     let pool = get_pool().await;
 
@@ -74,7 +72,6 @@ async fn get_user_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_user_bad_id() {
     let pool = get_pool().await;
 

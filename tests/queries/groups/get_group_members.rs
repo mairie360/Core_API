@@ -4,10 +4,8 @@ use core_api::database::groups::{
     get_user_groups::GetUserGroupsQuerView,
 };
 use mairie360_api_lib::test_setup::queries_setup::GROUP_OWNER_ID;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_group_members_success() {
     let pool = get_pool().await;
 
@@ -44,7 +42,6 @@ async fn get_group_members_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_group_members_bad_group_id() {
     let pool = get_pool().await;
 

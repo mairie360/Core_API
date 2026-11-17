@@ -12,14 +12,13 @@ use core_api::session_jwt::generate_session_jwt;
 use core_api::session_revocation::{
     publish_revoked_sessions, revoked_session_key, REVOKED_SESSION_KEY_PREFIX,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::test_setup::redis_setup::{
     get_redis_connection, start_redis_container, RedisTestConfig,
 };
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::json;
-use serial_test::serial;
 use uuid::Uuid;
 
 const JWT_TIMEOUT: i64 = 3600;
@@ -67,7 +66,7 @@ struct Env {
 
 async fn env() -> Env {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let (node, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
     Env {
@@ -132,7 +131,6 @@ fn key_is_the_one_the_lib_reads() {
 }
 
 #[tokio::test]
-#[serial]
 async fn logout_publishes_the_session() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -148,7 +146,6 @@ async fn logout_publishes_the_session() {
 }
 
 #[tokio::test]
-#[serial]
 async fn sessions_revoke_publishes_the_session() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -167,7 +164,6 @@ async fn sessions_revoke_publishes_the_session() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_password_reset_publishes_every_session() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -202,7 +198,6 @@ async fn admin_password_reset_publishes_every_session() {
 /// MAIR-287: an account archived by an administrator can neither use its JWTs (in Core, and in
 /// the other APIs through the revocation list) nor log in again.
 #[tokio::test]
-#[serial]
 async fn admin_archiving_revokes_the_sessions_and_blocks_the_account() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -254,7 +249,6 @@ async fn admin_archiving_revokes_the_sessions_and_blocks_the_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn forgot_password_reset_publishes_the_previous_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -298,7 +292,6 @@ async fn forgot_password_reset_publishes_the_previous_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn force_change_password_publishes_the_previous_sessions() {
     let env = env().await;
     let app = init_app!(env.state);
@@ -328,7 +321,6 @@ async fn force_change_password_publishes_the_previous_sessions() {
 /// account, then publishes them. On this base the database has no `delete_user()` function
 /// (fixed by MAIR-202), so the route cannot succeed here: the two steps are checked directly.
 #[tokio::test]
-#[serial]
 async fn account_sessions_are_listed_and_published() {
     let env = env().await;
     let user = fresh_user("Archive").await;

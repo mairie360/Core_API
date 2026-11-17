@@ -3,10 +3,8 @@ use crate::common::roles::{setup_tests, CAN_DELETE_ID};
 use core_api::database::roles::can_delete_role::CanDeleteRoleQueryView;
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_can_delete_role_success() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -20,7 +18,6 @@ async fn test_can_delete_role_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_can_delete_role_bad_id() {
     setup_tests().await;
     let pool = get_pool().await;

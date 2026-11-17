@@ -4,17 +4,15 @@ use core_api::database::groups::{
     add_user_to_group::AddUserToGroupQueryView, create_group::CreateGroupQueryView,
 };
 use core_api::database::users::list_directory::{DirectoryUser, ListDirectoryUsersQueryView};
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
 
 fn ids(users: &[DirectoryUser]) -> Vec<i32> {
     users.iter().map(|user| user.id).collect()
 }
 
 #[tokio::test]
-#[serial]
 async fn directory_searches_non_archived_users_sorted_by_name() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("Directory");
@@ -58,7 +56,6 @@ async fn directory_searches_non_archived_users_sorted_by_name() {
 /// A search spanning both columns ("first last") matches the full name, through the search
 /// expression of Database 3.0.1 (`user_search_text_sql!`, MAIR-477).
 #[tokio::test]
-#[serial]
 async fn directory_matches_the_full_name() {
     let pool = get_pool().await;
     let marker = unique_marker("FullName");
@@ -79,7 +76,6 @@ async fn directory_matches_the_full_name() {
 }
 
 #[tokio::test]
-#[serial]
 async fn directory_filters_by_ids_and_groups_and_exposes_roles() {
     let pool = get_pool().await;
     let marker = unique_marker("Scoped");

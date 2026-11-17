@@ -7,7 +7,6 @@ use core_api::phone::{Phone, PhoneChange};
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
-use serial_test::serial;
 
 async fn register_fresh_user(pool: &SmartDatabase, tag: &str) -> u64 {
     let email = format!("patch_user_{}_{}@example.com", tag, uuid::Uuid::new_v4());
@@ -45,7 +44,6 @@ async fn fetch_user(pool: &SmartDatabase, user_id: u64) -> GetUserByIdQueryResul
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_first_name_only() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "first_name").await;
@@ -68,7 +66,6 @@ async fn patch_user_first_name_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_last_name_only() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "last_name").await;
@@ -90,7 +87,6 @@ async fn patch_user_last_name_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_email_only() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "email").await;
@@ -117,7 +113,6 @@ async fn patch_user_email_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_phone_number_only() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "phone").await;
@@ -134,7 +129,6 @@ async fn patch_user_phone_number_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_clears_the_phone() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "clear_phone").await;
@@ -151,7 +145,6 @@ async fn patch_user_clears_the_phone() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_password_only() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "password").await;
@@ -169,7 +162,6 @@ async fn patch_user_password_only() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_multiple_fields() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "multiple").await;
@@ -202,7 +194,6 @@ async fn patch_user_multiple_fields() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_noop_when_nothing_provided() {
     let pool = get_pool().await;
     let user_id = register_fresh_user(&pool, "noop").await;
@@ -218,7 +209,6 @@ async fn patch_user_noop_when_nothing_provided() {
 }
 
 #[tokio::test]
-#[serial]
 async fn patch_user_bad_user_id_is_noop_free_but_harmless() {
     let pool = get_pool().await;
 

@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::roles::create_role::CreateRoleQueryView;
 use core_api::database::roles::get_roles::{GetRolesQueryView, RoleQueryResult};
 use rand::random;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_create_role_success() {
     let pool = get_pool().await;
 

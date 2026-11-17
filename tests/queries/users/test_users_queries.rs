@@ -1,5 +1,4 @@
-// use mairie360_api_lib::test_setup::queries_setup::get_shared_db;
-// use serial_test::serial;
+// // use serial_test::serial;
 // use sqlx::postgres::PgPoolOptions;
 // use sqlx::PgPool;
 
@@ -24,7 +23,7 @@
 //     #[tokio::test]
 //     #[serial]
 //     async fn test_about_user_success() {
-//         let (_container, host) = get_shared_db().await;
+//         let host = crate::common::own_db_url().await;
 //         let pool = get_pool().await;
 
 //         let result = about_user_query(AboutUserQueryView::new(1), &pool)
@@ -45,7 +44,7 @@
 //     #[tokio::test]
 //     #[serial]
 //     async fn test_about_user_fail() {
-//         let (_container, host) = get_shared_db().await;
+//         let host = crate::common::own_db_url().await;
 //         let pool = get_pool().await;
 
 //         let result = about_user_query(AboutUserQueryView::new(999), &pool).await;

@@ -3,10 +3,8 @@ use crate::common::roles::setup_tests;
 use crate::common::users::{create_user, unique_marker};
 use core_api::database::users::add_role::AddRolesQueryView;
 use core_api::database::users::get_roles::GetUserRolesQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_add_role_success() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -22,7 +20,6 @@ async fn test_add_role_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_564_add_role_replaces_the_role_held() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -49,7 +46,6 @@ async fn mair_564_add_role_replaces_the_role_held() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_add_role_bad_role_id() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -65,7 +61,6 @@ async fn test_add_role_bad_role_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_add_role_bad_user_id() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -81,7 +76,6 @@ async fn test_add_role_bad_user_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_add_role_bad_user_id_and_role_id() {
     setup_tests().await;
     let pool = get_pool().await;

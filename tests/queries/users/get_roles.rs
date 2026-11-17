@@ -1,10 +1,8 @@
 use crate::common::get_pool;
 use crate::common::roles::setup_tests;
 use core_api::database::users::get_roles::GetUserRolesQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_get_role_success() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -24,7 +22,6 @@ async fn test_get_role_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_role_bad_user_id() {
     setup_tests().await;
     let pool = get_pool().await;

@@ -7,10 +7,9 @@ use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as `sessions_refresh`: both modules run in the same test binary.
@@ -41,10 +40,9 @@ fn bearer(user_id: i32) -> (&'static str, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn constraint_violations_answer_404_or_409() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;

@@ -2,13 +2,11 @@ use core_api::database::roles::get_roles_by_id::{GetRolesByIdQueryView, Role};
 use core_api::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use core_api::database::users::get_roles::GetUserRolesQueryView;
 use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
-use serial_test::serial;
 
 use crate::common::{get_pool, roles::setup_tests};
 
 /// Same rows, in the same order, as the two round trips it replaces (MAIR-474).
 #[tokio::test]
-#[serial]
 async fn test_get_roles_of_user_matches_ids_then_roles() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -32,7 +30,6 @@ async fn test_get_roles_of_user_matches_ids_then_roles() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_roles_of_unknown_user_is_empty() {
     setup_tests().await;
     let pool = get_pool().await;

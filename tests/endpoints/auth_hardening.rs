@@ -10,14 +10,13 @@ use core_api::rate_limit::RateLimits;
 use core_api::refresh_token;
 use mairie360_api_lib::{
     jwt_manager::generate_jwt, password::hash_password, security::JwtMiddleware, state::AppState,
-    test_setup::queries_setup::get_shared_db,
 };
 use serde_json::{json, Value};
 use serial_test::serial;
 use sqlx::{PgPool, Row};
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "auth_hardening_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
@@ -45,7 +44,7 @@ macro_rules! init_app {
 
 async fn setup() -> (web::Data<AppState>, PgPool) {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let state = web::Data::new(
         AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
     );
@@ -83,10 +82,10 @@ fn login_request(email: &str, password: &str) -> test::TestRequest {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn first_connection_token_requires_the_password() {
     std::sync::LazyLock::force(&INIT);
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     // The token lives in Redis: same ACL Redis as the chart, like `redis_acl.rs`.
     let redis = AclRedis::start().await;
     std::env::remove_var("REDIS_KEY_PREFIX");
@@ -111,7 +110,7 @@ async fn first_connection_token_requires_the_password() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn archived_account_cannot_log_in() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -125,7 +124,7 @@ async fn archived_account_cannot_log_in() {
 /// first connection with a wrong password and archived account (with its right password) answer
 /// the same status, body and headers, so the answer cannot be used to list the accounts.
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn login_refusals_are_indistinguishable() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -175,7 +174,7 @@ async fn login_refusals_are_indistinguishable() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn encoded_admin_path_is_still_guarded() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -195,7 +194,7 @@ async fn encoded_admin_path_is_still_guarded() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn group_membership_is_added_to_the_group_of_the_path() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -257,7 +256,7 @@ async fn group_membership_is_added_to_the_group_of_the_path() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn refresh_tokens_are_hashed_and_rotated() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -295,7 +294,7 @@ async fn refresh_tokens_are_hashed_and_rotated() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn other_users_record_shows_phone_and_hides_archived_accounts() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -323,7 +322,7 @@ async fn other_users_record_shows_phone_and_hides_archived_accounts() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn email_change_requires_the_current_password() {
     let (state, raw) = setup().await;
     let app = init_app!(state);
@@ -356,7 +355,7 @@ async fn email_change_requires_the_current_password() {
 /// password through the e-mail change without any limit. 5 checks per user per 15 minutes, right
 /// or wrong, then 429 with Retry-After; other users and changes without e-mail are not affected.
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn mair_746_current_password_checks_are_rate_limited_per_user() {
     let (state, raw) = setup().await;
     let limits = web::Data::new(RateLimits::default());
@@ -413,7 +412,7 @@ async fn mair_746_current_password_checks_are_rate_limited_per_user() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn login_is_rate_limited_per_email() {
     let (state, raw) = setup().await;
     let limits = web::Data::new(RateLimits::default());

@@ -5,7 +5,6 @@ use core_api::database::users::delete_user::{DeleteUserQueryView, IsUserActiveQu
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
-use serial_test::serial;
 
 async fn is_active(pool: &SmartDatabase, user_id: u64) -> bool {
     pool.fetch_scalar(&IsUserActiveQueryView::new(user_id))
@@ -14,7 +13,6 @@ async fn is_active(pool: &SmartDatabase, user_id: u64) -> bool {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_archives_the_account() {
     let pool = get_pool().await;
     let user_id = create_user(&pool, "Delete", &unique_marker("archive")).await as u64;
@@ -28,7 +26,6 @@ async fn test_delete_user_archives_the_account() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_is_user_active_is_false_for_an_unknown_user() {
     let pool = get_pool().await;
 
@@ -36,7 +33,6 @@ async fn test_is_user_active_is_false_for_an_unknown_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_user_owning_a_group_is_a_restrict_violation() {
     let pool = get_pool().await;
     let marker = unique_marker("owner");

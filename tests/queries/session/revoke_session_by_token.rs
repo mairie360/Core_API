@@ -2,12 +2,10 @@ use core_api::database::sessions::{
     create_session::CreateSessionQueryView, revoke_session_by_token::RevokeSessionByTokenQueryView,
 };
 use mairie360_api_lib::{database::query_views::IsSessionTokenValidQueryView, error::ApiLibError};
-use serial_test::serial;
 
 use crate::common::get_pool;
 
 #[tokio::test]
-#[serial]
 async fn test_revoke_session_with_token() {
     let pool = get_pool().await;
 
@@ -56,7 +54,6 @@ async fn test_revoke_session_with_token() {
 /// MAIR-125 : avec la version patch de la lib, un refresh token reste valide quand l'IP du client
 /// a changé depuis le login. Échoue tant que `mairie360_api_lib` n'est pas mis à jour.
 #[tokio::test]
-#[serial]
 async fn test_session_token_valid_after_ip_change() {
     let pool = get_pool().await;
     let token = format!("session_token_ip_change_{}", uuid::Uuid::new_v4());

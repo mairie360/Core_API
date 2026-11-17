@@ -7,10 +7,8 @@ use mairie360_api_lib::{
     database::error::DbError, database::query_views::IsSessionTokenValidQueryView,
     error::ApiLibError,
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_get_session_by_token() {
     let pool = get_pool().await;
 
@@ -49,7 +47,6 @@ async fn test_get_session_by_token() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_get_session_by_unknow_token() {
     let pool = get_pool().await;
 

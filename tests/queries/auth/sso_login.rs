@@ -3,13 +3,9 @@ use crate::common::{get_pool, get_raw_pool};
 use core_api::database::auth::sso_login::{SsoLoginUserQueryResultView, SsoLoginUserQueryView};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::test_setup::queries_setup::{
-    get_shared_db, seed_password_hash, ALICE_ID, BOB_ID,
-};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::queries_setup::{seed_password_hash, ALICE_ID, BOB_ID};
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_finds_active_user() {
     let pool = get_pool().await;
 
@@ -25,7 +21,6 @@ async fn test_sso_login_finds_active_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_ignores_email_case() {
     let pool = get_pool().await;
 
@@ -42,9 +37,8 @@ async fn test_sso_login_ignores_email_case() {
 /// whatever its case. (The former test created both accounts to check that the exact spelling won,
 /// which the schema no longer allows.)
 #[tokio::test]
-#[serial]
 async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let marker = unique_marker("ssocase");
@@ -84,7 +78,6 @@ async fn test_sso_login_meets_one_account_per_address_whatever_its_case() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_reports_archived_user() {
     let pool = get_pool().await;
 
@@ -100,7 +93,6 @@ async fn test_sso_login_reports_archived_user() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_login_unknown_email() {
     let pool = get_pool().await;
 

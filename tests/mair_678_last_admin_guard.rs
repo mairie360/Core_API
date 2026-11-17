@@ -3,9 +3,10 @@
 //! nothing; with two administrators each can still demote or archive the other, and the check
 //! and the write are serialised by a lock on the `Admin` role.
 //!
-//! Own test binary: these tests need to control how many administrators the database holds,
-//! which the shared database of `integration_test` (where many fixtures are administrators) does
-//! not allow. Cargo runs test binaries one after the other, each with its own container.
+//! Own test binary, and a database of its own per test (MAIR-1002, `isolated_db()`): these tests
+//! need to control how many administrators the database holds, which the shared database of
+//! `integration_test` (where many fixtures are administrators) does not allow. Each test starts
+//! from the seed and makes the seeded administrator the only active one, so they run in parallel.
 #![allow(clippy::cast_sign_loss)]
 
 use actix_web::dev::ServiceResponse;
@@ -15,12 +16,10 @@ use core_api::endpoints::last_admin::LAST_ADMIN_MESSAGE;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
-use mairie360_api_lib::test_setup::queries_setup::{
-    get_shared_db, get_shared_db_as, seed_password_hash, ADMIN_ID,
-};
+use mairie360_api_lib::test_setup::isolated::{isolated_db, IsolatedDb};
+use mairie360_api_lib::test_setup::queries_setup::{seed_password_hash, ADMIN_ID};
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
 
@@ -83,6 +82,8 @@ fn archive(user: i32) -> TestRequest {
 }
 
 struct Fixture {
+    /// Dropped last: the test's database goes away with the fixture.
+    _db: IsolatedDb,
     state: web::Data<AppState>,
     raw: PgPool,
     admin_role: i32,
@@ -93,14 +94,13 @@ struct Fixture {
 /// plain `User`.
 async fn fixture() -> Fixture {
     std::sync::LazyLock::force(&INIT);
-    let (_container, superuser_url) = get_shared_db().await;
+    let db = isolated_db().await;
     let raw = PgPoolOptions::new()
         .max_connections(5)
-        .connect(superuser_url)
+        .connect(&db.url())
         .await
         .unwrap();
-    let state =
-        web::Data::new(AppState::new(String::new(), get_shared_db_as("core_api").await).await);
+    let state = web::Data::new(AppState::new(String::new(), db.url_as("core_api")).await);
     let admin_role = role_id(&raw, "Admin").await;
     let user_role = role_id(&raw, "User").await;
     sqlx::query("UPDATE user_roles SET role_id = $1 WHERE role_id = $2 AND user_id <> $3")
@@ -121,6 +121,7 @@ async fn fixture() -> Fixture {
     .unwrap();
     assert_eq!(active_admins(&raw).await, vec![caller()]);
     Fixture {
+        _db: db,
         state,
         raw,
         admin_role,
@@ -199,7 +200,6 @@ fn assert_last_admin_refusal((status, body): &(StatusCode, String)) {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_678_last_admin_cannot_be_given_another_role() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -219,7 +219,6 @@ async fn mair_678_last_admin_cannot_be_given_another_role() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_678_last_admin_role_cannot_be_revoked() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -237,7 +236,6 @@ async fn mair_678_last_admin_role_cannot_be_revoked() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_678_last_admin_cannot_be_archived() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -251,7 +249,6 @@ async fn mair_678_last_admin_cannot_be_archived() {
 /// The fronts display the refusal as text: the `409` says so in its `Content-Type`, like the
 /// spec documents (the newman "Error envelope" check failed on the demotion without it).
 #[tokio::test]
-#[serial]
 async fn mair_678_refusals_are_sent_as_plain_text() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -278,7 +275,6 @@ async fn mair_678_refusals_are_sent_as_plain_text() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_678_archived_admin_does_not_count() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -297,7 +293,6 @@ async fn mair_678_archived_admin_does_not_count() {
 }
 
 #[tokio::test]
-#[serial]
 async fn mair_678_two_admins_can_demote_revoke_and_archive_each_other() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -332,7 +327,6 @@ async fn mair_678_two_admins_can_demote_revoke_and_archive_each_other() {
 /// it (and demotes the other administrator) only decides once that transaction has committed,
 /// so it sees the caller is now the last administrator. Without the lock both demotions passed.
 #[tokio::test]
-#[serial]
 async fn mair_678_concurrent_demotions_cannot_remove_both_admins() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -385,7 +379,6 @@ async fn role_can_be_deleted(raw: &PgPool, role: i32) -> Option<bool> {
 /// The `Admin` role could be unprotected by `PATCH`ing `can_be_deleted`, then deleted or renamed,
 /// which left the instance without any administrator despite the guards above.
 #[tokio::test]
-#[serial]
 async fn mair_678_admin_role_cannot_be_unprotected_then_deleted() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);
@@ -481,7 +474,6 @@ async fn mair_678_admin_role_cannot_be_unprotected_then_deleted() {
 /// A role created by the administrators can be protected; once protected it is a system role
 /// like the base ones and cannot be unprotected any more.
 #[tokio::test]
-#[serial]
 async fn mair_678_custom_role_once_protected_stays_protected() {
     let fixture = fixture().await;
     let app = init_app!(fixture.state);

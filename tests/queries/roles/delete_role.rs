@@ -1,10 +1,8 @@
 use crate::common::roles::setup_tests;
 use crate::common::{get_pool, roles::DELETE_ID};
 use core_api::database::roles::delete_role::DeleteRoleQueryView;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn test_delete_role() {
     setup_tests().await;
     let pool = get_pool().await;
@@ -18,7 +16,6 @@ async fn test_delete_role() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_delete_role_bad_id() {
     setup_tests().await;
     let pool = get_pool().await;

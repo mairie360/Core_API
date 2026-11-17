@@ -10,10 +10,9 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
-use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "preferences_test_secret");
+    std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
@@ -55,7 +54,6 @@ async fn fresh_user_jwt(state: &web::Data<AppState>) -> String {
 }
 
 #[tokio::test]
-#[serial]
 async fn preferences_require_a_jwt() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -75,7 +73,6 @@ async fn preferences_require_a_jwt() {
 }
 
 #[tokio::test]
-#[serial]
 async fn preferences_round_trip() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -123,7 +120,6 @@ async fn preferences_round_trip() {
 }
 
 #[tokio::test]
-#[serial]
 async fn invalid_preferences_answer_400() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -167,7 +163,6 @@ async fn invalid_preferences_answer_400() {
 
 /// Every value the application offers fits the `user_preferences` columns (MAIR-479).
 #[tokio::test]
-#[serial]
 async fn allowed_preference_values_are_stored() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -197,7 +192,6 @@ async fn allowed_preference_values_are_stored() {
 }
 
 #[tokio::test]
-#[serial]
 async fn notification_settings_round_trip() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);

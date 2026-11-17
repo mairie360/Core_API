@@ -3,10 +3,8 @@ use crate::common::users::{create_user, unique_marker};
 use core_api::database::groups::get_group::Group;
 use core_api::database::groups::get_user_groups::GetUserGroupsQuerView;
 use mairie360_api_lib::test_setup::queries_setup::GROUP_OWNER_ID;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_user_groups_success() {
     let pool = get_pool().await;
 
@@ -19,7 +17,6 @@ async fn get_user_groups_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_user_groups_without_groups() {
     let pool = get_pool().await;
 
@@ -33,7 +30,6 @@ async fn get_user_groups_without_groups() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_groups_bad_user_id() {
     let pool = get_pool().await;
 

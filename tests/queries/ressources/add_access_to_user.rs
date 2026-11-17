@@ -6,10 +6,8 @@ use core_api::database::{
     },
     rights::get_permission_id::{GetPermissionIdQueryView, PermissionAction},
 };
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn success() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -29,7 +27,6 @@ async fn success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure_add_all_right() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -39,7 +36,6 @@ async fn failure_add_all_right() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure_bad_target_id() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -49,7 +45,6 @@ async fn failure_bad_target_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure_bad_ressource_type_id() {
     let pool = get_pool().await;
     let view = AddAccessToUserQueryView::new(10, 100, 1, 1);
@@ -57,7 +52,6 @@ async fn failure_bad_ressource_type_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure_bad_ressource_instance_type_id() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");
@@ -67,7 +61,6 @@ async fn failure_bad_ressource_instance_type_id() {
 }
 
 #[tokio::test]
-#[serial]
 async fn failure_bad_access_type_id() {
     let pool = get_pool().await;
     let view = GetRessourceTypeIdQueryView::new("groups");

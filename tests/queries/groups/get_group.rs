@@ -1,10 +1,8 @@
 use crate::common::get_pool;
 use core_api::database::groups::create_group::CreateGroupQueryView;
 use core_api::database::groups::get_group::{GetGroupQuerView, Group};
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_group_success() {
     let pool = get_pool().await;
 
@@ -26,7 +24,6 @@ async fn get_group_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_group_bad_id() {
     let pool = get_pool().await;
 

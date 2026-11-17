@@ -1,9 +1,9 @@
 use crate::common::users::{create_user, link_identity, unique_marker};
-use crate::common::{get_pool, get_raw_pool};
+use crate::common::{get_pool_for, get_raw_pool};
 use core_api::database::admin::sso_export::{ListSsoExportQueryView, SsoExportUser};
 use core_api::keycloak::migration::KEYCLOAK_PROVIDER;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ALICE_ID, BOB_ID};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::isolated::isolated_db;
+use mairie360_api_lib::test_setup::queries_setup::{ALICE_ID, BOB_ID};
 use std::collections::BTreeMap;
 
 async fn export(pool: &mairie360_api_lib::smart_db::SmartDatabase) -> Vec<SsoExportUser> {
@@ -20,11 +20,10 @@ fn find(users: &[SsoExportUser], id: i32) -> &SsoExportUser {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_export_lists_every_account_in_id_order() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let pool = get_pool_for(&db).await;
+    let raw = get_raw_pool(db.url()).await;
 
     let users = export(&pool).await;
 
@@ -50,11 +49,10 @@ async fn test_sso_export_lists_every_account_in_id_order() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_export_carries_roles_and_identities() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let pool = get_pool_for(&db).await;
+    let raw = get_raw_pool(db.url()).await;
     let marker = unique_marker("export");
     let user_id = create_user(&pool, "Exported", &marker).await;
     sqlx::query(
@@ -89,11 +87,10 @@ async fn test_sso_export_carries_roles_and_identities() {
 }
 
 #[tokio::test]
-#[serial]
 async fn test_sso_export_flags_sso_only_accounts() {
-    let (_container, host) = get_shared_db().await;
-    let pool = get_pool().await;
-    let raw = get_raw_pool(host.clone()).await;
+    let db = isolated_db().await;
+    let pool = get_pool_for(&db).await;
+    let raw = get_raw_pool(db.url()).await;
     let marker = unique_marker("ssoonly");
     let user_id = create_user(&pool, "SsoOnly", &marker).await;
     assert!(find(&export(&pool).await, user_id).has_local_password);

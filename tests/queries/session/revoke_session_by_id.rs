@@ -3,12 +3,10 @@ use core_api::database::sessions::{
     revoke_session_by_id::RevokeSessionByIdQueryView, Session,
 };
 use mairie360_api_lib::{database::query_views::IsSessionTokenValidQueryView, error::ApiLibError};
-use serial_test::serial;
 
 use crate::common::get_pool;
 
 #[tokio::test]
-#[serial]
 async fn test_revoke_session_with_id() {
     let pool = get_pool().await;
 

@@ -10,7 +10,6 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::json;
-use serial_test::serial;
 use uuid::Uuid;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -80,7 +79,6 @@ async fn open_session(state: &web::Data<AppState>) -> (String, String) {
 }
 
 #[tokio::test]
-#[serial]
 async fn logout_revokes_the_jwt_and_its_refresh_token() {
     std::sync::LazyLock::force(&INIT);
     // Logout writes the revoked session to Redis (MAIR-264).
@@ -119,7 +117,6 @@ async fn logout_revokes_the_jwt_and_its_refresh_token() {
 }
 
 #[tokio::test]
-#[serial]
 async fn logout_keeps_the_other_sessions() {
     std::sync::LazyLock::force(&INIT);
     // Logout writes the revoked session to Redis (MAIR-264).
@@ -145,7 +142,6 @@ async fn logout_keeps_the_other_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn refresh_keeps_the_session_bound_jwt() {
     std::sync::LazyLock::force(&INIT);
     // Logout writes the revoked session to Redis (MAIR-264).
@@ -184,7 +180,6 @@ async fn refresh_keeps_the_session_bound_jwt() {
 }
 
 #[tokio::test]
-#[serial]
 async fn legacy_jwt_without_session_id_still_works() {
     std::sync::LazyLock::force(&INIT);
     // Logout writes the revoked session to Redis (MAIR-264).
@@ -204,7 +199,6 @@ async fn legacy_jwt_without_session_id_still_works() {
 }
 
 #[tokio::test]
-#[serial]
 async fn logout_requires_a_jwt() {
     std::sync::LazyLock::force(&INIT);
     // Logout writes the revoked session to Redis (MAIR-264).

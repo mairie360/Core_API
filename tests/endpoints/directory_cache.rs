@@ -16,7 +16,7 @@ use core_api::database::users::list_directory::DIRECTORY_CACHE_TTL_SECONDS;
 use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::smart_db::SmartDatabase;
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, ADMIN_ID};
+use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use redis::Commands;
 use serde_json::{json, Value};
@@ -44,7 +44,7 @@ async fn env() -> Env {
     // The key prefix must come from the URL's user, like in the chart.
     std::env::remove_var("REDIS_KEY_PREFIX");
     std::env::remove_var("REDIS_USERNAME");
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let redis = AclRedis::start().await;
     let state = web::Data::new(AppState::new(redis.url_as("core-api"), core_db_url().await).await);
     Env {
@@ -162,7 +162,7 @@ fn group_ids(entry: &Value) -> Vec<i64> {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn directory_page_is_cached_under_the_acl_until_an_admin_patch() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -218,7 +218,7 @@ async fn directory_page_is_cached_under_the_acl_until_an_admin_patch() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn patch_me_invalidates_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -241,7 +241,7 @@ async fn patch_me_invalidates_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn role_grant_revoke_rename_and_delete_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -329,7 +329,7 @@ async fn role_grant_revoke_rename_and_delete_invalidate_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn group_writes_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");
@@ -397,7 +397,7 @@ async fn group_writes_invalidate_the_directory() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial(process_env)]
 async fn admin_creation_and_archive_invalidate_the_directory() {
     let env = env().await;
     let marker = unique_marker("dircache");

@@ -3,13 +3,11 @@ use crate::common::{get_pool, get_raw_pool};
 use core_api::database::admin::reset_password::{
     AdminResetPasswordQueryView, AdminResetPasswordResult,
 };
-use mairie360_api_lib::test_setup::queries_setup::{get_shared_db, seed_password_hash};
-use serial_test::serial;
+use mairie360_api_lib::test_setup::queries_setup::seed_password_hash;
 
 #[tokio::test]
-#[serial]
 async fn admin_reset_password_updates_password_and_revokes_sessions() {
-    let (_container, host) = get_shared_db().await;
+    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let raw = get_raw_pool(host.clone()).await;
     let user_id = create_user(&pool, "Reset", &unique_marker("Password")).await;
@@ -52,7 +50,6 @@ async fn admin_reset_password_updates_password_and_revokes_sessions() {
 }
 
 #[tokio::test]
-#[serial]
 async fn admin_reset_password_unknown_user() {
     let pool = get_pool().await;
 

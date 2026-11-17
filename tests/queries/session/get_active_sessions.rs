@@ -2,10 +2,8 @@ use crate::common::get_pool;
 use core_api::database::sessions::get_active_sessions::GetActiveSessionsQueryView;
 use core_api::database::sessions::Session;
 use mairie360_api_lib::test_setup::queries_setup::ALICE_ID;
-use serial_test::serial;
 
 #[tokio::test]
-#[serial]
 async fn get_active_sessions_success() {
     let pool = get_pool().await;
 
@@ -21,7 +19,6 @@ async fn get_active_sessions_success() {
 }
 
 #[tokio::test]
-#[serial]
 async fn get_active_sessions_unknown_user() {
     let pool = get_pool().await;
 
