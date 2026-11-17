@@ -15,4 +15,5 @@ pub mod redis_keys;
 pub mod refresh_token;
 pub mod request_log;
 pub mod session_jwt;
+pub mod second_factor;
 pub mod session_revocation;
