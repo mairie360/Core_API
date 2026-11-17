@@ -1,2 +1,2 @@
 mod view;
-pub use view::RevokeUserSessionsQueryView;
+pub use view::{RecentlyRevokedSessionsQueryView, RevokeUserSessionsQueryView};

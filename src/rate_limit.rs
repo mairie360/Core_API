@@ -142,6 +142,13 @@ pub struct RateLimits {
     /// `POST /admin/keycloak/console-access`, per administrator (MAIR-609): each call signs a
     /// console link, a handful per quarter of an hour is plenty.
     pub console_access_per_user: RateLimiter,
+    /// Codes of the second factor typed on the account routes (`/user/me/2fa/`), per user (MAIR-805).
+    pub second_factor_per_user: RateLimiter,
+    /// `POST /auth/login/2fa`, per client address (MAIR-805).
+    pub login_2fa_per_ip: RateLimiter,
+    /// `POST /auth/login/2fa`, per account (MAIR-805): the budget of the login token (five codes)
+    /// does not stop an attacker who restarts the login with the stolen password.
+    pub login_2fa_per_user: RateLimiter,
 }
 
 impl Default for RateLimits {
@@ -156,6 +163,9 @@ impl Default for RateLimits {
             refresh_per_ip: RateLimiter::new(60, MINUTE),
             password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
             console_access_per_user: RateLimiter::new(10, 15 * MINUTE),
+            second_factor_per_user: RateLimiter::new(20, 15 * MINUTE),
+            login_2fa_per_ip: RateLimiter::new(30, MINUTE),
+            login_2fa_per_user: RateLimiter::new(10, 15 * MINUTE),
         }
     }
 }

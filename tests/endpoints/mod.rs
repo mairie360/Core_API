@@ -20,6 +20,7 @@ mod readiness;
 mod redis_acl;
 mod ressources_access;
 mod revocation_list;
+mod second_factor;
 mod session_roles;
 mod sessions_logout;
 mod sessions_refresh;

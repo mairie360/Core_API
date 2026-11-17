@@ -4,6 +4,7 @@ pub mod forgot_password;
 pub mod jwks;
 pub mod keycloak;
 pub mod login;
+pub mod login_2fa;
 pub mod logout;
 pub mod reset_password;
 
@@ -20,6 +21,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(jwks::endpoint::jwks)
             .service(keycloak::endpoint::keycloak_login)
             .service(login::endpoint::login)
+            .service(login_2fa::endpoint::login_two_factor)
             .service(logout::endpoint::logout)
             .service(reset_password::endpoint::reset_password),
     );

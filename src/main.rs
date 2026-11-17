@@ -12,6 +12,7 @@ use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::keycloak_console::ConsoleAccessConfig;
 use core_api::rate_limit::RateLimits;
+use core_api::second_factor::SecretCipher;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
@@ -101,6 +102,14 @@ async fn main() -> std::io::Result<()> {
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
+    // Key sealing the TOTP secrets (MAIR-805). Without it the second factor is off: accounts that
+    // have one cannot sign in (503) rather than being opened without it.
+    let second_factor_cipher = SecretCipher::from_env()
+        .map_err(|e| {
+            tracing::error!("TOTP_ENCRYPTION_KEY: {e}");
+            std::io::Error::other(e.to_string())
+        })?
+        .map(web::Data::new);
     // Temporary access to the Keycloak realm admin console (MAIR-609), from the public issuer:
     // without it the console routes answer 503.
     let console_access = ConsoleAccessConfig::from_env().map(web::Data::new);
@@ -123,6 +132,10 @@ async fn main() -> std::io::Result<()> {
         };
         let app = match &rate_limits {
             Some(limits) => app.app_data(limits.clone()),
+            None => app,
+        };
+        let app = match &second_factor_cipher {
+            Some(cipher) => app.app_data(cipher.clone()),
             None => app,
         };
         let app = match &console_access {

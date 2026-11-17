@@ -7,5 +7,6 @@ pub mod pg_url;
 pub mod ressources;
 pub mod rights;
 pub mod roles;
+pub mod second_factor;
 pub mod sessions;
 pub mod users;

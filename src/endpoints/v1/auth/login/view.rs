@@ -119,6 +119,29 @@ impl From<String> for LoginFirstConnectionResponseView {
     }
 }
 
+/// Answer of `POST /auth/login` (and of `POST /auth/reset_password`) for an account protected by
+/// the second factor: no session yet, only the token of the second step.
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct TwoFactorRequiredView {
+    /// Always `2fa_required`.
+    #[schema(example = "2fa_required")]
+    status: String,
+    /// Login token: valid five minutes, usable once on `POST /api/v1/auth/login/2fa` and nowhere
+    /// else. Keep it on the client side, never in a URL.
+    #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
+    token: String,
+}
+
+impl TwoFactorRequiredView {
+    #[must_use]
+    pub fn new(token: String) -> Self {
+        Self {
+            status: "2fa_required".to_string(),
+            token,
+        }
+    }
+}
+
 impl Validate for LoginView {
     fn validate(&self) -> Result<(), ValidationError> {
         // Only length and control characters: a malformed address simply matches no account (401).
