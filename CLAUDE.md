@@ -445,8 +445,8 @@ other login answer 202) and restores the optional policy.
 ### Passkeys (MAIR-810)
 
 WebAuthn through `webauthn-rs` (`src/passkeys.rs`, relying party built by `Passkeys::from_env`): `WEBAUTHN_RP_ID` (the
-site's registrable domain, e.g. `mairie360-eip.fr`) and `WEBAUTHN_RP_ORIGIN` (the origin the browser signs for, e.g.
-`https://login.mairie360-eip.fr`) must be set **together**; with neither, `main.rs` registers no `Passkeys`, the passkey
+site's registrable domain, e.g. `mairie360-eip.fr`) and `WEBAUTHN_RP_ORIGIN` (the origins the browser signs for, comma-separated: passkeys are registered from the settings front
+and used from the login front, e.g. `https://login.mairie360-eip.fr,https://settings.mairie360-eip.fr`) must be set **together**; with neither, `main.rs` registers no `Passkeys`, the passkey
 routes answer `503` and `PUT /admin/two-factor-policy` refuses `passkey_allowed: true`. Passkeys are discoverable
 (resident) credentials, user verification required, no attestation (synchronised passkeys are accepted). The key of an
 agent is stored as the `webauthn-rs` `Passkey` JSON in `user_passkeys` (Database 3.7.0, one row per passkey, `credential_id`

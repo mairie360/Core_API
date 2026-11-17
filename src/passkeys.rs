@@ -29,14 +29,30 @@ pub struct Passkeys {
 }
 
 impl Passkeys {
+    /// `rp_origin` is one origin, or several separated by commas (the fronts that register and use
+    /// passkeys live on different hosts: `https://login.<domain>,https://settings.<domain>`). The
+    /// first is the primary one; each must be an origin of `rp_id`.
+    ///
     /// # Errors
     ///
-    /// A message when `rp_origin` is not a URL or `rp_id` is not a domain of it.
+    /// A message when an origin is not a URL or `rp_id` is not a domain of it.
     pub fn new(rp_id: &str, rp_origin: &str) -> Result<Self, String> {
-        let origin =
-            Url::parse(rp_origin).map_err(|e| format!("{WEBAUTHN_RP_ORIGIN} is not a URL: {e}"))?;
-        let webauthn = WebauthnBuilder::new(rp_id, &origin)
-            .map_err(|e| format!("{WEBAUTHN_RP_ID} / {WEBAUTHN_RP_ORIGIN}: {e}"))?
+        let origins = rp_origin
+            .split(',')
+            .map(str::trim)
+            .filter(|origin| !origin.is_empty())
+            .map(|origin| {
+                Url::parse(origin).map_err(|e| format!("{WEBAUTHN_RP_ORIGIN} is not a URL: {e}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let (primary, others) = origins
+            .split_first()
+            .ok_or_else(|| format!("{WEBAUTHN_RP_ORIGIN} holds no origin"))?;
+        let builder = WebauthnBuilder::new(rp_id, primary)
+            .map_err(|e| format!("{WEBAUTHN_RP_ID} / {WEBAUTHN_RP_ORIGIN}: {e}"))?;
+        let webauthn = others
+            .iter()
+            .fold(builder, WebauthnBuilder::append_allowed_origin)
             .rp_name("Mairie 360")
             .build()
             .map_err(|e| format!("WebAuthn configuration: {e}"))?;

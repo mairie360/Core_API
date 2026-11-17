@@ -552,3 +552,56 @@ async fn mair_810_sign_in_is_refused_once_the_policy_stops_allowing_passkeys() {
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert!(!headers.contains_key("Authorization"));
 }
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_a_passkey_registered_on_one_front_signs_in_on_another() {
+    let env = env().await;
+    // Registered from the settings front, used from the login front: both origins of one `rpId`.
+    let passkeys = Some(web::Data::new(
+        Passkeys::new(
+            "localhost",
+            "https://login.localhost, https://settings.localhost",
+        )
+        .unwrap(),
+    ));
+    let app = init_app!(env.state, passkeys);
+    let (id, _) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let mut device = SoftPasskey::new(true);
+
+    let (_, _, body) = json_of!(
+        app,
+        post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
+    );
+    let options: CreationChallengeResponse =
+        serde_json::from_value(body["options"].clone()).unwrap();
+    let credential = device
+        .do_registration(Url::parse("https://settings.localhost").unwrap(), options)
+        .unwrap();
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/user/me/passkeys/",
+            &json!({ "label": "Phone", "credential": credential })
+        )
+        .insert_header(auth.clone())
+    );
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (_, _, body) = json_of!(app, post("/api/v1/auth/passkey/options", &json!({})));
+    let mut options = body["options"].clone();
+    options["publicKey"]["allowCredentials"] = json!([{
+        "type": "public-key",
+        "id": stored_credential_id(&env.raw, id).await
+    }]);
+    let options: RequestChallengeResponse = serde_json::from_value(options).unwrap();
+    let credential = device
+        .do_authentication(Url::parse("https://login.localhost").unwrap(), options)
+        .unwrap();
+    let mut credential = serde_json::to_value(credential).unwrap();
+    credential["response"]["userHandle"] = json!(handle_of(id));
+    let (status, headers, _) = passkey_login!(app, body["id"].as_str().unwrap(), credential);
+    assert_eq!(status, StatusCode::OK);
+    assert!(headers.contains_key("Authorization"));
+}
