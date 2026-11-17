@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "d3c656c6a75cbff5e25b6048b5497f6106c2db6c", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 14:26 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "fd78e29d41d165b6f3aa22ff8c9619f3fff2ff7e", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 17:07 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `d3c656c` | 2026-11-17 14:26 UTC |
+| dev | — | `fd78e29` | 2026-11-17 17:07 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- test: MAIR-533 Remove or reactivate the dead tests of the APIs ([#409](https://github.com/mairie360/Core_API/pull/409))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#400) ([#400](https://github.com/mairie360/Core_API/pull/400))
 - chore(deps): pin actions/checkout action to 3d3c42e (#402) ([#402](https://github.com/mairie360/Core_API/pull/402))
 - ci: MAIR-1008 Nightly rehearsal of the promotion gates (#398) ([#398](https://github.com/mairie360/Core_API/pull/398))
@@ -26,6 +27,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- test: MAIR-533 Remove or reactivate the dead tests of the APIs ([#409](https://github.com/mairie360/Core_API/pull/409))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#400) ([#400](https://github.com/mairie360/Core_API/pull/400))
 - chore(deps): pin actions/checkout action to 3d3c42e (#402) ([#402](https://github.com/mairie360/Core_API/pull/402))
 - ci: MAIR-1008 Nightly rehearsal of the promotion gates (#398) ([#398](https://github.com/mairie360/Core_API/pull/398))
@@ -50,6 +52,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 17:07 UTC | dev | — | `fd78e29` | [run](https://github.com/mairie360/Core_API/actions/runs/44131665230) |
 | 2026-11-17 14:26 UTC | dev | — | `d3c656c` | [run](https://github.com/mairie360/Core_API/actions/runs/44100508777) |
 | 2026-11-17 11:50 UTC | dev | — | `3e82d42` | [run](https://github.com/mairie360/Core_API/actions/runs/44075427730) |
 | 2026-11-17 01:34 UTC | dev | — | `2ba84c1` | [run](https://github.com/mairie360/Core_API/actions/runs/43992420227) |
