@@ -7,6 +7,7 @@ pub mod login;
 pub mod login_2fa;
 pub mod logout;
 pub mod reset_password;
+pub mod two_factor_setup;
 
 use actix_web::web;
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -23,7 +24,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(login::endpoint::login)
             .service(login_2fa::endpoint::login_two_factor)
             .service(logout::endpoint::logout)
-            .service(reset_password::endpoint::reset_password),
+            .service(reset_password::endpoint::reset_password)
+            .service(two_factor_setup::endpoint::setup_login_two_factor)
+            .service(two_factor_setup::endpoint::confirm_login_two_factor),
     );
 }
 

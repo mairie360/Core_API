@@ -478,6 +478,8 @@ async fn only_the_authentication_routes_are_public() {
         public,
         [
             "GET /api/v1/auth/jwks",
+            "POST /api/v1/auth/2fa/confirm",
+            "POST /api/v1/auth/2fa/setup",
             "POST /api/v1/auth/force_change_password",
             "POST /api/v1/auth/forgot_password",
             "POST /api/v1/auth/keycloak",

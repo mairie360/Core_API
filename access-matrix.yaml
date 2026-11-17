@@ -35,6 +35,8 @@ operations:
   GET /ready: {access: public}
   POST /api/v1/auth/login: {access: public, token: true, note: "a protected account gets a login token instead of a session (MAIR-805)"}
   POST /api/v1/auth/login/2fa: {access: public, token: true, note: "needs the login token of the second step and a valid code (MAIR-805)"}
+  POST /api/v1/auth/2fa/setup: {access: public, token: true, note: "needs the enrolment token of a login that answered 2fa_setup_required; returns the TOTP secret of the pending enrolment (MAIR-808)"}
+  POST /api/v1/auth/2fa/confirm: {access: public, token: true, note: "needs the enrolment token and a valid first code; opens the session and returns the backup codes, shown once (MAIR-808)"}
   POST /api/v1/auth/force_change_password: {access: public, token: true, note: "needs the one-time first-connection token"}
   POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
   POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}
@@ -132,6 +134,8 @@ operations:
   DELETE /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin], note: "archives the account and revokes its sessions"}
   PATCH /api/v1/admin/users/{userId}/password: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/2fa: {access: admin, roles: [Admin], note: "removes the TOTP secret and backup codes, closes every session of the user (MAIR-805)"}
+  GET /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "reads the two-factor policy of the instance (MAIR-808)"}
+  PUT /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "replaces the two-factor policy: mandatory or not, allowed modes; audited (MAIR-808)"}
   POST /api/v1/admin/users/{userId}/erase: {access: admin, roles: [Admin], note: "erasure (GDPR art. 17, MAIR-289): anonymize_user(), sessions revoked, Keycloak account deleted"}
   GET /api/v1/admin/users/{userId}/export: {access: admin, roles: [Admin], personal: [user, data], note: "export_user_data() (GDPR art. 15 and 20, MAIR-289)"}
   POST /api/v1/admin/users/{userId}/roles/: {access: admin, roles: [Admin]}

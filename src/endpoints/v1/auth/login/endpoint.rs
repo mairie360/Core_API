@@ -34,6 +34,9 @@ pub enum LoginError {
     TooManyRequests(u64),
     /// Password right, second factor to give: the login token of the second step (MAIR-805).
     TwoFactorRequired(String),
+    /// Password right, the instance makes the second factor mandatory and the account has none:
+    /// the enrolment token, no session (MAIR-808).
+    TwoFactorSetupRequired(String),
     /// The account has a second factor but `TOTP_ENCRYPTION_KEY` is not configured: refused rather
     /// than opened without it.
     TwoFactorUnavailable,
@@ -50,6 +53,7 @@ impl std::fmt::Debug for LoginError {
             Self::TokenGenerationError => write!(f, "TokenGenerationError"),
             Self::TooManyRequests(seconds) => write!(f, "TooManyRequests({seconds})"),
             Self::TwoFactorRequired(_) => write!(f, "TwoFactorRequired(<token>)"),
+            Self::TwoFactorSetupRequired(_) => write!(f, "TwoFactorSetupRequired(<token>)"),
             Self::TwoFactorUnavailable => write!(f, "TwoFactorUnavailable"),
         }
     }
@@ -70,6 +74,7 @@ impl std::fmt::Display for LoginError {
             Self::RedisError => write!(f, "Internal Redis error."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::TwoFactorRequired(_) => write!(f, "Second factor required."),
+            Self::TwoFactorSetupRequired(_) => write!(f, "Second factor setup required."),
             Self::TwoFactorUnavailable => {
                 write!(f, "Two-factor authentication is not configured.")
             }
@@ -86,7 +91,7 @@ impl ResponseError for LoginError {
             Self::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
             Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
-            Self::TwoFactorRequired(_) => StatusCode::ACCEPTED,
+            Self::TwoFactorRequired(_) | Self::TwoFactorSetupRequired(_) => StatusCode::ACCEPTED,
             Self::TwoFactorUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -98,6 +103,10 @@ impl ResponseError for LoginError {
         if let Self::TwoFactorRequired(token) = self {
             return HttpResponse::build(self.status_code())
                 .json(TwoFactorRequiredView::new(token.clone()));
+        }
+        if let Self::TwoFactorSetupRequired(token) = self {
+            return HttpResponse::build(self.status_code())
+                .json(TwoFactorRequiredView::setup(token.clone()));
         }
         if let Self::FirstConnectError(token) = self {
             return HttpResponse::build(self.status_code())
@@ -275,39 +284,76 @@ pub(crate) async fn is_password_valid(user_id: i32, password: &str, stored_passw
     }
 }
 
-/// Opens the second step for `user_id` when the account has a second factor: the login token to
-/// return instead of a session, `None` for an account without one (MAIR-805).
+/// What a password alone leads to for an account (MAIR-805, MAIR-808).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TwoFactorStep {
+    /// The account has a usable second factor: the login token of the second step.
+    Code(String),
+    /// The instance requires a second factor and the account has no usable one: the enrolment
+    /// token, nothing else is allowed.
+    Setup(String),
+}
+
+impl TwoFactorStep {
+    /// The error answered instead of a session.
+    pub(crate) fn into_login_error(self) -> LoginError {
+        match self {
+            Self::Code(token) => LoginError::TwoFactorRequired(token),
+            Self::Setup(token) => LoginError::TwoFactorSetupRequired(token),
+        }
+    }
+}
+
+/// Decides what follows a verified password for `user_id`: the second step when the account has a
+/// factor the policy still accepts, the mandatory enrolment when the policy requires a factor the
+/// account does not have, a session (`None`) otherwise.
 ///
 /// # Errors
 ///
-/// [`LoginError::TwoFactorUnavailable`] when the account is protected but the instance cannot
-/// verify a code, [`LoginError::DatabaseError`] / [`LoginError::RedisError`] on a failure.
+/// [`LoginError::TwoFactorUnavailable`] when a factor is needed (to check or to enrol) but the
+/// instance cannot seal secrets, [`LoginError::DatabaseError`] / [`LoginError::RedisError`] on a
+/// failure.
 pub(crate) async fn two_factor_challenge(
     state: &AppState,
     user_id: u64,
     device_info: &str,
     can_verify: bool,
-) -> Result<Option<String>, LoginError> {
+) -> Result<Option<TwoFactorStep>, LoginError> {
+    let db_error = |e: mairie360_api_lib::error::ApiLibError| {
+        tracing::error!("Second factor status DB Error: {e}");
+        LoginError::DatabaseError
+    };
     let enabled = two_factor::is_enabled(state.get_smart_db(), user_id)
         .await
-        .map_err(|e| {
-            tracing::error!("Second factor status DB Error: {e}");
-            LoginError::DatabaseError
-        })?;
-    if !enabled {
+        .map_err(db_error)?;
+    let policy = two_factor::load_policy(state.get_smart_db())
+        .await
+        .map_err(db_error)?;
+    // A factor of a mode the administrator removed does not count.
+    let usable = enabled && policy.totp_allowed;
+    if !usable && !policy.required {
         return Ok(None);
     }
     if !can_verify {
-        tracing::error!("User {user_id} has a second factor but TOTP_ENCRYPTION_KEY is not set");
+        tracing::error!("User {user_id} needs a second factor but TOTP_ENCRYPTION_KEY is not set");
         return Err(LoginError::TwoFactorUnavailable);
     }
-    two_factor::begin_login(state.get_redis(), user_id, device_info)
-        .await
-        .map(Some)
-        .map_err(|e| {
-            tracing::error!("Redis Error: {e}");
-            LoginError::RedisError
-        })
+    let redis_error = |e: String| {
+        tracing::error!("Redis Error: {e}");
+        LoginError::RedisError
+    };
+    if usable {
+        two_factor::begin_login(state.get_redis(), user_id, device_info)
+            .await
+            .map(|token| Some(TwoFactorStep::Code(token)))
+            .map_err(redis_error)
+    } else {
+        // `user_totp` may hold the confirmed secret of a removed mode: enrolling starts over.
+        two_factor::begin_setup(state.get_redis(), user_id, device_info)
+            .await
+            .map(|token| Some(TwoFactorStep::Setup(token)))
+            .map_err(redis_error)
+    }
 }
 
 async fn login_user(
@@ -367,7 +413,7 @@ async fn login_user(
     }
 
     // A protected account gets no session from its password alone (MAIR-805).
-    if let Some(token) = two_factor_challenge(
+    if let Some(step) = two_factor_challenge(
         &state,
         id_from_sql(user.user_id()),
         &login_view.device_info(),
@@ -375,7 +421,7 @@ async fn login_user(
     )
     .await?
     {
-        return Err(LoginError::TwoFactorRequired(token));
+        return Err(step.into_login_error());
     }
 
     generate_session(

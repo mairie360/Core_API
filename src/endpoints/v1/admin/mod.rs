@@ -1,6 +1,7 @@
 pub mod doc;
 pub mod keycloak;
 pub mod roles;
+pub mod two_factor_policy;
 pub mod users;
 
 use crate::endpoints::admin_guard::admin_guard;
@@ -14,6 +15,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .wrap(from_fn(admin_guard))
             .configure(keycloak::config)
             .configure(roles::config)
+            .configure(two_factor_policy::config)
             .configure(users::config),
     );
 }

@@ -422,6 +422,23 @@ for it, then revokes that session too. The revocation list publication has no ou
 (`RecentlyRevokedSessionsQueryView`) and answers `503` when Redis refuses, so repeating the call is effective.
 `reset_password` checks that the instance can verify the account's factor **before** it changes anything.
 
+### Mandatory second factor (MAIR-808)
+
+The instance policy is the single row of `two_factor_policy` (Database 3.6.0: `required`, `totp_allowed`,
+`passkey_allowed`, `backup_codes_allowed`), read and written by Core alone (`database/two_factor_policy.rs`,
+`two_factor::load_policy`), changed by administrators through `GET` / `PUT /api/v1/admin/two-factor-policy` (every
+change is audited by a trigger in `two_factor_policy_audit_log`, plus an `AUDIT:` log line). `passkey_allowed: true`
+is refused (`400`) while `PASSKEYS_AVAILABLE` is `false` (until MAIR-810); at least one mode must stay allowed.
+A factor whose mode was removed does not count (`verify_code_under_policy`: TOTP refused when `!totp_allowed`, a backup
+code when `!backup_codes_allowed`). With `required` and no usable factor, `login` and `reset_password` open **no
+session** and answer `202 {"status":"2fa_setup_required","token"}`; the token lives in Redis (`2fa_setup/<token>`,
+5 minutes, burnt after 5 wrong codes) and only opens the public `POST /auth/2fa/setup {token}` (secret + `otpauth_uri`,
+the same enrolment as `/user/me/2fa/setup`) and `POST /auth/2fa/confirm {token, code}` (activates the factor, opens the
+session like a login and returns the ten backup codes once). `POST /user/me/2fa/disable` answers `403` while the policy is
+`required`. The policy table has no foreign key on purpose: the test tooling truncates `users` with CASCADE.
+`load-test.js` runs the four operations in an isolated one-iteration `policy` scenario (a mandatory policy would make every
+other login answer 202) and restores the optional policy.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and
