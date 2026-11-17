@@ -225,8 +225,9 @@ async fn register_user(
     summary = "Create a user account (administration)",
     description = "Creates an account on behalf of an administrator. Reserved to administrators: \
                    this is the only way to create an account, there is no public sign-up route.\n\n\
-                   Validation: e-mail of the form `local@domain.tld`, password of at least 8 \
-                   characters, optional phone number valid for its `phone_country` (national \
+                   Validation: e-mail of the form `local@domain.tld`, password of at least 12 \
+                   characters, not a commonly used one and not containing the account's e-mail, \
+                   first name or last name (MAIR-757), optional phone number valid for its `phone_country` (national \
                    format with the country, or E.164). All share the same \
                    `400`.\n\n\
                    The password given here is temporary: the account is flagged as first \
@@ -265,10 +266,10 @@ async fn register_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `password` 8 to 255 characters without control character; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`. The body names the first invalid field.",
+            description = "Malformed JSON body, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `password` 12 to 255 characters without control character, not a commonly used password, not containing the account's e-mail, first name or last name; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `password`: must be at least 8 characters")
+            example = json!("Invalid `password`: must be at least 12 characters")
         ),
         (
             status = 401,

@@ -13,6 +13,7 @@ mod keycloak_login;
 mod keycloak_migration;
 mod mair_534_negative_cases;
 mod mair_692_logout_by_refresh_token;
+mod mair_757_password_policy;
 mod pagination;
 mod path_ids;
 mod rate_limits;

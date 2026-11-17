@@ -1,6 +1,7 @@
 use crate::client_ip::client_ip;
 use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
+use crate::endpoints::password_identity::{self, IdentityChanges, IdentityCheckError};
 use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::reset_password::view::{
     ResetPasswordResponseView, ResetPasswordView,
@@ -19,6 +20,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
     DatabaseError,
+    /// The new password breaks the identity rule (MAIR-757); the text names it.
+    Rejected(String),
     RedisError,
     TokenGenerationError,
     TooManyRequests(u64),
@@ -34,6 +37,7 @@ impl std::fmt::Display for ResetPasswordError {
                     "The password could not be reset, please try again later."
                 )
             }
+            Self::Rejected(reason) => f.write_str(reason),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::UnknownToken => {
                 write!(f, "Unknown token")
@@ -48,6 +52,7 @@ impl ResponseError for ResetPasswordError {
             Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            Self::Rejected(_) => StatusCode::BAD_REQUEST,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::UnknownToken => StatusCode::UNAUTHORIZED,
         }
@@ -128,6 +133,20 @@ async fn reset_password_trigger(
         }
     };
     let user_id = get_user_id(smart_db, &email).await?;
+    // Checked before the token is consumed, so the e-mailed link stays usable for another try.
+    password_identity::check(
+        smart_db,
+        user_id,
+        "new_password",
+        view.new_password(),
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(|e| match e {
+        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownToken,
+        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
+    })?;
 
     let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
@@ -186,10 +205,10 @@ async fn reset_password_trigger(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
+            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's e-mail, first name or last name.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must be at least 8 characters")
+            example = json!("Invalid `new_password`: must be at least 12 characters")
         ),
         (
             status = 401,
