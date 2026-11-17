@@ -459,8 +459,8 @@ signature / counter, moves the counter forward, opens the session exactly like `
 `POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
 (own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
 satisfies a mandatory policy); `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
-the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `added` /
-`removed`, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
+the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `ajoutée` /
+`supprimée`, French because the template cannot branch, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
 published before deploying, and a failed e-mail never undoes the change. The sign-in shares the `login_per_ip` budget, the
 authenticated routes `second_factor_per_user`. Tests use the software authenticator of `webauthn-authenticator-rs`
 (`tests/endpoints/passkeys.rs`): it only signs for a listed credential and returns no user handle, so the test names the

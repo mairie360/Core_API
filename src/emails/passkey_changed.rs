@@ -11,10 +11,12 @@ pub enum PasskeyChange {
 }
 
 impl PasskeyChange {
+    /// The past participle the French template completes "Une clé d'accès a été …" with: a template
+    /// cannot branch, and the e-mail is read by the agent, so the value is French text.
     const fn as_str(self) -> &'static str {
         match self {
-            Self::Added => "added",
-            Self::Removed => "removed",
+            Self::Added => "ajoutée",
+            Self::Removed => "supprimée",
         }
     }
 }
@@ -58,5 +60,32 @@ impl EmailTemplate for PasskeyChangedEmail {
             variables.insert("MAIRIE_NAME".to_string(), json!(mairie_name));
         }
         variables
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn email(change: PasskeyChange) -> PasskeyChangedEmail {
+        PasskeyChangedEmail {
+            first_name: "Alice".into(),
+            change,
+            label: "Town hall laptop".into(),
+            device: "Firefox".into(),
+            date: "2026-11-17T09:30:00Z".into(),
+            ip_address: "203.0.113.7".into(),
+            mairie_name: None,
+        }
+    }
+
+    #[test]
+    fn mair_810_change_is_the_french_participle_the_template_reads() {
+        let added = email(PasskeyChange::Added).variables();
+        let removed = email(PasskeyChange::Removed).variables();
+        assert_eq!(added["CHANGE"], json!("ajoutée"));
+        assert_eq!(removed["CHANGE"], json!("supprimée"));
+        assert_eq!(added["PASSKEY_LABEL"], json!("Town hall laptop"));
+        assert!(!added.contains_key("MAIRIE_NAME"));
     }
 }
