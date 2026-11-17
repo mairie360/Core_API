@@ -1,6 +1,6 @@
 use crate::endpoints::validation::{
-    check_email, check_label, check_password, check_phone, Validate, ValidationError,
-    MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
+    check_email, check_label, check_password, check_password_identity, check_phone, Validate,
+    ValidationError, MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
 };
 use crate::phone::Phone;
 use serde::{Deserialize, Serialize};
@@ -19,9 +19,9 @@ pub struct CreateUserView {
     /// E-mail address, unique on the platform. Must hold an `@` and a dotted domain.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
-    /// Temporary password, 8 to 255 characters, no control character. The user must choose
+    /// Temporary password, 12 to 255 characters, no control character, not a commonly used password, not containing the account's e-mail, first name or last name. The user must choose
     /// another one at their first login.
-    #[schema(min_length = 8, max_length = 255, format = Password, example = "MotDePasse!123")]
+    #[schema(min_length = 12, max_length = 255, format = Password, example = "MotDePasse!123")]
     password: String,
     /// Optional phone number, as typed: national format (`06 12 34 56 78`) with `phone_country`,
     /// or E.164 (`+33612345678`, `phone_country` optional). It must be a valid number of that
@@ -91,6 +91,15 @@ impl Validate for CreateUserView {
         check_label("last_name", &self.last_name, MAX_NAME_LENGTH)?;
         check_email("email", &self.email)?;
         check_password("password", &self.password, MIN_PASSWORD_LENGTH)?;
+        check_password_identity(
+            "password",
+            &self.password,
+            crate::password_policy::Identity {
+                email: &self.email,
+                first_name: &self.first_name,
+                last_name: &self.last_name,
+            },
+        )?;
         self.phone().map(|_| ())
     }
 }

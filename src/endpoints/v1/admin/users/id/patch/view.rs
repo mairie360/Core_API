@@ -33,9 +33,9 @@ pub struct PatchUserView {
     #[schema(min_length = 2, max_length = 2, pattern = "^[A-Z]{2}$", example = "FR")]
     #[serde(default)]
     phone_country: Option<String>,
-    /// New password, 8 to 255 characters, no control character. Absent or `null` to leave it
+    /// New password, 12 to 255 characters, no control character, not a commonly used password, not containing the account's e-mail, first name or last name. Absent or `null` to leave it
     /// unchanged. `PATCH /api/v1/admin/users/{userId}/password` is the dedicated route.
-    #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 12, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     password: Option<String>,
 }
 

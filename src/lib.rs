@@ -11,6 +11,7 @@ pub mod invitations;
 pub mod login_alert;
 pub mod passkey_managers;
 pub mod passkeys;
+pub mod password_policy;
 pub mod passwords;
 pub mod phone;
 pub mod rate_limit;

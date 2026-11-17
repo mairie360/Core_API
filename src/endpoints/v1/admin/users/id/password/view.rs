@@ -2,14 +2,14 @@ use crate::endpoints::validation::{check_password, Validate, ValidationError};
 use serde::Deserialize;
 use utoipa::ToSchema;
 
-pub const MIN_PASSWORD_LENGTH: usize = 8;
+pub use crate::endpoints::validation::MIN_PASSWORD_LENGTH;
 pub const MAX_PASSWORD_LENGTH: usize = 255;
 
 /// New password set by an administrator.
 #[derive(Deserialize, ToSchema)]
 pub struct AdminResetPasswordView {
-    /// New password, 8 to 255 characters (counted in characters, not in bytes).
-    #[schema(format = Password, min_length = 8, max_length = 255, example = "NouveauMotDePasse!123")]
+    /// New password, 12 to 255 characters (counted in characters, not in bytes), not a commonly used password, not containing the account's e-mail, first name or last name.
+    #[schema(format = Password, min_length = 12, max_length = 255, example = "NouveauMotDePasse!123")]
     new_password: String,
 }
 
