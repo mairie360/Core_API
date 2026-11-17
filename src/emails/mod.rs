@@ -4,7 +4,9 @@
 //! no body is written here, and the sender is always `no-reply@<EMAIL_DOMAIN>`.
 
 mod account_emails;
+mod passkey_changed;
 mod password_reset;
 
 pub use account_emails::{AccountEmails, PUBLIC_URL};
+pub use passkey_changed::{PasskeyChange, PasskeyChangedEmail};
 pub use password_reset::PasswordResetEmail;

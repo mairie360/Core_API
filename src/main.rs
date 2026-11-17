@@ -11,6 +11,7 @@ use core_api::endpoints::{config, keycloak_console_config, public_config};
 use core_api::endpoints::{health, ready};
 use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
 use core_api::keycloak_console::ConsoleAccessConfig;
+use core_api::passkeys::Passkeys;
 use core_api::rate_limit::RateLimits;
 use core_api::second_factor::SecretCipher;
 use mairie360_api_lib::security::JwtMiddleware;
@@ -110,6 +111,14 @@ async fn main() -> std::io::Result<()> {
             std::io::Error::other(e.to_string())
         })?
         .map(web::Data::new);
+    // WebAuthn relying party (MAIR-810): `WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN`. Without them the
+    // passkey routes answer 503 and the policy refuses `passkey_allowed`.
+    let passkeys = Passkeys::from_env()
+        .map_err(|e| {
+            tracing::error!("WebAuthn configuration: {e}");
+            std::io::Error::other(e)
+        })?
+        .map(web::Data::new);
     // Temporary access to the Keycloak realm admin console (MAIR-609), from the public issuer:
     // without it the console routes answer 503.
     let console_access = ConsoleAccessConfig::from_env().map(web::Data::new);
@@ -136,6 +145,10 @@ async fn main() -> std::io::Result<()> {
         };
         let app = match &second_factor_cipher {
             Some(cipher) => app.app_data(cipher.clone()),
+            None => app,
+        };
+        let app = match &passkeys {
+            Some(passkeys) => app.app_data(passkeys.clone()),
             None => app,
         };
         let app = match &console_access {

@@ -3,10 +3,6 @@ use crate::endpoints::validation::{Validate, ValidationError};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Passkeys cannot be enrolled yet (MAIR-810): allowing them would let an administrator remove the
-/// authenticator application while nothing can replace it, locking every agent out.
-pub const PASSKEYS_AVAILABLE: bool = false;
-
 // The four flags are the independent columns of `two_factor_policy`, not the states of one machine.
 #[allow(clippy::struct_excessive_bools)]
 /// Two-factor policy of the instance.
@@ -59,7 +55,7 @@ pub struct UpdateTwoFactorPolicyView {
     /// Accept the authenticator application (TOTP).
     #[schema(example = true)]
     pub totp_allowed: bool,
-    /// Accept passkeys. Refused (`400`) until passkeys are available.
+    /// Accept passkeys. Refused (`400`) while the instance has no `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_ORIGIN`.
     #[schema(example = false)]
     pub passkey_allowed: bool,
     /// Accept backup codes to finish a login.
@@ -69,12 +65,6 @@ pub struct UpdateTwoFactorPolicyView {
 
 impl Validate for UpdateTwoFactorPolicyView {
     fn validate(&self) -> Result<(), ValidationError> {
-        if self.passkey_allowed && !PASSKEYS_AVAILABLE {
-            return Err(ValidationError::new(
-                "passkey_allowed",
-                "passkeys are not available yet",
-            ));
-        }
         if !self.totp_allowed && !self.passkey_allowed {
             return Err(ValidationError::new(
                 "totp_allowed",

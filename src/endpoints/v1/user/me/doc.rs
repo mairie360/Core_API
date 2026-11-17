@@ -3,6 +3,10 @@ use crate::endpoints::v1::user::me::get::endpoint::__path_get_me;
 use crate::endpoints::v1::user::me::notifications::endpoint::{
     __path_get_my_notification_settings, __path_patch_my_notification_settings,
 };
+use crate::endpoints::v1::user::me::passkeys::endpoint::{
+    __path_delete_my_passkey, __path_list_my_passkeys, __path_passkey_register_options,
+    __path_register_passkey,
+};
 use crate::endpoints::v1::user::me::patch::endpoint::__path_patch_me;
 use crate::endpoints::v1::user::me::preferences::endpoint::{
     __path_get_my_preferences, __path_patch_my_preferences,
@@ -27,7 +31,11 @@ use utoipa::OpenApi;
         setup_two_factor,
         confirm_two_factor,
         disable_two_factor,
-        regenerate_backup_codes
+        regenerate_backup_codes,
+        list_my_passkeys,
+        passkey_register_options,
+        register_passkey,
+        delete_my_passkey
     ),
     components(schemas(
         super::get::view::GetMeResponseView,
@@ -40,7 +48,10 @@ use utoipa::OpenApi;
         super::two_factor::view::TwoFactorSetupView,
         super::two_factor::view::TwoFactorCodeView,
         super::two_factor::view::DisableTwoFactorView,
-        super::two_factor::view::BackupCodesView
+        super::two_factor::view::BackupCodesView,
+        super::passkeys::view::PasskeyView,
+        super::passkeys::view::PasskeyRegisterOptionsView,
+        super::passkeys::view::PasskeyRegisterView
     ))
 )]
 pub struct MeDoc;
