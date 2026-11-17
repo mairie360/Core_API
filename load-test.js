@@ -684,14 +684,67 @@ const exportHandlers = {
 };
 const isExport = (method, path) => method === 'get' && /\/export\/?$/.test(path);
 
+// Two-factor policy (MAIR-808): making the second factor mandatory answers every login 202 until it
+// is lifted, so these operations run alone, after every other scenario, in their own one-iteration
+// scenario. The policy is back to optional when they end.
+const isPolicy = (method, path) => path.includes('/admin/two-factor-policy') || path.includes('/auth/2fa/');
+const OPTIONAL_POLICY = { required: false, totp_allowed: true, passkey_allowed: false, backup_codes_allowed: true };
+
+/** The enrolment token of a login that the mandatory policy answers `2fa_setup_required`. */
+function setupToken(account) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true });
+  try {
+    return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+      expected: [202],
+    }).json('token');
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
+const policyHandlers = {
+  'GET /api/v1/admin/two-factor-policy': ({ request }) =>
+    check(request(), {
+      'policy 200': (r) => r.status === 200 && r.json('required') === false && r.json('totp_allowed') === true,
+    }),
+  'PUT /api/v1/admin/two-factor-policy': ({ request }) =>
+    check(request({ body: OPTIONAL_POLICY }), {
+      'put policy 200': (r) => r.status === 200 && r.json('required') === false && !!r.json('updated_at'),
+    }),
+  'POST /api/v1/auth/2fa/setup': ({ request }) => {
+    const account = activeAccount('2fa-setup');
+    check(request({ body: { token: setupToken(account) } }), {
+      'mandatory setup 200': (r) => r.status === 200 && !!r.json('secret') && !!r.json('otpauth_uri'),
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/2fa/confirm': ({ request }) => {
+    const account = activeAccount('2fa-confirm');
+    const token = setupToken(account);
+    const secret = fixture('POST', '/api/v1/auth/2fa/setup', { token }).json('secret');
+    const res = request({ body: { token, code: totp(secret, currentStep()) } });
+    check(res, {
+      'mandatory confirm 200': (r) =>
+        r.status === 200 && !!r.headers.Authorization && !!r.json('refresh_token') && r.json('backup_codes').length === 10,
+    });
+    deleteUser(account.id);
+  },
+};
+
 const reads = createCoverage(readHandlers, {
-  spec: specSubset(spec, (method, path) => READ_METHODS.includes(method) && !isExport(method, path)),
+  spec: specSubset(
+    spec,
+    (method, path) => READ_METHODS.includes(method) && !isExport(method, path) && !isPolicy(method, path),
+  ),
+});
+const policyCoverage = createCoverage(policyHandlers, {
+  spec: specSubset(spec, (method, path) => isPolicy(method, path)),
 });
 const exportsCoverage = createCoverage(exportHandlers, {
   spec: specSubset(spec, (method, path) => isExport(method, path)),
 });
 const writes = createCoverage(writeHandlers, {
-  spec: specSubset(spec, (method) => !READ_METHODS.includes(method)),
+  spec: specSubset(spec, (method, path) => !READ_METHODS.includes(method) && !isPolicy(method, path)),
 });
 
 /** One `p(95)` threshold per operation (`op` tag) of `coverage`. */
@@ -732,6 +785,15 @@ export const options = {
       preAllocatedVUs: 2,
       maxVUs: 4,
     },
+    // MAIR-808: alone, once everything else is over (the policy makes every login answer 202).
+    policy: {
+      executor: 'shared-iterations',
+      exec: 'policyScenario',
+      vus: 1,
+      iterations: 1,
+      startTime: '3m30s',
+      maxDuration: '1m',
+    },
     login_rush: {
       executor: 'ramping-arrival-rate',
       exec: 'loginRushScenario',
@@ -752,6 +814,7 @@ export const options = {
     ...latencyThresholds(reads, READ_BUDGET_MS),
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
     ...latencyThresholds(exportsCoverage, EXPORT_BUDGET_MS),
+    ...latencyThresholds(policyCoverage, WRITE_BUDGET_MS),
     'http_req_duration{op:login_rush}': [`p(95)<${LOGIN_RUSH_BUDGET_MS}`],
     // The login rush must not be shed: every arrival gets a VU.
     dropped_iterations: ['count==0'],
@@ -805,6 +868,11 @@ export function readScenario(data) {
 /** Both GDPR exports once, at EXPORT_RATE_PER_MINUTE (no sleep: the arrival rate paces it). */
 export function exportScenario(data) {
   exportsCoverage.run({ headers: AUTH, data });
+}
+
+/** Once, alone: the two-factor policy and the mandatory enrolment (MAIR-808). */
+export function policyScenario(data) {
+  policyCoverage.run({ headers: AUTH, data });
 }
 
 export function writeScenario(data) {

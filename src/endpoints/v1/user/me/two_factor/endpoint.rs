@@ -27,6 +27,8 @@ pub enum TwoFactorError {
     Unavailable,
     /// The second factor is already active.
     AlreadyEnabled,
+    /// The instance makes the second factor mandatory (MAIR-808).
+    Mandatory,
     /// No second factor to act on, or no enrolment started.
     NotEnabled,
     /// Wrong code or wrong password.
@@ -40,6 +42,10 @@ impl std::fmt::Display for TwoFactorError {
         match self {
             Self::Unavailable => write!(f, "Two-factor authentication is not configured."),
             Self::AlreadyEnabled => write!(f, "Two-factor authentication is already enabled."),
+            Self::Mandatory => write!(
+                f,
+                "Two-factor authentication is mandatory on this instance."
+            ),
             Self::NotEnabled => write!(f, "Two-factor authentication is not enabled."),
             Self::InvalidCredentials => write!(f, "Invalid code or password."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
@@ -53,6 +59,7 @@ impl ResponseError for TwoFactorError {
         match self {
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
             Self::AlreadyEnabled => StatusCode::CONFLICT,
+            Self::Mandatory => StatusCode::FORBIDDEN,
             Self::NotEnabled => StatusCode::NOT_FOUND,
             Self::InvalidCredentials => StatusCode::BAD_REQUEST,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
@@ -98,6 +105,88 @@ fn cipher(cipher: Option<&web::Data<SecretCipher>>) -> Result<&SecretCipher, Two
     cipher
         .map(web::Data::get_ref)
         .ok_or(TwoFactorError::Unavailable)
+}
+
+/// Starts (or restarts) the pending enrolment of `user_id`: a new secret, sealed, returned once.
+///
+/// # Errors
+///
+/// [`TwoFactorError::AlreadyEnabled`] when the second factor is already active,
+/// [`TwoFactorError::DatabaseError`] otherwise.
+pub async fn start_enrolment(
+    state: &AppState,
+    secrets: &SecretCipher,
+    user_id: u64,
+) -> Result<TwoFactorSetupView, TwoFactorError> {
+    let db = state.get_smart_db();
+    let account: AccountEmail = db
+        .fetch_one(&GetAccountEmailQueryView::new(user_id))
+        .await
+        .map_err(|e| db_error("read the account", &e))?;
+    let secret = second_factor::generate_secret();
+    let sealed = general_purpose::STANDARD.encode(secrets.seal(&secret));
+    match db
+        .fetch_one::<Written, _>(&StartTotpEnrolmentQueryView::new(user_id, &sealed))
+        .await
+    {
+        Ok(_) => {}
+        Err(ApiLibError::Database(DbError::NotFound)) => {
+            return Err(TwoFactorError::AlreadyEnabled)
+        }
+        Err(e) => return Err(db_error("start the enrolment", &e)),
+    }
+    Ok(TwoFactorSetupView {
+        otpauth_uri: second_factor::otpauth_uri(&secret, &account.email),
+        secret: second_factor::secret_base32(&secret),
+    })
+}
+
+/// Confirms the pending enrolment of `user_id` with a first `code`, activates the second factor and
+/// returns the ten backup codes, in clear this one time.
+///
+/// # Errors
+///
+/// [`TwoFactorError::NotEnabled`] when no enrolment is pending, [`TwoFactorError::InvalidCredentials`]
+/// for a wrong code, [`TwoFactorError::DatabaseError`] otherwise.
+pub async fn confirm_enrolment(
+    state: &AppState,
+    secrets: &SecretCipher,
+    user_id: u64,
+    code: &str,
+) -> Result<Vec<String>, TwoFactorError> {
+    let db = state.get_smart_db();
+    let record: TotpRecord = match db
+        .fetch_one::<TotpRecord, _>(&GetTotpQueryView::new(user_id))
+        .await
+    {
+        Ok(record) if !record.confirmed => record,
+        Ok(_) | Err(ApiLibError::Database(DbError::NotFound)) => {
+            return Err(TwoFactorError::NotEnabled)
+        }
+        Err(e) => return Err(db_error("read the pending secret", &e)),
+    };
+    let sealed = general_purpose::STANDARD
+        .decode(&record.secret)
+        .map_err(|_| TwoFactorError::DatabaseError)?;
+    let secret = secrets.open(&sealed).map_err(|e| {
+        tracing::error!("Two-factor confirm: {e}");
+        TwoFactorError::DatabaseError
+    })?;
+    let step = second_factor::verify_code(&secret, code, second_factor::now_unix(), None)
+        .ok_or(TwoFactorError::InvalidCredentials)?;
+
+    let mut tx = db.begin().await.map_err(|e| db_error("begin", &e))?;
+    match tx
+        .fetch_one::<Written, _>(&ConfirmTotpQueryView::new(user_id, step, &record.secret))
+        .await
+    {
+        Ok(_) => {}
+        Err(ApiLibError::Database(DbError::NotFound)) => return Err(TwoFactorError::NotEnabled),
+        Err(e) => return Err(db_error("confirm", &e)),
+    }
+    let backup_codes = two_factor::issue_backup_codes(&mut tx, user_id).await?;
+    tx.commit().await.map_err(|e| db_error("commit", &e))?;
+    Ok(backup_codes)
 }
 
 #[utoipa::path(
@@ -223,27 +312,8 @@ pub async fn setup_two_factor(
 ) -> Result<impl Responder, TwoFactorError> {
     let secrets = cipher(secrets.as_ref())?;
     spend_budget(limits.as_ref().map(web::Data::get_ref), auth_user.id)?;
-    let db = state.get_smart_db();
-    let account: AccountEmail = db
-        .fetch_one(&GetAccountEmailQueryView::new(auth_user.id))
-        .await
-        .map_err(|e| db_error("read the account", &e))?;
-    let secret = second_factor::generate_secret();
-    let sealed = general_purpose::STANDARD.encode(secrets.seal(&secret));
-    match db
-        .fetch_one::<Written, _>(&StartTotpEnrolmentQueryView::new(auth_user.id, &sealed))
-        .await
-    {
-        Ok(_) => {}
-        Err(ApiLibError::Database(DbError::NotFound)) => {
-            return Err(TwoFactorError::AlreadyEnabled)
-        }
-        Err(e) => return Err(db_error("start the enrolment", &e)),
-    }
-    Ok(HttpResponse::Ok().json(TwoFactorSetupView {
-        otpauth_uri: second_factor::otpauth_uri(&secret, &account.email),
-        secret: second_factor::secret_base32(&secret),
-    }))
+    let view = start_enrolment(&state, secrets, auth_user.id).await?;
+    Ok(HttpResponse::Ok().json(view))
 }
 
 #[utoipa::path(
@@ -323,43 +393,8 @@ pub async fn confirm_two_factor(
 ) -> Result<impl Responder, TwoFactorError> {
     let secrets = cipher(secrets.as_ref())?;
     spend_budget(limits.as_ref().map(web::Data::get_ref), auth_user.id)?;
-    let payload = payload.into_inner();
-    let db = state.get_smart_db();
-    let record: TotpRecord = match db
-        .fetch_one::<TotpRecord, _>(&GetTotpQueryView::new(auth_user.id))
-        .await
-    {
-        Ok(record) if !record.confirmed => record,
-        Ok(_) | Err(ApiLibError::Database(DbError::NotFound)) => {
-            return Err(TwoFactorError::NotEnabled)
-        }
-        Err(e) => return Err(db_error("read the pending secret", &e)),
-    };
-    let sealed = general_purpose::STANDARD
-        .decode(&record.secret)
-        .map_err(|_| TwoFactorError::DatabaseError)?;
-    let secret = secrets.open(&sealed).map_err(|e| {
-        tracing::error!("Two-factor confirm: {e}");
-        TwoFactorError::DatabaseError
-    })?;
-    let step = second_factor::verify_code(&secret, payload.code(), second_factor::now_unix(), None)
-        .ok_or(TwoFactorError::InvalidCredentials)?;
-
-    let mut tx = db.begin().await.map_err(|e| db_error("begin", &e))?;
-    match tx
-        .fetch_one::<Written, _>(&ConfirmTotpQueryView::new(
-            auth_user.id,
-            step,
-            &record.secret,
-        ))
-        .await
-    {
-        Ok(_) => {}
-        Err(ApiLibError::Database(DbError::NotFound)) => return Err(TwoFactorError::NotEnabled),
-        Err(e) => return Err(db_error("confirm", &e)),
-    }
-    let backup_codes = two_factor::issue_backup_codes(&mut tx, auth_user.id).await?;
-    tx.commit().await.map_err(|e| db_error("commit", &e))?;
+    let backup_codes =
+        confirm_enrolment(&state, secrets, auth_user.id, payload.into_inner().code()).await?;
     Ok(HttpResponse::Ok().json(BackupCodesView { backup_codes }))
 }
 
@@ -392,6 +427,13 @@ pub async fn confirm_two_factor(
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "The instance made the second factor mandatory: it cannot be turned off.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Two-factor authentication is mandatory on this instance.")
         ),
         (
             status = 404,
@@ -438,6 +480,14 @@ pub async fn disable_two_factor(
     spend_budget(limits.as_ref().map(web::Data::get_ref), auth_user.id)?;
     let payload = payload.into_inner();
     let db = state.get_smart_db();
+    // A mairie that made the second factor mandatory keeps it on every account (MAIR-808).
+    if two_factor::load_policy(db)
+        .await
+        .map_err(|e| db_error("read the policy", &e))?
+        .required
+    {
+        return Err(TwoFactorError::Mandatory);
+    }
     if !two_factor::is_enabled(db, auth_user.id)
         .await
         .map_err(|e| db_error("status", &e))?

@@ -123,11 +123,13 @@ impl From<String> for LoginFirstConnectionResponseView {
 /// the second factor: no session yet, only the token of the second step.
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct TwoFactorRequiredView {
-    /// Always `2fa_required`.
-    #[schema(example = "2fa_required")]
+    /// `2fa_required`: give a code to `POST /api/v1/auth/login/2fa`. `2fa_setup_required` (the
+    /// instance makes the second factor mandatory and the account has none): enrol with
+    /// `POST /api/v1/auth/2fa/setup` then `POST /api/v1/auth/2fa/confirm`.
+    #[schema(pattern = r"^2fa_(setup_)?required$", example = "2fa_required")]
     status: String,
-    /// Login token: valid five minutes, usable once on `POST /api/v1/auth/login/2fa` and nowhere
-    /// else. Keep it on the client side, never in a URL.
+    /// Login or enrolment token: valid five minutes, usable on the call `status` names and
+    /// nowhere else (it opens no other route). Keep it on the client side, never in a URL.
     #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     token: String,
 }
@@ -137,6 +139,15 @@ impl TwoFactorRequiredView {
     pub fn new(token: String) -> Self {
         Self {
             status: "2fa_required".to_string(),
+            token,
+        }
+    }
+
+    /// The enrolment answer: the account must set up a second factor before any session.
+    #[must_use]
+    pub fn setup(token: String) -> Self {
+        Self {
+            status: "2fa_setup_required".to_string(),
             token,
         }
     }

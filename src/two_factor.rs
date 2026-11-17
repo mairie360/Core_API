@@ -14,6 +14,7 @@ use crate::database::second_factor::{
     InsertBackupCodeQueryView, IsTotpEnabledQueryView, ListBackupCodesQueryView,
     SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView, Written,
 };
+use crate::database::two_factor_policy::{GetTwoFactorPolicyQueryView, TwoFactorPolicyRecord};
 use crate::database::users::delete_user::IsUserActiveQueryView;
 use crate::passwords;
 use crate::refresh_token;
@@ -200,21 +201,37 @@ pub struct PendingLogin {
     pub expires_at: u64,
 }
 
-fn login_key(token: &str) -> String {
-    format!("2fa_login/{token}")
+/// Which intermediate token: the second step of a login, or the mandatory enrolment of an agent
+/// without a second factor (MAIR-808).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PendingKind {
+    Login,
+    Setup,
 }
 
-/// Marker written once, atomically, by the request that spends the token.
-fn spent_key(token: &str) -> String {
-    format!("2fa_spent/{token}")
+impl PendingKind {
+    fn key(self, token: &str) -> String {
+        match self {
+            Self::Login => format!("2fa_login/{token}"),
+            Self::Setup => format!("2fa_setup/{token}"),
+        }
+    }
+
+    /// Marker written once, atomically, by the request that spends the token.
+    fn spent_key(self, token: &str) -> String {
+        match self {
+            Self::Login => format!("2fa_spent/{token}"),
+            Self::Setup => format!("2fa_setup_spent/{token}"),
+        }
+    }
 }
 
-/// Opens a login token for `user_id` (password already verified).
-///
-/// # Errors
-///
-/// A message for the logs when Redis refuses the write.
-pub async fn begin_login(redis: &Redis, user_id: u64, device_info: &str) -> Result<String, String> {
+async fn begin(
+    redis: &Redis,
+    kind: PendingKind,
+    user_id: u64,
+    device_info: &str,
+) -> Result<String, String> {
     let token = refresh_token::generate();
     let pending = PendingLogin {
         user_id,
@@ -224,51 +241,139 @@ pub async fn begin_login(redis: &Redis, user_id: u64, device_info: &str) -> Resu
     };
     let value = serde_json::to_string(&pending).map_err(|e| e.to_string())?;
     redis
-        .secure_set_ex(&login_key(&token), value, LOGIN_TOKEN_TTL_SECONDS)
+        .set_ex(&kind.key(&token), value, LOGIN_TOKEN_TTL_SECONDS)
         .await
         .map_err(|e| e.to_string())?;
     Ok(token)
 }
 
-/// The login `token` stands for, `None` when unknown, expired, burnt or spent.
-pub async fn read_login(redis: &Redis, token: &str) -> Option<PendingLogin> {
-    let raw = redis.secure_get::<String>(&login_key(token)).await.ok()??;
+async fn read(redis: &Redis, kind: PendingKind, token: &str) -> Option<PendingLogin> {
+    let raw = redis.secure_get::<String>(&kind.key(token)).await.ok()??;
     let pending: PendingLogin = serde_json::from_str(&raw).ok()?;
     (second_factor::now_unix() < pending.expires_at).then_some(pending)
 }
 
-/// Counts a wrong code; burns the token at [`MAX_LOGIN_FAILURES`]. Returns whether it is burnt.
-///
-/// The token keeps its original expiry: the write only lasts for what is left of it.
-pub async fn record_login_failure(redis: &Redis, token: &str, mut pending: PendingLogin) -> bool {
+/// Counts a wrong code. The token keeps its original expiry: the write only lasts for what is
+/// left of it.
+async fn record_failure(
+    redis: &Redis,
+    kind: PendingKind,
+    token: &str,
+    mut pending: PendingLogin,
+) -> bool {
     pending.failures += 1;
     let remaining = pending.expires_at.saturating_sub(second_factor::now_unix());
     if pending.failures >= MAX_LOGIN_FAILURES || remaining == 0 {
-        let _ = redis.secure_delete(&login_key(token)).await;
+        let _ = redis.secure_delete(&kind.key(token)).await;
         return true;
     }
     if let Ok(value) = serde_json::to_string(&pending) {
         // `set_ex` overwrites: `secure_set_ex` only writes an absent key (`SET … NX`).
-        let _ = redis.set_ex(&login_key(token), value, remaining).await;
+        let _ = redis.set_ex(&kind.key(token), value, remaining).await;
     }
     false
 }
 
+/// Spends the token: `Ok(true)` for the one request that wins, decided by a single `SET … NX`.
+async fn consume(redis: &Redis, kind: PendingKind, token: &str) -> Result<bool, String> {
+    let won = redis
+        .secure_set_ex(&kind.spent_key(token), "1", LOGIN_TOKEN_TTL_SECONDS)
+        .await
+        .map_err(|e| e.to_string())?;
+    if won {
+        let _ = redis.secure_delete(&kind.key(token)).await;
+    }
+    Ok(won)
+}
+
+/// Opens a login token for `user_id` (password already verified).
+///
+/// # Errors
+///
+/// A message for the logs when Redis refuses the write.
+pub async fn begin_login(redis: &Redis, user_id: u64, device_info: &str) -> Result<String, String> {
+    begin(redis, PendingKind::Login, user_id, device_info).await
+}
+
+/// The login `token` stands for, `None` when unknown, expired, burnt or spent.
+pub async fn read_login(redis: &Redis, token: &str) -> Option<PendingLogin> {
+    read(redis, PendingKind::Login, token).await
+}
+
+/// Counts a wrong code; burns the token at [`MAX_LOGIN_FAILURES`]. Returns whether it is burnt.
+pub async fn record_login_failure(redis: &Redis, token: &str, pending: PendingLogin) -> bool {
+    record_failure(redis, PendingKind::Login, token, pending).await
+}
+
 /// Spends the login token: `Ok(true)` for the one request that wins.
 ///
-/// `Ok(false)` when another request already spent it. The winner is decided by a single `SET … NX`,
-/// so two requests holding valid codes cannot both get a session.
+/// `Ok(false)` when another request already spent it, so two requests holding valid codes cannot
+/// both get a session.
 ///
 /// # Errors
 ///
 /// A message for the logs when Redis refuses the write: nothing was spent, no session may follow.
 pub async fn consume_login(redis: &Redis, token: &str) -> Result<bool, String> {
-    let won = redis
-        .secure_set_ex(&spent_key(token), "1", LOGIN_TOKEN_TTL_SECONDS)
+    consume(redis, PendingKind::Login, token).await
+}
+
+/// Opens the enrolment token of an agent who must set up a second factor (MAIR-808): the password
+/// is verified, no session exists. It only works on `POST /auth/2fa/setup` and `confirm`.
+///
+/// # Errors
+///
+/// A message for the logs when Redis refuses the write.
+pub async fn begin_setup(redis: &Redis, user_id: u64, device_info: &str) -> Result<String, String> {
+    begin(redis, PendingKind::Setup, user_id, device_info).await
+}
+
+/// The enrolment `token` stands for, `None` when unknown, expired, burnt or spent.
+pub async fn read_setup(redis: &Redis, token: &str) -> Option<PendingLogin> {
+    read(redis, PendingKind::Setup, token).await
+}
+
+/// Counts a wrong code of the enrolment; burns the token at [`MAX_LOGIN_FAILURES`].
+pub async fn record_setup_failure(redis: &Redis, token: &str, pending: PendingLogin) -> bool {
+    record_failure(redis, PendingKind::Setup, token, pending).await
+}
+
+/// Spends the enrolment token: `Ok(false)` when it was already spent.
+///
+/// # Errors
+///
+/// A message for the logs when Redis refuses the write: nothing was spent.
+pub async fn consume_setup(redis: &Redis, token: &str) -> Result<bool, String> {
+    consume(redis, PendingKind::Setup, token).await
+}
+
+/// The policy of the instance (MAIR-808).
+///
+/// # Errors
+///
+/// [`ApiLibError`] when the database fails.
+pub async fn load_policy(db: &SmartDatabase) -> Result<TwoFactorPolicyRecord, ApiLibError> {
+    db.fetch_one::<TwoFactorPolicyRecord, _>(&GetTwoFactorPolicyQueryView::new())
         .await
-        .map_err(|e| e.to_string())?;
-    if won {
-        let _ = redis.secure_delete(&login_key(token)).await;
+}
+
+/// [`verify_code`] under the policy: a mode the administrator removed is not accepted.
+///
+/// # Errors
+///
+/// [`VerifyError::NotEnabled`] when the user's only mode is not allowed, [`VerifyError::InvalidCode`]
+/// for a backup code while backup codes are not allowed, otherwise as [`verify_code`].
+pub async fn verify_code_under_policy(
+    db: &SmartDatabase,
+    cipher: &SecretCipher,
+    policy: &TwoFactorPolicyRecord,
+    user_id: u64,
+    code: &str,
+) -> Result<(), VerifyError> {
+    if !policy.totp_allowed {
+        return Err(VerifyError::NotEnabled);
     }
-    Ok(won)
+    if !policy.backup_codes_allowed && second_factor::looks_like_backup_code(code) {
+        return Err(VerifyError::InvalidCode);
+    }
+    verify_code(db, cipher, user_id, code).await
 }

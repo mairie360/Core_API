@@ -9,4 +9,5 @@ pub mod rights;
 pub mod roles;
 pub mod second_factor;
 pub mod sessions;
+pub mod two_factor_policy;
 pub mod users;

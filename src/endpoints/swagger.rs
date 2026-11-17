@@ -69,6 +69,7 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (name = "Groups", description = "Groups of users and management of their members."),
         (name = "Admin - Users", description = "Administration of the user accounts. Reserved to administrators."),
         (name = "Admin - Roles", description = "Administration of the roles and their permissions. Reserved to administrators."),
+        (name = "Admin - Two-factor policy", description = "Two-factor policy of the instance: mandatory or optional, accepted modes (MAIR-808). Reserved to administrators."),
         (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on), and temporary links to the realm admin console. Reserved to administrators."),
         (name = "Keycloak console", description = "Browser and ingress routes of the temporary access to the Keycloak admin console (MAIR-609): served under `auth.<domain>` (`/admin-access`) or in the cluster only (`/internal/keycloak-console/verify`, Traefik ForwardAuth). Not for the BFFs."),
         (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes.")

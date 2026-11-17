@@ -2,7 +2,7 @@ use crate::client_ip::client_ip;
 use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
 use crate::endpoints::v1::auth::login::endpoint::{
-    generate_session, two_factor_challenge, LoginError,
+    generate_session, two_factor_challenge, LoginError, TwoFactorStep,
 };
 use crate::endpoints::v1::auth::login::view::TwoFactorRequiredView;
 use crate::endpoints::v1::auth::reset_password::view::{
@@ -31,6 +31,9 @@ enum ResetPasswordError {
     /// The password is reset but the account has a second factor: the login token of the second
     /// step, no session (MAIR-805).
     TwoFactorRequired(String),
+    /// The password is reset, the instance requires a second factor and the account has none: the
+    /// enrolment token, no session (MAIR-808).
+    TwoFactorSetupRequired(String),
     TwoFactorUnavailable,
     /// The password is reset (and the other sessions revoked) but the second step could not be
     /// opened: the answer says so, the agent logs in with the new password.
@@ -56,6 +59,7 @@ impl std::fmt::Display for ResetPasswordError {
                  log in with the new password."
             ),
             Self::TwoFactorRequired(_) => write!(f, "Second factor required."),
+            Self::TwoFactorSetupRequired(_) => write!(f, "Second factor setup required."),
             Self::TwoFactorUnavailable => {
                 write!(f, "Two-factor authentication is not configured.")
             }
@@ -72,7 +76,7 @@ impl ResponseError for ResetPasswordError {
             | Self::SecondStepFailed => StatusCode::INTERNAL_SERVER_ERROR,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::UnknownToken => StatusCode::UNAUTHORIZED,
-            Self::TwoFactorRequired(_) => StatusCode::ACCEPTED,
+            Self::TwoFactorRequired(_) | Self::TwoFactorSetupRequired(_) => StatusCode::ACCEPTED,
             Self::TwoFactorUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -84,6 +88,10 @@ impl ResponseError for ResetPasswordError {
         if let Self::TwoFactorRequired(token) = self {
             return HttpResponse::build(self.status_code())
                 .json(TwoFactorRequiredView::new(token.clone()));
+        }
+        if let Self::TwoFactorSetupRequired(token) = self {
+            return HttpResponse::build(self.status_code())
+                .json(TwoFactorRequiredView::setup(token.clone()));
         }
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
@@ -199,7 +207,12 @@ async fn reset_password_trigger(
     )
     .await
     {
-        Ok(Some(token)) => return Err(ResetPasswordError::TwoFactorRequired(token)),
+        Ok(Some(TwoFactorStep::Code(token))) => {
+            return Err(ResetPasswordError::TwoFactorRequired(token))
+        }
+        Ok(Some(TwoFactorStep::Setup(token))) => {
+            return Err(ResetPasswordError::TwoFactorSetupRequired(token))
+        }
         Ok(None) => {}
         Err(LoginError::TwoFactorUnavailable) => {
             return Err(ResetPasswordError::TwoFactorUnavailable)

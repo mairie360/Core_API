@@ -1,4 +1,4 @@
-//! MAIR-805: the second factor (TOTP and backup codes) managed by Core, end to end on the real
+//! MAIR-805 / MAIR-808: the second factor (TOTP and backup codes) managed by Core, end to end on the real
 //! routes: enrolment, two-step login, replay and burn-out protections, disabling, administrator
 //! reset, and the password reset that must not bypass it.
 
@@ -745,6 +745,451 @@ async fn a_password_reset_does_not_bypass_the_second_factor() {
         status,
         StatusCode::ACCEPTED,
         "the new password is the one that counts"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// MAIR-808: instance policy (mandatory second factor, allowed modes)
+// ---------------------------------------------------------------------------------------------
+
+fn put_policy(
+    required: bool,
+    totp: bool,
+    passkey: bool,
+    backup: bool,
+    auth: &(&'static str, String),
+) -> test::TestRequest {
+    test::TestRequest::put()
+        .uri("/api/v1/admin/two-factor-policy")
+        .set_json(json!({
+            "required": required,
+            "totp_allowed": totp,
+            "passkey_allowed": passkey,
+            "backup_codes_allowed": backup
+        }))
+        .insert_header(auth.clone())
+}
+
+#[actix_web::test]
+async fn mair_808_the_policy_is_read_and_written_by_administrators_only_and_audited() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin_id = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
+    let admin = bearer(&env.state, admin_id).await;
+    let (uid, _) = create_account(&env.raw).await;
+    let plain = bearer(&env.state, u64::try_from(uid).unwrap()).await;
+
+    let (status, _, body, _) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/admin/two-factor-policy")
+            .insert_header(admin.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        (
+            &body["required"],
+            &body["totp_allowed"],
+            &body["passkey_allowed"],
+            &body["backup_codes_allowed"],
+            &body["updated_by"]
+        ),
+        (
+            &json!(false),
+            &json!(true),
+            &json!(false),
+            &json!(true),
+            &Value::Null
+        ),
+        "a new instance: optional, TOTP and backup codes allowed"
+    );
+
+    // An agent can neither read nor write it.
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/admin/two-factor-policy")
+            .insert_header(plain.clone())
+    );
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, ..) = json_of!(app, put_policy(true, true, false, true, &plain));
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::get().uri("/api/v1/admin/two-factor-policy")
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Invalid policies are refused: no mode, passkeys not available, unknown mode.
+    let (status, ..) = json_of!(app, put_policy(true, false, false, true, &admin));
+    assert_eq!(status, StatusCode::BAD_REQUEST, "no mode left");
+    let (status, ..) = json_of!(app, put_policy(true, true, true, true, &admin));
+    assert_eq!(status, StatusCode::BAD_REQUEST, "passkeys do not exist yet");
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::put()
+            .uri("/api/v1/admin/two-factor-policy")
+            .set_json(json!({
+                "required": true, "totp_allowed": true, "passkey_allowed": false,
+                "backup_codes_allowed": true, "sms_allowed": true
+            }))
+            .insert_header(admin.clone())
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "SMS is not a mode");
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::put()
+            .uri("/api/v1/admin/two-factor-policy")
+            .set_json(json!({ "required": true }))
+            .insert_header(admin.clone())
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "the whole policy is sent");
+    let audited: i64 = sqlx::query("SELECT count(*) FROM two_factor_policy_audit_log")
+        .fetch_one(&env.raw)
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(audited, 0, "a refused policy leaves no trace");
+
+    let (status, _, body, _) = json_of!(app, put_policy(true, true, false, false, &admin));
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["required"], json!(true));
+    assert_eq!(body["backup_codes_allowed"], json!(false));
+    assert_eq!(body["updated_by"], json!(admin_id));
+    let (_, _, again, _) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/admin/two-factor-policy")
+            .insert_header(admin.clone())
+    );
+    assert_eq!(again, body, "the write is what the read returns");
+
+    // The change is in the audit log: author, before, after.
+    let row = sqlx::query(
+        "SELECT action_by, (previous_data ->> 'required')::bool AS before, \
+         (new_data ->> 'required')::bool AS after FROM two_factor_policy_audit_log",
+    )
+    .fetch_one(&env.raw)
+    .await
+    .unwrap();
+    assert_eq!(
+        (
+            row.get::<Option<i32>, _>("action_by"),
+            row.get::<bool, _>("before"),
+            row.get::<bool, _>("after")
+        ),
+        (Some(*ADMIN_ID.get().unwrap()), false, true)
+    );
+}
+
+#[actix_web::test]
+async fn mair_808_a_mandatory_policy_makes_an_agent_without_factor_enrol_before_any_session() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = bearer(&env.state, u64::try_from(*ADMIN_ID.get().unwrap()).unwrap()).await;
+    let (id, email) = create_account(&env.raw).await;
+    let (other_id, other_email) = create_account(&env.raw).await;
+    // This agent already has a factor: the policy changes nothing for them but the 2nd step.
+    let other_auth = bearer(&env.state, u64::try_from(other_id).unwrap()).await;
+    enrol!(app, other_auth);
+
+    let (status, ..) = json_of!(app, put_policy(true, true, false, true, &admin));
+    assert_eq!(status, StatusCode::OK);
+
+    // Right password, no session: only the enrolment state and its token.
+    let (status, headers, body, _) = login!(app, email);
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(body["status"], json!("2fa_setup_required"));
+    assert!(
+        headers.get("Authorization").is_none(),
+        "no session before the enrolment"
+    );
+    let token = body["token"].as_str().unwrap().to_string();
+
+    // The enrolment token opens no route: it is not a JWT.
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    // Nor does it finish a login, nor can the login token of someone else enrol.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": "123456" })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/setup",
+            &json!({ "token": "unknown-token" })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (_, _, body, _) = login!(app, other_email);
+    assert_eq!(body["status"], json!("2fa_required"));
+    let login_token = body["token"].as_str().unwrap();
+    let (status, ..) = json_of!(
+        app,
+        post("/api/v1/auth/2fa/setup", &json!({ "token": login_token }))
+    );
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a login token cannot enrol"
+    );
+
+    // Confirm before setup: nothing in progress.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/confirm",
+            &json!({ "token": token, "code": "123456" })
+        )
+    );
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _, setup, _) = json_of!(
+        app,
+        post("/api/v1/auth/2fa/setup", &json!({ "token": token }))
+    );
+    assert_eq!(status, StatusCode::OK);
+    let secret = setup["secret"].as_str().unwrap().to_string();
+
+    let (status, headers, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/confirm",
+            &json!({ "token": token, "code": "000000" })
+        )
+    );
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a wrong code enrols nothing"
+    );
+    assert!(headers.get("Authorization").is_none());
+
+    let (status, headers, body, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/confirm",
+            &json!({ "token": token, "code": totp_now(&secret) })
+        )
+    );
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["backup_codes"].as_array().unwrap().len(), 10);
+    assert!(body["refresh_token"].as_str().is_some());
+    let jwt = headers
+        .get("Authorization")
+        .expect("the session opens once the factor is enrolled")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let (status, ..) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/")
+            .insert_header(("Authorization", jwt.clone()))
+    );
+    assert_eq!(status, StatusCode::OK, "the modules are reachable");
+
+    // The token is spent; the next login asks for the code like any protected account.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/confirm",
+            &json!({ "token": token, "code": totp_now(&secret) })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _, body, _) = login!(app, email);
+    assert_eq!(
+        (status, &body["status"]),
+        (StatusCode::ACCEPTED, &json!("2fa_required"))
+    );
+
+    // A mandatory policy forbids turning the factor off.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/user/me/2fa/disable/",
+            &json!({ "password": PASSWORD, "code": totp_now(&secret) })
+        )
+        .insert_header(("Authorization", jwt))
+    );
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let _ = id;
+}
+
+#[actix_web::test]
+async fn mair_808_the_enrolment_token_is_burnt_after_five_wrong_codes() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = bearer(&env.state, u64::try_from(*ADMIN_ID.get().unwrap()).unwrap()).await;
+    let (_, email) = create_account(&env.raw).await;
+    let (status, ..) = json_of!(app, put_policy(true, true, false, true, &admin));
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, ..) = json_of!(
+        app,
+        post("/api/v1/auth/2fa/setup", &json!({ "token": token }))
+    );
+    assert_eq!(status, StatusCode::OK);
+    for _ in 0..4 {
+        let (status, ..) = json_of!(
+            app,
+            post(
+                "/api/v1/auth/2fa/confirm",
+                &json!({ "token": token, "code": "000000" })
+            )
+        );
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+    let (status, _, _, text) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/2fa/confirm",
+            &json!({ "token": token, "code": "000000" })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(
+        text.contains("enrolment token"),
+        "the fifth failure burns it: {text}"
+    );
+    let (status, ..) = json_of!(
+        app,
+        post("/api/v1/auth/2fa/setup", &json!({ "token": token }))
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[actix_web::test]
+async fn mair_808_a_mode_removed_by_the_administrator_is_refused_at_login() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = bearer(&env.state, u64::try_from(*ADMIN_ID.get().unwrap()).unwrap()).await;
+    let (id, email) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let (secret, codes) = enrol!(app, auth);
+
+    // Backup codes no longer accepted: the TOTP code still is.
+    let (status, ..) = json_of!(app, put_policy(false, true, false, false, &admin));
+    assert_eq!(status, StatusCode::OK);
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[0] })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "backup codes are removed");
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": totp_at(&secret, step_at(now_unix()) + 1) })
+        )
+    );
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "the authenticator application still works"
+    );
+
+    // The authenticator application removed (passkeys allowed instead, set in the database since
+    // the API refuses it until MAIR-810): the agent's factor no longer counts.
+    sqlx::query("UPDATE two_factor_policy SET totp_allowed = false, passkey_allowed = true")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (status, headers, ..) = login!(app, email);
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "optional policy: the password is enough"
+    );
+    assert!(headers.get("Authorization").is_some());
+    sqlx::query("UPDATE two_factor_policy SET required = true")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (status, headers, body, _) = login!(app, email);
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(
+        body["status"],
+        json!("2fa_setup_required"),
+        "mandatory policy: they must enrol another mode"
+    );
+    assert!(headers.get("Authorization").is_none());
+}
+
+#[actix_web::test]
+async fn mair_808_a_mandatory_policy_without_encryption_key_refuses_the_login() {
+    std::sync::LazyLock::force(&INIT);
+    let host = crate::common::own_db_url().await;
+    let redis = get_shared_redis().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let raw = get_raw_pool(host).await;
+    let (_, email) = create_account(&raw).await;
+    sqlx::query("UPDATE two_factor_policy SET required = true")
+        .execute(&raw)
+        .await
+        .unwrap();
+    let app = test::init_service(
+        App::new()
+            .app_data(state.clone())
+            .configure(public_config)
+            .service(
+                web::scope("/api")
+                    .wrap(actix_web::middleware::from_fn(session_guard))
+                    .wrap(JwtMiddleware)
+                    .configure(config),
+            ),
+    )
+    .await;
+    let (status, headers, ..) = login!(app, email);
+    assert_eq!(
+        status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "never a session without the factor the policy requires"
+    );
+    assert!(headers.get("Authorization").is_none());
+}
+
+#[actix_web::test]
+async fn mair_808_setup_refused_when_the_factor_got_active() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = bearer(&env.state, u64::try_from(*ADMIN_ID.get().unwrap()).unwrap()).await;
+    let (id, email) = create_account(&env.raw).await;
+    let (status, ..) = json_of!(app, put_policy(true, true, false, true, &admin));
+    assert_eq!(status, StatusCode::OK);
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+
+    // The agent enrols through their own account meanwhile (another session, an administrator).
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    enrol!(app, auth);
+
+    let (status, ..) = json_of!(
+        app,
+        post("/api/v1/auth/2fa/setup", &json!({ "token": token }))
+    );
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "the pending secret of an active factor is never replaced"
     );
 }
 

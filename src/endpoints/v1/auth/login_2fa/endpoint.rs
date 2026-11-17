@@ -151,8 +151,21 @@ pub async fn login_two_factor(
             .map_err(|refused| LoginTwoFactorError::TooManyRequests(refused.retry_after_seconds))?;
     }
 
-    match two_factor::verify_code(state.get_smart_db(), &secrets, pending.user_id, view.code())
+    // The modes the administrator accepts now, not the ones of the day the password was typed.
+    let policy = two_factor::load_policy(state.get_smart_db())
         .await
+        .map_err(|e| {
+            tracing::error!("Second step policy DB Error: {e}");
+            LoginTwoFactorError::Internal
+        })?;
+    match two_factor::verify_code_under_policy(
+        state.get_smart_db(),
+        &secrets,
+        &policy,
+        pending.user_id,
+        view.code(),
+    )
+    .await
     {
         Ok(()) => {}
         Err(VerifyError::InvalidCode) => {
