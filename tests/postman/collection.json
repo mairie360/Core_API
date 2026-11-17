@@ -3885,7 +3885,7 @@
                   "pm.test(\"Status is 202\", function () {",
                   "    pm.response.to.have.status(202);",
                   "});",
-                  "pm.test('No JWT before the enrolment', () => { pm.expect(pm.response.headers.get('Authorization')).to.be.null; });",
+                  "pm.test('No JWT before the enrolment', () => { pm.expect(pm.response.headers.has('Authorization')).to.eql(false); });",
                   "const body = pm.response.json();",
                   "pm.test('The enrolment is announced', () => { pm.expect(body.status).to.eql('2fa_setup_required'); pm.expect(body.token).to.be.a('string').and.not.empty; });",
                   "pm.environment.set('tf_setup_token', body.token);"
@@ -4231,7 +4231,7 @@
                   "pm.test(\"Status is 401\", function () {",
                   "    pm.response.to.have.status(401);",
                   "});",
-                  "pm.test('Still no session', () => { pm.expect(pm.response.headers.get('Authorization')).to.be.null; });"
+                  "pm.test('Still no session', () => { pm.expect(pm.response.headers.has('Authorization')).to.eql(false); });"
                 ]
               }
             }
