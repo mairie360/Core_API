@@ -1,16 +1,18 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "2ba84c16995294b49d607e8445b9d3a724c32771", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 01:34 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "3e82d422ad25349a3af50bc00c1731009f7f006b", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 11:50 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `2ba84c1` | 2026-11-17 01:34 UTC |
+| dev | — | `3e82d42` | 2026-11-17 11:50 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- chore(deps): pin actions/checkout action to 3d3c42e (#402) ([#402](https://github.com/mairie360/Core_API/pull/402))
+- ci: MAIR-1008 Nightly rehearsal of the promotion gates (#398) ([#398](https://github.com/mairie360/Core_API/pull/398))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#401](https://github.com/mairie360/Core_API/pull/401))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#395) ([#395](https://github.com/mairie360/Core_API/pull/395))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#391) ([#391](https://github.com/mairie360/Core_API/pull/391))
@@ -23,6 +25,8 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): pin actions/checkout action to 3d3c42e (#402) ([#402](https://github.com/mairie360/Core_API/pull/402))
+- ci: MAIR-1008 Nightly rehearsal of the promotion gates (#398) ([#398](https://github.com/mairie360/Core_API/pull/398))
 - test: MAIR-1002 Speed up the APIs' CI tests (Rust cache, one database per test, optimized dependencies) ([#401](https://github.com/mairie360/Core_API/pull/401))
 - chore(deps): update rust crate mairie360_api_lib to v4.4.0 (#395) ([#395](https://github.com/mairie360/Core_API/pull/395))
 - fix: MAIR-247 Translate the APIs' OpenAPI descriptions and messages into English (#391) ([#391](https://github.com/mairie360/Core_API/pull/391))
@@ -44,6 +48,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 11:50 UTC | dev | — | `3e82d42` | [run](https://github.com/mairie360/Core_API/actions/runs/44075427730) |
 | 2026-11-17 01:34 UTC | dev | — | `2ba84c1` | [run](https://github.com/mairie360/Core_API/actions/runs/43992420227) |
 | 2026-11-16 23:11 UTC | dev | — | `ca11d24` | [run](https://github.com/mairie360/Core_API/actions/runs/43974508602) |
 | 2026-11-16 17:46 UTC | dev | — | `a772ae3` | [run](https://github.com/mairie360/Core_API/actions/runs/43919013944) |
