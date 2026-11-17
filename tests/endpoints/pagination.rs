@@ -108,7 +108,6 @@ async fn session_history_and_group_members_are_paginated() {
 async fn directory_and_group_members_refuse_out_of_range_pages() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
-    let pool = get_pool().await;
     let app = test::init_service(
         App::new()
             .app_data(state.clone())
@@ -121,8 +120,15 @@ async fn directory_and_group_members_refuse_out_of_range_pages() {
             ),
     )
     .await;
-    let user = create_user(&pool, "Bounded", &unique_marker("bound")).await;
-    let token = generate_jwt(&user.to_string(), "user").unwrap();
+    // An administrator: the bounds are checked for a caller the directory policy lets through.
+    let token = generate_jwt(
+        &mairie360_api_lib::test_setup::queries_setup::ADMIN_ID
+            .get()
+            .unwrap()
+            .to_string(),
+        "admin",
+    )
+    .unwrap();
     let get = |uri: &str| {
         test::TestRequest::get()
             .uri(uri)
@@ -133,6 +139,8 @@ async fn directory_and_group_members_refuse_out_of_range_pages() {
     for uri in [
         "/api/v1/user/?limit=0",
         "/api/v1/user/?limit=abc",
+        "/api/v1/user/?limit=1001",
+        "/api/v1/groups/1/users/?limit=501",
         "/api/v1/groups/1/users/?limit=0",
         "/api/v1/groups/1/users/?offset=1000001",
     ] {
