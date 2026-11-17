@@ -6,6 +6,7 @@ pub mod keycloak;
 pub mod login;
 pub mod login_2fa;
 pub mod logout;
+pub mod passkey;
 pub mod reset_password;
 pub mod two_factor_setup;
 
@@ -24,6 +25,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(login::endpoint::login)
             .service(login_2fa::endpoint::login_two_factor)
             .service(logout::endpoint::logout)
+            .service(passkey::endpoint::passkey_login_options)
+            .service(passkey::endpoint::passkey_login)
             .service(reset_password::endpoint::reset_password)
             .service(two_factor_setup::endpoint::setup_login_two_factor)
             .service(two_factor_setup::endpoint::confirm_login_two_factor),

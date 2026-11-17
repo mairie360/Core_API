@@ -5,6 +5,7 @@ pub mod export;
 pub mod get;
 pub mod notifications;
 pub mod nullable;
+pub mod passkeys;
 pub mod patch;
 pub mod preferences;
 pub mod two_factor;
@@ -23,6 +24,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(two_factor::endpoint::setup_two_factor)
             .service(two_factor::endpoint::confirm_two_factor)
             .service(two_factor::endpoint::disable_two_factor)
-            .service(two_factor::endpoint::regenerate_backup_codes),
+            .service(two_factor::endpoint::regenerate_backup_codes)
+            .service(passkeys::endpoint::list_my_passkeys)
+            .service(passkeys::endpoint::passkey_register_options)
+            .service(passkeys::endpoint::register_passkey)
+            .service(passkeys::endpoint::delete_my_passkey),
     );
 }

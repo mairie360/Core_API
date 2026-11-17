@@ -38,6 +38,10 @@ macro_rules! init_app {
                     )
                     .unwrap(),
                 ))
+                // MAIR-810: so do the passkey routes (the instance policy then answers).
+                .app_data(web::Data::new(
+                    core_api::passkeys::Passkeys::new("localhost", "https://localhost").unwrap(),
+                ))
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -486,6 +490,8 @@ async fn only_the_authentication_routes_are_public() {
             "POST /api/v1/auth/login",
             "POST /api/v1/auth/login/2fa",
             "POST /api/v1/auth/logout",
+            "POST /api/v1/auth/passkey",
+            "POST /api/v1/auth/passkey/options",
             "POST /api/v1/auth/reset_password",
             "POST /api/v1/sessions/refresh",
         ]

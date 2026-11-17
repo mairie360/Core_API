@@ -1,7 +1,7 @@
 use mairie360_api_lib::email::{MailerError, ResendMailer, TemplateMailer};
 use mairie360_api_lib::env_manager::get_env_var;
 
-use super::PasswordResetEmail;
+use super::{PasskeyChange, PasskeyChangedEmail, PasswordResetEmail};
 use crate::redis_keys::FORGOT_PASSWORD_TTL_SECONDS;
 
 /// Public URL of the login front, where the links of the e-mails lead
@@ -82,6 +82,32 @@ impl AccountEmails {
             first_name: first_name.to_string(),
             reset_url: self.reset_url(token),
             expire_minutes: FORGOT_PASSWORD_TTL_SECONDS / 60,
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(to, &email).await.map(|_| ())
+    }
+
+    /// Sends the security e-mail about a passkey added or removed (MAIR-810).
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_passkey_changed(
+        &self,
+        to: &str,
+        first_name: &str,
+        change: PasskeyChange,
+        label: &str,
+        device: &str,
+        ip_address: &str,
+    ) -> Result<(), MailerError> {
+        let email = PasskeyChangedEmail {
+            first_name: first_name.to_string(),
+            change,
+            label: label.to_string(),
+            device: device.to_string(),
+            date: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            ip_address: ip_address.to_string(),
             mairie_name: self.mairie_name.clone(),
         };
         self.mailer.send(to, &email).await.map(|_| ())

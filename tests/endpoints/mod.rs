@@ -14,6 +14,7 @@ mod keycloak_migration;
 mod mair_534_negative_cases;
 mod mair_692_logout_by_refresh_token;
 mod pagination;
+mod passkeys;
 mod path_ids;
 mod rate_limits;
 mod readiness;

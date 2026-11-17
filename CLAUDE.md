@@ -54,6 +54,9 @@ and verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib
 get a fresh key pair per run from `stack_secrets.sh`; the dev compose uses the lib's committed test pair, accepted
 only with `JWT_ALLOW_WEAK_SECRET=true`.
 
+WebAuthn (MAIR-810): `WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN` enable passkeys (see "Passkeys" below); the dev and test composes use
+`localhost` / `http://localhost`.
+
 Second factor key (MAIR-805): `TOTP_ENCRYPTION_KEY` (base64 of 32 bytes, `openssl rand -base64 32`) seals the TOTP
 secrets with AES-256-GCM before they reach `user_totp`. Without it `main.rs` registers no `SecretCipher`: the
 `/user/me/2fa/*` setup routes answer `503` and an account that already has a factor cannot log in (`503`, never a
@@ -428,7 +431,7 @@ The instance policy is the single row of `two_factor_policy` (Database 3.6.0: `r
 `passkey_allowed`, `backup_codes_allowed`), read and written by Core alone (`database/two_factor_policy.rs`,
 `two_factor::load_policy`), changed by administrators through `GET` / `PUT /api/v1/admin/two-factor-policy` (every
 change is audited by a trigger in `two_factor_policy_audit_log`, plus an `AUDIT:` log line). `passkey_allowed: true`
-is refused (`400`) while `PASSKEYS_AVAILABLE` is `false` (until MAIR-810); at least one mode must stay allowed.
+is refused (`400`) while the instance has no WebAuthn configuration (`Passkeys` app data, MAIR-810); at least one mode must stay allowed.
 A factor whose mode was removed does not count (`verify_code_under_policy`: TOTP refused when `!totp_allowed`, a backup
 code when `!backup_codes_allowed`). With `required` and no usable factor, `login` and `reset_password` open **no
 session** and answer `202 {"status":"2fa_setup_required","token"}`; the token lives in Redis (`2fa_setup/<token>`,
@@ -438,6 +441,32 @@ session like a login and returns the ten backup codes once). `POST /user/me/2fa/
 `required`. The policy table has no foreign key on purpose: the test tooling truncates `users` with CASCADE.
 `load-test.js` runs the four operations in an isolated one-iteration `policy` scenario (a mandatory policy would make every
 other login answer 202) and restores the optional policy.
+
+### Passkeys (MAIR-810)
+
+WebAuthn through `webauthn-rs` (`src/passkeys.rs`, relying party built by `Passkeys::from_env`): `WEBAUTHN_RP_ID` (the
+site's registrable domain, e.g. `mairie360-eip.fr`) and `WEBAUTHN_RP_ORIGIN` (the origin the browser signs for, e.g.
+`https://login.mairie360-eip.fr`) must be set **together**; with neither, `main.rs` registers no `Passkeys`, the passkey
+routes answer `503` and `PUT /admin/two-factor-policy` refuses `passkey_allowed: true`. Passkeys are discoverable
+(resident) credentials, user verification required, no attestation (synchronised passkeys are accepted). The key of an
+agent is stored as the `webauthn-rs` `Passkey` JSON in `user_passkeys` (Database 3.7.0, one row per passkey, `credential_id`
+unique, `ON DELETE CASCADE`); the user handle given to the authenticator is a v5 UUID of the user id (`user_handle`).
+Ceremonies live in Redis, two minutes, read once (`passkeys::begin_*` / `take_*`: the first attempt burns them, right or
+wrong). Routes: public `POST /auth/passkey/options` (challenge, no account named: nobody can be enumerated) and
+`POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
+signature / counter, moves the counter forward, opens the session exactly like `login`; **every** refusal is the same
+`401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
+`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
+(own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
+satisfies a mandatory policy); `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
+the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `added` /
+`removed`, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
+published before deploying, and a failed e-mail never undoes the change. The sign-in shares the `login_per_ip` budget, the
+authenticated routes `second_factor_per_user`. Tests use the software authenticator of `webauthn-authenticator-rs`
+(`tests/endpoints/passkeys.rs`): it only signs for a listed credential and returns no user handle, so the test names the
+credential and sets `userHandle` as a browser would. The newman journey cannot sign (no authenticator in the sandbox): it
+covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` stay in the coverage exceptions.
+`load-test.js` runs the non-read passkey handlers in the isolated `policy` scenario (passkeys are refused by default).
 
 ### Sessions / auth flow
 

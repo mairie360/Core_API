@@ -306,6 +306,8 @@ const readHandlers = {
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/2fa/': ({ request }) =>
     check(request(), { 'second factor status 200': (r) => r.status === 200 && r.json('enabled') === false }),
+  'GET /api/v1/user/me/passkeys/': ({ request }) =>
+    check(request(), { 'passkeys 200': (r) => r.status === 200 && Array.isArray(r.json()) }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/preferences/': ({ request }) =>
@@ -687,7 +689,12 @@ const isExport = (method, path) => method === 'get' && /\/export\/?$/.test(path)
 // Two-factor policy (MAIR-808): making the second factor mandatory answers every login 202 until it
 // is lifted, so these operations run alone, after every other scenario, in their own one-iteration
 // scenario. The policy is back to optional when they end.
-const isPolicy = (method, path) => path.includes('/admin/two-factor-policy') || path.includes('/auth/2fa/');
+// MAIR-810: the passkey routes depend on the policy too (passkeys are refused by default), so they
+// run in the isolated `policy` scenario, except the plain read of the list.
+const isPolicy = (method, path) =>
+  path.includes('/admin/two-factor-policy')
+  || path.includes('/auth/2fa/')
+  || (path.includes('/passkey') && !READ_METHODS.includes(method));
 const OPTIONAL_POLICY = { required: false, totp_allowed: true, passkey_allowed: false, backup_codes_allowed: true };
 
 /** The enrolment token of a login that the mandatory policy answers `2fa_setup_required`. */
@@ -702,7 +709,70 @@ function setupToken(account) {
   }
 }
 
+/** Runs `fn` with passkeys allowed by the policy, then puts the optional policy back. */
+function withPasskeysAllowed(fn) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, passkey_allowed: true });
+  try {
+    return fn();
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
+// What a browser would send; nothing here is a real authenticator answer, so the routes refuse it.
+const FORGED_SIGN_IN = {
+  id: 'AAAA',
+  rawId: 'AAAA',
+  type: 'public-key',
+  response: { authenticatorData: 'AAAA', clientDataJSON: 'AAAA', signature: 'AAAA', userHandle: null },
+  extensions: {},
+};
+const FORGED_REGISTRATION = {
+  id: 'AAAA',
+  rawId: 'AAAA',
+  type: 'public-key',
+  response: { attestationObject: 'AAAA', clientDataJSON: 'AAAA' },
+  extensions: {},
+};
+
 const policyHandlers = {
+  'POST /api/v1/auth/passkey/options': ({ request }) =>
+    withPasskeysAllowed(() =>
+      check(request(), {
+        'passkey sign-in options 200': (r) => r.status === 200 && !!r.json('id') && !!r.json('options.publicKey.challenge'),
+      })),
+  'POST /api/v1/auth/passkey': ({ request }) =>
+    withPasskeysAllowed(() => {
+      const ceremony = fixture('POST', '/api/v1/auth/passkey/options', {}).json('id');
+      return check(
+        request({
+          body: { id: ceremony, credential: FORGED_SIGN_IN, device_info: DEVICE },
+          params: { responseCallback: http.expectedStatuses(401) },
+        }),
+        { 'forged passkey 401': (r) => r.status === 401 && !r.headers.Authorization },
+      );
+    }),
+  'POST /api/v1/user/me/passkeys/options/': ({ request }) =>
+    withPasskeysAllowed(() =>
+      check(request(), {
+        'passkey registration options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
+      })),
+  'POST /api/v1/user/me/passkeys/': ({ request }) =>
+    withPasskeysAllowed(() => {
+      fixture('POST', '/api/v1/user/me/passkeys/options/', {});
+      return check(
+        request({
+          body: { label: 'k6', credential: FORGED_REGISTRATION },
+          params: { responseCallback: http.expectedStatuses(400) },
+        }),
+        { 'forged registration 400': (r) => r.status === 400 },
+      );
+    }),
+  'DELETE /api/v1/user/me/passkeys/{id}/': ({ request }) =>
+    check(
+      request({ path: { id: 999999999 }, params: { responseCallback: http.expectedStatuses(404) } }),
+      { 'unknown passkey 404': (r) => r.status === 404 },
+    ),
   'GET /api/v1/admin/two-factor-policy': ({ request }) =>
     check(request(), {
       'policy 200': (r) => r.status === 200 && r.json('required') === false && r.json('totp_allowed') === true,

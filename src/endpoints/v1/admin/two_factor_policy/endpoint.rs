@@ -10,17 +10,30 @@ use mairie360_api_lib::state::AppState;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TwoFactorPolicyError {
     DatabaseError,
+    /// Passkeys were allowed on an instance without `WebAuthn` configuration (MAIR-810): allowing
+    /// them would let an administrator remove the authenticator application while nothing can
+    /// replace it, locking every agent out.
+    PasskeysUnavailable,
 }
 
 impl std::fmt::Display for TwoFactorPolicyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Database error occurred")
+        match self {
+            Self::DatabaseError => write!(f, "Database error occurred"),
+            Self::PasskeysUnavailable => write!(
+                f,
+                "Invalid `passkey_allowed`: passkeys are not configured on this instance"
+            ),
+        }
     }
 }
 
 impl ResponseError for TwoFactorPolicyError {
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        match self {
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::PasskeysUnavailable => StatusCode::BAD_REQUEST,
+        }
     }
 
     fn error_response(&self) -> HttpResponse {
@@ -106,7 +119,7 @@ pub async fn get_two_factor_policy(
                    is kept in an append-only audit log of the database; an `AUDIT` line is also \
                    logged. A mode that does not exist (SMS, e-mail) is an unknown field. At least \
                    one of `totp_allowed` / `passkey_allowed` must be `true`, and `passkey_allowed` \
-                   is refused until passkeys are available. Reserved to administrators.",
+                   is refused while the instance has no `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_ORIGIN`. Reserved to administrators.",
     request_body(
         content = UpdateTwoFactorPolicyView,
         description = "The new policy.",
@@ -133,7 +146,7 @@ pub async fn get_two_factor_policy(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing or unknown field (`sms`, `email`…), no mode left allowed, or `passkey_allowed: true` while passkeys are not available.",
+            description = "Malformed JSON body, missing or unknown field (`sms`, `email`…), no mode left allowed, or `passkey_allowed: true` while the instance has no WebAuthn configuration.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `totp_allowed`: at least one mode (totp_allowed or passkey_allowed) must stay allowed")
@@ -168,8 +181,12 @@ pub async fn update_two_factor_policy(
     admin: AdminUser,
     state: web::Data<AppState>,
     payload: ValidatedJson<UpdateTwoFactorPolicyView>,
+    passkeys: Option<web::Data<crate::passkeys::Passkeys>>,
 ) -> Result<impl Responder, TwoFactorPolicyError> {
     let policy = payload.into_inner();
+    if policy.passkey_allowed && passkeys.is_none() {
+        return Err(TwoFactorPolicyError::PasskeysUnavailable);
+    }
     let record = state
         .get_smart_db()
         .fetch_one::<TwoFactorPolicyRecord, _>(&UpdateTwoFactorPolicyQueryView::new(
