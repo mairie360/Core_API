@@ -6,6 +6,7 @@ pub mod health;
 pub mod keycloak_console;
 pub mod last_admin;
 pub mod pagination;
+pub mod password_identity;
 pub mod ready;
 pub mod session_guard;
 pub mod swagger;

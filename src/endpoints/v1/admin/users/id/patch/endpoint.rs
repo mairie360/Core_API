@@ -1,5 +1,6 @@
 use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::password_identity::{self, IdentityChanges, IdentityCheckError};
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
@@ -66,6 +67,21 @@ async fn patch_in_core(
     user_id: u64,
     view: &PatchUserView,
 ) -> Result<Vec<Uuid>, PatchUserError> {
+    if let Some(password) = view.password() {
+        let changes = IdentityChanges {
+            email: view.email(),
+            first_name: view.first_name(),
+            last_name: view.last_name(),
+        };
+        // An unknown account is left to the update, which answers its own `404`.
+        match password_identity::check(smart_db, user_id, "password", password, changes).await {
+            Ok(()) | Err(IdentityCheckError::UnknownUser) => {}
+            Err(IdentityCheckError::Rejected(e)) => {
+                return Err(PatchUserError::BadRequest(e.to_string()))
+            }
+            Err(IdentityCheckError::Database) => return Err(PatchUserError::DatabaseError),
+        }
+    }
     let hashed_password = match view.password() {
         Some(password) => Some(passwords::hash(password).await.map_err(|e| {
             tracing::error!("Password hashing error: {e}");
@@ -213,10 +229,10 @@ async fn patch_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`; `password` 8 to 255 characters without control character. The body names the first invalid field.",
+            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`; `password` 12 to 255 characters without control character, not a commonly used password, not containing the account's e-mail, first name or last name. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `password`: must be at least 8 characters")
+            example = json!("Invalid `password`: must be at least 12 characters")
         ),
         (
             status = 401,
