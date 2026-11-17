@@ -58,7 +58,18 @@ fn database_tags(content: &str) -> Vec<String> {
             matches!(image, "database" | "liquibase-migrations").then(|| {
                 after.strip_prefix(':').map_or_else(String::new, |tag| {
                     if tag.starts_with("${") {
-                        tag.find('}').map_or(tag, |end| &tag[..=end]).to_string()
+                        // The tag is the interpolation plus what follows it up to a delimiter: a
+                        // suffix or a digest (`${...}-old`, `${...}@sha256:...`) is part of the
+                        // reference, the closing brace of an outer `${DB_IMAGE:-...}` fallback is not.
+                        tag.find('}').map_or_else(
+                            || tag.to_string(),
+                            |end| {
+                                let rest = &tag[end + 1..];
+                                let suffix_end =
+                                    rest.find(['}', '"', '\'', ' ']).unwrap_or(rest.len());
+                                tag[..=end].to_string() + &rest[..suffix_end]
+                            },
+                        )
                     } else {
                         tag.trim_end_matches(['}', '"', '\'', ' ']).to_string()
                     }
@@ -109,6 +120,8 @@ fn mair_998_a_pinned_untagged_or_commented_database_image_is_seen_as_such() {
                    image: $DB_DEFAULT-ghcr.io/mairie360/database:3.4.0}\n\
                    image: ghcr.io/mairie360/liquibase-migrations\n\
                    image: ghcr.io/mairie360/database@sha256:abc\n\
+                   image: ghcr.io/mairie360/database:STAGE-old\n\
+                   image: $DB_DEFAULT-ghcr.io/mairie360/database:STAGE@sha256:abc}\n\
                    # image: ghcr.io/mairie360/database:1.0.0\n\
                    image: ghcr.io/mairie360/other:1.0.0"
         .replace("STAGE", &stage_tag())
@@ -116,7 +129,15 @@ fn mair_998_a_pinned_untagged_or_commented_database_image_is_seen_as_such() {
     let stage = stage_tag();
     assert_eq!(
         database_tags(&compose),
-        vec![stage.as_str(), stage.as_str(), "3.4.0", "", ""],
+        vec![
+            stage.as_str(),
+            stage.as_str(),
+            "3.4.0",
+            "",
+            "",
+            format!("{stage}-old").as_str(),
+            format!("{stage}@sha256:abc").as_str(),
+        ],
         "every Database image is listed with its tag, comments left out"
     );
 }
