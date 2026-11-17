@@ -1,6 +1,6 @@
 use crate::endpoints::validation::{
-    check_opaque, Validate, ValidationError, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH,
-    MAX_TOKEN_LENGTH,
+    check_opaque, deserialize_email, Validate, ValidationError, MAX_EMAIL_LENGTH,
+    MAX_PASSWORD_LENGTH, MAX_TOKEN_LENGTH,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -11,6 +11,7 @@ use utoipa::ToSchema;
 pub struct LoginView {
     /// E-mail address of the account.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
+    #[serde(deserialize_with = "deserialize_email")]
     email: String,
     /// Plain-text password, sent as is over the TLS channel.
     #[schema(max_length = 255, format = Password, example = "MotDePasse!123")]

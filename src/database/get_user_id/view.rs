@@ -24,7 +24,7 @@ impl GetUserIdQueryView {
 
 impl ApiRequestDto for GetUserIdQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT id FROM users WHERE email = $1"
+        "SELECT id FROM users WHERE lower(email) = lower($1)"
     }
 
     fn query_params(&self) -> &[QueryParam] {
