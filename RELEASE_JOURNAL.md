@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "946c58752796fa239d98c89bd389e82a0132b0f3", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 22:23 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "c4e63171f652ec4cb47a09c208c4ae2baeda4a25", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 22:41 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `946c587` | 2026-11-17 22:23 UTC |
+| dev | — | `c4e6317` | 2026-11-17 22:41 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- feat: MAIR-808 Make the two-factor authentication mandatory (instance policy) ([#406](https://github.com/mairie360/Core_API/pull/406))
 - feat: MAIR-805 Add the TOTP second factor to Core ([#404](https://github.com/mairie360/Core_API/pull/404))
 - chore(deps): update rust crate redis to v1.8.2 (#414) ([#414](https://github.com/mairie360/Core_API/pull/414))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#412](https://github.com/mairie360/Core_API/pull/412))
@@ -30,6 +31,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- feat: MAIR-808 Make the two-factor authentication mandatory (instance policy) ([#406](https://github.com/mairie360/Core_API/pull/406))
 - feat: MAIR-805 Add the TOTP second factor to Core ([#404](https://github.com/mairie360/Core_API/pull/404))
 - chore(deps): update rust crate redis to v1.8.2 (#414) ([#414](https://github.com/mairie360/Core_API/pull/414))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#412](https://github.com/mairie360/Core_API/pull/412))
@@ -58,6 +60,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 22:41 UTC | dev | — | `c4e6317` | [run](https://github.com/mairie360/Core_API/actions/runs/44191423139) |
 | 2026-11-17 22:23 UTC | dev | — | `946c587` | [run](https://github.com/mairie360/Core_API/actions/runs/44186771203) |
 | 2026-11-17 21:19 UTC | dev | — | `8787de2` | [run](https://github.com/mairie360/Core_API/actions/runs/44176245586) |
 | 2026-11-17 17:08 UTC | dev | — | `234a67e` | [run](https://github.com/mairie360/Core_API/actions/runs/44131678944) |
@@ -107,5 +110,4 @@ _Rien._
 | 2026-10-20 16:57 UTC | dev | — | `b900797` | [run](https://github.com/mairie360/Core_API/actions/runs/39459405629) |
 | 2026-10-20 16:49 UTC | dev | — | `acf2207` | [run](https://github.com/mairie360/Core_API/actions/runs/39459275998) |
 | 2026-10-19 20:10 UTC | dev | — | `30d9bb5` | [run](https://github.com/mairie360/Core_API/actions/runs/39315745705) |
-| 2026-10-19 18:43 UTC | dev | — | `70d1f83` | [run](https://github.com/mairie360/Core_API/actions/runs/39301376946) |
 <!-- release-journal-history:end -->
