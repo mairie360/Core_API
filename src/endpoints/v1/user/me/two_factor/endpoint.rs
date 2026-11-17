@@ -347,7 +347,11 @@ pub async fn confirm_two_factor(
 
     let mut tx = db.begin().await.map_err(|e| db_error("begin", &e))?;
     match tx
-        .fetch_one::<Written, _>(&ConfirmTotpQueryView::new(auth_user.id, step))
+        .fetch_one::<Written, _>(&ConfirmTotpQueryView::new(
+            auth_user.id,
+            step,
+            &record.secret,
+        ))
         .await
     {
         Ok(_) => {}

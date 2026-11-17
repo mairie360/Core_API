@@ -13,6 +13,7 @@ use crate::passwords;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::second_factor::SecretCipher;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
+use crate::two_factor;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::error::ApiLibError;
@@ -31,6 +32,9 @@ enum ResetPasswordError {
     /// step, no session (MAIR-805).
     TwoFactorRequired(String),
     TwoFactorUnavailable,
+    /// The password is reset (and the other sessions revoked) but the second step could not be
+    /// opened: the answer says so, the agent logs in with the new password.
+    SecondStepFailed,
 }
 
 impl std::fmt::Display for ResetPasswordError {
@@ -46,6 +50,11 @@ impl std::fmt::Display for ResetPasswordError {
             Self::UnknownToken => {
                 write!(f, "Unknown token")
             }
+            Self::SecondStepFailed => write!(
+                f,
+                "The password was reset, but the second step could not be opened: \
+                 log in with the new password."
+            ),
             Self::TwoFactorRequired(_) => write!(f, "Second factor required."),
             Self::TwoFactorUnavailable => {
                 write!(f, "Two-factor authentication is not configured.")
@@ -57,9 +66,10 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::DatabaseError | Self::RedisError | Self::TokenGenerationError => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Self::DatabaseError
+            | Self::RedisError
+            | Self::TokenGenerationError
+            | Self::SecondStepFailed => StatusCode::INTERNAL_SERVER_ERROR,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::UnknownToken => StatusCode::UNAUTHORIZED,
             Self::TwoFactorRequired(_) => StatusCode::ACCEPTED,
@@ -148,6 +158,24 @@ async fn reset_password_trigger(
     };
     let user_id = get_user_id(smart_db, &email).await?;
 
+    // Checked before anything is written: an instance that cannot verify the second factor of this
+    // account answers `503` with the password, the sessions and the reset token untouched, so the
+    // agent can retry once the instance is configured (MAIR-805).
+    if !can_verify_second_factor {
+        let protected = two_factor::is_enabled(smart_db, user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Second factor status DB Error: {e}");
+                ResetPasswordError::DatabaseError
+            })?;
+        if protected {
+            tracing::error!(
+                "User {user_id} has a second factor but TOTP_ENCRYPTION_KEY is not set"
+            );
+            return Err(ResetPasswordError::TwoFactorUnavailable);
+        }
+    }
+
     let reversed_key = format!("{email}/forgot_password_token");
     if let Err(e) = redis.delete(&reversed_key).await {
         tracing::error!("Failed to delete reversed key: {e:?}");
@@ -176,9 +204,10 @@ async fn reset_password_trigger(
         Err(LoginError::TwoFactorUnavailable) => {
             return Err(ResetPasswordError::TwoFactorUnavailable)
         }
+        // The password is already changed: say so instead of a generic failure.
         Err(e) => {
             tracing::error!("Second factor check after a password reset: {e:?}");
-            return Err(ResetPasswordError::DatabaseError);
+            return Err(ResetPasswordError::SecondStepFailed);
         }
     }
 
@@ -256,14 +285,14 @@ async fn reset_password_trigger(
         ),
         (
             status = 500,
-            description = "Database or Redis failure, or JWT generation failure.",
+            description = "Database or Redis failure, or JWT generation failure. When the password was already reset and only the second step could not be opened, the text says so: log in with the new password (the reset token is spent).",
             body = String,
             content_type = "text/plain",
             example = json!("The password could not be reset, please try again later.")
         ),
         (
             status = 503,
-            description = "The account has a second factor but the instance has no `TOTP_ENCRYPTION_KEY`; the password is reset, no session is opened.",
+            description = "The account has a second factor but the instance has no `TOTP_ENCRYPTION_KEY`. Nothing is changed: the password, the sessions and the reset token are untouched, so the reset can be retried once the instance is configured.",
             body = String,
             content_type = "text/plain",
             example = json!("Two-factor authentication is not configured.")

@@ -14,6 +14,7 @@ use crate::database::second_factor::{
     InsertBackupCodeQueryView, IsTotpEnabledQueryView, ListBackupCodesQueryView,
     SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView, Written,
 };
+use crate::database::users::delete_user::IsUserActiveQueryView;
 use crate::passwords;
 use crate::refresh_token;
 use crate::second_factor::{self, SecretCipher};
@@ -119,7 +120,7 @@ pub async fn verify_totp(
         .ok_or(VerifyError::InvalidCode)?;
     // The step is spent atomically: a replay of the same code, even a simultaneous one, loses.
     match db
-        .fetch_one::<Written, _>(&UseTotpStepQueryView::new(user_id, step))
+        .fetch_one::<Written, _>(&UseTotpStepQueryView::new(user_id, step, &record.secret))
         .await
     {
         Ok(_) => Ok(()),
@@ -166,6 +167,12 @@ pub async fn issue_backup_codes(
     tx: &mut SmartTransaction,
     user_id: u64,
 ) -> Result<Vec<String>, VerifyError> {
+    // The account row is locked first: two requests that each spent a valid code serialize here,
+    // so the second replaces the first's codes instead of both sets surviving.
+    let _active: bool = tx
+        .fetch_scalar(&IsUserActiveQueryView::locked(user_id))
+        .await
+        .map_err(|e| internal("lock the account", &e))?;
     tx.execute(&DeleteBackupCodesQueryView::new(user_id))
         .await
         .map_err(|e| internal("delete the backup codes", &e))?;
@@ -188,10 +195,18 @@ pub struct PendingLogin {
     pub user_id: u64,
     pub device_info: String,
     pub failures: u32,
+    /// Unix second the token stops being valid. Stored next to the counter because rewriting the
+    /// counter must not give the token a new lifetime: Redis only knows the TTL of the write.
+    pub expires_at: u64,
 }
 
 fn login_key(token: &str) -> String {
     format!("2fa_login/{token}")
+}
+
+/// Marker written once, atomically, by the request that spends the token.
+fn spent_key(token: &str) -> String {
+    format!("2fa_spent/{token}")
 }
 
 /// Opens a login token for `user_id` (password already verified).
@@ -205,6 +220,7 @@ pub async fn begin_login(redis: &Redis, user_id: u64, device_info: &str) -> Resu
         user_id,
         device_info: device_info.to_string(),
         failures: 0,
+        expires_at: second_factor::now_unix() + LOGIN_TOKEN_TTL_SECONDS,
     };
     let value = serde_json::to_string(&pending).map_err(|e| e.to_string())?;
     redis
@@ -217,36 +233,42 @@ pub async fn begin_login(redis: &Redis, user_id: u64, device_info: &str) -> Resu
 /// The login `token` stands for, `None` when unknown, expired, burnt or spent.
 pub async fn read_login(redis: &Redis, token: &str) -> Option<PendingLogin> {
     let raw = redis.secure_get::<String>(&login_key(token)).await.ok()??;
-    serde_json::from_str(&raw).ok()
+    let pending: PendingLogin = serde_json::from_str(&raw).ok()?;
+    (second_factor::now_unix() < pending.expires_at).then_some(pending)
 }
 
 /// Counts a wrong code; burns the token at [`MAX_LOGIN_FAILURES`]. Returns whether it is burnt.
+///
+/// The token keeps its original expiry: the write only lasts for what is left of it.
 pub async fn record_login_failure(redis: &Redis, token: &str, mut pending: PendingLogin) -> bool {
     pending.failures += 1;
-    if pending.failures >= MAX_LOGIN_FAILURES {
+    let remaining = pending.expires_at.saturating_sub(second_factor::now_unix());
+    if pending.failures >= MAX_LOGIN_FAILURES || remaining == 0 {
         let _ = redis.secure_delete(&login_key(token)).await;
         return true;
     }
     if let Ok(value) = serde_json::to_string(&pending) {
         // `set_ex` overwrites: `secure_set_ex` only writes an absent key (`SET … NX`).
-        let _ = redis
-            .set_ex(&login_key(token), value, LOGIN_TOKEN_TTL_SECONDS)
-            .await;
+        let _ = redis.set_ex(&login_key(token), value, remaining).await;
     }
     false
 }
 
-/// Spends the login token. Returns `false` when it was already spent (two requests racing).
-pub async fn consume_login(redis: &Redis, token: &str) -> bool {
-    let key = login_key(token);
-    let present = redis
-        .secure_get::<String>(&key)
+/// Spends the login token: `Ok(true)` for the one request that wins.
+///
+/// `Ok(false)` when another request already spent it. The winner is decided by a single `SET … NX`,
+/// so two requests holding valid codes cannot both get a session.
+///
+/// # Errors
+///
+/// A message for the logs when Redis refuses the write: nothing was spent, no session may follow.
+pub async fn consume_login(redis: &Redis, token: &str) -> Result<bool, String> {
+    let won = redis
+        .secure_set_ex(&spent_key(token), "1", LOGIN_TOKEN_TTL_SECONDS)
         .await
-        .ok()
-        .flatten()
-        .is_some();
-    if present {
-        let _ = redis.secure_delete(&key).await;
+        .map_err(|e| e.to_string())?;
+    if won {
+        let _ = redis.secure_delete(&login_key(token)).await;
     }
-    present
+    Ok(won)
 }

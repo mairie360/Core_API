@@ -1,8 +1,11 @@
 use crate::database::second_factor::{
     AccountEmail, DeleteBackupCodesQueryView, DeleteTotpQueryView, GetAccountEmailQueryView,
 };
+use crate::database::sessions::revoke_user_sessions::RecentlyRevokedSessionsQueryView;
 use crate::endpoints::admin_guard::AdminUser;
-use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
+use crate::session_revocation::{
+    max_jwt_lifetime, publish_revoked_sessions, revoke_all_user_sessions_in,
+};
 use actix_web::{delete, error::ResponseError, http::StatusCode, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -12,6 +15,9 @@ use mairie360_api_lib::state::AppState;
 enum ResetTwoFactorError {
     UnknownUser,
     DatabaseError,
+    /// Reset and revocations are committed, but the revocation list of Redis could not be
+    /// updated: repeating the request publishes them again.
+    RevocationNotPublished,
 }
 
 impl std::fmt::Display for ResetTwoFactorError {
@@ -19,6 +25,11 @@ impl std::fmt::Display for ResetTwoFactorError {
         match self {
             Self::UnknownUser => write!(f, "Unknown user"),
             Self::DatabaseError => write!(f, "Database error occurred"),
+            Self::RevocationNotPublished => write!(
+                f,
+                "The reset is done and the sessions are closed, but their revocation could not be \
+                 published to every API: repeat the request."
+            ),
         }
     }
 }
@@ -28,6 +39,7 @@ impl ResponseError for ResetTwoFactorError {
         match self {
             Self::UnknownUser => StatusCode::NOT_FOUND,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RevocationNotPublished => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -90,6 +102,13 @@ fn database_error(e: &ApiLibError) -> ResetTwoFactorError {
             body = String,
             content_type = "text/plain",
             example = json!("Database error occurred")
+        ),
+        (
+            status = 503,
+            description = "The reset is committed (factor removed, sessions revoked in the database) but the revocation could not be published to the other APIs, which would keep accepting the JWTs until they expire. Repeat the request: it publishes again every session revoked within the lifetime of a JWT, so the retry is effective.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The reset is done and the sessions are closed, but their revocation could not be published to every API: repeat the request.")
         )
     ),
     tag = "Admin - Users",
@@ -125,12 +144,24 @@ pub async fn admin_reset_user_two_factor(
         .await
         .map_err(|e| database_error(&e))?;
     tx.commit().await.map_err(|e| database_error(&e))?;
-    publish_revoked_sessions(state.get_redis(), &revoked).await;
+    // Published from the table, not from what this call revoked: a session revoked by an earlier
+    // attempt whose publication failed is no longer "active", so only the table still knows it.
+    let to_publish: Vec<uuid::Uuid> = db
+        .fetch_all(&RecentlyRevokedSessionsQueryView::new(
+            user_id,
+            max_jwt_lifetime(),
+        ))
+        .await
+        .map_err(|e| database_error(&e))?;
+    let published = publish_revoked_sessions(state.get_redis(), &to_publish).await;
     tracing::warn!(
         admin_id = admin.id,
         user_id,
         revoked_sessions = revoked.len(),
         "AUDIT: two-factor authentication reset by an administrator"
     );
+    if !published {
+        return Err(ResetTwoFactorError::RevocationNotPublished);
+    }
     Ok(HttpResponse::NoContent().finish())
 }

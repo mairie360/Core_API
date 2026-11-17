@@ -106,8 +106,10 @@ pub struct Written {
     pub id: Option<i32>,
 }
 
-/// Activates a pending enrolment and records the step of its first code. `DbError::NotFound`
-/// when nothing is pending.
+/// Activates a pending enrolment and records the step of its first code.
+///
+/// Only the pending secret the code was checked against is activated: a setup that replaced it in
+/// the meantime leaves the row alone and the caller gets `DbError::NotFound`.
 #[derive(serde::Deserialize)]
 pub struct ConfirmTotpQueryView {
     params: Vec<QueryParam>,
@@ -115,11 +117,12 @@ pub struct ConfirmTotpQueryView {
 
 impl ConfirmTotpQueryView {
     #[must_use]
-    pub fn new(user_id: u64, step: u64) -> Self {
+    pub fn new(user_id: u64, step: u64, sealed_secret_base64: &str) -> Self {
         Self {
             params: vec![
                 QueryParam::I32(id_to_sql(user_id)),
                 QueryParam::I64(i64::try_from(step).unwrap_or(i64::MAX)),
+                QueryParam::Text(sealed_secret_base64.to_string()),
             ],
         }
     }
@@ -129,7 +132,8 @@ impl ApiRequestDto for ConfirmTotpQueryView {
     fn query_sql(&self) -> &'static str {
         "WITH t AS (\
             UPDATE user_totp SET confirmed_at = now(), last_used_step = $2, updated_at = now() \
-            WHERE user_id = $1 AND confirmed_at IS NULL RETURNING user_id\
+            WHERE user_id = $1 AND confirmed_at IS NULL AND secret_encrypted = decode($3, 'base64') \
+            RETURNING user_id\
         ) SELECT row_to_json(t) FROM t"
     }
 
@@ -138,8 +142,12 @@ impl ApiRequestDto for ConfirmTotpQueryView {
     }
 }
 
-/// Spends the time step of an accepted code: only a step later than the last one is written, so
-/// a replay, even a simultaneous one, gets `DbError::NotFound`.
+/// Spends the time step of an accepted code.
+///
+/// Only a step later than the last one is written, so a replay, even a simultaneous one, gets
+/// `DbError::NotFound`. The step is spent on the secret that supplied the code: a factor reset and
+/// re-enrolled in between (another secret) is left alone, so a delayed verification cannot move
+/// its anti-replay step.
 #[derive(serde::Deserialize)]
 pub struct UseTotpStepQueryView {
     params: Vec<QueryParam>,
@@ -147,11 +155,12 @@ pub struct UseTotpStepQueryView {
 
 impl UseTotpStepQueryView {
     #[must_use]
-    pub fn new(user_id: u64, step: u64) -> Self {
+    pub fn new(user_id: u64, step: u64, sealed_secret_base64: &str) -> Self {
         Self {
             params: vec![
                 QueryParam::I32(id_to_sql(user_id)),
                 QueryParam::I64(i64::try_from(step).unwrap_or(i64::MAX)),
+                QueryParam::Text(sealed_secret_base64.to_string()),
             ],
         }
     }
@@ -162,6 +171,7 @@ impl ApiRequestDto for UseTotpStepQueryView {
         "WITH t AS (\
             UPDATE user_totp SET last_used_step = $2, updated_at = now() \
             WHERE user_id = $1 AND confirmed_at IS NOT NULL \
+              AND secret_encrypted = decode($3, 'base64') \
               AND (last_used_step IS NULL OR last_used_step < $2) RETURNING user_id\
         ) SELECT row_to_json(t) FROM t"
     }
@@ -170,6 +180,18 @@ impl ApiRequestDto for UseTotpStepQueryView {
         &self.params
     }
 }
+
+user_view!(
+    /// Takes a shared lock on the active factor of the user until the transaction ends.
+    ///
+    /// `DbError::NotFound` when there is none. A reset (`DELETE FROM user_totp`) waits for the
+    /// transaction that holds it, so a session created under this lock is committed before the
+    /// reset revokes the sessions (MAIR-805).
+    LockActiveTotpQueryView,
+    "SELECT row_to_json(t) FROM (\
+        SELECT user_id FROM user_totp WHERE user_id = $1 AND confirmed_at IS NOT NULL FOR SHARE\
+    ) t"
+);
 
 user_view!(
     /// Removes the TOTP record (disable, or reset by an administrator).

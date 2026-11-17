@@ -1,6 +1,7 @@
 use super::view::LoginTwoFactorView;
 use crate::client_ip::client_ip;
-use crate::endpoints::v1::auth::login::endpoint::generate_session;
+use crate::database::second_factor::{LockActiveTotpQueryView, Written};
+use crate::endpoints::v1::auth::login::endpoint::generate_session_in;
 use crate::endpoints::v1::auth::login::view::LoginResponseView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, user_key, RateLimits};
@@ -8,6 +9,8 @@ use crate::second_factor::SecretCipher;
 use crate::two_factor::{self, VerifyError};
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
+use mairie360_api_lib::database::error::DbError;
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,17 +168,53 @@ pub async fn login_two_factor(
         Err(VerifyError::NotEnabled) => return Err(LoginTwoFactorError::InvalidToken),
         Err(VerifyError::Internal) => return Err(LoginTwoFactorError::Internal),
     }
-    if !two_factor::consume_login(redis, view.token()).await {
-        return Err(LoginTwoFactorError::InvalidToken);
+    match two_factor::consume_login(redis, view.token()).await {
+        Ok(true) => {}
+        // Another request with a valid code spent the token first: it gets the session.
+        Ok(false) => return Err(LoginTwoFactorError::InvalidToken),
+        Err(e) => {
+            tracing::error!("Second step: could not spend the login token: {e}");
+            return Err(LoginTwoFactorError::Internal);
+        }
     }
 
-    let (jwt, refresh_token) =
-        generate_session(pending.user_id, &pending.device_info, ip_address, state)
-            .await
-            .map_err(|e| {
-                tracing::error!("Second step session error: {e:?}");
-                LoginTwoFactorError::Internal
-            })?;
+    // The session is written under a shared lock on the factor, in one transaction: an
+    // administrator reset (which deletes the factor, then revokes the sessions) either waits for
+    // this commit and revokes the session too, or has committed first and the lock finds nothing.
+    // A session can no longer outlive the factor that authorised it.
+    let mut tx = state.get_smart_db().begin().await.map_err(|e| {
+        tracing::error!("Second step: begin: {e}");
+        LoginTwoFactorError::Internal
+    })?;
+    match tx
+        .fetch_one::<Written, _>(&LockActiveTotpQueryView::new(pending.user_id))
+        .await
+    {
+        Ok(_) => {}
+        Err(ApiLibError::Database(DbError::NotFound)) => {
+            return Err(LoginTwoFactorError::InvalidToken)
+        }
+        Err(e) => {
+            tracing::error!("Second step: lock the factor: {e}");
+            return Err(LoginTwoFactorError::Internal);
+        }
+    }
+    let (jwt, refresh_token) = generate_session_in(
+        &mut tx,
+        pending.user_id,
+        &pending.device_info,
+        ip_address,
+        &state,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Second step session error: {e:?}");
+        LoginTwoFactorError::Internal
+    })?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Second step: commit: {e}");
+        LoginTwoFactorError::Internal
+    })?;
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))
         .json(LoginResponseView::from(refresh_token)))

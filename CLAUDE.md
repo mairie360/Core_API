@@ -411,6 +411,17 @@ session**; the token lives in Redis (`2fa_login/<token>`, 5 minutes, burnt after
 route. `reset_password` goes through the same second step: owning the mailbox is not a second factor.
 Redis `secure_set_ex` only writes an absent key (`SET NX`); use `set_ex` to overwrite.
 
+Races of the second factor (review of MAIR-805), each pinned by a `mair_805_*` test of `tests/endpoints/second_factor.rs`:
+the login token carries its absolute `expires_at` (a wrong code rewrites the counter with what is left of the TTL, it
+never renews it: the lib's `Redis` has no `KEEPTTL`), it is spent by one `SET NX` on `2fa_spent/<token>` (no
+`GETDEL` in the lib), the anti-replay step and the confirmation are written `WHERE secret_encrypted = <the secret that
+was checked>`, `issue_backup_codes` locks the account row first, and the second step writes the session in a transaction
+that holds `FOR SHARE` on the factor (`LockActiveTotpQueryView`): the administrator reset (`DELETE FROM user_totp`) waits
+for it, then revokes that session too. The revocation list publication has no outbox: the table is the retry state,
+`DELETE /admin/users/{id}/2fa` republishes every session revoked within `JWT_TIMEOUT`
+(`RecentlyRevokedSessionsQueryView`) and answers `503` when Redis refuses, so repeating the call is effective.
+`reset_password` checks that the instance can verify the account's factor **before** it changes anything.
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

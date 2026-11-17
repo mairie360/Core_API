@@ -19,7 +19,7 @@ use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responde
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::password::{hash_password, is_hashed, verify_password};
-use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::smart_db::{SmartDatabase, SmartTransaction};
 use mairie360_api_lib::state::AppState;
 use std::sync::LazyLock;
 use uuid::Uuid;
@@ -116,6 +116,40 @@ pub async fn generate_session(
     ip_adress: std::net::IpAddr,
     state: web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
+    let (view, session_id, refresh_token) = new_session(user_id, device_info, ip_adress);
+    state.get_smart_db().execute(view).await.map_err(|e| {
+        tracing::error!("Create Session DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    finish_session(user_id, session_id, refresh_token, &state).await
+}
+
+/// Same as [`generate_session`], but the session row is written inside `tx`: the caller commits
+/// it together with the checks it made in that transaction (MAIR-805, second step of the login).
+///
+/// # Errors
+///
+/// Returns an error if the insert or the JWT generation fails; `tx` must then be dropped.
+pub async fn generate_session_in(
+    tx: &mut SmartTransaction,
+    user_id: u64,
+    device_info: &str,
+    ip_adress: std::net::IpAddr,
+    state: &web::Data<AppState>,
+) -> Result<(String, String), LoginError> {
+    let (view, session_id, refresh_token) = new_session(user_id, device_info, ip_adress);
+    tx.execute(&view).await.map_err(|e| {
+        tracing::error!("Create Session DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    finish_session(user_id, session_id, refresh_token, state).await
+}
+
+fn new_session(
+    user_id: u64,
+    device_info: &str,
+    ip_adress: std::net::IpAddr,
+) -> (CreateSessionQueryView, Uuid, String) {
     let refresh_token = refresh_token::generate();
     // The session id is chosen here so the JWT can carry it (`sid` claim): logout revokes exactly
     // this session, and the JWT stops working once it is revoked (MAIR-226). Each login keeps its
@@ -129,12 +163,17 @@ pub async fn generate_session(
         device_info,
         ip_adress,
     );
-    state.get_smart_db().execute(view).await.map_err(|e| {
-        tracing::error!("Create Session DB Error: {e}");
-        LoginError::DatabaseError
-    })?;
+    (view, session_id, refresh_token)
+}
+
+async fn finish_session(
+    user_id: u64,
+    session_id: Uuid,
+    refresh_token: String,
+    state: &web::Data<AppState>,
+) -> Result<(String, String), LoginError> {
     // The BFFs read the caller's role from the JWT (MAIR-529).
-    let role = user_role_name(&state, user_id).await.map_err(|e| {
+    let role = user_role_name(state, user_id).await.map_err(|e| {
         tracing::error!("Get user roles DB Error: {e}");
         LoginError::DatabaseError
     })?;
