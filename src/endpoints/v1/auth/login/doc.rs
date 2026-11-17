@@ -7,7 +7,8 @@ use utoipa::OpenApi;
     components(schemas(
         super::view::LoginView,
         super::view::LoginResponseView,
-        super::view::LoginFirstConnectionResponseView
+        super::view::LoginFirstConnectionResponseView,
+        super::view::TwoFactorRequiredView
     ))
 )]
 pub struct LoginDoc;

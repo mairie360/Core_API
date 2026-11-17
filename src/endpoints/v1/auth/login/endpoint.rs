@@ -4,13 +4,17 @@ use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
 use crate::database::ids::id_from_sql;
 use crate::database::sessions::create_session::CreateSessionQueryView;
-use crate::endpoints::v1::auth::login::view::LoginFirstConnectionResponseView;
+use crate::endpoints::v1::auth::login::view::{
+    LoginFirstConnectionResponseView, TwoFactorRequiredView,
+};
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimits};
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::refresh_token;
+use crate::second_factor::SecretCipher;
 use crate::session_jwt::{generate_session_jwt, user_role_name};
+use crate::two_factor;
 use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
@@ -28,6 +32,11 @@ pub enum LoginError {
     RedisError,
     TokenGenerationError,
     TooManyRequests(u64),
+    /// Password right, second factor to give: the login token of the second step (MAIR-805).
+    TwoFactorRequired(String),
+    /// The account has a second factor but `TOTP_ENCRYPTION_KEY` is not configured: refused rather
+    /// than opened without it.
+    TwoFactorUnavailable,
 }
 
 impl std::fmt::Debug for LoginError {
@@ -40,6 +49,8 @@ impl std::fmt::Debug for LoginError {
             Self::RedisError => write!(f, "RedisError"),
             Self::TokenGenerationError => write!(f, "TokenGenerationError"),
             Self::TooManyRequests(seconds) => write!(f, "TooManyRequests({seconds})"),
+            Self::TwoFactorRequired(_) => write!(f, "TwoFactorRequired(<token>)"),
+            Self::TwoFactorUnavailable => write!(f, "TwoFactorUnavailable"),
         }
     }
 }
@@ -58,6 +69,10 @@ impl std::fmt::Display for LoginError {
             }
             Self::RedisError => write!(f, "Internal Redis error."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
+            Self::TwoFactorRequired(_) => write!(f, "Second factor required."),
+            Self::TwoFactorUnavailable => {
+                write!(f, "Two-factor authentication is not configured.")
+            }
         }
     }
 }
@@ -71,12 +86,18 @@ impl ResponseError for LoginError {
             Self::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
             Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
+            Self::TwoFactorRequired(_) => StatusCode::ACCEPTED,
+            Self::TwoFactorUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
     fn error_response(&self) -> HttpResponse {
         if let Self::TooManyRequests(retry_after) = self {
             return too_many_requests_response(*retry_after);
+        }
+        if let Self::TwoFactorRequired(token) = self {
+            return HttpResponse::build(self.status_code())
+                .json(TwoFactorRequiredView::new(token.clone()));
         }
         if let Self::FirstConnectError(token) = self {
             return HttpResponse::build(self.status_code())
@@ -215,10 +236,46 @@ pub(crate) async fn is_password_valid(user_id: i32, password: &str, stored_passw
     }
 }
 
+/// Opens the second step for `user_id` when the account has a second factor: the login token to
+/// return instead of a session, `None` for an account without one (MAIR-805).
+///
+/// # Errors
+///
+/// [`LoginError::TwoFactorUnavailable`] when the account is protected but the instance cannot
+/// verify a code, [`LoginError::DatabaseError`] / [`LoginError::RedisError`] on a failure.
+pub(crate) async fn two_factor_challenge(
+    state: &AppState,
+    user_id: u64,
+    device_info: &str,
+    can_verify: bool,
+) -> Result<Option<String>, LoginError> {
+    let enabled = two_factor::is_enabled(state.get_smart_db(), user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Second factor status DB Error: {e}");
+            LoginError::DatabaseError
+        })?;
+    if !enabled {
+        return Ok(None);
+    }
+    if !can_verify {
+        tracing::error!("User {user_id} has a second factor but TOTP_ENCRYPTION_KEY is not set");
+        return Err(LoginError::TwoFactorUnavailable);
+    }
+    two_factor::begin_login(state.get_redis(), user_id, device_info)
+        .await
+        .map(Some)
+        .map_err(|e| {
+            tracing::error!("Redis Error: {e}");
+            LoginError::RedisError
+        })
+}
+
 async fn login_user(
     login_view: &LoginView,
     state: web::Data<AppState>,
     ip_adress: std::net::IpAddr,
+    can_verify_second_factor: bool,
 ) -> Result<(String, String), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
@@ -270,6 +327,18 @@ async fn login_user(
         ));
     }
 
+    // A protected account gets no session from its password alone (MAIR-805).
+    if let Some(token) = two_factor_challenge(
+        &state,
+        id_from_sql(user.user_id()),
+        &login_view.device_info(),
+        can_verify_second_factor,
+    )
+    .await?
+    {
+        return Err(LoginError::TwoFactorRequired(token));
+    }
+
     generate_session(
         id_from_sql(user.user_id()),
         &login_view.device_info(),
@@ -316,6 +385,9 @@ fn check_rate_limits(
                    present to `POST /api/v1/auth/force_change_password`, and no session is \
                    opened. It is the only error status of this operation whose body is JSON and \
                    not plain text.\n\n\
+                   An account protected by the second factor (MAIR-805) gets **no session** from its \
+                   password: the answer is `202` with a login token to give, with a code of the \
+                   authenticator application or a backup code, to `POST /api/v1/auth/login/2fa`.\n\n\
                    Rate limited: 30 attempts per minute per client address and 10 per 15 minutes \
                    per e-mail address, successful or not; beyond that the answer is `429`.",
     request_body(
@@ -352,6 +424,12 @@ fn check_rate_limits(
             example = json!("Invalid credentials provided.")
         ),
         (
+            status = 202,
+            description = "Correct password on an account protected by the second factor: no session is opened. Call `POST /api/v1/auth/login/2fa` with the token within five minutes.",
+            body = TwoFactorRequiredView,
+            example = json!({ "status": "2fa_required", "token": "example-two-factor-token" })
+        ),
+        (
             status = 412,
             description = "First connection, with the correct password: the password must be changed through `/api/v1/auth/force_change_password` with the returned token. No session is opened.",
             body = LoginFirstConnectionResponseView,
@@ -373,6 +451,13 @@ fn check_rate_limits(
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
+        ),
+        (
+            status = 503,
+            description = "The account has a second factor but the instance has no `TOTP_ENCRYPTION_KEY`: the login is refused rather than opened without it.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Two-factor authentication is not configured.")
         )
     ),
     tag = "Auth"
@@ -385,6 +470,7 @@ pub async fn login(
     payload: ValidatedJson<LoginView>,
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
+    secrets: Option<web::Data<SecretCipher>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
@@ -395,7 +481,8 @@ pub async fn login(
         &login_view.email(),
     )?;
 
-    let (jwt, refresh_token) = login_user(&login_view, state, ip_address).await?;
+    let (jwt, refresh_token) =
+        login_user(&login_view, state, ip_address, secrets.is_some()).await?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

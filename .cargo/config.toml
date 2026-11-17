@@ -22,4 +22,4 @@ cov = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs|lib\\.rs
 # migration needs it. An exported TEST_DB_VERSION still wins.
 [env]
 # renovate: datasource=docker depName=ghcr.io/mairie360/database
-TEST_DB_VERSION = "3.4.0"
+TEST_DB_VERSION = "3.5.0"

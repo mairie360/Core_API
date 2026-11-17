@@ -6,6 +6,7 @@ mod get;
 mod password;
 mod patch;
 mod roles;
+mod two_factor;
 
 use actix_web::web;
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -17,6 +18,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(export::endpoint::admin_export_user_data)
             .service(patch::endpoint::admin_patch_user)
             .service(password::endpoint::admin_reset_user_password)
+            .service(two_factor::endpoint::admin_reset_user_two_factor)
             .service(get::endpoint::admin_get_user),
     );
 }

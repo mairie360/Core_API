@@ -73,7 +73,8 @@ impl SecretCipher {
         let bytes = general_purpose::STANDARD
             .decode(key.trim())
             .map_err(|_| SecondFactorError::InvalidKey)?;
-        let cipher = Aes256Gcm::new_from_slice(&bytes).map_err(|_| SecondFactorError::InvalidKey)?;
+        let cipher =
+            Aes256Gcm::new_from_slice(&bytes).map_err(|_| SecondFactorError::InvalidKey)?;
         Ok(Self { cipher })
     }
 
@@ -139,7 +140,8 @@ pub fn secret_base32(secret: &[u8]) -> String {
 #[must_use]
 pub fn otpauth_uri(secret: &[u8], account: &str) -> String {
     let full_label = format!("{ISSUER}:{account}");
-    let label = percent_encoding::utf8_percent_encode(&full_label, percent_encoding::NON_ALPHANUMERIC);
+    let label =
+        percent_encoding::utf8_percent_encode(&full_label, percent_encoding::NON_ALPHANUMERIC);
     let issuer = percent_encoding::utf8_percent_encode(ISSUER, percent_encoding::NON_ALPHANUMERIC);
     format!(
         "otpauth://totp/{label}?secret={}&issuer={issuer}&algorithm=SHA1&digits={DIGITS}&period={STEP_SECONDS}",
@@ -162,6 +164,10 @@ pub fn now_unix() -> u64 {
 }
 
 /// HOTP value (RFC 4226) of `counter`, as a zero-padded decimal string.
+///
+/// # Panics
+///
+/// Never: HMAC accepts a key of any length.
 #[must_use]
 pub fn code_for_step(secret: &[u8], step: u64) -> String {
     let mut mac = <Hmac<Sha1> as HmacKeyInit>::new_from_slice(secret)
@@ -175,12 +181,17 @@ pub fn code_for_step(secret: &[u8], step: u64) -> String {
         digest[offset + 2],
         digest[offset + 3],
     ]);
-    format!("{:0width$}", binary % 10u32.pow(DIGITS), width = DIGITS as usize)
+    format!(
+        "{:0width$}",
+        binary % 10u32.pow(DIGITS),
+        width = DIGITS as usize
+    )
 }
 
-/// Checks `code` against the steps `now - 1 ..= now + 1` (clock drift of a phone), refusing any
-/// step that is not later than `last_used_step`. Returns the step that matched, to be stored as
-/// the new `last_used_step`.
+/// Checks `code` against the steps around `unix_seconds`, and returns the step that matched.
+///
+/// The steps `now - 1 ..= now + 1` are tried (clock drift of a phone); any step that is not later
+/// than `last_used_step` is refused. The returned step is the new `last_used_step`.
 #[must_use]
 pub fn verify_code(
     secret: &[u8],
@@ -225,7 +236,9 @@ pub fn generate_backup_code() -> String {
 /// The [`BACKUP_CODE_COUNT`] codes issued at confirmation.
 #[must_use]
 pub fn generate_backup_codes() -> Vec<String> {
-    (0..BACKUP_CODE_COUNT).map(|_| generate_backup_code()).collect()
+    (0..BACKUP_CODE_COUNT)
+        .map(|_| generate_backup_code())
+        .collect()
 }
 
 /// Canonical form of a typed backup code: lowercase, without dash nor space.
@@ -253,8 +266,16 @@ mod tests {
 
     #[test]
     fn rfc6238_vectors() {
-        for (time, expected) in [(59u64, "287082"), (1_111_111_109, "081804"), (1_234_567_890, "005924")] {
-            assert_eq!(code_for_step(RFC_SECRET, step_at(time)), expected, "t={time}");
+        for (time, expected) in [
+            (59u64, "287082"),
+            (1_111_111_109, "081804"),
+            (1_234_567_890, "005924"),
+        ] {
+            assert_eq!(
+                code_for_step(RFC_SECRET, step_at(time)),
+                expected,
+                "t={time}"
+            );
         }
     }
 
@@ -286,7 +307,11 @@ mod tests {
     fn malformed_codes_are_refused() {
         let secret = generate_secret();
         for code in ["", "12345", "1234567", "12345a", "١٢٣٤٥٦"] {
-            assert_eq!(verify_code(&secret, code, 1_700_000_000, None), None, "{code:?}");
+            assert_eq!(
+                verify_code(&secret, code, 1_700_000_000, None),
+                None,
+                "{code:?}"
+            );
         }
     }
 
@@ -313,8 +338,15 @@ mod tests {
 
     #[test]
     fn a_bad_key_is_refused() {
-        for key in ["", "not base64!!", &general_purpose::STANDARD.encode([1u8; 16])] {
-            assert_eq!(SecretCipher::from_base64(key).unwrap_err(), SecondFactorError::InvalidKey);
+        for key in [
+            "",
+            "not base64!!",
+            &general_purpose::STANDARD.encode([1u8; 16]),
+        ] {
+            assert_eq!(
+                SecretCipher::from_base64(key).unwrap_err(),
+                SecondFactorError::InvalidKey
+            );
         }
     }
 
@@ -326,7 +358,10 @@ mod tests {
         assert_eq!(unique.len(), BACKUP_CODE_COUNT);
         for code in &codes {
             assert!(looks_like_backup_code(code), "{code}");
-            assert_eq!(normalize_backup_code(&code.to_uppercase()), normalize_backup_code(code));
+            assert_eq!(
+                normalize_backup_code(&code.to_uppercase()),
+                normalize_backup_code(code)
+            );
         }
         assert!(!looks_like_backup_code("123456"));
         assert_eq!(normalize_backup_code(" K3M9 - X7PQ "), "k3m9x7pq");
@@ -337,6 +372,8 @@ mod tests {
         let uri = otpauth_uri(RFC_SECRET, "jean.dupont@mairie360.fr");
         assert!(uri.starts_with("otpauth://totp/Mairie%20360%3Ajean%2Edupont%40mairie360%2Efr?"));
         assert!(uri.contains(&format!("secret={}", secret_base32(RFC_SECRET))));
-        assert!(uri.contains("period=30") && uri.contains("digits=6") && uri.contains("algorithm=SHA1"));
+        assert!(
+            uri.contains("period=30") && uri.contains("digits=6") && uri.contains("algorithm=SHA1")
+        );
     }
 }
