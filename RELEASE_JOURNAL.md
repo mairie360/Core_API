@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "234a67e6cb7e1c331195fdcfc41bb0dea3f46f4d", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 17:08 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "8787de2039084e48a1ee625f87c11ad05fc2d8e9", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-17 21:19 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `234a67e` | 2026-11-17 17:08 UTC |
+| dev | — | `8787de2` | 2026-11-17 21:19 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- chore(deps): update rust crate redis to v1.8.2 (#414) ([#414](https://github.com/mairie360/Core_API/pull/414))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#412](https://github.com/mairie360/Core_API/pull/412))
 - test: MAIR-533 Remove or reactivate the dead tests of the APIs ([#409](https://github.com/mairie360/Core_API/pull/409))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#400) ([#400](https://github.com/mairie360/Core_API/pull/400))
@@ -28,6 +29,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore(deps): update rust crate redis to v1.8.2 (#414) ([#414](https://github.com/mairie360/Core_API/pull/414))
 - test: MAIR-534 Add the missing business negative cases of the APIs ([#412](https://github.com/mairie360/Core_API/pull/412))
 - test: MAIR-533 Remove or reactivate the dead tests of the APIs ([#409](https://github.com/mairie360/Core_API/pull/409))
 - feat: MAIR-998 Test stacks follow the moving upstream tag of the stage (#400) ([#400](https://github.com/mairie360/Core_API/pull/400))
@@ -54,6 +56,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-17 21:19 UTC | dev | — | `8787de2` | [run](https://github.com/mairie360/Core_API/actions/runs/44176245586) |
 | 2026-11-17 17:08 UTC | dev | — | `234a67e` | [run](https://github.com/mairie360/Core_API/actions/runs/44131678944) |
 | 2026-11-17 17:07 UTC | dev | — | `fd78e29` | [run](https://github.com/mairie360/Core_API/actions/runs/44131665230) |
 | 2026-11-17 14:26 UTC | dev | — | `d3c656c` | [run](https://github.com/mairie360/Core_API/actions/runs/44100508777) |
