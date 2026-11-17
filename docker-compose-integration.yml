@@ -23,7 +23,8 @@ x-common-env: &common-env
 
 services:
   postgres:
-    image: ghcr.io/mairie360/database:3.4.0
+    image: ghcr.io/mairie360/database:${UPSTREAM_TAG:-dev}
+    pull_policy: ${UPSTREAM_PULL_POLICY:-always}
     restart: always
     container_name: mairie360-db-core-api-integration
     environment:
@@ -43,7 +44,8 @@ services:
       retries: 5
 
   liquibase:
-    image: ghcr.io/mairie360/liquibase-migrations:3.4.0
+    image: ghcr.io/mairie360/liquibase-migrations:${UPSTREAM_TAG:-dev}
+    pull_policy: ${UPSTREAM_PULL_POLICY:-always}
     container_name: mairie360-liquibase-core-api-integration
     depends_on:
       postgres:
