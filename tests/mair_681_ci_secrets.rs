@@ -321,6 +321,20 @@ fn mair_681_pull_requests_get_their_gdpr_review() {
 }
 
 #[test]
+fn mair_681_nightly_promotions_run_as_dry_runs() {
+    for job in jobs() {
+        if callee(&job).is_some_and(|called| called.ends_with("[dry-run]")) {
+            let dry_run = job.lines.iter().any(|line| {
+                line.len() - line.trim_start().len() == 6
+                    && key_value(line)
+                        .is_some_and(|(key, value)| key == "dry_run" && unquote(&value) == "true")
+            });
+            assert!(dry_run, "{}: no `dry_run: true`", job.place);
+        }
+    }
+}
+
+#[test]
 fn mair_681_release_journal_is_no_longer_tracked() {
     let output = Command::new("git")
         .arg("-C")
