@@ -324,10 +324,17 @@ fn mair_681_pull_requests_get_their_gdpr_review() {
 fn mair_681_nightly_promotions_run_as_dry_runs() {
     for job in jobs() {
         if callee(&job).is_some_and(|called| called.ends_with("[dry-run]")) {
+            // `dry_run: true` (a YAML boolean) among the `with:` inputs of the call.
+            let mut parent = String::new();
             let dry_run = job.lines.iter().any(|line| {
-                line.len() - line.trim_start().len() == 6
+                let indent = line.len() - line.trim_start().len();
+                if indent == 4 {
+                    parent = key_value(line).map(|(key, _)| key).unwrap_or_default();
+                }
+                parent == "with"
+                    && indent == 6
                     && key_value(line)
-                        .is_some_and(|(key, value)| key == "dry_run" && unquote(&value) == "true")
+                        .is_some_and(|(key, value)| key == "dry_run" && value == "true")
             });
             assert!(dry_run, "{}: no `dry_run: true`", job.place);
         }
