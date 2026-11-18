@@ -2595,7 +2595,7 @@
                   "pm.test(\"Status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test('Authorization header carries a Bearer JWT', () => { pm.expect(pm.response.headers.get('Authorization')).to.match(/^Bearer /); });"
+                  "pm.test('Authorization header carries a Bearer JWT', () => { pm.expect(pm.response.headers.get('Authorization')).to.match(/^Bearer [A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+\\.[A-Za-z0-9\\-_]+$/); });"
                 ]
               }
             }

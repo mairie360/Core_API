@@ -1596,3 +1596,59 @@ async fn mair_806_a_spent_backup_code_has_its_own_answer_and_counts_as_a_failure
     );
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+#[actix_web::test]
+async fn mair_806_only_the_sign_in_tells_a_spent_backup_code_apart() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let (id, email) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let (_, codes) = enrol!(app, auth);
+
+    // The sign-in spends the first code.
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[0] })
+        )
+    );
+    assert_eq!(status, StatusCode::OK);
+
+    // The account routes refuse it like any code that matches nothing: no extra lookup, same answer.
+    for path in [
+        "/api/v1/user/me/2fa/backup-codes/",
+        "/api/v1/user/me/2fa/disable/",
+    ] {
+        let (status, ..) = json_of!(
+            app,
+            post(path, &json!({ "password": PASSWORD, "code": codes[0] }))
+                .insert_header(auth.clone())
+        );
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+    }
+
+    // A code replaced by a regeneration is not a spent code: the sign-in answers the generic refusal.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/user/me/2fa/backup-codes/",
+            &json!({ "code": codes[1] })
+        )
+        .insert_header(auth.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, _, _, text) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[2] })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(text, "Invalid verification code.");
+}
