@@ -152,6 +152,9 @@ pub async fn verify_totp(
 }
 
 /// Whether `normalized` is one of the backup codes of `user_id` that were already spent.
+///
+/// A hash match is not enough: a regeneration may delete the row while the (slow) hash comparison runs, so
+/// the matched row is looked up again and must still be there, spent.
 async fn is_spent_backup_code(
     db: &SmartDatabase,
     user_id: u64,
@@ -166,7 +169,11 @@ async fn is_spent_backup_code(
             .await
             .unwrap_or(false)
         {
-            return Ok(true);
+            let still_there: Vec<BackupCodeRecord> = db
+                .fetch_all(&ListSpentBackupCodesQueryView::new(user_id))
+                .await
+                .map_err(|e| internal("confirm the spent backup code", &e))?;
+            return Ok(still_there.iter().any(|row| row.id == stored.id));
         }
     }
     Ok(false)
@@ -214,8 +221,16 @@ async fn refuse_unspent_match(
     normalized: &str,
     tell_spent: bool,
 ) -> Result<(), VerifyError> {
-    if tell_spent && is_spent_backup_code(db, user_id, normalized).await? {
-        return Err(VerifyError::SpentBackupCode);
+    // The code is already rejected here: the lookup only refines the message. If it fails, the attempt
+    // must still be refused (and counted by the caller) as a plain invalid code, not turned into a 500.
+    if tell_spent {
+        match is_spent_backup_code(db, user_id, normalized).await {
+            Ok(true) => return Err(VerifyError::SpentBackupCode),
+            Ok(false) => {}
+            Err(_) => tracing::warn!(
+                "Second factor: spent backup code lookup failed, refusing as invalid"
+            ),
+        }
     }
     Err(VerifyError::InvalidCode)
 }

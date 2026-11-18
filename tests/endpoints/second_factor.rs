@@ -1617,17 +1617,31 @@ async fn mair_806_only_the_sign_in_tells_a_spent_backup_code_apart() {
     );
     assert_eq!(status, StatusCode::OK);
 
-    // The account routes refuse it like any code that matches nothing: no extra lookup, same answer.
+    // The account routes refuse it like any code that matches nothing: same status, same body, no hint.
     for path in [
         "/api/v1/user/me/2fa/backup-codes/",
         "/api/v1/user/me/2fa/disable/",
     ] {
-        let (status, ..) = json_of!(
+        let (status, _, _, spent_text) = json_of!(
             app,
             post(path, &json!({ "password": PASSWORD, "code": codes[0] }))
                 .insert_header(auth.clone())
         );
+        let (never_status, _, _, never_text) = json_of!(
+            app,
+            post(path, &json!({ "password": PASSWORD, "code": "zzzz-zzzz" }))
+                .insert_header(auth.clone())
+        );
         assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(never_status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(
+            spent_text, never_text,
+            "{path}: a spent code gets the generic body"
+        );
+        assert!(
+            !spent_text.to_lowercase().contains("already used"),
+            "{path}: {spent_text}"
+        );
     }
 
     // A code replaced by a regeneration is not a spent code: the sign-in answers the generic refusal.
