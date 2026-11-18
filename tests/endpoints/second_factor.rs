@@ -399,7 +399,7 @@ async fn a_backup_code_logs_in_once() {
 
     let (_, _, body, _) = login!(app, email);
     let token = body["token"].as_str().unwrap().to_string();
-    let (status, ..) = json_of!(
+    let (status, _, _, text) = json_of!(
         app,
         post(
             "/api/v1/auth/login/2fa",
@@ -411,6 +411,7 @@ async fn a_backup_code_logs_in_once() {
         StatusCode::UNAUTHORIZED,
         "a spent backup code is refused"
     );
+    assert_eq!(text, "Backup code already used.");
     let (status, ..) = json_of!(
         app,
         post(
@@ -1530,4 +1531,138 @@ async fn mair_805_a_password_reset_changes_nothing_when_the_second_factor_cannot
             .is_some(),
         "the reset token is kept: the agent retries once the instance is configured"
     );
+}
+
+#[actix_web::test]
+async fn mair_806_a_spent_backup_code_has_its_own_answer_and_counts_as_a_failure() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let (id, email) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let (_, codes) = enrol!(app, auth);
+
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[0] })
+        )
+    );
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    // A well-formed code that was never issued stays the generic refusal.
+    let (status, _, _, text) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": "zzzz-zzzz" })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(text, "Invalid verification code.");
+    // The spent code is told apart, in any typing of it, on every attempt up to the burn.
+    for attempt in 2..=4 {
+        let (status, _, _, text) = json_of!(
+            app,
+            post(
+                "/api/v1/auth/login/2fa",
+                &json!({ "token": token, "code": codes[0].to_uppercase() })
+            )
+        );
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "attempt {attempt}");
+        assert_eq!(text, "Backup code already used.", "attempt {attempt}");
+    }
+    // The fifth failure burns the token, whatever its kind.
+    let (status, _, _, text) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[0] })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(text, "Invalid or expired login token.");
+    // An unspent backup code no longer works on the burnt token.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[1] })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[actix_web::test]
+async fn mair_806_only_the_sign_in_tells_a_spent_backup_code_apart() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let (id, email) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let (_, codes) = enrol!(app, auth);
+
+    // The sign-in spends the first code.
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[0] })
+        )
+    );
+    assert_eq!(status, StatusCode::OK);
+
+    // The account routes refuse it like any code that matches nothing: same status, same body, no hint.
+    for path in [
+        "/api/v1/user/me/2fa/backup-codes/",
+        "/api/v1/user/me/2fa/disable/",
+    ] {
+        let (status, _, _, spent_text) = json_of!(
+            app,
+            post(path, &json!({ "password": PASSWORD, "code": codes[0] }))
+                .insert_header(auth.clone())
+        );
+        let (never_status, _, _, never_text) = json_of!(
+            app,
+            post(path, &json!({ "password": PASSWORD, "code": "zzzz-zzzz" }))
+                .insert_header(auth.clone())
+        );
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(never_status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(
+            spent_text, never_text,
+            "{path}: a spent code gets the generic body"
+        );
+        assert!(
+            !spent_text.to_lowercase().contains("already used"),
+            "{path}: {spent_text}"
+        );
+    }
+
+    // A code replaced by a regeneration is not a spent code: the sign-in answers the generic refusal.
+    let (status, ..) = json_of!(
+        app,
+        post(
+            "/api/v1/user/me/2fa/backup-codes/",
+            &json!({ "code": codes[1] })
+        )
+        .insert_header(auth.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    let (_, _, body, _) = login!(app, email);
+    let token = body["token"].as_str().unwrap().to_string();
+    let (status, _, _, text) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/login/2fa",
+            &json!({ "token": token, "code": codes[2] })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(text, "Invalid verification code.");
 }

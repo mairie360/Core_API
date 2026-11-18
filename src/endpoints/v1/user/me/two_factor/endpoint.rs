@@ -78,7 +78,7 @@ impl ResponseError for TwoFactorError {
 impl From<VerifyError> for TwoFactorError {
     fn from(error: VerifyError) -> Self {
         match error {
-            VerifyError::InvalidCode => Self::InvalidCredentials,
+            VerifyError::InvalidCode | VerifyError::SpentBackupCode => Self::InvalidCredentials,
             VerifyError::NotEnabled => Self::NotEnabled,
             VerifyError::Internal => Self::DatabaseError,
         }
