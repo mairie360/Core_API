@@ -5,7 +5,7 @@ use crate::database::auth::login::LoginUserQueryView;
 use crate::database::ids::id_from_sql;
 use crate::database::sessions::create_session::CreateSessionQueryView;
 use crate::endpoints::v1::auth::login::view::{
-    LoginFirstConnectionResponseView, TwoFactorRequiredView,
+    LoginFirstConnectionResponseView, TwoFactorRequiredView, TwoFactorSetupPolicyView,
 };
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
@@ -36,7 +36,7 @@ pub enum LoginError {
     TwoFactorRequired(String),
     /// Password right, the instance makes the second factor mandatory and the account has none:
     /// the enrolment token, no session (MAIR-808).
-    TwoFactorSetupRequired(String),
+    TwoFactorSetupRequired(String, TwoFactorSetupPolicyView),
     /// The account has a second factor but `TOTP_ENCRYPTION_KEY` is not configured: refused rather
     /// than opened without it.
     TwoFactorUnavailable,
@@ -53,7 +53,7 @@ impl std::fmt::Debug for LoginError {
             Self::TokenGenerationError => write!(f, "TokenGenerationError"),
             Self::TooManyRequests(seconds) => write!(f, "TooManyRequests({seconds})"),
             Self::TwoFactorRequired(_) => write!(f, "TwoFactorRequired(<token>)"),
-            Self::TwoFactorSetupRequired(_) => write!(f, "TwoFactorSetupRequired(<token>)"),
+            Self::TwoFactorSetupRequired(..) => write!(f, "TwoFactorSetupRequired(<token>)"),
             Self::TwoFactorUnavailable => write!(f, "TwoFactorUnavailable"),
         }
     }
@@ -74,7 +74,7 @@ impl std::fmt::Display for LoginError {
             Self::RedisError => write!(f, "Internal Redis error."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::TwoFactorRequired(_) => write!(f, "Second factor required."),
-            Self::TwoFactorSetupRequired(_) => write!(f, "Second factor setup required."),
+            Self::TwoFactorSetupRequired(..) => write!(f, "Second factor setup required."),
             Self::TwoFactorUnavailable => {
                 write!(f, "Two-factor authentication is not configured.")
             }
@@ -91,7 +91,7 @@ impl ResponseError for LoginError {
             Self::FirstConnectError(_) => StatusCode::PRECONDITION_FAILED,
             Self::InvalidCredentials => StatusCode::UNAUTHORIZED,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
-            Self::TwoFactorRequired(_) | Self::TwoFactorSetupRequired(_) => StatusCode::ACCEPTED,
+            Self::TwoFactorRequired(_) | Self::TwoFactorSetupRequired(..) => StatusCode::ACCEPTED,
             Self::TwoFactorUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -104,9 +104,9 @@ impl ResponseError for LoginError {
             return HttpResponse::build(self.status_code())
                 .json(TwoFactorRequiredView::new(token.clone()));
         }
-        if let Self::TwoFactorSetupRequired(token) = self {
+        if let Self::TwoFactorSetupRequired(token, policy) = self {
             return HttpResponse::build(self.status_code())
-                .json(TwoFactorRequiredView::setup(token.clone()));
+                .json(TwoFactorRequiredView::setup(token.clone(), *policy));
         }
         if let Self::FirstConnectError(token) = self {
             return HttpResponse::build(self.status_code())
@@ -291,7 +291,7 @@ pub(crate) enum TwoFactorStep {
     Code(String),
     /// The instance requires a second factor and the account has no usable one: the enrolment
     /// token, nothing else is allowed.
-    Setup(String),
+    Setup(String, TwoFactorSetupPolicyView),
 }
 
 impl TwoFactorStep {
@@ -299,7 +299,7 @@ impl TwoFactorStep {
     pub(crate) fn into_login_error(self) -> LoginError {
         match self {
             Self::Code(token) => LoginError::TwoFactorRequired(token),
-            Self::Setup(token) => LoginError::TwoFactorSetupRequired(token),
+            Self::Setup(token, policy) => LoginError::TwoFactorSetupRequired(token, policy),
         }
     }
 }
@@ -351,7 +351,12 @@ pub(crate) async fn two_factor_challenge(
         // `user_totp` may hold the confirmed secret of a removed mode: enrolling starts over.
         two_factor::begin_setup(state.get_redis(), user_id, device_info)
             .await
-            .map(|token| Some(TwoFactorStep::Setup(token)))
+            .map(|token| {
+                Some(TwoFactorStep::Setup(
+                    token,
+                    TwoFactorSetupPolicyView::from(&policy),
+                ))
+            })
             .map_err(redis_error)
     }
 }
@@ -510,9 +515,9 @@ fn check_rate_limits(
         ),
         (
             status = 202,
-            description = "Correct password on an account protected by the second factor: no session is opened. Call `POST /api/v1/auth/login/2fa` with the token within five minutes.",
+            description = "Correct password, no session opened. `2fa_required` (account protected by the second factor): call `POST /api/v1/auth/login/2fa` with the token within five minutes. `2fa_setup_required` (the instance makes the second factor mandatory and the account has none): enrol with `POST /api/v1/auth/2fa/setup` then `confirm`; `policy` tells which modes the administrator allows and whether backup codes are, so the screen offers nothing else. `policy` is absent from `2fa_required`.",
             body = TwoFactorRequiredView,
-            example = json!({ "status": "2fa_required", "token": "example-two-factor-token" })
+            example = json!({ "status": "2fa_setup_required", "token": "example-two-factor-token", "policy": { "totp_allowed": true, "passkey_allowed": false, "backup_codes_allowed": true } })
         ),
         (
             status = 412,
