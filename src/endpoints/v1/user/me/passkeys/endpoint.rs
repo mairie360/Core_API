@@ -205,6 +205,7 @@ pub async fn list_my_passkeys(
         .map(|row| PasskeyView {
             id: row.id,
             label: row.label,
+            provider: row.provider,
             created_at: row.created_at,
             last_used_at: row.last_used_at,
         })
@@ -448,9 +449,15 @@ pub async fn register_passkey(
     Ok(HttpResponse::Created().json(PasskeyView {
         id: stored.id,
         label: stored.label,
+        provider: stored.provider,
         created_at: stored.created_at,
         last_used_at: stored.last_used_at,
     }))
+}
+
+/// The name of the passkey manager the registration answer comes from, when its AAGUID is known.
+fn passkeys_provider(credential: &RegisterPublicKeyCredential) -> Option<&'static str> {
+    crate::passkey_managers::provider_of(&credential.response.attestation_object)
 }
 
 /// Checks the browser's answer against the pending ceremony of `user_id` and stores the passkey. The
@@ -484,6 +491,7 @@ pub(crate) async fn finish_registration(
             &general_purpose::STANDARD.encode(passkey.cred_id()),
             &serialized,
             label,
+            passkeys_provider(credential),
         ))
         .await
         .map_err(|e| db_failure("register passkey", &e))?;

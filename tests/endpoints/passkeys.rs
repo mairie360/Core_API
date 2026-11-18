@@ -858,3 +858,42 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
     let (_, _, body) = password_login!(app, email);
     assert_eq!(body["passkey"]["allowed"], json!(false));
 }
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_passkey_manager_is_kept_and_listed_when_known() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, _) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+
+    // The software authenticator gives no known AAGUID: the passkey has no manager name.
+    let mut device = SoftPasskey::new(true);
+    let (status, _, body) = register!(app, device, auth, "Laptop");
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["provider"], Value::Null);
+
+    // A name deduced at registration is stored and listed (the AAGUID lookup itself is unit-tested).
+    sqlx::query(
+        "INSERT INTO user_passkeys (user_id, credential_id, passkey, label, provider) \
+         VALUES ($1, '\\x0a0b'::bytea, '{}'::jsonb, 'Phone', 'Google Password Manager')",
+    )
+    .bind(id)
+    .execute(&env.raw)
+    .await
+    .unwrap();
+    let (status, _, list) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/passkeys/")
+            .insert_header(auth.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    let providers: Vec<&Value> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| &p["provider"])
+        .collect();
+    assert_eq!(providers, [&Value::Null, &json!("Google Password Manager")]);
+}

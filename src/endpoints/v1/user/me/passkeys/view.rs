@@ -15,6 +15,11 @@ pub struct PasskeyView {
     /// Name the agent gave to the passkey.
     #[schema(example = "Town hall laptop")]
     pub label: String,
+    /// Name of the passkey manager that holds it (iCloud Keychain, Google Password Manager, ...),
+    /// deduced from the authenticator at registration; `null` when unknown. The front offers it as the
+    /// name of the passkey.
+    #[schema(example = "Google Password Manager")]
+    pub provider: Option<String>,
     /// When the passkey was registered (ISO 8601).
     #[schema(example = "2026-11-17T09:30:00+00:00")]
     pub created_at: String,
