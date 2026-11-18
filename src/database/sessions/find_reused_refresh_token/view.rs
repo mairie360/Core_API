@@ -92,3 +92,18 @@ impl Display for FindReusedRefreshTokenQueryView {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mair_695_the_query_view_never_displays_the_token_hash() {
+        let now = Utc::now();
+        let view = FindReusedRefreshTokenQueryView::new("token-hash-value", now, now);
+        let shown = view.to_string();
+        assert!(shown.contains("[PROTECTED]"));
+        assert!(!shown.contains("token-hash-value"));
+        assert_eq!(view.query_params().len(), 3);
+    }
+}

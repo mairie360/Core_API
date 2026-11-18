@@ -209,3 +209,66 @@ async fn mair_695_token_older_than_the_previous_one_is_only_refused() {
     let (status, _) = refresh!(app, third.unwrap());
     assert_eq!(status, StatusCode::OK);
 }
+
+/// Log lines written by the endpoint, captured through a test subscriber.
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Captured {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+    }
+}
+
+#[tokio::test]
+async fn mair_695_reuse_is_audited_with_its_session_but_never_with_the_token() {
+    init_env();
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let _guard = tracing::subscriber::set_default(
+        tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish(),
+    );
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (session_id, first) = open_session(&state).await;
+    let (_, second) = refresh!(app, &first);
+
+    // Within the grace window: a plain refusal, logged without the audit event.
+    let (status, _) = refresh!(app, &first);
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let logs = captured.text();
+    assert!(logs.contains("refused without revocation"), "{logs}");
+    assert!(!logs.contains("refresh_token_reuse"), "{logs}");
+
+    // After it: the audit event names the session and its user.
+    age_rotation(session_id, 11).await;
+    let (status, _) = refresh!(app, &first);
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let logs = captured.text();
+    assert!(logs.contains("refresh_token_reuse"), "{logs}");
+    assert!(logs.contains(&format!("session_id={session_id}")), "{logs}");
+    assert!(logs.contains("user_id=1"), "{logs}");
+    assert!(logs.contains("session_was_active=true"), "{logs}");
+    // Neither the replayed token, its hash nor the current token is ever written.
+    assert!(!logs.contains(&first), "{logs}");
+    assert!(
+        !logs.contains(&core_api::refresh_token::hash(&first)),
+        "{logs}"
+    );
+    assert!(!logs.contains(&second.unwrap()), "{logs}");
+}
