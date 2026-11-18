@@ -454,7 +454,7 @@ agent is stored as the `webauthn-rs` `Passkey` JSON in `user_passkeys` (Database
 unique, `ON DELETE CASCADE`); the user handle given to the authenticator is a v5 UUID of the user id (`user_handle`).
 Ceremonies live in Redis, two minutes, read once (`passkeys::begin_*` / `take_*`: the first attempt burns them, right or
 wrong). Routes: public `POST /auth/passkey/options` (challenge, no account named: nobody can be enumerated) and
-`POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
+`POST /auth/passkey/setup/options` + `POST /auth/passkey/setup` (mandatory enrolment by passkey: the `2fa_setup_required` token is the credential, the ceremony is kept per account, a refused answer counts like a wrong code and the token is burnt at the fifth, success spends the token, opens the session like `login`, sends the security e-mail and issues no backup codes), `POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
 signature / counter, moves the counter forward, opens the session exactly like `login`; **every** refusal is the same
 `401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
 `POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`

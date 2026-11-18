@@ -17,7 +17,7 @@ use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
-use webauthn_rs::prelude::Passkey;
+use webauthn_rs::prelude::{Passkey, RegisterPublicKeyCredential};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PasskeyError {
@@ -70,7 +70,7 @@ impl ResponseError for PasskeyError {
     }
 }
 
-fn db_failure(context: &str, e: &ApiLibError) -> PasskeyError {
+pub(crate) fn db_failure(context: &str, e: &ApiLibError) -> PasskeyError {
     match db_error::log(context, e) {
         DbFailure::Conflict => PasskeyError::AlreadyRegistered,
         DbFailure::NotFound => PasskeyError::NotFound,
@@ -78,7 +78,7 @@ fn db_failure(context: &str, e: &ApiLibError) -> PasskeyError {
     }
 }
 
-fn spend_budget(limits: Option<&RateLimits>, user_id: u64) -> Result<(), PasskeyError> {
+pub(crate) fn spend_budget(limits: Option<&RateLimits>, user_id: u64) -> Result<(), PasskeyError> {
     if let Some(limits) = limits {
         limits
             .second_factor_per_user
@@ -89,7 +89,7 @@ fn spend_budget(limits: Option<&RateLimits>, user_id: u64) -> Result<(), Passkey
 }
 
 /// Passkeys are configured (`503` otherwise) and accepted by the administrator (`403` otherwise).
-async fn ensure_available<'a>(
+pub(crate) async fn ensure_available<'a>(
     state: &AppState,
     relying_party: Option<&'a web::Data<Passkeys>>,
 ) -> Result<&'a Passkeys, PasskeyError> {
@@ -108,7 +108,7 @@ async fn ensure_available<'a>(
 /// Tells the agent, by e-mail, that a passkey was added or removed: device, date (in the mail) and
 /// address. A failure is logged and never undoes the change.
 #[allow(clippy::future_not_send)]
-async fn notify(
+pub(crate) async fn notify(
     state: &AppState,
     emails: Option<&AccountEmails>,
     user_id: u64,
@@ -288,13 +288,24 @@ pub async fn passkey_register_options(
 ) -> Result<impl Responder, PasskeyError> {
     spend_budget(limits.as_ref().map(web::Data::get_ref), auth_user.id)?;
     let relying_party = ensure_available(&state, relying_party.as_ref()).await?;
+    let options = start_registration(&state, relying_party, auth_user.id).await?;
+    Ok(HttpResponse::Ok().json(options))
+}
+
+/// Starts the registration ceremony of `user_id`: the options for the browser, the ceremony kept in
+/// Redis for the answer. Shared by the signed-in route and the mandatory enrolment.
+pub(crate) async fn start_registration(
+    state: &AppState,
+    relying_party: &Passkeys,
+    user_id: u64,
+) -> Result<PasskeyRegisterOptionsView, PasskeyError> {
     let db = state.get_smart_db();
     let contact: UserContactRecord = db
-        .fetch_one(&UserContactQueryView::new(auth_user.id))
+        .fetch_one(&UserContactQueryView::new(user_id))
         .await
         .map_err(|e| db_failure("passkey registration recipient", &e))?;
     let existing: Vec<PasskeySecretRecord> = db
-        .fetch_all(&ListPasskeySecretsQueryView::new(auth_user.id))
+        .fetch_all(&ListPasskeySecretsQueryView::new(user_id))
         .await
         .map_err(|e| db_failure("list passkey credentials", &e))?;
     let exclude: Vec<_> = existing
@@ -305,7 +316,7 @@ pub async fn passkey_register_options(
     let (options, ceremony) = relying_party
         .webauthn()
         .start_passkey_registration(
-            passkeys::user_handle(auth_user.id),
+            passkeys::user_handle(user_id),
             &contact.email,
             &contact.first_name,
             Some(exclude),
@@ -314,7 +325,7 @@ pub async fn passkey_register_options(
             tracing::error!("Passkey registration options: {e}");
             PasskeyError::DatabaseError
         })?;
-    passkeys::begin_register(state.get_redis(), auth_user.id, &ceremony)
+    passkeys::begin_register(state.get_redis(), user_id, &ceremony)
         .await
         .map_err(|e| {
             tracing::error!("Passkey registration Redis Error: {e}");
@@ -324,7 +335,7 @@ pub async fn passkey_register_options(
         tracing::error!("Passkey registration serialization: {e}");
         PasskeyError::DatabaseError
     })?;
-    Ok(HttpResponse::Ok().json(PasskeyRegisterOptionsView { options }))
+    Ok(PasskeyRegisterOptionsView { options })
 }
 
 #[utoipa::path(
@@ -417,31 +428,14 @@ pub async fn register_passkey(
     let view = payload.into_inner();
     spend_budget(limits.as_ref().map(web::Data::get_ref), auth_user.id)?;
     let relying_party = ensure_available(&state, relying_party.as_ref()).await?;
-    // Taken first: a wrong answer burns the challenge.
-    let ceremony = passkeys::take_register(state.get_redis(), auth_user.id)
-        .await
-        .ok_or(PasskeyError::InvalidRegistration)?;
-    let passkey = relying_party
-        .webauthn()
-        .finish_passkey_registration(view.credential(), &ceremony)
-        .map_err(|e| {
-            tracing::warn!(user_id = auth_user.id, "Passkey registration refused: {e}");
-            PasskeyError::InvalidRegistration
-        })?;
-    let serialized = serde_json::to_string(&passkey).map_err(|e| {
-        tracing::error!("Passkey serialization: {e}");
-        PasskeyError::DatabaseError
-    })?;
-    let stored: PasskeyRecord = state
-        .get_smart_db()
-        .fetch_one(&InsertPasskeyQueryView::new(
-            auth_user.id,
-            &general_purpose::STANDARD.encode(passkey.cred_id()),
-            &serialized,
-            view.label(),
-        ))
-        .await
-        .map_err(|e| db_failure("register passkey", &e))?;
+    let stored = finish_registration(
+        &state,
+        relying_party,
+        auth_user.id,
+        view.label(),
+        view.credential(),
+    )
+    .await?;
     notify(
         &state,
         emails.as_ref().map(web::Data::get_ref),
@@ -457,6 +451,43 @@ pub async fn register_passkey(
         created_at: stored.created_at,
         last_used_at: stored.last_used_at,
     }))
+}
+
+/// Checks the browser's answer against the pending ceremony of `user_id` and stores the passkey. The
+/// ceremony is burnt by the first attempt, right or wrong.
+pub(crate) async fn finish_registration(
+    state: &AppState,
+    relying_party: &Passkeys,
+    user_id: u64,
+    label: &str,
+    credential: &RegisterPublicKeyCredential,
+) -> Result<PasskeyRecord, PasskeyError> {
+    // Taken first: a wrong answer burns the challenge.
+    let ceremony = passkeys::take_register(state.get_redis(), user_id)
+        .await
+        .ok_or(PasskeyError::InvalidRegistration)?;
+    let passkey = relying_party
+        .webauthn()
+        .finish_passkey_registration(credential, &ceremony)
+        .map_err(|e| {
+            tracing::warn!(user_id = user_id, "Passkey registration refused: {e}");
+            PasskeyError::InvalidRegistration
+        })?;
+    let serialized = serde_json::to_string(&passkey).map_err(|e| {
+        tracing::error!("Passkey serialization: {e}");
+        PasskeyError::DatabaseError
+    })?;
+    let stored: PasskeyRecord = state
+        .get_smart_db()
+        .fetch_one(&InsertPasskeyQueryView::new(
+            user_id,
+            &general_purpose::STANDARD.encode(passkey.cred_id()),
+            &serialized,
+            label,
+        ))
+        .await
+        .map_err(|e| db_failure("register passkey", &e))?;
+    Ok(stored)
 }
 
 #[utoipa::path(

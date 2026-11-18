@@ -72,7 +72,7 @@ impl From<TwoFactorError> for SetupLoginError {
 }
 
 /// Counts the attempt against the per-address and per-account budgets and reads the token.
-async fn open_setup(
+pub(crate) async fn open_setup(
     state: &AppState,
     limits: Option<&RateLimits>,
     ip_address: std::net::IpAddr,
