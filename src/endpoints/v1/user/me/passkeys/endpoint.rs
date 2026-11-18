@@ -293,6 +293,21 @@ pub async fn passkey_register_options(
     Ok(HttpResponse::Ok().json(options))
 }
 
+/// Asks the authenticator for a discoverable credential (`residentKey: "required"`): the sign-in names no
+/// account, so a passkey that is not discoverable could never be offered. `webauthn-rs` only exposes
+/// this for attested registrations, hence the options sent to the browser are completed here; the
+/// ceremony kept in Redis (challenge, user verification) is unchanged.
+fn require_resident_key(options: &mut serde_json::Value) {
+    let Some(selection) = options
+        .pointer_mut("/publicKey/authenticatorSelection")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    selection.insert("residentKey".to_string(), serde_json::json!("required"));
+    selection.insert("requireResidentKey".to_string(), serde_json::json!(true));
+}
+
 /// Starts the registration ceremony of `user_id`: the options for the browser, the ceremony kept in
 /// Redis for the answer. Shared by the signed-in route and the mandatory enrolment.
 pub(crate) async fn start_registration(
@@ -332,10 +347,11 @@ pub(crate) async fn start_registration(
             tracing::error!("Passkey registration Redis Error: {e}");
             PasskeyError::DatabaseError
         })?;
-    let options = serde_json::to_value(options).map_err(|e| {
+    let mut options = serde_json::to_value(options).map_err(|e| {
         tracing::error!("Passkey registration serialization: {e}");
         PasskeyError::DatabaseError
     })?;
+    require_resident_key(&mut options);
     Ok(PasskeyRegisterOptionsView { options })
 }
 

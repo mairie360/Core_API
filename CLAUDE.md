@@ -449,7 +449,7 @@ WebAuthn through `webauthn-rs` (`src/passkeys.rs`, relying party built by `Passk
 site's registrable domain, e.g. `mairie360-eip.fr`) and `WEBAUTHN_RP_ORIGIN` (the origins the browser signs for, comma-separated: passkeys are registered from the settings front
 and used from the login front, e.g. `https://login.mairie360-eip.fr,https://settings.mairie360-eip.fr`) must be set **together**; with neither, `main.rs` registers no `Passkeys`, the passkey
 routes answer `503` and `PUT /admin/two-factor-policy` refuses `passkey_allowed: true`. Passkeys are discoverable
-(resident) credentials, user verification required, no attestation (synchronised passkeys are accepted). The key of an
+(resident) credentials (the options sent to the browser carry `residentKey: "required"`, added in `require_resident_key` because `webauthn-rs` only exposes it for attested registrations; the software authenticator of the tests cannot hold one, so `for_software_authenticator` lowers it), user verification required, no attestation (synchronised passkeys are accepted). The key of an
 agent is stored as the `webauthn-rs` `Passkey` JSON in `user_passkeys` (Database 3.7.0, one row per passkey, `credential_id`
 unique, `ON DELETE CASCADE`); the user handle given to the authenticator is a v5 UUID of the user id (`user_handle`).
 Ceremonies live in Redis, two minutes, read once (`passkeys::begin_*` / `take_*`: the first attempt burns them, right or

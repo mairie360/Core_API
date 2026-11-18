@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct SetupTokenView {
     /// Enrolment token returned with `2fa_setup_required` by `POST /api/v1/auth/login` (or
-    /// `POST /api/v1/auth/reset_password`).
+    /// `POST /api/v1/auth/reset_password`). Must not contain control characters.
     #[schema(
         max_length = 512,
         example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE"

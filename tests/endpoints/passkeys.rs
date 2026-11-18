@@ -133,6 +133,15 @@ fn post(uri: &str, body: &Value) -> test::TestRequest {
     test::TestRequest::post().uri(uri).set_json(body)
 }
 
+/// The software authenticator cannot hold resident keys (it answers `NotSupported`), unlike the browsers
+/// the options are meant for: the test lowers that one requirement, the rest is left as sent.
+fn for_software_authenticator(options: &Value) -> CreationChallengeResponse {
+    let mut options = options.clone();
+    options["publicKey"]["authenticatorSelection"]["residentKey"] = json!("preferred");
+    options["publicKey"]["authenticatorSelection"]["requireResidentKey"] = json!(false);
+    serde_json::from_value(options).unwrap()
+}
+
 fn origin() -> Url {
     Url::parse(ORIGIN).unwrap()
 }
@@ -146,8 +155,7 @@ macro_rules! register {
             post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header($auth.clone())
         );
         assert_eq!(status, StatusCode::OK, "registration options: {body}");
-        let options: CreationChallengeResponse =
-            serde_json::from_value(body["options"].clone()).unwrap();
+        let options = for_software_authenticator(&body["options"]);
         let credential = $device.do_registration(origin(), options).unwrap();
         json_of!(
             $app,
@@ -386,8 +394,7 @@ async fn mair_810_a_registration_challenge_is_read_once_and_needs_a_start() {
         app,
         post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
     );
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device.do_registration(origin(), options).unwrap();
     let answer = json!({ "label": "Phone", "credential": credential });
     let (first, _, _) = json_of!(
@@ -574,8 +581,7 @@ async fn mair_810_a_passkey_registered_on_one_front_signs_in_on_another() {
         app,
         post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
     );
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device
         .do_registration(Url::parse("https://settings.localhost").unwrap(), options)
         .unwrap();
@@ -634,8 +640,7 @@ async fn mair_810_the_enrolment_token_registers_a_passkey_and_opens_the_session(
         )
     );
     assert_eq!(status, StatusCode::OK, "{body}");
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device.do_registration(origin(), options).unwrap();
     let (status, headers, body) = json_of!(
         app,
@@ -699,8 +704,7 @@ async fn mair_810_the_enrolment_by_passkey_refuses_without_leaking() {
             &json!({ "token": token })
         )
     );
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device.do_registration(origin(), options).unwrap();
     let (status, _, _) = json_of!(
         app,
@@ -896,4 +900,41 @@ async fn mair_810_the_passkey_manager_is_kept_and_listed_when_known() {
         .map(|p| &p["provider"])
         .collect();
     assert_eq!(providers, [&Value::Null, &json!("Google Password Manager")]);
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_registration_options_require_a_discoverable_credential_on_both_routes() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, _) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+
+    // The sign-in names no account: a passkey that is not discoverable could never be offered.
+    let (_, _, signed_in) = json_of!(
+        app,
+        post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
+    );
+    let token = setup_token(&env, id).await;
+    let (_, _, enrolment) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    for options in [signed_in, enrolment] {
+        let selection = &options["options"]["publicKey"]["authenticatorSelection"];
+        assert_eq!(selection["residentKey"], json!("required"), "{options}");
+        assert_eq!(selection["requireResidentKey"], json!(true), "{options}");
+        assert_eq!(
+            selection["userVerification"],
+            json!("required"),
+            "{options}"
+        );
+        assert!(
+            selection.get("authenticatorAttachment").is_none(),
+            "any password manager"
+        );
+    }
 }

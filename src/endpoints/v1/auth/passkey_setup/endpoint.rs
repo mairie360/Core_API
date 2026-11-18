@@ -76,6 +76,13 @@ impl From<PasskeyError> for PasskeySetupError {
     responses(
         (status = 200, description = "Challenge created.", body = PasskeyRegisterOptionsView),
         (
+            status = 400,
+            description = "Malformed JSON body, missing field, or a value longer than its limit or containing a control character.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid `token`: must not contain control characters")
+        ),
+        (
             status = 401,
             description = "Unknown, expired, spent or burnt enrolment token.",
             body = String,
@@ -254,6 +261,16 @@ pub async fn passkey_setup(
         }
         Err(e) => return Err(e.into()),
     };
+    // The passkey is stored: the agent is told whatever happens next (token race, session failure).
+    notify(
+        &state,
+        emails.as_ref().map(web::Data::get_ref),
+        user_id,
+        PasskeyChange::Added,
+        &stored.label,
+        &request,
+    )
+    .await;
     match two_factor::consume_setup(redis, view.token()).await {
         Ok(true) => {}
         // Another request spent the token first.
@@ -269,15 +286,6 @@ pub async fn passkey_setup(
             tracing::error!("Passkey enrolment session error: {e:?}");
             SetupLoginError::Internal
         })?;
-    notify(
-        &state,
-        emails.as_ref().map(web::Data::get_ref),
-        user_id,
-        PasskeyChange::Added,
-        &stored.label,
-        &request,
-    )
-    .await;
     tracing::info!(user_id, "Mandatory second factor enrolled with a passkey");
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))
