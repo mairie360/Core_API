@@ -19,6 +19,8 @@ pub enum LoginTwoFactorError {
     InvalidToken,
     /// Wrong code; the login token stays valid.
     InvalidCode,
+    /// Backup code already spent; the login token stays valid.
+    SpentBackupCode,
     TooManyRequests(u64),
     Unavailable,
     Internal,
@@ -29,6 +31,7 @@ impl std::fmt::Display for LoginTwoFactorError {
         match self {
             Self::InvalidToken => write!(f, "Invalid or expired login token."),
             Self::InvalidCode => write!(f, "Invalid verification code."),
+            Self::SpentBackupCode => write!(f, "Backup code already used."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::Unavailable => write!(f, "Two-factor authentication is not configured."),
             Self::Internal => write!(f, "An internal error occurred."),
@@ -39,7 +42,9 @@ impl std::fmt::Display for LoginTwoFactorError {
 impl ResponseError for LoginTwoFactorError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::InvalidToken | Self::InvalidCode => StatusCode::UNAUTHORIZED,
+            Self::InvalidToken | Self::InvalidCode | Self::SpentBackupCode => {
+                StatusCode::UNAUTHORIZED
+            }
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
@@ -64,7 +69,7 @@ impl ResponseError for LoginTwoFactorError {
                    `Authorization` header, refresh token in the body). Public route.\n\n\
                    The code is a 6-digit code of the authenticator application, or a backup code. \
                    A code is accepted only once: replaying the code of the previous step, or a \
-                   spent backup code, is refused.\n\n\
+                   spent backup code (answered apart as `Backup code already used.`), is refused.\n\n\
                    The login token lives five minutes, opens no other route, and is burnt after \
                    five wrong codes or one success: the agent then starts over with the password.\n\n\
                    Rate limited: 30 attempts per minute per client address and 10 per 15 minutes \
@@ -91,7 +96,7 @@ impl ResponseError for LoginTwoFactorError {
         ),
         (
             status = 401,
-            description = "`Invalid or expired login token.`: unknown, expired, spent or burnt token, or the second factor was reset meanwhile. `Invalid verification code.`: wrong, replayed or spent code; the token stays valid until the fifth failure.",
+            description = "`Invalid or expired login token.`: unknown, expired, spent or burnt token, or the second factor was reset meanwhile. `Invalid verification code.`: wrong or replayed code. `Backup code already used.`: the code is a backup code of the account that was already spent, the agent picks another one. For both the token stays valid until the fifth failure, which counts like any wrong code.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid verification code.")
@@ -168,11 +173,13 @@ pub async fn login_two_factor(
     .await
     {
         Ok(()) => {}
-        Err(VerifyError::InvalidCode) => {
+        Err(error @ (VerifyError::InvalidCode | VerifyError::SpentBackupCode)) => {
             tracing::warn!(user_id = pending.user_id, "Login second factor refused");
             let burnt = two_factor::record_login_failure(redis, view.token(), pending).await;
             return Err(if burnt {
                 LoginTwoFactorError::InvalidToken
+            } else if error == VerifyError::SpentBackupCode {
+                LoginTwoFactorError::SpentBackupCode
             } else {
                 LoginTwoFactorError::InvalidCode
             });

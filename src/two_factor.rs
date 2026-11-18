@@ -12,7 +12,8 @@
 use crate::database::second_factor::{
     BackupCodeRecord, CountBackupCodesQueryView, DeleteBackupCodesQueryView, GetTotpQueryView,
     InsertBackupCodeQueryView, IsTotpEnabledQueryView, ListBackupCodesQueryView,
-    SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView, Written,
+    ListSpentBackupCodesQueryView, SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView,
+    Written,
 };
 use crate::database::two_factor_policy::{GetTwoFactorPolicyQueryView, TwoFactorPolicyRecord};
 use crate::database::users::delete_user::IsUserActiveQueryView;
@@ -36,6 +37,8 @@ pub const MAX_LOGIN_FAILURES: u32 = 5;
 pub enum VerifyError {
     /// Wrong, expired, replayed or already spent code.
     InvalidCode,
+    /// A backup code of the account that was already spent.
+    SpentBackupCode,
     /// The account has no active second factor.
     NotEnabled,
     /// Database or sealing failure (logged where it happens).
@@ -150,9 +153,22 @@ async fn verify_backup_code(
                 .await
             {
                 Ok(_) => Ok(()),
-                Err(ApiLibError::Database(DbError::NotFound)) => Err(VerifyError::InvalidCode),
+                Err(ApiLibError::Database(DbError::NotFound)) => Err(VerifyError::SpentBackupCode),
                 Err(e) => Err(internal("spend the backup code", &e)),
             };
+        }
+    }
+    // No unspent code matches: a spent one tells the agent to pick another code.
+    let spent: Vec<BackupCodeRecord> = db
+        .fetch_all(&ListSpentBackupCodesQueryView::new(user_id))
+        .await
+        .map_err(|e| internal("list the spent backup codes", &e))?;
+    for stored in spent {
+        if passwords::verify(&normalized, &stored.code_hash)
+            .await
+            .unwrap_or(false)
+        {
+            return Err(VerifyError::SpentBackupCode);
         }
     }
     Err(VerifyError::InvalidCode)
