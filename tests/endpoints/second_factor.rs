@@ -905,6 +905,11 @@ async fn mair_808_a_mandatory_policy_makes_an_agent_without_factor_enrol_before_
         headers.get("Authorization").is_none(),
         "no session before the enrolment"
     );
+    assert_eq!(
+        body["policy"],
+        json!({"totp_allowed": true, "passkey_allowed": false, "backup_codes_allowed": true}),
+        "the agent is told what the administrator allows"
+    );
     let token = body["token"].as_str().unwrap().to_string();
 
     // The enrolment token opens no route: it is not a JWT.
@@ -1665,4 +1670,43 @@ async fn mair_806_only_the_sign_in_tells_a_spent_backup_code_apart() {
     );
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(text, "Invalid verification code.");
+}
+
+#[actix_web::test]
+async fn mair_809_the_enrolment_answer_follows_the_policy_and_the_second_step_carries_none() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = bearer(&env.state, u64::try_from(*ADMIN_ID.get().unwrap()).unwrap()).await;
+    let (_, email) = create_account(&env.raw).await;
+    let (other_id, other_email) = create_account(&env.raw).await;
+    let other_auth = bearer(&env.state, u64::try_from(other_id).unwrap()).await;
+    enrol!(app, other_auth);
+
+    // Backup codes not allowed: the front must not show any.
+    let (status, ..) = json_of!(app, put_policy(true, true, false, false, &admin));
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, body, _) = login!(app, email);
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(body["status"], json!("2fa_setup_required"));
+    assert_eq!(
+        body["policy"],
+        json!({"totp_allowed": true, "passkey_allowed": false, "backup_codes_allowed": false})
+    );
+
+    // The same policy, but an agent who already has a factor: the second step, with no policy.
+    let (status, _, body, _) = login!(app, other_email);
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(body["status"], json!("2fa_required"));
+    assert!(
+        body.get("policy").is_none(),
+        "only the enrolment answer carries the policy"
+    );
+
+    // Optional policy: a password is enough, no enrolment state at all.
+    let (status, ..) = json_of!(app, put_policy(false, true, false, true, &admin));
+    assert_eq!(status, StatusCode::OK);
+    let (status, headers, body, _) = login!(app, email);
+    assert_eq!(status, StatusCode::OK);
+    assert!(headers.get("Authorization").is_some());
+    assert!(body.get("policy").is_none());
 }

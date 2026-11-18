@@ -8,7 +8,8 @@ use utoipa::OpenApi;
         super::view::LoginView,
         super::view::LoginResponseView,
         super::view::LoginFirstConnectionResponseView,
-        super::view::TwoFactorRequiredView
+        super::view::TwoFactorRequiredView,
+        super::view::TwoFactorSetupPolicyView
     ))
 )]
 pub struct LoginDoc;
