@@ -1,16 +1,17 @@
 # Journal des releases — Core_API
 
-<!-- release-journal-state {"dev": "1b2475c912347e6185990bf31afb56123f149183", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-18 14:00 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
+<!-- release-journal-state {"dev": "c88ab300d3430e3675753de84dbd4e6f26307a53", "prod": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "prod_tag": "v2.3.0", "staging": "a7458a5d0f5a970bae27e3a97cc01ce4657d5247", "updated": {"dev": "2026-11-18 14:04 UTC", "prod": "2026-11-12 23:53 UTC", "staging": "2026-11-12 22:33 UTC"}} -->
 > Tenu à jour par la CI (`mairie360/CICD`, action `release/release-journal`) à chaque passage en dev, staging et prod. Ne pas modifier à la main : le fichier est réécrit au passage suivant.
 
 | Environnement | Version | Commit | Mis à jour |
 | --- | --- | --- | --- |
 | prod | v2.3.0 | `a7458a5` | 2026-11-12 23:53 UTC |
 | staging | — | `a7458a5` | 2026-11-12 22:33 UTC |
-| dev | — | `1b2475c` | 2026-11-18 14:00 UTC |
+| dev | — | `c88ab30` | 2026-11-18 14:04 UTC |
 
 ## Ajouté sur main depuis la dernière release prod (v2.3.0)
 
+- chore: MAIR-1083 Set the Codecov target to 60 % on the code repositories ([#426](https://github.com/mairie360/Core_API/pull/426))
 - fix: MAIR-806 Login second step: tell a spent backup code apart ([#422](https://github.com/mairie360/Core_API/pull/422))
 - feat: MAIR-695 Detect refresh token reuse (#419) ([#419](https://github.com/mairie360/Core_API/pull/419))
 - feat: MAIR-810 Passkeys managed by Core ([#410](https://github.com/mairie360/Core_API/pull/410))
@@ -34,6 +35,7 @@
 
 ## Différence dev → staging (en dev, pas encore en staging)
 
+- chore: MAIR-1083 Set the Codecov target to 60 % on the code repositories ([#426](https://github.com/mairie360/Core_API/pull/426))
 - fix: MAIR-806 Login second step: tell a spent backup code apart ([#422](https://github.com/mairie360/Core_API/pull/422))
 - feat: MAIR-695 Detect refresh token reuse (#419) ([#419](https://github.com/mairie360/Core_API/pull/419))
 - feat: MAIR-810 Passkeys managed by Core ([#410](https://github.com/mairie360/Core_API/pull/410))
@@ -66,6 +68,7 @@ _Rien._
 <!-- release-journal-history:start -->
 | Date | Environnement | Version | Commit | Run |
 | --- | --- | --- | --- | --- |
+| 2026-11-18 14:04 UTC | dev | — | `c88ab30` | [run](https://github.com/mairie360/Core_API/actions/runs/44318699107) |
 | 2026-11-18 14:00 UTC | dev | — | `1b2475c` | [run](https://github.com/mairie360/Core_API/actions/runs/44316666079) |
 | 2026-11-18 01:52 UTC | dev | — | `00c77f9` | [run](https://github.com/mairie360/Core_API/actions/runs/44217921488) |
 | 2026-11-17 23:14 UTC | dev | — | `eb42f60` | [run](https://github.com/mairie360/Core_API/actions/runs/44193933436) |
@@ -115,5 +118,4 @@ _Rien._
 | 2026-10-21 03:50 UTC | dev | — | `19adc1e` | [run](https://github.com/mairie360/Core_API/actions/runs/39539859800) |
 | 2026-10-21 03:14 UTC | staging | — | `cea777d` | [run](https://github.com/mairie360/Core_API/actions/runs/39528369269) |
 | 2026-10-21 01:36 UTC | dev | — | `cea777d` | [run](https://github.com/mairie360/Core_API/actions/runs/39526428093) |
-| 2026-10-20 17:07 UTC | staging | — | `b900797` | [run](https://github.com/mairie360/Core_API/actions/runs/39459405629) |
 <!-- release-journal-history:end -->
