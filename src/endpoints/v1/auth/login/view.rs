@@ -1,3 +1,4 @@
+use crate::database::two_factor_policy::TwoFactorPolicyRecord;
 use crate::endpoints::validation::{
     check_opaque, Validate, ValidationError, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH,
     MAX_TOKEN_LENGTH,
@@ -119,6 +120,31 @@ impl From<String> for LoginFirstConnectionResponseView {
     }
 }
 
+/// What the administrator allows, given to the agent who has to enrol so that the screen only offers
+/// what will be accepted (the agent has no session yet, so it cannot read the policy itself).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct TwoFactorSetupPolicyView {
+    /// The authenticator application (TOTP) is an accepted mode.
+    #[schema(example = true)]
+    pub totp_allowed: bool,
+    /// Passkeys are an accepted mode.
+    #[schema(example = false)]
+    pub passkey_allowed: bool,
+    /// Backup codes are accepted to finish a login: when `false`, none must be shown.
+    #[schema(example = true)]
+    pub backup_codes_allowed: bool,
+}
+
+impl From<&TwoFactorPolicyRecord> for TwoFactorSetupPolicyView {
+    fn from(record: &TwoFactorPolicyRecord) -> Self {
+        Self {
+            totp_allowed: record.totp_allowed,
+            passkey_allowed: record.passkey_allowed,
+            backup_codes_allowed: record.backup_codes_allowed,
+        }
+    }
+}
+
 /// Answer of `POST /auth/login` (and of `POST /auth/reset_password`) for an account protected by
 /// the second factor: no session yet, only the token of the second step.
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -132,6 +158,9 @@ pub struct TwoFactorRequiredView {
     /// nowhere else (it opens no other route). Keep it on the client side, never in a URL.
     #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     token: String,
+    /// Only with `2fa_setup_required`: the modes the administrator allows, to offer nothing else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    policy: Option<TwoFactorSetupPolicyView>,
 }
 
 impl TwoFactorRequiredView {
@@ -140,15 +169,17 @@ impl TwoFactorRequiredView {
         Self {
             status: "2fa_required".to_string(),
             token,
+            policy: None,
         }
     }
 
     /// The enrolment answer: the account must set up a second factor before any session.
     #[must_use]
-    pub fn setup(token: String) -> Self {
+    pub fn setup(token: String, policy: TwoFactorSetupPolicyView) -> Self {
         Self {
             status: "2fa_setup_required".to_string(),
             token,
+            policy: Some(policy),
         }
     }
 }

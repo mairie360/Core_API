@@ -434,7 +434,8 @@ change is audited by a trigger in `two_factor_policy_audit_log`, plus an `AUDIT:
 is refused (`400`) while the instance has no WebAuthn configuration (`Passkeys` app data, MAIR-810); at least one mode must stay allowed.
 A factor whose mode was removed does not count (`verify_code_under_policy`: TOTP refused when `!totp_allowed`, a backup
 code when `!backup_codes_allowed`). With `required` and no usable factor, `login` and `reset_password` open **no
-session** and answer `202 {"status":"2fa_setup_required","token"}`; the token lives in Redis (`2fa_setup/<token>`,
+session** and answer `202 {"status":"2fa_setup_required","token","policy":{totp_allowed,passkey_allowed,backup_codes_allowed}}` (the policy lets the
+Login screen offer only what is allowed; `2fa_required` carries none); the token lives in Redis (`2fa_setup/<token>`,
 5 minutes, burnt after 5 wrong codes) and only opens the public `POST /auth/2fa/setup {token}` (secret + `otpauth_uri`,
 the same enrolment as `/user/me/2fa/setup`) and `POST /auth/2fa/confirm {token, code}` (activates the factor, opens the
 session like a login and returns the ten backup codes once). `POST /user/me/2fa/disable` answers `403` while the policy is
