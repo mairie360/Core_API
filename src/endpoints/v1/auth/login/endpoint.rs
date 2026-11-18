@@ -1,4 +1,4 @@
-use super::view::{LoginResponseView, LoginView};
+use super::view::{LoginResponseView, LoginView, PasskeyOfferView};
 use crate::client_ip::client_ip;
 use crate::database::auth::change_password::ChangePasswordQueryView;
 use crate::database::auth::login::LoginUserQueryView;
@@ -366,7 +366,7 @@ async fn login_user(
     state: web::Data<AppState>,
     ip_adress: std::net::IpAddr,
     can_verify_second_factor: bool,
-) -> Result<(String, String), LoginError> {
+) -> Result<(String, String, u64), LoginError> {
     let view = LoginUserQueryView::new(login_view.email(), login_view.password());
 
     let user_record = match state
@@ -429,13 +429,10 @@ async fn login_user(
         return Err(step.into_login_error());
     }
 
-    generate_session(
-        id_from_sql(user.user_id()),
-        &login_view.device_info(),
-        ip_adress,
-        state,
-    )
-    .await
+    let user_id = id_from_sql(user.user_id());
+    let (jwt, refresh_token) =
+        generate_session(user_id, &login_view.device_info(), ip_adress, state).await?;
+    Ok((jwt, refresh_token, user_id))
 }
 
 /// Counts the attempt against the per-address and per-account budgets.
@@ -492,12 +489,12 @@ fn check_rate_limits(
     responses(
         (
             status = 200,
-            description = "Logged in. The JWT is returned in the `Authorization` header, the refresh token in the body.",
+            description = "Logged in. The JWT is returned in the `Authorization` header, the refresh token in the body, with `passkey` (whether the login screen should propose a passkey: `allowed` when the instance and the administrator accept passkeys, `registered` when the account already has one).",
             body = LoginResponseView,
             headers(
                 ("Authorization" = String, description = "Access JWT, prefixed with `Bearer `.")
             ),
-            example = json!({ "refresh_token": "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE" })
+            example = json!({ "refresh_token": "example-rotated-refresh-token", "passkey": { "allowed": true, "registered": false } })
         ),
         (
             status = 400,
@@ -561,6 +558,7 @@ pub async fn login(
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
+    relying_party: Option<web::Data<crate::passkeys::Passkeys>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
@@ -571,10 +569,53 @@ pub async fn login(
         &login_view.email(),
     )?;
 
-    let (jwt, refresh_token) =
-        login_user(&login_view, state, ip_address, secrets.is_some()).await?;
+    let (jwt, refresh_token, user_id) =
+        login_user(&login_view, state.clone(), ip_address, secrets.is_some()).await?;
+    let offer = passkey_offer(&state, relying_party.is_some(), user_id).await;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))
-        .json(LoginResponseView::from(refresh_token)))
+        .json(LoginResponseView::from(refresh_token).with_passkey(offer)))
+}
+
+/// What the login screen needs to propose a passkey after a password sign-in. A failure is logged and
+/// reads as "nothing to propose": it never blocks the sign-in.
+pub(crate) async fn passkey_offer(
+    state: &AppState,
+    configured: bool,
+    user_id: u64,
+) -> PasskeyOfferView {
+    use crate::database::passkeys::{ListPasskeysQueryView, PasskeyRecord};
+    let none = PasskeyOfferView {
+        allowed: false,
+        registered: false,
+    };
+    if !configured {
+        return none;
+    }
+    let db = state.get_smart_db();
+    let allowed = match crate::two_factor::load_policy(db).await {
+        Ok(policy) => policy.passkey_allowed,
+        Err(e) => {
+            tracing::warn!("Passkey proposal: the policy is unreadable: {e}");
+            return none;
+        }
+    };
+    let registered = match db
+        .fetch_all::<PasskeyRecord, _>(&ListPasskeysQueryView::new(user_id))
+        .await
+    {
+        Ok(rows) => !rows.is_empty(),
+        Err(e) => {
+            tracing::warn!(
+                user_id,
+                "Passkey proposal: the passkeys are unreadable: {e}"
+            );
+            return none;
+        }
+    };
+    PasskeyOfferView {
+        allowed,
+        registered,
+    }
 }

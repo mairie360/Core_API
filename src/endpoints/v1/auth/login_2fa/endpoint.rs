@@ -133,6 +133,7 @@ pub async fn login_two_factor(
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
+    relying_party: Option<web::Data<crate::passkeys::Passkeys>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginTwoFactorError> {
     let view = payload.into_inner();
@@ -235,7 +236,13 @@ pub async fn login_two_factor(
         tracing::error!("Second step: commit: {e}");
         LoginTwoFactorError::Internal
     })?;
+    let offer = crate::endpoints::v1::auth::login::endpoint::passkey_offer(
+        &state,
+        relying_party.is_some(),
+        pending.user_id,
+    )
+    .await;
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))
-        .json(LoginResponseView::from(refresh_token)))
+        .json(LoginResponseView::from(refresh_token).with_passkey(offer)))
 }

@@ -39,6 +39,8 @@ operations:
   POST /api/v1/auth/2fa/confirm: {access: public, token: true, note: "needs the enrolment token and a valid first code; opens the session and returns the backup codes, shown once (MAIR-808)"}
   POST /api/v1/auth/passkey/options: {access: public, note: "challenge of a discoverable passkey sign-in, no account is named (MAIR-810)"}
   POST /api/v1/auth/passkey: {access: public, token: true, note: "needs the single-use challenge and a passkey signature; opens the session, one 401 for every refusal (MAIR-810)"}
+  POST /api/v1/auth/passkey/setup/options: {access: public, token: true, note: "needs the enrolment token; starts the registration of a passkey, 403 when the policy refuses passkeys (MAIR-810)"}
+  POST /api/v1/auth/passkey/setup: {access: public, token: true, note: "needs the enrolment token and a passkey registration answer; opens the session, no backup codes (MAIR-810)"}
   POST /api/v1/auth/force_change_password: {access: public, token: true, note: "needs the one-time first-connection token"}
   POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
   POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}

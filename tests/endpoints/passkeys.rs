@@ -795,3 +795,66 @@ async fn mair_810_the_enrolment_by_passkey_follows_the_policy_and_the_configurat
     );
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+macro_rules! password_login {
+    ($app:expr, $email:expr) => {
+        json_of!(
+            $app,
+            post(
+                "/api/v1/auth/login",
+                &json!({ "email": $email, "password": PASSWORD, "device_info": "test" })
+            )
+        )
+    };
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, email) = create_account(&env.raw).await;
+
+    // Passkeys accepted, none registered yet: the screen proposes one.
+    let (status, _, body) = password_login!(app, email);
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body["passkey"],
+        json!({ "allowed": true, "registered": false })
+    );
+
+    // Once the agent has one, nothing to propose.
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let mut device = SoftPasskey::new(true);
+    let (status, _, _) = register!(app, device, auth, "Laptop");
+    assert_eq!(status, StatusCode::CREATED);
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(
+        body["passkey"],
+        json!({ "allowed": true, "registered": true })
+    );
+
+    // A sign-in by passkey is not asked to propose one.
+    let (ceremony, credential) = sign_challenge!(app, device, env.raw, id, id);
+    let (status, _, body) = passkey_login!(app, ceremony, credential);
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.get("passkey").is_none(), "{body}");
+
+    // The administrator stops accepting passkeys: not allowed.
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = false")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(body["passkey"]["allowed"], json!(false));
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = true")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+
+    // No relying party on the instance: not allowed either.
+    let unconfigured: Option<web::Data<Passkeys>> = None;
+    let app = init_app!(env.state, unconfigured);
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(body["passkey"]["allowed"], json!(false));
+}

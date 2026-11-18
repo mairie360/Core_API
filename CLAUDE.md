@@ -459,7 +459,7 @@ signature / counter, moves the counter forward, opens the session exactly like `
 `401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
 `POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
 (own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
-satisfies a mandatory policy); `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
+satisfies a mandatory policy); The password sign-ins (`POST /auth/login` and `/auth/login/2fa`) also answer `passkey: { allowed, registered }` (`allowed` = relying party configured and policy accepts passkeys, `registered` = the account has one) so the login screen can propose a passkey; a failed lookup reads as nothing to propose and never blocks the sign-in, and a sign-in by passkey carries no `passkey` field. `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
 the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `ajoutée` /
 `supprimée`, French because the template cannot branch, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
 published before deploying, and a failed e-mail never undoes the change. The sign-in shares the `login_per_ip` budget, the
