@@ -127,6 +127,8 @@ services:
       JWT_TIMEOUT: 3600
       # MAIR-805: seals the TOTP secrets; dev-only key, the second factor answers 503 without one.
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-ZGV2LW9ubHktdG90cC1rZXktMzItYnl0ZXMtbG9uZyE=}
+      WEBAUTHN_RP_ID: "localhost"
+      WEBAUTHN_RP_ORIGIN: "http://localhost"
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
       # E-mails go to the fake Resend (MAIR-522), from no-reply@<EMAIL_DOMAIN>. To send real ones:
