@@ -221,6 +221,14 @@ user_view!(
 );
 
 user_view!(
+    /// The backup codes already spent, to tell a spent code from a wrong one at login.
+    ListSpentBackupCodesQueryView,
+    "SELECT row_to_json(t) FROM (\
+        SELECT id, code_hash FROM user_backup_codes WHERE user_id = $1 AND used_at IS NOT NULL ORDER BY id\
+    ) t"
+);
+
+user_view!(
     /// Number of backup codes not spent yet; always one row.
     CountBackupCodesQueryView,
     "SELECT to_json((SELECT count(*)::int FROM user_backup_codes WHERE user_id = $1 AND used_at IS NULL))"

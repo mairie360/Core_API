@@ -12,7 +12,8 @@
 use crate::database::second_factor::{
     BackupCodeRecord, CountBackupCodesQueryView, DeleteBackupCodesQueryView, GetTotpQueryView,
     InsertBackupCodeQueryView, IsTotpEnabledQueryView, ListBackupCodesQueryView,
-    SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView, Written,
+    ListSpentBackupCodesQueryView, SpendBackupCodeQueryView, TotpRecord, UseTotpStepQueryView,
+    Written,
 };
 use crate::database::two_factor_policy::{GetTwoFactorPolicyQueryView, TwoFactorPolicyRecord};
 use crate::database::users::delete_user::IsUserActiveQueryView;
@@ -34,8 +35,13 @@ pub const MAX_LOGIN_FAILURES: u32 = 5;
 /// Why a code was not accepted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerifyError {
-    /// Wrong, expired, replayed or already spent code.
+    /// Wrong, expired or replayed code. A spent backup code is also reported as this variant by
+    /// [`verify_code`] (the account routes do not tell it apart), and as [`VerifyError::SpentBackupCode`]
+    /// only by [`verify_code_under_policy`] (the sign-in).
     InvalidCode,
+    /// A backup code of the account that was already spent, confirmed against its spent row. Only
+    /// [`verify_code_under_policy`] looks for it: a handler that matches on it must call that function.
+    SpentBackupCode,
     /// The account has no active second factor.
     NotEnabled,
     /// Database or sealing failure (logged where it happens).
@@ -69,6 +75,11 @@ pub async fn backup_codes_remaining(db: &SmartDatabase, user_id: u64) -> Result<
 
 /// Checks `code`, a TOTP code or a backup code, for `user_id`, and spends it.
 ///
+/// A spent backup code is refused as [`VerifyError::InvalidCode`], like any code that matches nothing:
+/// the account routes (disable, regenerate) have no use for the distinction and never run the extra
+/// lookup. The sign-in goes through [`verify_code_under_policy`], which reports
+/// [`VerifyError::SpentBackupCode`].
+///
 /// # Errors
 ///
 /// [`VerifyError::InvalidCode`] for a code that is wrong, replayed or spent, [`VerifyError::NotEnabled`]
@@ -78,6 +89,16 @@ pub async fn verify_code(
     cipher: &SecretCipher,
     user_id: u64,
     code: &str,
+) -> Result<(), VerifyError> {
+    verify_code_telling_spent(db, cipher, user_id, code, false).await
+}
+
+async fn verify_code_telling_spent(
+    db: &SmartDatabase,
+    cipher: &SecretCipher,
+    user_id: u64,
+    code: &str,
+    tell_spent: bool,
 ) -> Result<(), VerifyError> {
     let record: TotpRecord = match db
         .fetch_one::<TotpRecord, _>(&GetTotpQueryView::new(user_id))
@@ -90,7 +111,7 @@ pub async fn verify_code(
         Err(e) => return Err(internal("read the TOTP record", &e)),
     };
     if second_factor::looks_like_backup_code(code) {
-        verify_backup_code(db, user_id, code).await
+        verify_backup_code(db, user_id, code, tell_spent).await
     } else {
         verify_totp(db, cipher, user_id, &record, code).await
     }
@@ -130,10 +151,41 @@ pub async fn verify_totp(
     }
 }
 
+/// Whether `normalized` is one of the backup codes of `user_id` that were already spent.
+///
+/// A hash match is not enough: a regeneration may delete the row while the (slow) hash comparison runs, so
+/// the matched row is looked up again and must still be there, spent.
+async fn is_spent_backup_code(
+    db: &SmartDatabase,
+    user_id: u64,
+    normalized: &str,
+) -> Result<bool, VerifyError> {
+    let spent: Vec<BackupCodeRecord> = db
+        .fetch_all(&ListSpentBackupCodesQueryView::new(user_id))
+        .await
+        .map_err(|e| internal("list the spent backup codes", &e))?;
+    for stored in spent {
+        if passwords::verify(normalized, &stored.code_hash)
+            .await
+            .unwrap_or(false)
+        {
+            let still_there: Vec<BackupCodeRecord> = db
+                .fetch_all(&ListSpentBackupCodesQueryView::new(user_id))
+                .await
+                .map_err(|e| internal("confirm the spent backup code", &e))?;
+            return Ok(still_there.iter().any(|row| row.id == stored.id));
+        }
+    }
+    Ok(false)
+}
+
+/// With `tell_spent`, a code that matches a spent row is [`VerifyError::SpentBackupCode`]; without it,
+/// every refusal is [`VerifyError::InvalidCode`] and no spent row is read.
 async fn verify_backup_code(
     db: &SmartDatabase,
     user_id: u64,
     code: &str,
+    tell_spent: bool,
 ) -> Result<(), VerifyError> {
     let normalized = second_factor::normalize_backup_code(code);
     let codes: Vec<BackupCodeRecord> = db
@@ -150,9 +202,34 @@ async fn verify_backup_code(
                 .await
             {
                 Ok(_) => Ok(()),
-                Err(ApiLibError::Database(DbError::NotFound)) => Err(VerifyError::InvalidCode),
+                // No row: another request spent it first, or the regeneration deleted it. Only a
+                // matching spent row proves the first; the second is a plain invalid code.
+                Err(ApiLibError::Database(DbError::NotFound)) => {
+                    refuse_unspent_match(db, user_id, &normalized, tell_spent).await
+                }
                 Err(e) => Err(internal("spend the backup code", &e)),
             };
+        }
+    }
+    // No unspent code matches: a spent one tells the agent to pick another code.
+    refuse_unspent_match(db, user_id, &normalized, tell_spent).await
+}
+
+async fn refuse_unspent_match(
+    db: &SmartDatabase,
+    user_id: u64,
+    normalized: &str,
+    tell_spent: bool,
+) -> Result<(), VerifyError> {
+    // The code is already rejected here: the lookup only refines the message. If it fails, the attempt
+    // must still be refused (and counted by the caller) as a plain invalid code, not turned into a 500.
+    if tell_spent {
+        match is_spent_backup_code(db, user_id, normalized).await {
+            Ok(true) => return Err(VerifyError::SpentBackupCode),
+            Ok(false) => {}
+            Err(_) => tracing::warn!(
+                "Second factor: spent backup code lookup failed, refusing as invalid"
+            ),
         }
     }
     Err(VerifyError::InvalidCode)
@@ -356,12 +433,15 @@ pub async fn load_policy(db: &SmartDatabase) -> Result<TwoFactorPolicyRecord, Ap
         .await
 }
 
-/// [`verify_code`] under the policy: a mode the administrator removed is not accepted.
+/// [`verify_code`] under the policy, for the sign-in: a mode the administrator removed is not accepted, and
+/// a backup code that was already spent is reported as [`VerifyError::SpentBackupCode`] so the agent is
+/// told to pick another one.
 ///
 /// # Errors
 ///
 /// [`VerifyError::NotEnabled`] when the user's only mode is not allowed, [`VerifyError::InvalidCode`]
-/// for a backup code while backup codes are not allowed, otherwise as [`verify_code`].
+/// for a backup code while backup codes are not allowed, otherwise as [`verify_code`], plus
+/// [`VerifyError::SpentBackupCode`].
 pub async fn verify_code_under_policy(
     db: &SmartDatabase,
     cipher: &SecretCipher,
@@ -375,5 +455,5 @@ pub async fn verify_code_under_policy(
     if !policy.backup_codes_allowed && second_factor::looks_like_backup_code(code) {
         return Err(VerifyError::InvalidCode);
     }
-    verify_code(db, cipher, user_id, code).await
+    verify_code_telling_spent(db, cipher, user_id, code, true).await
 }
