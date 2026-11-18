@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -38,7 +37,8 @@ impl ReusedRefreshToken {
 }
 
 /// Finds the session whose **previous** refresh token is `token_hash`, and revokes it when that
-/// token was replaced at or before `grace_cutoff`.
+/// token was replaced `grace_seconds` or more ago. Both ends are read on the Postgres clock, the one
+/// that wrote `rotated_at`, so a skew of the API's clock cannot shorten or lengthen the window.
 ///
 /// Called only after the rotation found no session holding `token_hash`. A previous token
 /// presented after the grace window means two parties hold the session's tokens (a stolen token
@@ -55,12 +55,11 @@ pub struct FindReusedRefreshTokenQueryView {
 
 impl FindReusedRefreshTokenQueryView {
     #[must_use]
-    pub fn new(token_hash: &str, grace_cutoff: DateTime<Utc>, now: DateTime<Utc>) -> Self {
+    pub fn new(token_hash: &str, grace_seconds: i64) -> Self {
         Self {
             params: vec![
                 QueryParam::Text(token_hash.to_string()),
-                QueryParam::DateTime(grace_cutoff),
-                QueryParam::DateTime(now),
+                QueryParam::I64(grace_seconds),
             ],
         }
     }
@@ -69,11 +68,11 @@ impl FindReusedRefreshTokenQueryView {
 impl ApiRequestDto for FindReusedRefreshTokenQueryView {
     fn query_sql(&self) -> &'static str {
         "WITH reused AS (\
-            SELECT id, user_id, rotated_at <= $2 AS revoked, \
-                   (revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $3)) AS was_active \
+            SELECT id, user_id, rotated_at <= now() - make_interval(secs => $2::float8) AS revoked, \
+                   (revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())) AS was_active \
             FROM sessions WHERE previous_token_hash = $1 LIMIT 1 FOR UPDATE\
         ), revoke AS (\
-            UPDATE sessions SET revoked_at = COALESCE(sessions.revoked_at, $3) \
+            UPDATE sessions SET revoked_at = COALESCE(sessions.revoked_at, now()) \
             FROM reused WHERE sessions.id = reused.id AND reused.revoked \
             RETURNING sessions.id\
         ) SELECT row_to_json(reused) FROM reused"
@@ -99,11 +98,10 @@ mod tests {
 
     #[test]
     fn mair_695_the_query_view_never_displays_the_token_hash() {
-        let now = Utc::now();
-        let view = FindReusedRefreshTokenQueryView::new("token-hash-value", now, now);
+        let view = FindReusedRefreshTokenQueryView::new("token-hash-value", 10);
         let shown = view.to_string();
         assert!(shown.contains("[PROTECTED]"));
         assert!(!shown.contains("token-hash-value"));
-        assert_eq!(view.query_params().len(), 3);
+        assert_eq!(view.query_params().len(), 2);
     }
 }

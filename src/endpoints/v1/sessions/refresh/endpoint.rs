@@ -17,6 +17,7 @@ use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::refresh_token;
 use crate::session_jwt::{generate_session_jwt, user_role_name};
 use crate::session_revocation::publish_revoked_sessions;
+use uuid::Uuid;
 
 /// Seconds during which the refresh token replaced by a rotation is only refused.
 ///
@@ -106,12 +107,11 @@ async fn refresh_request(
 /// session is revoked (Postgres, then the Redis revocation list) and an `audit` event is logged.
 /// The caller answers `401` in every case, so the answer never tells a reuse from an unknown token.
 async fn handle_reuse(state: &AppState, token_hash: &str) -> Result<(), RefreshError> {
-    let now = chrono::Utc::now();
-    let cutoff = now - chrono::Duration::seconds(REFRESH_REUSE_GRACE_SECONDS);
     let reused: ReusedRefreshToken = match state
         .get_smart_db()
         .fetch_one(&FindReusedRefreshTokenQueryView::new(
-            token_hash, cutoff, now,
+            token_hash,
+            REFRESH_REUSE_GRACE_SECONDS,
         ))
         .await
     {
@@ -138,10 +138,39 @@ async fn handle_reuse(state: &AppState, token_hash: &str) -> Result<(), RefreshE
         session_was_active = reused.was_active(),
         "Refresh token reused after its rotation: session revoked"
     );
-    // Other APIs refuse the session's JWTs through the shared revocation list. A
-    // failure is logged by the helper: Core already refuses them through `session_guard`.
-    publish_revoked_sessions(state.get_redis(), &[reused.id()]).await;
+    // Other APIs refuse the session's JWTs only through the shared revocation list: a short
+    // Redis outage must not leave them accepting a stolen session, so the write is retried.
+    // Core already refuses the session through `session_guard` either way.
+    publish_with_retry(state, reused.id()).await;
     Ok(())
+}
+
+/// Waits before each new attempt of [`publish_with_retry`]: about 1.4 s in all.
+const REVOCATION_RETRY_DELAYS: [std::time::Duration; 3] = [
+    std::time::Duration::from_millis(100),
+    std::time::Duration::from_millis(300),
+    std::time::Duration::from_secs(1),
+];
+
+/// Publishes the revoked session to Redis, retried after each of [`REVOCATION_RETRY_DELAYS`].
+/// Returns whether the key was written; a final failure is logged as critical.
+async fn publish_with_retry(state: &AppState, session_id: Uuid) -> bool {
+    if publish_revoked_sessions(state.get_redis(), &[session_id]).await {
+        return true;
+    }
+    for delay in REVOCATION_RETRY_DELAYS {
+        tokio::time::sleep(delay).await;
+        if publish_revoked_sessions(state.get_redis(), &[session_id]).await {
+            return true;
+        }
+    }
+    tracing::error!(
+        target: "audit",
+        event = "refresh_token_reuse_unpublished",
+        session_id = %session_id,
+        "[CRITICAL] Reused refresh token: session revoked in Postgres but not on the Redis revocation list"
+    );
+    false
 }
 
 /// Registered outside the `/api` scope guarded by `JwtMiddleware` (see `sessions::public_config`):
@@ -194,7 +223,7 @@ async fn handle_reuse(state: &AppState, token_hash: &str) -> Result<(), RefreshE
         ),
         (
             status = 401,
-            description = "Unknown, revoked, expired or already rotated refresh token. An already rotated token presented more than 10 seconds after its rotation also revokes its session.",
+            description = "Unknown, revoked, expired or already rotated refresh token. The token replaced by the latest rotation, presented more than 10 seconds after it, also revokes its session; an older token is only refused.",
             body = String,
             content_type = "text/plain",
             example = json!("Session not found")

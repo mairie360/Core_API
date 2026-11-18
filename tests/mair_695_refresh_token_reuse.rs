@@ -2,6 +2,12 @@
 //! token replayed after the rotation went unnoticed and the session stayed open. The token the last
 //! rotation replaced is now recognized: within 10 seconds (concurrent renewals of several fronts)
 //! it is only refused, later the whole session is revoked.
+//!
+//! Own test binary: one test captures the logs with a thread-local `tracing` subscriber, which
+//! misses events when other tests of the same process install their own subscribers in parallel.
+
+#[allow(dead_code, unused_imports)]
+mod common;
 
 use crate::common::{core_db_url, get_raw_pool};
 use actix_web::{http::StatusCode, test, web, App};
@@ -14,7 +20,7 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 
-/// Same values as the other endpoint tests: they share the test binary.
+/// Same values as the other endpoint tests.
 fn init_env() {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
     std::env::set_var("JWT_TIMEOUT", "3600");
@@ -271,4 +277,46 @@ async fn mair_695_reuse_is_audited_with_its_session_but_never_with_the_token() {
         "{logs}"
     );
     assert!(!logs.contains(&second.unwrap()), "{logs}");
+}
+
+#[tokio::test]
+async fn mair_695_redis_down_retries_the_revocation_then_logs_it_as_critical() {
+    init_env();
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let _guard = tracing::subscriber::set_default(
+        tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish(),
+    );
+    let (redis_node, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (session_id, first) = open_session(&state).await;
+    let (_, _second) = refresh!(app, &first);
+    age_rotation(session_id, 11).await;
+
+    // The revocation list is down when the stolen token comes back.
+    redis_node.stop().await.unwrap();
+    let started = std::time::Instant::now();
+    let (status, _) = refresh!(app, &first);
+
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "the answer does not change"
+    );
+    assert!(
+        session_state(session_id).await.0,
+        "Postgres still revokes the session"
+    );
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(1_400),
+        "the write is retried before giving up"
+    );
+    let logs = captured.text();
+    assert!(logs.contains("refresh_token_reuse_unpublished"), "{logs}");
+    assert!(logs.contains(&format!("session_id={session_id}")), "{logs}");
+    assert!(!logs.contains(&first), "{logs}");
 }
