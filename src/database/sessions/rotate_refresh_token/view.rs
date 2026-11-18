@@ -7,7 +7,11 @@ use std::fmt::Display;
 /// no active session holds `current_hash` (unknown, revoked, expired or already rotated token).
 ///
 /// The outer `token_hash = $1` is re-checked on the locked row: of two concurrent refreshes with
-/// the same token, only one rotates it, the other finds nothing (MAIR-390).
+/// the same token, only one rotates it, the other finds nothing.
+///
+/// The replaced hash and the rotation time are kept (`previous_token_hash`, `rotated_at`), so a
+/// later refresh with the replaced token is recognized as a reuse (see
+/// `find_reused_refresh_token`).
 #[derive(serde::Deserialize)]
 pub struct RotateRefreshTokenQueryView {
     params: Vec<QueryParam>,
@@ -28,7 +32,7 @@ impl RotateRefreshTokenQueryView {
 impl ApiRequestDto for RotateRefreshTokenQueryView {
     fn query_sql(&self) -> &'static str {
         "WITH rotated AS (\
-            UPDATE sessions SET token_hash = $2 \
+            UPDATE sessions SET previous_token_hash = token_hash, token_hash = $2, rotated_at = now() \
             WHERE token_hash = $1 \
               AND id = (SELECT id FROM v_sessions WHERE token_hash = $1 AND is_active = true LIMIT 1) \
             RETURNING id, user_id\

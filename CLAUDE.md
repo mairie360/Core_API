@@ -477,6 +477,12 @@ logging in, forcing a password change via `force_change_password`. On success it
 (`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
+Each rotation overwrites the replaced hash and its time (`sessions.previous_token_hash`, `rotated_at`, Database
+`v3.8.0`), so only the token replaced by the latest rotation is recognized; an older one is only refused. That
+token presented again within `REFRESH_REUSE_GRACE_SECONDS` (10 s on the Postgres clock, concurrent renewals of
+several fronts) is only refused (`401`); later, `find_reused_refresh_token` revokes the whole session, the refresh
+handler publishes it to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log) and logs an
+`audit` event (`refresh_token_reuse`, never the token), and the answer is the same `401`.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
 `role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also
