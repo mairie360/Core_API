@@ -1,6 +1,8 @@
 use super::view::{PasskeySetupCompletedView, PasskeySetupView};
 use crate::client_ip::client_ip;
+use crate::database::passkeys::{ActiveAccountQueryView, ActiveAccountRecord};
 use crate::emails::{AccountEmails, PasskeyChange};
+use crate::endpoints::db_error::{self, DbFailure};
 use crate::endpoints::v1::auth::login::endpoint::generate_session;
 use crate::endpoints::v1::auth::two_factor_setup::endpoint::{open_setup, SetupLoginError};
 use crate::endpoints::v1::auth::two_factor_setup::view::SetupTokenView;
@@ -60,6 +62,36 @@ impl From<PasskeyError> for PasskeySetupError {
     }
 }
 
+/// The account of a setup token must still be active (an archived one is refused like an unknown token) and
+/// must still lack a usable second factor: a token issued before another enrolment completed must not store
+/// a passkey nor open a session without the factor challenge.
+async fn ensure_can_enrol(state: &AppState, user_id: u64) -> Result<(), SetupLoginError> {
+    let db = state.get_smart_db();
+    if let Err(e) = db
+        .fetch_one::<ActiveAccountRecord, _>(&ActiveAccountQueryView::new(user_id))
+        .await
+    {
+        return Err(
+            match db_error::log("check the account of a passkey enrolment", &e) {
+                DbFailure::NotFound => SetupLoginError::InvalidToken,
+                _ => SetupLoginError::Internal,
+            },
+        );
+    }
+    let enabled = two_factor::is_enabled(db, user_id).await.map_err(|e| {
+        tracing::error!("Passkey enrolment: second factor status: {e}");
+        SetupLoginError::Internal
+    })?;
+    let policy = two_factor::load_policy(db).await.map_err(|e| {
+        tracing::error!("Passkey enrolment: policy: {e}");
+        SetupLoginError::Internal
+    })?;
+    if enabled && policy.totp_allowed {
+        return Err(SetupLoginError::AlreadyEnabled);
+    }
+    Ok(())
+}
+
 #[utoipa::path(
     post,
     path = "/setup/options",
@@ -95,6 +127,13 @@ impl From<PasskeyError> for PasskeySetupError {
             body = String,
             content_type = "text/plain",
             example = json!("Passkeys are not allowed on this instance.")
+        ),
+        (
+            status = 409,
+            description = "The account already has an active second factor.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Two-factor authentication is already enabled.")
         ),
         (
             status = 429,
@@ -139,6 +178,7 @@ pub async fn passkey_setup_options(
     )
     .await?;
     let relying_party = ensure_available(&state, relying_party.as_ref()).await?;
+    ensure_can_enrol(&state, pending.user_id).await?;
     let options = start_registration(&state, relying_party, pending.user_id).await?;
     Ok(HttpResponse::Ok().json(options))
 }
@@ -187,7 +227,7 @@ pub async fn passkey_setup_options(
         ),
         (
             status = 409,
-            description = "This credential is already registered.",
+            description = "The account already has an active second factor, or this credential is already registered.",
             body = String,
             content_type = "text/plain",
             example = json!("This passkey is already registered.")
@@ -238,6 +278,7 @@ pub async fn passkey_setup(
     .await?;
     let relying_party = ensure_available(&state, relying_party.as_ref()).await?;
     let user_id = pending.user_id;
+    ensure_can_enrol(&state, user_id).await?;
     let device_info = pending.device_info.clone();
     let redis = state.get_redis();
     let stored = match finish_registration(
@@ -280,6 +321,9 @@ pub async fn passkey_setup(
             return Err(SetupLoginError::Internal.into());
         }
     }
+    // Closes the window between the first check and the session: no session for an account archived or
+    // protected by another request in the meantime.
+    ensure_can_enrol(&state, user_id).await?;
     let (jwt, refresh_token) = generate_session(user_id, &device_info, ip_address, state.clone())
         .await
         .map_err(|e| {

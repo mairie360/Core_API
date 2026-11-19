@@ -137,6 +137,21 @@ passkey_view!(
     ) SELECT row_to_json(u) FROM u"
 );
 
+/// Row of [`ActiveAccountQueryView`].
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ActiveAccountRecord {
+    pub id: i32,
+}
+
+passkey_view!(
+    /// The account, if it is not archived; `DbError::NotFound` otherwise.
+    ActiveAccountQueryView(user_id: u64)
+        -> vec![QueryParam::I32(id_to_sql(user_id))],
+    "SELECT row_to_json(t) FROM (\
+        SELECT u.id FROM users u WHERE u.id = $1 AND u.is_archived IS NOT TRUE\
+    ) t"
+);
+
 /// Row of [`UserContactQueryView`]: where the security e-mail goes.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct UserContactRecord {

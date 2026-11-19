@@ -938,3 +938,53 @@ async fn mair_810_registration_options_require_a_discoverable_credential_on_both
         );
     }
 }
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_a_token_of_an_archived_or_already_protected_account_enrols_nothing() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+
+    // Archived after the token was issued: refused like an unknown token, nothing stored.
+    let (archived, _) = create_account(&env.raw).await;
+    let token = setup_token(&env, archived).await;
+    sqlx::query("UPDATE users SET is_archived = true WHERE id = $1")
+        .bind(archived)
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Protected by another enrolment after the token was issued: no passkey, no session.
+    let (protected, _) = create_account(&env.raw).await;
+    let token = setup_token(&env, protected).await;
+    sqlx::query(
+        "INSERT INTO user_totp (user_id, secret_encrypted, confirmed_at) VALUES ($1, '\\xdeadbeef', now())",
+    )
+    .bind(protected)
+    .execute(&env.raw)
+    .await
+    .unwrap();
+    let (status, headers, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(!headers.contains_key("Authorization"));
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM user_passkeys WHERE user_id = $1")
+        .bind(protected)
+        .fetch_one(&env.raw)
+        .await
+        .unwrap();
+    assert_eq!(stored, 0);
+}
