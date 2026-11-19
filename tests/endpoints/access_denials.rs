@@ -492,6 +492,8 @@ async fn only_the_authentication_routes_are_public() {
             "POST /api/v1/auth/logout",
             "POST /api/v1/auth/passkey",
             "POST /api/v1/auth/passkey/options",
+            "POST /api/v1/auth/passkey/setup",
+            "POST /api/v1/auth/passkey/setup/options",
             "POST /api/v1/auth/reset_password",
             "POST /api/v1/sessions/refresh",
         ]

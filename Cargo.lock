@@ -987,6 +987,7 @@ dependencies = [
  "redis",
  "reqwest",
  "serde",
+ "serde_cbor_2",
  "serde_json",
  "serial_test",
  "sha1",

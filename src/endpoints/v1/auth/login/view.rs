@@ -56,12 +56,37 @@ pub struct LoginResponseView {
     /// without asking for the password again. Keep it on the client side, never in a URL.
     #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     refresh_token: String,
+    /// Only after a password sign-in: what the login screen needs to propose a passkey. Absent after a
+    /// sign-in by passkey, which needs no proposal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    passkey_offer: Option<PasskeyOfferView>,
+}
+
+/// Whether to propose a passkey right after a password sign-in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PasskeyOfferView {
+    /// Passkeys are usable: the instance has a WebAuthn relying party and the administrator accepts them.
+    #[schema(example = true)]
+    pub allowed: bool,
+    /// The account already has at least one passkey.
+    #[schema(example = false)]
+    pub registered: bool,
 }
 
 impl LoginResponseView {
     #[must_use]
     pub const fn new(refresh_token: String) -> Self {
-        Self { refresh_token }
+        Self {
+            refresh_token,
+            passkey_offer: None,
+        }
+    }
+
+    /// Adds the passkey proposal data (password sign-ins only).
+    #[must_use]
+    pub const fn with_passkey(mut self, offer: PasskeyOfferView) -> Self {
+        self.passkey_offer = Some(offer);
+        self
     }
 
     #[must_use]
@@ -78,9 +103,7 @@ impl Display for LoginResponseView {
 
 impl From<String> for LoginResponseView {
     fn from(token: String) -> Self {
-        Self {
-            refresh_token: token,
-        }
+        Self::new(token)
     }
 }
 

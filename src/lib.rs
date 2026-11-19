@@ -8,6 +8,7 @@ pub mod emails;
 pub mod endpoints;
 pub mod keycloak;
 pub mod keycloak_console;
+pub mod passkey_managers;
 pub mod passkeys;
 pub mod passwords;
 pub mod phone;

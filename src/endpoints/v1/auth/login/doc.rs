@@ -7,6 +7,7 @@ use utoipa::OpenApi;
     components(schemas(
         super::view::LoginView,
         super::view::LoginResponseView,
+        super::view::PasskeyOfferView,
         super::view::LoginFirstConnectionResponseView,
         super::view::TwoFactorRequiredView,
         super::view::TwoFactorSetupPolicyView

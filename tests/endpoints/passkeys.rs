@@ -133,6 +133,15 @@ fn post(uri: &str, body: &Value) -> test::TestRequest {
     test::TestRequest::post().uri(uri).set_json(body)
 }
 
+/// The software authenticator cannot hold resident keys (it answers `NotSupported`), unlike the browsers
+/// the options are meant for: the test lowers that one requirement, the rest is left as sent.
+fn for_software_authenticator(options: &Value) -> CreationChallengeResponse {
+    let mut options = options.clone();
+    options["publicKey"]["authenticatorSelection"]["residentKey"] = json!("preferred");
+    options["publicKey"]["authenticatorSelection"]["requireResidentKey"] = json!(false);
+    serde_json::from_value(options).unwrap()
+}
+
 fn origin() -> Url {
     Url::parse(ORIGIN).unwrap()
 }
@@ -146,8 +155,7 @@ macro_rules! register {
             post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header($auth.clone())
         );
         assert_eq!(status, StatusCode::OK, "registration options: {body}");
-        let options: CreationChallengeResponse =
-            serde_json::from_value(body["options"].clone()).unwrap();
+        let options = for_software_authenticator(&body["options"]);
         let credential = $device.do_registration(origin(), options).unwrap();
         json_of!(
             $app,
@@ -386,8 +394,7 @@ async fn mair_810_a_registration_challenge_is_read_once_and_needs_a_start() {
         app,
         post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
     );
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device.do_registration(origin(), options).unwrap();
     let answer = json!({ "label": "Phone", "credential": credential });
     let (first, _, _) = json_of!(
@@ -574,8 +581,7 @@ async fn mair_810_a_passkey_registered_on_one_front_signs_in_on_another() {
         app,
         post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
     );
-    let options: CreationChallengeResponse =
-        serde_json::from_value(body["options"].clone()).unwrap();
+    let options = for_software_authenticator(&body["options"]);
     let credential = device
         .do_registration(Url::parse("https://settings.localhost").unwrap(), options)
         .unwrap();
@@ -604,4 +610,381 @@ async fn mair_810_a_passkey_registered_on_one_front_signs_in_on_another() {
     let (status, headers, _) = passkey_login!(app, body["id"].as_str().unwrap(), credential);
     assert_eq!(status, StatusCode::OK);
     assert!(headers.contains_key("Authorization"));
+}
+
+/// A token of the mandatory enrolment, as `POST /api/v1/auth/login` hands it out.
+async fn setup_token(env: &Env, user_id: i32) -> String {
+    core_api::two_factor::begin_setup(
+        env.state.get_redis(),
+        u64::try_from(user_id).unwrap(),
+        "enrolment device",
+    )
+    .await
+    .unwrap()
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_enrolment_token_registers_a_passkey_and_opens_the_session() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, email) = create_account(&env.raw).await;
+    let token = setup_token(&env, id).await;
+    let mut device = SoftPasskey::new(true);
+
+    let (status, _, body) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let options = for_software_authenticator(&body["options"]);
+    let credential = device.do_registration(origin(), options).unwrap();
+    let (status, headers, body) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup",
+            &json!({ "token": token, "label": "Town hall laptop", "credential": credential })
+        )
+    );
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(headers
+        .get("Authorization")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("Bearer ")));
+    assert!(body["refresh_token"]
+        .as_str()
+        .is_some_and(|t| !t.is_empty()));
+    assert!(
+        body.get("backup_codes").is_none(),
+        "a passkey is a complete factor: no backup codes"
+    );
+    assert_eq!(fake_resend::sent_to(&email).len(), 1, "the agent is told");
+
+    // The passkey is stored under its label and signs the agent in afterwards.
+    let (ceremony, credential) = sign_challenge!(app, device, env.raw, id, id);
+    let (status, _, _) = passkey_login!(app, ceremony, credential);
+    assert_eq!(status, StatusCode::OK);
+
+    // The token is spent: neither the options nor a second answer work with it.
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_enrolment_by_passkey_refuses_without_leaking() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, _) = create_account(&env.raw).await;
+
+    // Unknown token on both routes: the same 401, no ceremony started.
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": "never-issued" })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let mut device = SoftPasskey::new(true);
+    let token = setup_token(&env, id).await;
+    let (_, _, body) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    let options = for_software_authenticator(&body["options"]);
+    let credential = device.do_registration(origin(), options).unwrap();
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup",
+            &json!({ "token": "never-issued", "label": "x", "credential": credential })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // An answer without a started ceremony is a 400 and the token is burnt after five of them.
+    // (The ceremony is kept per account: another account has none pending.)
+    let (no_ceremony, _) = create_account(&env.raw).await;
+    let other = setup_token(&env, no_ceremony).await;
+    for attempt in 1..=5 {
+        let (status, _, _) = json_of!(
+            app,
+            post(
+                "/api/v1/auth/passkey/setup",
+                &json!({ "token": other, "label": "x", "credential": credential })
+            )
+        );
+        let expected = if attempt < 5 {
+            StatusCode::BAD_REQUEST
+        } else {
+            StatusCode::UNAUTHORIZED
+        };
+        assert_eq!(status, expected, "attempt {attempt}");
+    }
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": other })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the token is burnt");
+
+    // Nothing was stored and no session was opened.
+    let stored: i64 = sqlx::query("SELECT count(*) AS n FROM user_passkeys WHERE user_id = $1")
+        .bind(no_ceremony)
+        .fetch_one(&env.raw)
+        .await
+        .unwrap()
+        .get("n");
+    assert_eq!(stored, 0);
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_enrolment_by_passkey_follows_the_policy_and_the_configuration() {
+    let env = env().await;
+    let (id, _) = create_account(&env.raw).await;
+
+    // The administrator no longer accepts passkeys: 403 on both routes.
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = false")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let app = init_app!(env.state, env.passkeys);
+    let token = setup_token(&env, id).await;
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = true")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+
+    // No relying party on the instance: 503, so the front falls back to another mode.
+    let unconfigured: Option<web::Data<Passkeys>> = None;
+    let app = init_app!(env.state, unconfigured);
+    let token = setup_token(&env, id).await;
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+
+    // Malformed bodies never reach the ceremony.
+    let (status, _, _) = json_of!(
+        app,
+        post("/api/v1/auth/passkey/setup", &json!({ "token": token }))
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+macro_rules! password_login {
+    ($app:expr, $email:expr) => {
+        json_of!(
+            $app,
+            post(
+                "/api/v1/auth/login",
+                &json!({ "email": $email, "password": PASSWORD, "device_info": "test" })
+            )
+        )
+    };
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, email) = create_account(&env.raw).await;
+
+    // Passkeys accepted, none registered yet: the screen proposes one.
+    let (status, _, body) = password_login!(app, email);
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body["passkey_offer"],
+        json!({ "allowed": true, "registered": false })
+    );
+
+    // Once the agent has one, nothing to propose.
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+    let mut device = SoftPasskey::new(true);
+    let (status, _, _) = register!(app, device, auth, "Laptop");
+    assert_eq!(status, StatusCode::CREATED);
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(
+        body["passkey_offer"],
+        json!({ "allowed": true, "registered": true })
+    );
+
+    // A sign-in by passkey is not asked to propose one.
+    let (ceremony, credential) = sign_challenge!(app, device, env.raw, id, id);
+    let (status, _, body) = passkey_login!(app, ceremony, credential);
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.get("passkey_offer").is_none(), "{body}");
+
+    // The administrator stops accepting passkeys: not allowed.
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = false")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(body["passkey_offer"]["allowed"], json!(false));
+    sqlx::query("UPDATE two_factor_policy SET passkey_allowed = true")
+        .execute(&env.raw)
+        .await
+        .unwrap();
+
+    // No relying party on the instance: not allowed either.
+    let unconfigured: Option<web::Data<Passkeys>> = None;
+    let app = init_app!(env.state, unconfigured);
+    let (_, _, body) = password_login!(app, email);
+    assert_eq!(body["passkey_offer"]["allowed"], json!(false));
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_the_passkey_manager_is_kept_and_listed_when_known() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, _) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+
+    // The software authenticator gives no known AAGUID: the passkey has no manager name.
+    let mut device = SoftPasskey::new(true);
+    let (status, _, body) = register!(app, device, auth, "Laptop");
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(body["provider"], Value::Null);
+
+    // A name deduced at registration is stored and listed (the AAGUID lookup itself is unit-tested).
+    sqlx::query(
+        "INSERT INTO user_passkeys (user_id, credential_id, passkey, label, provider) \
+         VALUES ($1, '\\x0a0b'::bytea, '{}'::jsonb, 'Phone', 'Google Password Manager')",
+    )
+    .bind(id)
+    .execute(&env.raw)
+    .await
+    .unwrap();
+    let (status, _, list) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/passkeys/")
+            .insert_header(auth.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    let providers: Vec<&Value> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| &p["provider"])
+        .collect();
+    assert_eq!(providers, [&Value::Null, &json!("Google Password Manager")]);
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_registration_options_require_a_discoverable_credential_on_both_routes() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (id, _) = create_account(&env.raw).await;
+    let auth = bearer(&env.state, u64::try_from(id).unwrap()).await;
+
+    // The sign-in names no account: a passkey that is not discoverable could never be offered.
+    let (_, _, signed_in) = json_of!(
+        app,
+        post("/api/v1/user/me/passkeys/options/", &json!({})).insert_header(auth.clone())
+    );
+    let token = setup_token(&env, id).await;
+    let (_, _, enrolment) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    for options in [signed_in, enrolment] {
+        let selection = &options["options"]["publicKey"]["authenticatorSelection"];
+        assert_eq!(selection["residentKey"], json!("required"), "{options}");
+        assert_eq!(selection["requireResidentKey"], json!(true), "{options}");
+        assert_eq!(
+            selection["userVerification"],
+            json!("required"),
+            "{options}"
+        );
+        assert!(
+            selection.get("authenticatorAttachment").is_none(),
+            "any password manager"
+        );
+    }
+}
+
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_810_a_token_of_an_archived_or_already_protected_account_enrols_nothing() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+
+    // Archived after the token was issued: refused like an unknown token, nothing stored.
+    let (archived, _) = create_account(&env.raw).await;
+    let token = setup_token(&env, archived).await;
+    sqlx::query("UPDATE users SET is_archived = true WHERE id = $1")
+        .bind(archived)
+        .execute(&env.raw)
+        .await
+        .unwrap();
+    let (status, _, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Protected by another enrolment after the token was issued: no passkey, no session.
+    let (protected, _) = create_account(&env.raw).await;
+    let token = setup_token(&env, protected).await;
+    sqlx::query(
+        "INSERT INTO user_totp (user_id, secret_encrypted, confirmed_at) VALUES ($1, '\\xdeadbeef', now())",
+    )
+    .bind(protected)
+    .execute(&env.raw)
+    .await
+    .unwrap();
+    let (status, headers, _) = json_of!(
+        app,
+        post(
+            "/api/v1/auth/passkey/setup/options",
+            &json!({ "token": token })
+        )
+    );
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(!headers.contains_key("Authorization"));
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM user_passkeys WHERE user_id = $1")
+        .bind(protected)
+        .fetch_one(&env.raw)
+        .await
+        .unwrap();
+    assert_eq!(stored, 0);
 }

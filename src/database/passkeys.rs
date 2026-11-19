@@ -13,6 +13,9 @@ use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 pub struct PasskeyRecord {
     pub id: i32,
     pub label: String,
+    /// Name of the passkey manager deduced from the AAGUID, `None` when unknown (or registered before
+    /// the name was kept).
+    pub provider: Option<String>,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -75,7 +78,7 @@ passkey_view!(
     ListPasskeysQueryView(user_id: u64)
         -> vec![QueryParam::I32(id_to_sql(user_id))],
     "SELECT row_to_json(t) FROM (\
-        SELECT id, label, created_at, last_used_at FROM user_passkeys \
+        SELECT id, label, provider, created_at, last_used_at FROM user_passkeys \
         WHERE user_id = $1 ORDER BY created_at, id\
     ) t"
 );
@@ -90,17 +93,19 @@ passkey_view!(
 passkey_view!(
     /// Stores a passkey and returns it. A credential id already registered (by anyone) is a unique
     /// violation: `409`.
-    InsertPasskeyQueryView(user_id: u64, credential_id_base64: &str, passkey_json: &str, label: &str)
+    InsertPasskeyQueryView(user_id: u64, credential_id_base64: &str, passkey_json: &str, label: &str, provider: Option<&str>)
         -> vec![
             QueryParam::I32(id_to_sql(user_id)),
             QueryParam::Text(credential_id_base64.to_string()),
             QueryParam::Text(passkey_json.to_string()),
             QueryParam::Text(label.to_string()),
+            // No NULL parameter exists: an empty text stands for "unknown" (see `NULLIF` below).
+            QueryParam::Text(provider.unwrap_or_default().to_string()),
         ],
     "WITH i AS (\
-        INSERT INTO user_passkeys (user_id, credential_id, passkey, label) \
-        VALUES ($1, decode($2, 'base64'), $3::jsonb, $4) \
-        RETURNING id, label, created_at, last_used_at\
+        INSERT INTO user_passkeys (user_id, credential_id, passkey, label, provider) \
+        VALUES ($1, decode($2, 'base64'), $3::jsonb, $4, NULLIF($5, '')) \
+        RETURNING id, label, provider, created_at, last_used_at\
     ) SELECT row_to_json(i) FROM i"
 );
 
@@ -130,6 +135,21 @@ passkey_view!(
     "WITH u AS (\
         UPDATE user_passkeys SET passkey = $2::jsonb, last_used_at = now() WHERE id = $1 RETURNING id\
     ) SELECT row_to_json(u) FROM u"
+);
+
+/// Row of [`ActiveAccountQueryView`].
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ActiveAccountRecord {
+    pub id: i32,
+}
+
+passkey_view!(
+    /// The account, if it is not archived; `DbError::NotFound` otherwise.
+    ActiveAccountQueryView(user_id: u64)
+        -> vec![QueryParam::I32(id_to_sql(user_id))],
+    "SELECT row_to_json(t) FROM (\
+        SELECT u.id FROM users u WHERE u.id = $1 AND u.is_archived IS NOT TRUE\
+    ) t"
 );
 
 /// Row of [`UserContactQueryView`]: where the security e-mail goes.
