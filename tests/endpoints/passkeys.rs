@@ -823,7 +823,7 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
     let (status, _, body) = password_login!(app, email);
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(
-        body["passkey"],
+        body["passkey_offer"],
         json!({ "allowed": true, "registered": false })
     );
 
@@ -834,7 +834,7 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
     assert_eq!(status, StatusCode::CREATED);
     let (_, _, body) = password_login!(app, email);
     assert_eq!(
-        body["passkey"],
+        body["passkey_offer"],
         json!({ "allowed": true, "registered": true })
     );
 
@@ -842,7 +842,7 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
     let (ceremony, credential) = sign_challenge!(app, device, env.raw, id, id);
     let (status, _, body) = passkey_login!(app, ceremony, credential);
     assert_eq!(status, StatusCode::OK);
-    assert!(body.get("passkey").is_none(), "{body}");
+    assert!(body.get("passkey_offer").is_none(), "{body}");
 
     // The administrator stops accepting passkeys: not allowed.
     sqlx::query("UPDATE two_factor_policy SET passkey_allowed = false")
@@ -850,7 +850,7 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
         .await
         .unwrap();
     let (_, _, body) = password_login!(app, email);
-    assert_eq!(body["passkey"]["allowed"], json!(false));
+    assert_eq!(body["passkey_offer"]["allowed"], json!(false));
     sqlx::query("UPDATE two_factor_policy SET passkey_allowed = true")
         .execute(&env.raw)
         .await
@@ -860,7 +860,7 @@ async fn mair_810_the_password_login_tells_whether_to_propose_a_passkey() {
     let unconfigured: Option<web::Data<Passkeys>> = None;
     let app = init_app!(env.state, unconfigured);
     let (_, _, body) = password_login!(app, email);
-    assert_eq!(body["passkey"]["allowed"], json!(false));
+    assert_eq!(body["passkey_offer"]["allowed"], json!(false));
 }
 
 #[actix_web::test]

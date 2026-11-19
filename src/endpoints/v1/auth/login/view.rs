@@ -59,7 +59,7 @@ pub struct LoginResponseView {
     /// Only after a password sign-in: what the login screen needs to propose a passkey. Absent after a
     /// sign-in by passkey, which needs no proposal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    passkey: Option<PasskeyOfferView>,
+    passkey_offer: Option<PasskeyOfferView>,
 }
 
 /// Whether to propose a passkey right after a password sign-in.
@@ -78,14 +78,14 @@ impl LoginResponseView {
     pub const fn new(refresh_token: String) -> Self {
         Self {
             refresh_token,
-            passkey: None,
+            passkey_offer: None,
         }
     }
 
     /// Adds the passkey proposal data (password sign-ins only).
     #[must_use]
     pub const fn with_passkey(mut self, offer: PasskeyOfferView) -> Self {
-        self.passkey = Some(offer);
+        self.passkey_offer = Some(offer);
         self
     }
 

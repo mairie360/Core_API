@@ -494,7 +494,7 @@ fn check_rate_limits(
             headers(
                 ("Authorization" = String, description = "Access JWT, prefixed with `Bearer `.")
             ),
-            example = json!({ "refresh_token": "example-rotated-refresh-token", "passkey": { "allowed": true, "registered": false } })
+            example = json!({ "refresh_token": "example-rotated-refresh-token", "passkey_offer": { "allowed": true, "registered": false } })
         ),
         (
             status = 400,
