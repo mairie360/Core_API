@@ -2,12 +2,14 @@
 
 use crate::common::acl_redis::AclRedis;
 use crate::common::core_db_url;
+use crate::common::fake_resend;
 use crate::common::get_raw_pool;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
 use core_api::rate_limit::RateLimits;
 use core_api::refresh_token;
+use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{
     jwt_manager::generate_jwt, password::hash_password, security::JwtMiddleware, state::AppState,
 };
@@ -322,11 +324,13 @@ async fn other_users_record_shows_phone_and_hides_archived_accounts() {
 }
 
 #[tokio::test]
-#[serial(process_env)]
+#[serial(process_env, fake_resend)]
 async fn email_change_requires_the_current_password() {
-    let (state, raw) = setup().await;
-    let app = init_app!(state);
-    let (user_id, _) = create_account(&raw, false, false).await;
+    let (_, raw) = setup().await;
+    let (_redis, redis_config) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
+    let app = init_app!(state, App::new().app_data(fake_resend::account_emails()));
+    let (user_id, email) = create_account(&raw, false, false).await;
     let new_email = format!("moved.{}@example.com", uuid::Uuid::new_v4());
 
     let patch = |body: Value| {
@@ -349,17 +353,31 @@ async fn email_change_requires_the_current_password() {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
+    // MAIR-696: the address is only requested, the account keeps its own until it is confirmed.
+    let stored: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    assert_eq!(stored, email);
 }
 
 /// MAIR-746: a session holder (stolen cookie, workstation left open) could guess the current
 /// password through the e-mail change without any limit. 5 checks per user per 15 minutes, right
 /// or wrong, then 429 with Retry-After; other users and changes without e-mail are not affected.
 #[tokio::test]
-#[serial(process_env)]
+#[serial(process_env, fake_resend)]
 async fn mair_746_current_password_checks_are_rate_limited_per_user() {
-    let (state, raw) = setup().await;
+    let (_, raw) = setup().await;
+    let (_redis, redis_config) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
     let limits = web::Data::new(RateLimits::default());
-    let app = init_app!(state, App::new().app_data(limits));
+    let app = init_app!(
+        state,
+        App::new()
+            .app_data(limits)
+            .app_data(fake_resend::account_emails())
+    );
     let (user_id, email) = create_account(&raw, false, false).await;
     let (other_id, _) = create_account(&raw, false, false).await;
     let new_email = format!("moved.{}@example.com", uuid::Uuid::new_v4());

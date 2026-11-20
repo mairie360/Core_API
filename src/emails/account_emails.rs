@@ -1,8 +1,13 @@
 use mairie360_api_lib::email::{MailerError, ResendMailer, TemplateMailer};
 use mairie360_api_lib::env_manager::get_env_var;
 
-use super::{AccountInvitationEmail, PasskeyChange, PasskeyChangedEmail, PasswordResetEmail};
-use crate::redis_keys::{FORGOT_PASSWORD_TTL_SECONDS, INVITATION_TTL_SECONDS};
+use super::{
+    AccountInvitationEmail, EmailChangeConfirmationEmail, EmailChangedEmail, PasskeyChange,
+    PasskeyChangedEmail, PasswordResetEmail,
+};
+use crate::redis_keys::{
+    EMAIL_CHANGE_TTL_SECONDS, FORGOT_PASSWORD_TTL_SECONDS, INVITATION_TTL_SECONDS,
+};
 
 /// Public URL of the login front, where the links of the e-mails lead
 /// (`https://login.mairie360-eip.fr`).
@@ -65,6 +70,53 @@ impl AccountEmails {
     #[must_use]
     pub fn reset_url(&self, token: &str) -> String {
         format!("{}/reset-password?token={token}", self.public_url)
+    }
+
+    /// The link of the e-mail change confirmation: `<PUBLIC_URL>/confirm-email?token=<token>`.
+    #[must_use]
+    pub fn confirm_email_url(&self, token: &str) -> String {
+        format!("{}/confirm-email?token={token}", self.public_url)
+    }
+
+    /// Sends the confirmation link of an e-mail change to the NEW address.
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_email_change_confirmation(
+        &self,
+        new_email: &str,
+        first_name: &str,
+        token: &str,
+    ) -> Result<(), MailerError> {
+        let email = EmailChangeConfirmationEmail {
+            first_name: first_name.to_string(),
+            confirm_url: self.confirm_email_url(token),
+            new_email: new_email.to_string(),
+            expire_minutes: EMAIL_CHANGE_TTL_SECONDS / 60,
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(new_email, &email).await.map(|_| ())
+    }
+
+    /// Tells the OLD address that the account now uses `new_email`.
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_email_changed(
+        &self,
+        old_email: &str,
+        first_name: &str,
+        new_email: &str,
+    ) -> Result<(), MailerError> {
+        let email = EmailChangedEmail {
+            first_name: first_name.to_string(),
+            new_email: new_email.to_string(),
+            date: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(old_email, &email).await.map(|_| ())
     }
 
     /// Sends the password reset e-mail to `to`.

@@ -1,3 +1,4 @@
+pub mod confirm_email;
 pub mod doc;
 pub mod force_change_password;
 pub mod forgot_password;
@@ -18,6 +19,7 @@ use crate::database::sessions::create_session::CreateSessionQueryView;
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
+            .service(confirm_email::endpoint::confirm_email)
             .service(force_change_password::endpoint::force_change_password)
             .service(forgot_password::endpoint::forgot_password)
             .service(jwks::endpoint::jwks)
