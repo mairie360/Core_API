@@ -133,6 +133,9 @@ pub struct RateLimits {
     pub forgot_password_per_email: RateLimiter,
     /// `POST /auth/reset_password` and `POST /auth/force_change_password`, per client address.
     pub password_token_per_ip: RateLimiter,
+    /// `POST /auth/confirm_email`, per client address: its own budget, a confirmation link must not
+    /// spend the one of the password tokens.
+    pub confirm_email_per_ip: RateLimiter,
     /// `POST /sessions/refresh`, per client address.
     pub refresh_per_ip: RateLimiter,
     /// Checks of the current password by an authenticated route (`PATCH /user/me` changing the
@@ -157,6 +160,7 @@ impl Default for RateLimits {
             forgot_password_per_ip: RateLimiter::new(10, 15 * MINUTE),
             forgot_password_per_email: RateLimiter::new(3, 60 * MINUTE),
             password_token_per_ip: RateLimiter::new(10, 15 * MINUTE),
+            confirm_email_per_ip: RateLimiter::new(10, 15 * MINUTE),
             refresh_per_ip: RateLimiter::new(60, MINUTE),
             password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
             second_factor_per_user: RateLimiter::new(20, 15 * MINUTE),

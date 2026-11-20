@@ -1,3 +1,4 @@
+use crate::endpoints::v1::auth::confirm_email::doc::ConfirmEmailDoc;
 use crate::endpoints::v1::auth::force_change_password::doc::ForceChangePasswordDoc;
 use crate::endpoints::v1::auth::forgot_password::doc::ForgotPasswordDoc;
 use crate::endpoints::v1::auth::jwks::doc::JwksDoc;
@@ -12,6 +13,7 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(nest(
+    (path = "/confirm_email", api = ConfirmEmailDoc),
     (path = "/force_change_password", api = ForceChangePasswordDoc),
     (path = "/forgot_password", api = ForgotPasswordDoc),
     (path = "/jwks", api = JwksDoc),

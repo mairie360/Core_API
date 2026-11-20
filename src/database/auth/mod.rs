@@ -1,5 +1,6 @@
 pub mod active_user_id;
 pub mod change_password;
+pub mod email_in_use;
 pub mod is_first_time;
 pub mod login;
 pub mod register;

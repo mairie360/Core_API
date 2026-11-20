@@ -43,6 +43,7 @@ operations:
   POST /api/v1/auth/passkey/setup: {access: public, token: true, note: "needs the enrolment token and a passkey registration answer; opens the session, no backup codes (MAIR-810)"}
   POST /api/v1/auth/force_change_password: {access: public, token: true, note: "needs the one-time first-connection token"}
   POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
+  POST /api/v1/auth/confirm_email: {access: public, token: true, note: "needs the one-time token e-mailed to the new address; one 401 for an unknown, used or expired token"}
   POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}
   POST /api/v1/auth/logout: {access: public, token: true, note: "needs the refresh token of the session it ends; same 204 for an unknown token (MAIR-692)"}
   GET /api/v1/auth/jwks: {access: public, note: "public keys only (MAIR-680), never the private key"}
@@ -52,11 +53,11 @@ operations:
   GET /api/v1/user/me/:
     access: authenticated
     ownership: self
-    personal: [first_name, last_name, email, phone_number, phone_country, status, roles, groups]
+    personal: [first_name, last_name, email, pending_email, phone_number, phone_country, status, roles, groups]
   PATCH /api/v1/user/me/:
     access: authenticated
     ownership: self
-    note: "changing the e-mail needs the current password"
+    note: "changing the e-mail needs the current password and the confirmation of the new address, which gets a link; the current address stays active until then"
   GET /api/v1/user/me/export: {access: authenticated, ownership: self, personal: [user, data], note: "export_user_data() of the caller (GDPR art. 15 and 20, MAIR-289)"}
   GET /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
   PATCH /api/v1/user/me/notifications/: {access: authenticated, ownership: self}

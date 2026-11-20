@@ -84,6 +84,23 @@ silences a later `POST /auth/forgot_password`; `POST /auth/reset_password` consu
 undoes the account. The template must be published in Resend before deploying. There is no Keycloak any more: no sign-in,
 no migration binary, no mirroring of the administration routes (the account system is Core alone).
 
+E-mail change (`src/email_change.rs`): `PATCH /api/v1/user/me/` with a new `email` (and `current_password`, rate limited per user as
+before) no longer writes it. The address is recorded as a pending request in Redis for `EMAIL_CHANGE_TTL_SECONDS` (1 hour:
+`<token>/email_change_request` = `<user id>|<new address>`, `<user id>/email_change_token` = the token, `<token>/email_change_spent` = `SET NX` marker of a used token, so a user has one pending
+request, a newer one replaces it once its e-mail was delivered (a failed delivery keeps the request already sent), a token that is not the
+current one of its user is refused, and sending the current address again cancels it) and the Resend template
+`account-email-change-confirm` (`USER_FIRST_NAME`, `CONFIRM_URL`, `NEW_EMAIL`, `EXPIRE_MINUTES`, optional `MAIRIE_NAME`) is
+sent to the NEW address; the account keeps its address until `POST /api/v1/auth/confirm_email {token}` (public, single-use,
+`401` for an unknown / used / expired token or an archived account, `409` when another account took the address meanwhile, rate
+limited, its own `confirm_email_per_ip` budget) writes it and sends the alert `account-email-changed` (`USER_FIRST_NAME`, `NEW_EMAIL`,
+`DATE`) to the OLD address; a failed alert is logged, never undoes the change. The link is `<PUBLIC_URL>/confirm-email?token=…`:
+that page of the login front must exist before the feature is used for real. The address is checked against every account,
+archived ones included and whatever the letter case (`EmailInUseQueryView`), and the `409` never says whose it is. The mail is
+sent **before** anything is written: a refused or unsent confirmation (`500`) changes nothing, not even the other fields of the
+same request, which are otherwise written at once. `GET /api/v1/user/me/` answers the waiting address as `pending_email`. Both
+Resend templates must be published before deploying. Tests: `tests/endpoints/mair_696_email_change.rs` and the newman folder
+"E-mail change confirmation".
+
 Accounts without a password (`src/invitations.rs`, `src/bin/invite_passwordless.rs`): the accounts the former Keycloak
 synchronisation created have `users.password IS NULL`. The `invite_passwordless` binary (shipped as
 `/app/invite-passwordless` in the image) lists the non-archived ones and e-mails each the same invitation

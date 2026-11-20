@@ -38,3 +38,7 @@ pub async fn set_token(
         .await
         .map(|_| ())
 }
+
+/// Time to live of a pending e-mail address change: one hour, the lifetime the confirmation
+/// e-mail announces.
+pub const EMAIL_CHANGE_TTL_SECONDS: u64 = 60 * 60;

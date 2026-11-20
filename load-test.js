@@ -206,9 +206,10 @@ function loginToken(account) {
 
 /**
  * Password reset token the API e-mailed to `email`: the `RESET_URL` variable of the
- * `account-password-reset` template, read back from the fake Resend's request journal.
+ * `account-password-reset` template, read back from the fake Resend's request journal. `variable`
+ * names another link variable (`CONFIRM_URL` of `account-email-change-confirm`).
  */
-function resetToken(email) {
+function resetToken(email, variable = 'RESET_URL') {
   const query = JSON.stringify({
     method: 'POST',
     url: '/emails',
@@ -222,7 +223,7 @@ function resetToken(email) {
     const requests = found.status === 200 ? found.json('requests') || [] : [];
     if (requests.length > 0) {
       const body = JSON.parse(requests[requests.length - 1].body);
-      const url = (body.template && body.template.variables && body.template.variables.RESET_URL) || '';
+      const url = (body.template && body.template.variables && body.template.variables[variable]) || '';
       const token = /[?&]token=([0-9a-f-]{36})/.exec(url);
       if (token) return token[1];
     }
@@ -441,6 +442,20 @@ const writeHandlers = {
         headers: { Authorization: res.headers.Authorization },
       });
     }
+    deleteUser(account.id);
+  },
+
+  // E-mail change: PATCH /user/me asks for a new address, its link (fake Resend) confirms it.
+  'POST /api/v1/auth/confirm_email': ({ request }) => {
+    const account = activeAccount('confirm');
+    const session = login(account);
+    const newEmail = `k6.moved.${unique()}@mairie360.fr`;
+    fixture('PATCH', '/api/v1/user/me/', { email: newEmail, current_password: PASSWORD }, {
+      headers: bearer(session.jwt),
+    });
+    check(request({ body: { token: resetToken(newEmail, 'CONFIRM_URL') } }), {
+      'confirm e-mail 200': (r) => r.status === 200,
+    });
     deleteUser(account.id);
   },
 

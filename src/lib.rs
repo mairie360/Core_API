@@ -4,6 +4,7 @@
 #![allow(clippy::multiple_crate_versions)]
 pub mod client_ip;
 pub mod database;
+pub mod email_change;
 pub mod emails;
 pub mod endpoints;
 pub mod invitations;
