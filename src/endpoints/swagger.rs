@@ -1,5 +1,4 @@
 use crate::endpoints::health::HealthDoc;
-use crate::endpoints::keycloak_console::KeycloakConsoleDoc;
 use crate::endpoints::ready::ReadyDoc;
 use crate::endpoints::v1::doc::V1Doc;
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
@@ -26,7 +25,7 @@ returns, the previous one stops working.
 Routes under `/api/v1/admin` also require the user to be an administrator, otherwise they \
 answer `403 Forbidden`.
 
-The public authentication routes (login, keycloak, forgot/reset/force_change_password, refresh) \
+The public authentication routes (login, forgot/reset/force_change_password, refresh) \
 are rate limited per client address (and per e-mail address where one is sent): beyond the \
 budget they answer `429 Too Many Requests` with a `Retry-After` header.
 
@@ -70,15 +69,12 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (name = "Admin - Users", description = "Administration of the user accounts. Reserved to administrators."),
         (name = "Admin - Roles", description = "Administration of the roles and their permissions. Reserved to administrators."),
         (name = "Admin - Two-factor policy", description = "Two-factor policy of the instance: mandatory or optional, accepted modes (MAIR-808). Reserved to administrators."),
-        (name = "Admin - Keycloak", description = "Migration of the accounts and roles to the Keycloak realm (single sign-on), and temporary links to the realm admin console. Reserved to administrators."),
-        (name = "Keycloak console", description = "Browser and ingress routes of the temporary access to the Keycloak admin console (MAIR-609): served under `auth.<domain>` (`/admin-access`) or in the cluster only (`/internal/keycloak-console/verify`, Traefik ForwardAuth). Not for the BFFs."),
         (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes.")
     ),
     nest(
         (path = "/api/v1", api = V1Doc),
         (path = "/", api = HealthDoc),
         (path = "/", api = ReadyDoc),
-        (path = "/", api = KeycloakConsoleDoc),
     ),
     modifiers(&SecurityAddon)
 )]

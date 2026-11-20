@@ -1,32 +1,24 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::database::ids::id_from_sql;
+use crate::emails::AccountEmails;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::db_error;
 use crate::endpoints::v1::admin::users::post::view::{CreateUserView, CreatedUserView};
 use crate::endpoints::validation::ValidatedJson;
-use crate::keycloak::sync::{
-    discard_account, export_user, invite, link_account, reserve_account, sync_roles,
-    ReservedAccount, SyncError,
-};
-use crate::keycloak::{KeycloakAdminClient, KeycloakUserProfile};
 use crate::passwords;
+use crate::redis_keys::{set_token, INVITATION_TTL_SECONDS};
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
-use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CreateUserError {
     InvalidData,
     UserAlreadyExists,
     DatabaseError,
-    /// Keycloak refused or failed before the Core account was written: nothing was created.
-    Keycloak(SyncError),
-    /// The Core account exists but its link, roles or invitation could not be completed in
-    /// Keycloak.
-    KeycloakIncomplete(SyncError),
 }
 
 impl std::fmt::Display for CreateUserError {
@@ -35,11 +27,6 @@ impl std::fmt::Display for CreateUserError {
             Self::InvalidData => write!(f, "Invalid data provided"),
             Self::UserAlreadyExists => write!(f, "User already exists"),
             Self::DatabaseError => write!(f, "Database error occurred"),
-            Self::Keycloak(error) => write!(f, "{error}"),
-            Self::KeycloakIncomplete(error) => write!(
-                f,
-                "The account was created in Mairie 360 but not fully synchronised with Keycloak ({error}). Run POST /api/v1/admin/keycloak/migration to complete it."
-            ),
         }
     }
 }
@@ -48,14 +35,8 @@ impl ResponseError for CreateUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::InvalidData => StatusCode::BAD_REQUEST,
-            Self::UserAlreadyExists | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
-            Self::DatabaseError
-            | Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-            Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::Keycloak(SyncError::KeycloakForbidden | SyncError::KeycloakUnavailable)
-            | Self::KeycloakIncomplete(_) => StatusCode::BAD_GATEWAY,
+            Self::UserAlreadyExists => StatusCode::CONFLICT,
+            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -141,82 +122,57 @@ async fn insert_user(
     }
 }
 
-/// Reserves the Keycloak account of the user being created and, for a brand-new account,
-/// sends the password set-up invitation. Both happen before the Core insert, so a Keycloak
-/// failure leaves nothing behind.
-async fn reserve_keycloak_account(
-    admin: &KeycloakAdminClient,
-    register_view: &CreateUserView,
-) -> Result<ReservedAccount, CreateUserError> {
-    let profile = KeycloakUserProfile {
-        email: register_view.email().to_string(),
-        first_name: register_view.first_name().to_string(),
-        last_name: register_view.last_name().to_string(),
-        enabled: true,
+/// E-mails the invitation of the new account: a one-time link to the password page of the login
+/// front, valid [`INVITATION_TTL_SECONDS`], consumed by `POST /auth/reset_password` like a
+/// forgot-password token. Only the `token -> e-mail` mapping is stored: a pending invitation must
+/// not silence a later `POST /auth/forgot_password` of the same address.
+///
+/// A failure is logged and never undoes the account: the user can still ask for a reset link on
+/// the login page.
+async fn invite_user(
+    state: &AppState,
+    emails: Option<&AccountEmails>,
+    email: &str,
+    first_name: &str,
+) {
+    let Some(emails) = emails else {
+        tracing::error!("Create user: no mailer is registered, the invitation cannot be sent");
+        return;
     };
-    let account = reserve_account(admin, &profile)
+    let token = Uuid::new_v4().to_string();
+    let redis = state.get_redis();
+    let email_key = format!("{token}/forgot_password_email");
+    if let Err(e) = set_token(redis, &email_key, email, INVITATION_TTL_SECONDS).await {
+        tracing::error!("Create user: the invitation token could not be stored: {e}");
+        return;
+    }
+    if let Err(e) = emails
+        .send_account_invitation(email, first_name, &token)
         .await
-        .map_err(CreateUserError::Keycloak)?;
-    if account.created {
-        if let Err(error) = invite(admin, &account.keycloak_id).await {
-            discard_account(admin, &account).await;
-            return Err(CreateUserError::Keycloak(error));
+    {
+        tracing::error!("Create user: the invitation e-mail could not be sent: {e}");
+        if let Err(e) = redis.secure_delete(&email_key).await {
+            tracing::warn!("Create user: could not drop an unsent invitation token: {e}");
         }
     }
-    Ok(account)
-}
-
-/// Links the freshly inserted Core account to its Keycloak account and mirrors its roles (the
-/// schema grants a default one).
-async fn complete_keycloak_account(
-    admin: &KeycloakAdminClient,
-    smart_db: &SmartDatabase,
-    email: &str,
-    account: &ReservedAccount,
-) -> Result<(), SyncError> {
-    let user_id: i32 = smart_db
-        .fetch_scalar(&GetUserIdQueryView::new(email))
-        .await
-        .map_err(|e| {
-            tracing::error!("Database error: {e}");
-            SyncError::Database
-        })?;
-    link_account(smart_db, user_id, &account.keycloak_id).await?;
-    let roles = export_user(smart_db, user_id)
-        .await?
-        .map(|user| user.roles)
-        .unwrap_or_default();
-    sync_roles(admin, &mut HashMap::new(), &account.keycloak_id, &roles).await?;
-    Ok(())
 }
 
 async fn register_user(
     register_view: &CreateUserView,
-    state: web::Data<AppState>,
-    admin: Option<&KeycloakAdminClient>,
+    state: &AppState,
+    emails: Option<&AccountEmails>,
 ) -> Result<(), CreateUserError> {
     let smart_db = state.get_smart_db();
     can_be_registered(register_view, smart_db).await?;
-
-    let Some(admin) = admin else {
-        return insert_user(register_view, smart_db).await;
-    };
-
-    let account = reserve_keycloak_account(admin, register_view).await?;
-    if let Err(error) = insert_user(register_view, smart_db).await {
-        discard_account(admin, &account).await;
-        return Err(error);
-    }
-    complete_keycloak_account(admin, smart_db, register_view.email(), &account)
-        .await
-        .map_err(|error| {
-            // The Keycloak id, never the e-mail: a log names no personal data (MAIR-290).
-            tracing::error!(
-                "Keycloak sync: account {} created but not completed: {error}",
-                account.keycloak_id
-            );
-            CreateUserError::KeycloakIncomplete(error)
-        })
+    insert_user(register_view, smart_db).await?;
+    invite_user(
+        state,
+        emails,
+        register_view.email(),
+        register_view.first_name(),
+    )
+    .await;
+    Ok(())
 }
 
 #[utoipa::path(
@@ -232,17 +188,10 @@ async fn register_user(
                    The password given here is temporary: the account is flagged as first \
                    connection, and the user's first `POST /api/v1/auth/login` answers `412` so \
                    they choose their own.\n\n\
-                   **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client, \
-                   the account is mirrored in the realm **before** it is written to Core: an \
-                   account with the same e-mail is adopted (profile overwritten), otherwise one is \
-                   created (e-mail as username, e-mail verified, no credential) and Keycloak is \
-                   asked to e-mail it a link to set its password (`UPDATE_PASSWORD` action, \
-                   realm SMTP required). The Core account is then created, linked \
-                   (`user_identities`) and its default role mapped as a realm role. If Keycloak \
-                   refuses or fails before the Core insert, the answer is `409` or `502` and \
-                   nothing is created on either side (an account created in the realm by this \
-                   call is deleted again). Without Keycloak, or with a public client, only Core \
-                   is written.",
+                   An invitation e-mail (Resend template `account-invitation`) holds a link \
+                   to the password page of the login front, valid **7 days**: it is consumed \
+                   by `POST /api/v1/auth/reset_password`. A failed e-mail never undoes the \
+                   account (the user can ask for a reset link on the login page).",
     request_body(
         content = CreateUserView,
         description = "Identity, provisional credentials and optional phone number of the account to create.",
@@ -258,7 +207,7 @@ async fn register_user(
     responses(
         (
             status = 201,
-            description = "Account created (and, with Keycloak, mirrored, linked and invited), waiting for the password change at first login. The body gives the id of the new account, so the caller does not have to search for it.",
+            description = "Account created and invited by e-mail, waiting for the password change at first login. The body gives the id of the new account, so the caller does not have to search for it.",
             body = CreatedUserView,
             content_type = "application/json",
             example = json!({ "id": 42, "message": "User created successfully!" })
@@ -286,42 +235,18 @@ async fn register_user(
         ),
         (
             status = 409,
-            description = "A Core account already uses this e-mail, or Keycloak refuses the e-mail because it is the username of an account carrying another e-mail. Nothing is created.",
+            description = "An account already uses this e-mail. Nothing is created.",
             body = String,
             content_type = "text/plain",
-            examples(
-                ("Core" = (value = json!("User already exists"))),
-                ("Keycloak" = (value = json!("Another Keycloak account already uses this e-mail address.")))
-            )
+            example = json!("User already exists")
         ),
         (
             status = 500,
-            description = "Database error during the uniqueness check or the insert (the reserved Keycloak account is deleted again), or the Keycloak account found by e-mail is already linked to another Core account.",
+            description = "Database error during the uniqueness check or the insert.",
             body = String,
             content_type = "text/plain",
-            examples(
-                ("Database" = (value = json!("Database error occurred"))),
-                ("Linked elsewhere" = (value = json!("The Keycloak account is already linked to another Mairie 360 account.")))
-            )
+            example = json!("Database error occurred")
         ),
-        (
-            status = 502,
-            description = "Keycloak could not be reached, refused Core's service account, or could not send the invitation: nothing is created. Or, rarer, the Core account was created but its link or roles could not be completed in Keycloak: the message says so, and replaying `POST /api/v1/admin/keycloak/migration` completes it.",
-            body = String,
-            content_type = "text/plain",
-            examples(
-                ("Unavailable" = (value = json!("Keycloak is unavailable."))),
-                ("Service account refused" = (value = json!("Keycloak refused Core's service account."))),
-                ("Incomplete" = (value = json!("The account was created in Mairie 360 but not fully synchronised with Keycloak (Keycloak is unavailable.). Run POST /api/v1/admin/keycloak/migration to complete it.")))
-            )
-        ),
-        (
-            status = 503,
-            description = "Keycloak administration is not configured (no confidential client). Not produced in practice: the synchronisation is simply skipped in that case.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Keycloak administration is not configured: a confidential client (KEYCLOAK_CLIENT_SECRET) is required.")
-        )
     ),
     tag = "Admin - Users",
     security(
@@ -333,14 +258,14 @@ pub async fn admin_post_user(
     _: AdminUser,
     payload: ValidatedJson<CreateUserView>,
     state: web::Data<AppState>,
-    admin: Option<web::Data<KeycloakAdminClient>>,
+    emails: Option<web::Data<AccountEmails>>,
 ) -> Result<impl Responder, CreateUserError> {
     let register_view = payload.into_inner();
 
     register_user(
         &register_view,
-        state.clone(),
-        admin.as_ref().map(web::Data::get_ref),
+        &state,
+        emails.as_ref().map(web::Data::get_ref),
     )
     .await?;
 

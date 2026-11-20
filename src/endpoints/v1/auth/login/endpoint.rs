@@ -382,7 +382,7 @@ async fn login_user(
         }
     };
 
-    // Unknown, archived and passwordless (Keycloak-only) accounts all answer `401`, after the
+    // Unknown, archived and passwordless accounts all answer `401`, after the
     // same password verification work as a real account.
     let Some((user, stored_password)) = user_record.and_then(|user| {
         let stored_password = user.password()?.to_string();
@@ -465,7 +465,7 @@ fn check_rate_limits(
                    `POST /api/v1/sessions/refresh`: a role granted or removed later shows at the \
                    next refresh only.\n\n\
                    The password is always checked first: an unknown address, an archived account, \
-                   an account without a password (Keycloak only) and a wrong password all answer \
+                   an account without a password and a wrong password all answer \
                    the same `401`, in the same time.\n\n\
                    Until the user has chosen their own password, a **correct** password answers \
                    `412` instead of `200`: its JSON body carries a first-connection token to \

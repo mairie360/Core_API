@@ -985,7 +985,6 @@ dependencies = [
  "phonenumber",
  "rand 0.10.3",
  "redis",
- "reqwest",
  "serde",
  "serde_cbor_2",
  "serde_json",

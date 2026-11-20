@@ -14,9 +14,8 @@ WORKDIR /usr/src/app
 
 # --- Dependency cache: rebuilt only when Cargo.toml or Cargo.lock change ---
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir -p src/bin \
+RUN mkdir -p src \
     && echo "fn main() {}" > src/main.rs \
-    && echo "fn main() {}" > src/bin/keycloak_migration.rs \
     && touch src/lib.rs \
     && cargo build --release --locked \
     && rm -rf src
@@ -24,7 +23,7 @@ RUN mkdir -p src/bin \
 COPY . .
 # `--locked`: build exactly the reviewed `Cargo.lock`, fail instead of resolving new versions.
 # `touch`: the placeholder sources above are newer than the real ones' checkout time.
-RUN touch src/main.rs src/lib.rs src/bin/keycloak_migration.rs \
+RUN touch src/main.rs src/lib.rs \
     && cargo build --release --locked
 
 # --- Stage 2: runtime (distroless, non-root) ---
@@ -35,8 +34,6 @@ FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cc66d222f0a7ec996b78a99fe76a96
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
-# One-shot job: migrates the accounts and roles to Keycloak (MAIR-141), same env vars as the API.
-COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/keycloak_migration /app/keycloak-migration
 
 # Numeric uid/gid, so Kubernetes `runAsNonRoot: true` can verify it without resolving a name.
 USER 65532:65532

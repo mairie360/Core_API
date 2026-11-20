@@ -1,6 +1,6 @@
 mod access_denials;
 mod access_matrix;
-mod admin_users_keycloak;
+mod account_invitation;
 mod auth_hardening;
 mod auth_password;
 mod db_errors;
@@ -9,8 +9,6 @@ mod erasure;
 mod forgot_password;
 mod free_text;
 mod id_aliases;
-mod keycloak_login;
-mod keycloak_migration;
 mod mair_534_negative_cases;
 mod mair_692_logout_by_refresh_token;
 mod pagination;

@@ -11,6 +11,10 @@ use mairie360_api_lib::redis::redis_interface::Redis;
 /// the reset e-mail announces (MAIR-522).
 pub const FORGOT_PASSWORD_TTL_SECONDS: u64 = 15 * 60;
 
+/// Time to live of the link of the invitation e-mail of an account an administrator created: 7
+/// days. The token is stored like a forgot-password token and consumed by `POST /auth/reset_password`.
+pub const INVITATION_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+
 /// Time to live of the first-connection token and of its user id mapping: 24 hours (an
 /// administrator creates the account and the user may log in for the first time later that day).
 pub const FIRST_CONNECTION_TTL_SECONDS: u64 = 24 * 60 * 60;

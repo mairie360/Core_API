@@ -14,11 +14,9 @@
 //! write may target a row the other did not lock), and an advisory lock would add a magic key
 //! next to the row locks every other check of Core already uses (MAIR-420).
 
-use crate::database::roles::last_admin::{
-    HasActiveAdminQueryView, IsLastActiveAdminQueryView, LockAdminRoleQueryView,
-};
+use crate::database::roles::last_admin::{HasActiveAdminQueryView, LockAdminRoleQueryView};
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::smart_db::{SmartDatabase, SmartTransaction};
+use mairie360_api_lib::smart_db::SmartTransaction;
 
 /// Body of the `409` answered when a write would leave no active administrator.
 pub const LAST_ADMIN_MESSAGE: &str = "This user is the last active administrator: give the Admin \
@@ -45,16 +43,4 @@ pub async fn lock(tx: &mut SmartTransaction) -> Result<(), ApiLibError> {
 /// Any database error.
 pub async fn any_left(tx: &mut SmartTransaction) -> Result<bool, ApiLibError> {
     tx.fetch_scalar(&HasActiveAdminQueryView::new()).await
-}
-
-/// Unlocked early check: whether `user_id` is the only active administrator. Used before a
-/// change is mirrored into Keycloak, so that a change Core will refuse leaves the realm alone.
-///
-/// # Errors
-///
-/// Any database error.
-pub async fn is_last(smart_db: &SmartDatabase, user_id: u64) -> Result<bool, ApiLibError> {
-    smart_db
-        .fetch_scalar(&IsLastActiveAdminQueryView::new(user_id))
-        .await
 }

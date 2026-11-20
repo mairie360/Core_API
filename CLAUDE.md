@@ -76,39 +76,13 @@ implementing `EmailTemplate` here. The compose stacks run a fake Resend (WireMoc
 reached through `RESEND_BASE_URL`; the dev stack exposes its journal on `localhost:8025/__admin/requests`.
 The integration tests use the one of `tests/common/fake_resend.rs`.
 
-Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
-`get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
-(confidential client) and `KEYCLOAK_ISSUER` (public issuer when Core reaches Keycloak through an
-internal URL) are optional. Without them the route answers `503` and only the password login
-works. Core redeems the authorization code, verifies the ID token against the realm JWKS and opens
-the same Core session (JWT + refresh token) as a password login. The account is resolved by the
-Keycloak user id (`sub`) recorded in `user_identities` (`resolve_user_identity()`), falling back to
-the token's verified e-mail for an account not linked yet, which links it on the spot
-(`link_user_identity()`); no account is created and a subject linked to another account is
-refused. Tests use a local fake realm (`tests/common/keycloak_mock.rs`, throwaway RSA keys in
-`tests/fixtures/`), no Keycloak needed.
-
-Account migration to Keycloak (MAIR-141): `POST /api/v1/admin/keycloak/migration` (admin only)
-and the `keycloak_migration` binary (`src/bin/`, shipped in the image as `/app/keycloak-migration`,
-same env vars, `--send-password-setup-email` flag) both run `keycloak::migration::migrate_users`:
-read `v_users_sso_export`, find or create each account in the realm through the Admin REST API
-(`src/keycloak/admin.rs`, service account of the confidential client, which needs the
-`realm-management` roles `manage-users`, `view-realm`, `manage-realm`), map Core roles as realm
-roles, disable archived accounts, then link through `link_user_identity()`. Replayable without
-duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
-compose files and the testcontainers (`TEST_DB_VERSION`) run the Database image of the stage (`${UPSTREAM_TAG:-dev}`, MAIR-998).
-
-Administration mirroring (MAIR-142, `src/keycloak/sync.rs`): when `main.rs` registers a
-`KeycloakAdminClient` as app data (confidential client only), `POST /api/v1/admin/users/`,
-`PATCH`/`DELETE /api/v1/admin/users/{id}/` and the role grant/revoke take it as
-`Option<web::Data<KeycloakAdminClient>>` and mirror the change into the realm **before** the
-Core write, compensating the Keycloak side (delete the reserved account, restore the former
-profile, re-enable, re-map...) when Core refuses. Accounts are found by the recorded link, then
-by e-mail (linked on the spot); an account unknown to Keycloak is left to the migration, and
-without the client only Core is written. `DELETE /api/v1/admin/users/{id}/` archives through
-`DELETE FROM v_users_active` (the schema has no `delete_user()` function; the endpoint was
-broken before MAIR-142). The fake realm of `tests/common/keycloak_mock.rs` covers the Admin API
-subset used; `tests/endpoints/admin_users_keycloak.rs` exercises every path.
+Account invitation (`src/emails/account_invitation.rs`): `POST /api/v1/admin/users/` e-mails the Resend template
+`account-invitation` (`USER_FIRST_NAME`, `SET_PASSWORD_URL`, `EXPIRE_DAYS`, optional `MAIRIE_NAME`) after the insert. The
+link is `<PUBLIC_URL>/reset-password?token=…`, valid `INVITATION_TTL_SECONDS` (7 days), and its token is stored like a
+forgot-password token **without** the per-address key (`<email>/forgot_password_token`), so a pending invitation never
+silences a later `POST /auth/forgot_password`; `POST /auth/reset_password` consumes it. A failed e-mail is logged and never
+undoes the account. The template must be published in Resend before deploying. There is no Keycloak any more: no sign-in,
+no migration binary, no mirroring of the administration routes (the account system is Core alone).
 
 Tests:
 
@@ -184,10 +158,7 @@ stack and stay in the handler tests. Three collection-level scripts, identical i
   and expects a documented `401 text/plain`;
 - `OpenAPI coverage`, the last request, fails when an operation has no success case or a documented status above
   was never answered, and when an entry of the collection variable `openapi_coverage_exceptions` (`"METHOD /path
-  STATUS": "reason"`, `2xx` for the success) is no longer needed. The exceptions are the Keycloak routes,
-  which answer `503` without a realm (covered by `tests/endpoints/keycloak_login.rs` / `keycloak_migration.rs`),
-  the `403` of `GET /admin-access` (needs a second administrator demoted after the link was issued:
-  `tests/mair_609_keycloak_console_access.rs`) and the directory `403`s, only produced with
+  STATUS": "reason"`, `2xx` for the success) is no longer needed. The exceptions are the directory `403`s, only produced with
   `DIRECTORY_GUEST_ACCESS=none` (`tests/endpoints/access_matrix.rs`). The run ends by dropping `openapi_spec` and
   `openapi_covered`, so a next run in the Postman app starts from the spec of the image it tests.
 
@@ -379,8 +350,7 @@ against the ACL Redis. Without a reachable Redis (most tests) the cache is bypas
 The database keys `user_roles` by the user (Database 3.1.0, `mair-564-01`): a user holds at most
 one role. `POST /api/v1/admin/users/{userId}/roles/` **replaces** the role
 (`AddRolesQueryView`: `INSERT … ON CONFLICT (user_id) DO UPDATE … RETURNING`, no row = the role was
-already held, `409`), and its Keycloak mirror unmaps the former Core role before Core writes
-(mapped back if Core refuses). An account registered without a role holds `Guest`; the schema's
+already held, `409`). An account registered without a role holds `Guest`; the schema's
 `tr_user_roles_replace_default` lets a raw `INSERT INTO user_roles` replace that default Guest,
 any other second role is a `23505`. The responses expose the role as `role` (`/user/{id}/`,
 `/user/me/`, the directory, the admin list and record); the `roles` lists are deprecated (at most
@@ -394,8 +364,7 @@ An instance keeps at least one active administrator (role named `Admin`, account
 (`admin/users/{id}/roles` POST / DELETE, `DELETE admin/users/{id}/`) run their write in a
 transaction that first locks the `Admin` role row (`endpoints::last_admin::lock`, `FOR NO KEY
 UPDATE`), then checks `any_left` after the write and rolls back with `409`
-`LAST_ADMIN_MESSAGE` when none is left. The Keycloak paths make an unlocked `is_last` check
-before touching the realm. A new write that can demote or archive a user must do the same.
+`LAST_ADMIN_MESSAGE` when none is left. A new write that can demote or archive a user must do the same.
 `tests/mair_678_last_admin_guard.rs` is its own test binary (it controls how many administrators
 exist). The erasure is guarded by `anonymize_user()` itself (`23001`). A system role (`can_be_deleted =
 false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` answer `403` to
@@ -488,7 +457,7 @@ handler publishes it to the Redis revocation list (retried 3 times, then a `[CRI
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
 `role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also
 carry `iss` and `aud`.
-`session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
+`session_jwt::user_role_name` reads it at every login (password, reset password) and every refresh,
 so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
 `sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no
 `roles` claim any more (tokens signed with one still decode: unknown claims are ignored).
@@ -503,7 +472,7 @@ Security knobs added by MAIR-390, all optional:
   `Forwarded` is trusted; loopback + private ranges by default, empty string = trust none. Read client
   addresses with `client_ip::client_ip`, never `realip_remote_addr()`.
 - `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
-  keycloak, forgot/reset/force_change_password, refresh and the current-password check of
+  forgot/reset/force_change_password, refresh and the current-password check of
   `PATCH /user/me/` (per user, MAIR-746) (`429` + `Retry-After`). A new route that checks a password
   spends `password_check_per_user` before comparing the hash. Handlers take
   `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
@@ -562,9 +531,7 @@ of `DELETE /api/v1/admin/users/{userId}/`: it calls `anonymize_user()` of Devops
 `SECURITY DEFINER`, granted to `core_api`), which applies the `erasure` of `gdpr/inventory.yaml`
 (identity cleared, memberships and sessions deleted, private events deleted, groups / projects /
 events handed over to an active admin, audit identity hashed), then publishes the returned
-`revoked_sessions` to the revocation list. With a confidential Keycloak client the Keycloak account
-is found first (link, then e-mail, while Core still has them), disabled before the Core erasure,
-re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
+`revoked_sessions` to the revocation list. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
 other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
 `GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
 The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the

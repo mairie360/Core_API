@@ -25,7 +25,6 @@ async fn insert_role(name: &str, can_be_deleted: bool) -> u64 {
 }
 
 async fn is_forbidden(id: u64, name: &str) -> Result<bool, ApiLibError> {
-    let host = crate::common::own_db_url().await;
     let pool = get_pool().await;
     let view = IsRenameForbiddenQueryView::new(id, name);
     println!("{view}");
