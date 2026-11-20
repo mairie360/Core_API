@@ -1,7 +1,7 @@
 //! Erasure and export of a user (MAIR-289): `anonymize_user()` and `export_user_data()` of
 //! Devops/Database (MAIR-289, `repeatable/users/anonymize_user.sql`), both `SECURITY DEFINER`
 //! and granted to `core_api` only. They follow the `erasure` of every column in
-//! `gdpr/inventory.yaml`: Core only calls them and mirrors the result (revocation list, Keycloak).
+//! `gdpr/inventory.yaml`: Core only calls them and mirrors the result (revocation list).
 use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use serde::{Deserialize, Serialize};

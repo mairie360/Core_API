@@ -39,7 +39,7 @@ impl Display for GetUserPasswordQueryView {
 /// Row of [`GetUserPasswordQueryView`].
 #[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct UserPassword {
-    /// `None` for an account that only signs in through Keycloak.
+    /// `None` for an account without a password (it can only sign in by passkey or after a reset).
     password: Option<String>,
 }
 

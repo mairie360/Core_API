@@ -2,10 +2,10 @@
 # a fixed version is reachable (MAIR-390).
 [advisories]
 ignore = [
-    # rsa 0.9 (via jsonwebtoken `rust_crypto`), Marvin timing side channel. It leaks through
-    # private-key operations (decryption, signing); Core only signs HS256 JWTs and uses RSA to
-    # verify Keycloak tokens with the realm's public keys, so no private RSA key is ever used.
-    # No fixed rsa release exists yet.
+    # rsa (Marvin attack, no patched release): timing leak of an RSA *private* key during
+    # decryption / signing. Pulled by jsonwebtoken, which this crate only uses to sign and verify
+    # HMAC and EdDSA tokens (mairie360_api_lib refuses any other algorithm): no RSA key is ever
+    # loaded. Drop it once jsonwebtoken ships a fixed rsa, or if code starts using RSA.
     "RUSTSEC-2023-0071",
     # h2 0.3 (via actix-http), unbounded empty DATA frames (HTTP/2 denial of service, fixed in
     # h2 >= 0.4.16). actix-http 3 still pins h2 0.3, and Core only serves plain-text HTTP/1.1

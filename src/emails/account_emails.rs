@@ -1,8 +1,8 @@
 use mairie360_api_lib::email::{MailerError, ResendMailer, TemplateMailer};
 use mairie360_api_lib::env_manager::get_env_var;
 
-use super::{PasskeyChange, PasskeyChangedEmail, PasswordResetEmail};
-use crate::redis_keys::FORGOT_PASSWORD_TTL_SECONDS;
+use super::{AccountInvitationEmail, PasskeyChange, PasskeyChangedEmail, PasswordResetEmail};
+use crate::redis_keys::{FORGOT_PASSWORD_TTL_SECONDS, INVITATION_TTL_SECONDS};
 
 /// Public URL of the login front, where the links of the e-mails lead
 /// (`https://login.mairie360-eip.fr`).
@@ -82,6 +82,27 @@ impl AccountEmails {
             first_name: first_name.to_string(),
             reset_url: self.reset_url(token),
             expire_minutes: FORGOT_PASSWORD_TTL_SECONDS / 60,
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(to, &email).await.map(|_| ())
+    }
+
+    /// Sends the invitation e-mail of an account an administrator created: a link to the password
+    /// page of the login front, valid [`INVITATION_TTL_SECONDS`].
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_account_invitation(
+        &self,
+        to: &str,
+        first_name: &str,
+        token: &str,
+    ) -> Result<(), MailerError> {
+        let email = AccountInvitationEmail {
+            first_name: first_name.to_string(),
+            set_password_url: self.reset_url(token),
+            expire_days: INVITATION_TTL_SECONDS / (24 * 60 * 60),
             mairie_name: self.mairie_name.clone(),
         };
         self.mailer.send(to, &email).await.map(|_| ())

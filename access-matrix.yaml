@@ -44,12 +44,9 @@ operations:
   POST /api/v1/auth/force_change_password: {access: public, token: true, note: "needs the one-time first-connection token"}
   POST /api/v1/auth/forgot_password: {access: public, note: "same answer for known and unknown e-mails"}
   POST /api/v1/auth/reset_password: {access: public, token: true, note: "needs the one-time reset token"}
-  POST /api/v1/auth/keycloak: {access: public}
   POST /api/v1/auth/logout: {access: public, token: true, note: "needs the refresh token of the session it ends; same 204 for an unknown token (MAIR-692)"}
   GET /api/v1/auth/jwks: {access: public, note: "public keys only (MAIR-680), never the private key"}
   POST /api/v1/sessions/refresh: {access: public, token: true, note: "needs the refresh token"}
-  GET /admin-access: {access: public, token: true, note: "needs the single-use link token of POST /api/v1/admin/keycloak/console-access; re-checks the Admin role (MAIR-609)"}
-  GET /internal/keycloak-console/verify: {access: public, token: true, note: "needs the console cookie set by /admin-access; in-cluster only, called by the Traefik ForwardAuth (MAIR-609)"}
 
   # --- The caller's own account and sessions ---
   GET /api/v1/user/me/:
@@ -144,7 +141,7 @@ operations:
   DELETE /api/v1/admin/users/{userId}/2fa: {access: admin, roles: [Admin], note: "removes the TOTP secret and backup codes, closes every session of the user (MAIR-805)"}
   GET /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "reads the two-factor policy of the instance (MAIR-808)"}
   PUT /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "replaces the two-factor policy: mandatory or not, allowed modes; audited (MAIR-808)"}
-  POST /api/v1/admin/users/{userId}/erase: {access: admin, roles: [Admin], note: "erasure (GDPR art. 17, MAIR-289): anonymize_user(), sessions revoked, Keycloak account deleted"}
+  POST /api/v1/admin/users/{userId}/erase: {access: admin, roles: [Admin], note: "erasure (GDPR art. 17, MAIR-289): anonymize_user(), sessions revoked"}
   GET /api/v1/admin/users/{userId}/export: {access: admin, roles: [Admin], personal: [user, data], note: "export_user_data() (GDPR art. 15 and 20, MAIR-289)"}
   POST /api/v1/admin/users/{userId}/roles/: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/roles/{roleId}: {access: admin, roles: [Admin]}
@@ -153,5 +150,3 @@ operations:
   PUT /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
   PATCH /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}
-  POST /api/v1/admin/keycloak/migration: {access: admin, roles: [Admin]}
-  POST /api/v1/admin/keycloak/console-access: {access: admin, roles: [Admin], token: true, note: "the answer carries a single-use link token to the Keycloak admin console (MAIR-609)"}

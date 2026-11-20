@@ -9,7 +9,6 @@ use crate::common::core_db_url;
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::{config, public_config, v1::sessions::REFRESH_PATH};
-use core_api::keycloak::{KeycloakClient, KeycloakConfig};
 use core_api::rate_limit::RateLimits;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
@@ -22,7 +21,6 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
 });
 
 const LOGIN_PATH: &str = "/api/v1/auth/login";
-const KEYCLOAK_PATH: &str = "/api/v1/auth/keycloak";
 const FORGOT_PASSWORD_PATH: &str = "/api/v1/auth/forgot_password";
 const RESET_PASSWORD_PATH: &str = "/api/v1/auth/reset_password";
 const FORCE_CHANGE_PASSWORD_PATH: &str = "/api/v1/auth/force_change_password";
@@ -31,20 +29,13 @@ const FORCE_CHANGE_PASSWORD_PATH: &str = "/api/v1/auth/force_change_password";
 const CLIENT: &str = "203.0.113.7:40000";
 const OTHER_CLIENT: &str = "203.0.113.8:40000";
 
-/// Same wiring as `main.rs`, with the production rate limits and a Keycloak client that is never
-/// reached (the limit refuses the request first).
+/// Same wiring as `main.rs`, with the production rate limits.
 macro_rules! init_app {
     ($state:expr) => {
         test::init_service(
             App::new()
                 .app_data($state.clone())
                 .app_data(web::Data::new(RateLimits::default()))
-                .app_data(web::Data::new(KeycloakClient::new(KeycloakConfig::new(
-                    "http://127.0.0.1:9/realms/test",
-                    None,
-                    "core-api",
-                    None,
-                ))))
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -82,14 +73,6 @@ fn rand_octet() -> u8 {
 
 fn login_body(email: &str) -> Value {
     json!({ "email": email, "password": "Wrong!Pass123", "device_info": "test" })
-}
-
-fn keycloak_body() -> Value {
-    json!({
-        "code": "code",
-        "redirect_uri": "http://localhost/callback",
-        "device_info": "test"
-    })
 }
 
 /// Valid for both routes (`force_change_password` ignores `device_info`), with a token nobody
@@ -156,19 +139,6 @@ async fn login_is_rate_limited_per_address() {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn keycloak_login_shares_the_login_budget() {
-    let state = setup().await;
-    let app = init_app!(state);
-
-    spend!(app, 30, |_| post(
-        LOGIN_PATH,
-        login_body(&unique_email()),
-        CLIENT
-    ));
-    assert_limited!(app, post(KEYCLOAK_PATH, keycloak_body(), CLIENT));
 }
 
 #[tokio::test]

@@ -55,7 +55,7 @@ impl Display for LoginUserQueryView {
 pub struct LoginUserQueryResultView {
     #[serde(rename = "id")]
     user_id: i32,
-    /// `None` for an account that only signs in through Keycloak.
+    /// `None` for an account without a password (it can only sign in by passkey or after a reset).
     #[serde(rename = "password")]
     password: Option<String>,
     #[serde(rename = "first_connect")]

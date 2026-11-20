@@ -1,2 +1,2 @@
 mod view;
-pub use view::{HasActiveAdminQueryView, IsLastActiveAdminQueryView, LockAdminRoleQueryView};
+pub use view::{HasActiveAdminQueryView, LockAdminRoleQueryView};

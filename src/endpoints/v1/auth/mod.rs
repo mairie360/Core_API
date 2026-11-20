@@ -2,7 +2,6 @@ pub mod doc;
 pub mod force_change_password;
 pub mod forgot_password;
 pub mod jwks;
-pub mod keycloak;
 pub mod login;
 pub mod login_2fa;
 pub mod logout;
@@ -22,7 +21,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(force_change_password::endpoint::force_change_password)
             .service(forgot_password::endpoint::forgot_password)
             .service(jwks::endpoint::jwks)
-            .service(keycloak::endpoint::keycloak_login)
             .service(login::endpoint::login)
             .service(login_2fa::endpoint::login_two_factor)
             .service(logout::endpoint::logout)

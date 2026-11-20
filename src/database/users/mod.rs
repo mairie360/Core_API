@@ -21,6 +21,7 @@ pub mod get_preferences;
 pub mod get_roles;
 pub mod get_user_by_id;
 pub mod list_directory;
+pub mod list_without_password;
 pub mod nullable_patch;
 pub mod patch_notification_settings;
 pub mod patch_preferences;

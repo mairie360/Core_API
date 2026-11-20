@@ -486,7 +486,6 @@ async fn only_the_authentication_routes_are_public() {
             "POST /api/v1/auth/2fa/setup",
             "POST /api/v1/auth/force_change_password",
             "POST /api/v1/auth/forgot_password",
-            "POST /api/v1/auth/keycloak",
             "POST /api/v1/auth/login",
             "POST /api/v1/auth/login/2fa",
             "POST /api/v1/auth/logout",

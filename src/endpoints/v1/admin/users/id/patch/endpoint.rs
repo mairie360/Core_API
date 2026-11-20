@@ -1,4 +1,3 @@
-use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
@@ -10,8 +9,6 @@ use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
 
-use crate::keycloak::sync::{export_user, find_account, profile_of, write_profile, SyncError};
-use crate::keycloak::{KeycloakAdminClient, KeycloakUserProfile};
 use crate::{
     database::users::patch_user::PatchUserQueryView,
     endpoints::v1::admin::users::id::patch::view::PatchUserView,
@@ -22,7 +19,6 @@ enum PatchUserError {
     BadRequest(String),
     EmailAlreadyUsed,
     DatabaseError,
-    Keycloak(SyncError),
 }
 
 impl std::fmt::Display for PatchUserError {
@@ -33,7 +29,6 @@ impl std::fmt::Display for PatchUserError {
                 write!(f, "Another account already uses this e-mail address.")
             }
             Self::DatabaseError => write!(f, "Database error occurred"),
-            Self::Keycloak(error) => write!(f, "{error}"),
         }
     }
 }
@@ -42,15 +37,8 @@ impl ResponseError for PatchUserError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::EmailAlreadyUsed | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
+            Self::EmailAlreadyUsed => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-            Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::Keycloak(SyncError::KeycloakForbidden | SyncError::KeycloakUnavailable) => {
-                StatusCode::BAD_GATEWAY
-            }
         }
     }
 
@@ -110,66 +98,12 @@ async fn patch_in_core(
     Ok(revoked)
 }
 
-/// The Keycloak profile of `current` once `view` is applied, `None` when the patch changes
-/// nothing Keycloak holds (phone number, password).
-fn patched_profile(
-    current: &KeycloakUserProfile,
-    view: &PatchUserView,
-) -> Option<KeycloakUserProfile> {
-    if view.first_name().is_none() && view.last_name().is_none() && view.email().is_none() {
-        return None;
-    }
-    Some(KeycloakUserProfile {
-        email: view.email().unwrap_or(&current.email).to_string(),
-        first_name: view.first_name().unwrap_or(&current.first_name).to_string(),
-        last_name: view.last_name().unwrap_or(&current.last_name).to_string(),
-        enabled: current.enabled,
-    })
-}
-
 async fn patch_user(
     state: web::Data<AppState>,
-    admin: Option<&KeycloakAdminClient>,
     user_id: u64,
     view: PatchUserView,
 ) -> Result<Vec<Uuid>, PatchUserError> {
-    let smart_db = state.get_smart_db();
-    let Some(admin) = admin else {
-        return patch_in_core(smart_db, user_id, &view).await;
-    };
-    // Unknown user, patch outside the Keycloak profile, or account unknown to Keycloak: Core
-    // alone.
-    let Some(user) = export_user(smart_db, id_to_sql(user_id))
-        .await
-        .map_err(PatchUserError::Keycloak)?
-    else {
-        return patch_in_core(smart_db, user_id, &view).await;
-    };
-    let current = profile_of(&user);
-    let Some(patched) = patched_profile(&current, &view) else {
-        return patch_in_core(smart_db, user_id, &view).await;
-    };
-    let Some(keycloak_id) = find_account(smart_db, admin, &user)
-        .await
-        .map_err(PatchUserError::Keycloak)?
-    else {
-        return patch_in_core(smart_db, user_id, &view).await;
-    };
-
-    write_profile(admin, &keycloak_id, &patched)
-        .await
-        .map_err(PatchUserError::Keycloak)?;
-    match patch_in_core(smart_db, user_id, &view).await {
-        Ok(revoked) => Ok(revoked),
-        Err(error) => {
-            if let Err(restore) = write_profile(admin, &keycloak_id, &current).await {
-                tracing::error!(
-                    "Keycloak sync: Core refused the patch of user {user_id} and the former Keycloak profile of {keycloak_id} could not be restored: {restore}"
-                );
-            }
-            Err(error)
-        }
-    }
+    patch_in_core(state.get_smart_db(), user_id, &view).await
 }
 
 #[utoipa::path(
@@ -182,16 +116,7 @@ async fn patch_user(
                    password here (same rules as `PATCH /api/v1/admin/users/{userId}/password`); \
                    every session of the user is then revoked.\n\n\
                    An empty body is accepted and writes nothing. As the account's existence is \
-                   not checked beforehand, an unknown `userId` then answers `200`.\n\n\
-                   **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client \
-                   and the body changes `first_name`, `last_name` or `email`, the new profile is \
-                   written to the user's Keycloak account **before** Core (the account is found \
-                   by the recorded link, then by e-mail; an account unknown to Keycloak is left \
-                   to the migration and only Core is written). A new e-mail is written verified \
-                   and does not change the Keycloak username. If Core then refuses the patch \
-                   (`409` or `500`), the former Keycloak profile is restored. `phone_number` and \
-                   `password` are Core-only. Without Keycloak, or with a public client, only Core \
-                   is written.",
+                   not checked beforehand, an unknown `userId` then answers `200`.",
     params(
         ("userId" = u64, Path, description = "User id.", example = 42)
     ),
@@ -206,7 +131,7 @@ async fn patch_user(
     responses(
         (
             status = 200,
-            description = "Account updated (in Keycloak too when mirrored), or nothing to update.",
+            description = "Account updated, or nothing to update.",
             body = String,
             content_type = "text/plain",
             example = json!("User patched successfully!")
@@ -234,30 +159,17 @@ async fn patch_user(
         ),
         (
             status = 409,
-            description = "Another Core account, or another Keycloak account, already uses the new e-mail. Nothing is changed (the Keycloak profile, if it had been updated, is restored).",
+            description = "Another account already uses the new e-mail. Nothing is changed.",
             body = String,
             content_type = "text/plain",
-            examples(
-                ("Core" = (value = json!("Another account already uses this e-mail address."))),
-                ("Keycloak" = (value = json!("Another Keycloak account already uses this e-mail address.")))
-            )
+            example = json!("Another account already uses this e-mail address.")
         ),
         (
             status = 500,
-            description = "The account could not be read or written, its new password could not be hashed (internal argon2 error), its sessions could not be revoked after a password change, or the Keycloak account found by e-mail is already linked to another Core account.",
+            description = "The account could not be read or written, its new password could not be hashed (internal argon2 error), or its sessions could not be revoked after a password change.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
-        ),
-        (
-            status = 502,
-            description = "Keycloak could not be reached or refused Core's service account. Nothing is changed.",
-            body = String,
-            content_type = "text/plain",
-            examples(
-                ("Unavailable" = (value = json!("Keycloak is unavailable."))),
-                ("Service account refused" = (value = json!("Keycloak refused Core's service account.")))
-            )
         ),
     ),
     tag = "Admin - Users",
@@ -269,19 +181,12 @@ async fn patch_user(
 pub async fn admin_patch_user(
     _: AdminUser,
     state: web::Data<AppState>,
-    admin: Option<web::Data<KeycloakAdminClient>>,
     path: web::Path<u64>,
     view: ValidatedJson<PatchUserView>,
 ) -> Result<impl Responder, PatchUserError> {
     let user_id = path.into_inner();
     let view = view.into_inner();
-    let revoked = patch_user(
-        state.clone(),
-        admin.as_ref().map(web::Data::get_ref),
-        user_id,
-        view,
-    )
-    .await?;
+    let revoked = patch_user(state.clone(), user_id, view).await?;
     publish_revoked_sessions(state.get_redis(), &revoked).await;
 
     Ok(HttpResponse::Ok().body("User patched successfully!"))

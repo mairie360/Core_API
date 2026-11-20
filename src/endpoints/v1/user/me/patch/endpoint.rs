@@ -59,7 +59,7 @@ impl ResponseError for PatchMeError {
 }
 
 /// Changing the e-mail address requires the current password (MAIR-390). Accounts without a
-/// password (Keycloak only) cannot change it here.
+/// password cannot change it here.
 async fn check_current_password(
     state: &AppState,
     user_id: u64,
@@ -181,7 +181,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 403,
-            description = "`email` was sent with a wrong `current_password`, or the account has no password (Keycloak only). Nothing is changed.",
+            description = "`email` was sent with a wrong `current_password`, or the account has no password. Nothing is changed.",
             body = String,
             content_type = "text/plain",
             example = json!("The current password is incorrect.")
