@@ -84,6 +84,15 @@ silences a later `POST /auth/forgot_password`; `POST /auth/reset_password` consu
 undoes the account. The template must be published in Resend before deploying. There is no Keycloak any more: no sign-in,
 no migration binary, no mirroring of the administration routes (the account system is Core alone).
 
+Accounts without a password (`src/invitations.rs`, `src/bin/invite_passwordless.rs`): the accounts the former Keycloak
+synchronisation created have `users.password IS NULL`. The `invite_passwordless` binary (shipped as
+`/app/invite-passwordless` in the image) lists the non-archived ones and e-mails each the same invitation
+(`emails::invite_account`, shared with `POST /admin/users/`). Without argument it is a dry run (counts, sends nothing);
+`--send` sends, prints a JSON report (ids only, never an address) and exits `1` when an e-mail failed: run it again, it
+invites whoever still has no password with a fresh 7-day link. Same variables as the API (`DB_*`, `REDIS_URL`,
+`RESEND_API_KEY`, `EMAIL_DOMAIN`, `PUBLIC_URL`). Run it before each instance switches
+(`kubectl exec deploy/<core> -- /app/invite-passwordless`, then `--send`). Tests: `tests/endpoints/passwordless_invitation.rs`.
+
 Tests:
 
 ```bash

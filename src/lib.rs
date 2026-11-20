@@ -6,6 +6,7 @@ pub mod client_ip;
 pub mod database;
 pub mod emails;
 pub mod endpoints;
+pub mod invitations;
 pub mod passkey_managers;
 pub mod passkeys;
 pub mod passwords;

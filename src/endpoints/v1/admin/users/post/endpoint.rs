@@ -1,18 +1,16 @@
 use crate::database::auth::register::RegisterUserQueryView;
 use crate::database::get_user_id::GetUserIdQueryView;
 use crate::database::ids::id_from_sql;
-use crate::emails::AccountEmails;
+use crate::emails::{invite_account, AccountEmails};
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::db_error;
 use crate::endpoints::v1::admin::users::post::view::{CreateUserView, CreatedUserView};
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
-use crate::redis_keys::{set_token, INVITATION_TTL_SECONDS};
 use actix_web::{error::ResponseError, http::StatusCode, post, web, HttpResponse, Responder};
 use mairie360_api_lib::database::query_views::DoesUserExistByEmailQueryView;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CreateUserError {
@@ -122,10 +120,7 @@ async fn insert_user(
     }
 }
 
-/// E-mails the invitation of the new account: a one-time link to the password page of the login
-/// front, valid [`INVITATION_TTL_SECONDS`], consumed by `POST /auth/reset_password` like a
-/// forgot-password token. Only the `token -> e-mail` mapping is stored: a pending invitation must
-/// not silence a later `POST /auth/forgot_password` of the same address.
+/// E-mails the invitation of the new account (see [`invite_account`]).
 ///
 /// A failure is logged and never undoes the account: the user can still ask for a reset link on
 /// the login page.
@@ -139,21 +134,8 @@ async fn invite_user(
         tracing::error!("Create user: no mailer is registered, the invitation cannot be sent");
         return;
     };
-    let token = Uuid::new_v4().to_string();
-    let redis = state.get_redis();
-    let email_key = format!("{token}/forgot_password_email");
-    if let Err(e) = set_token(redis, &email_key, email, INVITATION_TTL_SECONDS).await {
-        tracing::error!("Create user: the invitation token could not be stored: {e}");
-        return;
-    }
-    if let Err(e) = emails
-        .send_account_invitation(email, first_name, &token)
-        .await
-    {
-        tracing::error!("Create user: the invitation e-mail could not be sent: {e}");
-        if let Err(e) = redis.secure_delete(&email_key).await {
-            tracing::warn!("Create user: could not drop an unsent invitation token: {e}");
-        }
+    if let Err(e) = invite_account(state.get_redis(), emails, email, first_name).await {
+        tracing::error!("Create user: {e}");
     }
 }
 

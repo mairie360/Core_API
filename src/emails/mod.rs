@@ -5,10 +5,12 @@
 
 mod account_emails;
 mod account_invitation;
+mod invitation;
 mod passkey_changed;
 mod password_reset;
 
 pub use account_emails::{AccountEmails, PUBLIC_URL};
 pub use account_invitation::AccountInvitationEmail;
+pub use invitation::{invite_account, InviteError};
 pub use passkey_changed::{PasskeyChange, PasskeyChangedEmail};
 pub use password_reset::PasswordResetEmail;

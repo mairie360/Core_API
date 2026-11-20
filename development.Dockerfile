@@ -9,8 +9,9 @@ WORKDIR /usr/src/core
 
 # --- DEPENDENCY CACHE ---
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir -p src \
+RUN mkdir -p src/bin \
     && echo "fn main() {}" > src/main.rs \
+    && echo "fn main() {}" > src/bin/invite_passwordless.rs \
     && touch src/lib.rs
 # This layer stays cached as long as Cargo.toml and Cargo.lock do not change
 RUN cargo build --locked && rm -rf src
@@ -20,7 +21,7 @@ COPY src ./src
 # The placeholder sources of the dependency cache are newer than the real ones: without this
 # touch, cargo keeps the empty `fn main() {}` binary and the container never serves (same as the
 # production Dockerfile).
-RUN touch src/main.rs src/lib.rs
+RUN touch src/main.rs src/lib.rs src/bin/invite_passwordless.rs
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
