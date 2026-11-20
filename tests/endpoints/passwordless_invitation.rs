@@ -5,8 +5,10 @@ use crate::common::fake_resend::{self, FailingGuard};
 use crate::common::get_raw_pool;
 use crate::common::users::{archive_user, create_user, unique_marker};
 use actix_web::{http::StatusCode, test, web, App};
-use core_api::endpoints::public_config;
+use core_api::endpoints::session_guard::session_guard;
+use core_api::endpoints::{config, public_config};
 use core_api::invitations::{invite_pending, pending_accounts};
+use mairie360_api_lib::security::JwtMiddleware;
 use mairie360_api_lib::state::AppState;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use serde_json::json;
@@ -97,7 +99,13 @@ async fn the_invited_account_sets_its_password_and_signs_in() {
         App::new()
             .app_data(state.clone())
             .app_data(emails.clone())
-            .configure(public_config),
+            .configure(public_config)
+            .service(
+                web::scope("/api")
+                    .wrap(actix_web::middleware::from_fn(session_guard))
+                    .wrap(JwtMiddleware)
+                    .configure(config),
+            ),
     )
     .await;
     let id = create_user(state.get_smart_db(), "Lena", &unique_marker("journey")).await;
