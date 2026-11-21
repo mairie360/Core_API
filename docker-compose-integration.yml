@@ -105,9 +105,10 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY must be set, run the matching *_test.sh script}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY must be set, run the matching *_test.sh script}
       JWT_TIMEOUT: 3600
-      # MAIR-609: public realm URL, enables the Keycloak console routes (no Keycloak needed,
-      # sign-in stays off without KEYCLOAK_REALM_URL / KEYCLOAK_CLIENT_ID).
-      KEYCLOAK_ISSUER: http://auth.development.mairie360.fr/realms/mairie360
+      # MAIR-805: seals the TOTP secrets (stack_secrets.sh), the second factor answers 503 without it.
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY must be set, run the matching *_test.sh script}
+      WEBAUTHN_RP_ID: "localhost"
+      WEBAUTHN_RP_ORIGIN: "http://localhost"
       # Serves /api-docs/openapi.json, read by the collection (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
       # E-mails go to the fake Resend (MAIR-522), from no-reply@mairie360.local.

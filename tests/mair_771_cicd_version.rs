@@ -83,8 +83,8 @@ fn mair_771_ci_and_prod_promotion_hand_the_ai_review_its_key() {
     for name in ["cicd.yml", "promote-prod.yml"] {
         let workflow = read_workflow(name);
         assert!(
-            workflow.contains("secrets: inherit") || workflow.contains("ANTHROPIC_API_KEY:"),
-            "{name} does not pass ANTHROPIC_API_KEY: the AI part of the GDPR controls is skipped"
+            workflow.contains("ANTHROPIC_REVIEW_API_KEY:"),
+            "{name} does not pass ANTHROPIC_REVIEW_API_KEY: the AI part of the GDPR controls is skipped"
         );
     }
 }

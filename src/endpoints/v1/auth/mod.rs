@@ -1,11 +1,15 @@
+pub mod confirm_email;
 pub mod doc;
 pub mod force_change_password;
 pub mod forgot_password;
 pub mod jwks;
-pub mod keycloak;
 pub mod login;
+pub mod login_2fa;
 pub mod logout;
+pub mod passkey;
+pub mod passkey_setup;
 pub mod reset_password;
+pub mod two_factor_setup;
 
 use actix_web::web;
 use mairie360_api_lib::smart_db::SmartDatabase;
@@ -15,13 +19,20 @@ use crate::database::sessions::create_session::CreateSessionQueryView;
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
+            .service(confirm_email::endpoint::confirm_email)
             .service(force_change_password::endpoint::force_change_password)
             .service(forgot_password::endpoint::forgot_password)
             .service(jwks::endpoint::jwks)
-            .service(keycloak::endpoint::keycloak_login)
             .service(login::endpoint::login)
+            .service(login_2fa::endpoint::login_two_factor)
             .service(logout::endpoint::logout)
-            .service(reset_password::endpoint::reset_password),
+            .service(passkey::endpoint::passkey_login_options)
+            .service(passkey::endpoint::passkey_login)
+            .service(passkey_setup::endpoint::passkey_setup_options)
+            .service(passkey_setup::endpoint::passkey_setup)
+            .service(reset_password::endpoint::reset_password)
+            .service(two_factor_setup::endpoint::setup_login_two_factor)
+            .service(two_factor_setup::endpoint::confirm_login_two_factor),
     );
 }
 

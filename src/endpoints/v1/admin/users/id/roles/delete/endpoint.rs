@@ -1,4 +1,3 @@
-use crate::database::ids::id_to_sql;
 use crate::endpoints::admin_guard::AdminUser;
 use actix_web::http::StatusCode;
 use actix_web::{delete, web, HttpResponse, Responder, ResponseError};
@@ -8,16 +7,12 @@ use mairie360_api_lib::state::AppState;
 
 use crate::database::users::remove_role::RemoveRolesQueryView;
 use crate::endpoints::db_error;
-use crate::endpoints::last_admin::{self, ADMIN_ROLE_NAME, LAST_ADMIN_MESSAGE};
-use crate::endpoints::v1::admin::users::id::roles::post::endpoint::role_name;
-use crate::keycloak::sync::{export_user, find_account, map_role, unmap_role, SyncError};
-use crate::keycloak::KeycloakAdminClient;
+use crate::endpoints::last_admin::{self, LAST_ADMIN_MESSAGE};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RemoveUserRoleError {
     LastAdmin,
     DatabaseError,
-    Keycloak(SyncError),
 }
 
 impl std::fmt::Display for RemoveUserRoleError {
@@ -27,7 +22,6 @@ impl std::fmt::Display for RemoveUserRoleError {
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
-            Self::Keycloak(error) => write!(f, "{error}"),
         }
     }
 }
@@ -36,14 +30,7 @@ impl ResponseError for RemoveUserRoleError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::LastAdmin | Self::Keycloak(SyncError::EmailTaken) => StatusCode::CONFLICT,
-            Self::Keycloak(SyncError::Database | SyncError::LinkedToAnotherUser) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-            Self::Keycloak(SyncError::NotConfigured) => StatusCode::SERVICE_UNAVAILABLE,
-            Self::Keycloak(SyncError::KeycloakForbidden | SyncError::KeycloakUnavailable) => {
-                StatusCode::BAD_GATEWAY
-            }
+            Self::LastAdmin => StatusCode::CONFLICT,
         }
     }
 
@@ -86,56 +73,10 @@ async fn revoke_in_core(
 
 async fn remove_role_from_user(
     state: web::Data<AppState>,
-    admin: Option<&KeycloakAdminClient>,
     user_id: u64,
     role_id: u64,
 ) -> Result<(), RemoveUserRoleError> {
-    let smart_db = state.get_smart_db();
-    let Some(admin) = admin else {
-        return revoke_in_core(smart_db, user_id, role_id).await;
-    };
-    // Unknown role or user (Core answers 404), or account unknown to Keycloak: Core alone.
-    let Some(name) = role_name(smart_db, role_id)
-        .await
-        .map_err(RemoveUserRoleError::Keycloak)?
-    else {
-        return revoke_in_core(smart_db, user_id, role_id).await;
-    };
-    let Some(user) = export_user(smart_db, id_to_sql(user_id))
-        .await
-        .map_err(RemoveUserRoleError::Keycloak)?
-    else {
-        return revoke_in_core(smart_db, user_id, role_id).await;
-    };
-    // Refused before Keycloak is touched; the transaction of the write checks again.
-    if name == ADMIN_ROLE_NAME
-        && last_admin::is_last(smart_db, user_id)
-            .await
-            .map_err(|e| database_error(&e))?
-    {
-        return Err(RemoveUserRoleError::LastAdmin);
-    }
-    let Some(keycloak_id) = find_account(smart_db, admin, &user)
-        .await
-        .map_err(RemoveUserRoleError::Keycloak)?
-    else {
-        return revoke_in_core(smart_db, user_id, role_id).await;
-    };
-
-    let unmapped = unmap_role(admin, &keycloak_id, &name)
-        .await
-        .map_err(RemoveUserRoleError::Keycloak)?;
-    if let Err(error) = revoke_in_core(smart_db, user_id, role_id).await {
-        if unmapped {
-            if let Err(restore) = map_role(admin, &keycloak_id, &name).await {
-                tracing::error!(
-                    "Keycloak sync: Core refused to revoke role {name} from user {user_id} and it could not be re-mapped to {keycloak_id}: {restore}"
-                );
-            }
-        }
-        return Err(error);
-    }
-    Ok(())
+    revoke_in_core(state.get_smart_db(), user_id, role_id).await
 }
 
 #[utoipa::path(
@@ -146,16 +87,9 @@ async fn remove_role_from_user(
                    Unlike the grant, both ids are read from the path. Revoking a role the user \
                    does not hold, or naming an unknown user or role, matches no row and still \
                    answers `204`; `404` is reserved to a failed write.\n\n\
-                   **Keycloak (MAIR-142).** When Core runs with a confidential Keycloak client \
-                   and the account is known to Keycloak (recorded link, then e-mail), the realm \
-                   role of the same name is unmapped from the Keycloak account **before** Core \
-                   writes; if Core then refuses (`404`), the mapping is restored. Roles the user \
-                   holds only in Keycloak are never touched. An unknown role or user, or an \
-                   account unknown to Keycloak, only goes through Core. Without Keycloak, or with \
-                   a public client, only Core is written.\n\n\
                    **Last administrator (MAIR-678).** An instance keeps at least one active \
                    administrator (role `Admin`, account not archived): revoking `Admin` from the \
-                   only one answers `409` and changes nothing (Keycloak is not touched). The check \
+                   only one answers `409` and changes nothing. The check \
                    and the write run in one transaction locking the `Admin` role, so two \
                    concurrent revocations from the two last administrators cannot both succeed.",
     params(
@@ -166,7 +100,7 @@ async fn remove_role_from_user(
     responses(
         (
             status = 204,
-            description = "Role revoked (and unmapped in Keycloak when mirrored), or nothing to revoke. Empty body.",
+            description = "Role revoked, or nothing to revoke. Empty body.",
         ),
         (
             status = 400,
@@ -191,27 +125,17 @@ async fn remove_role_from_user(
         ),
         (
             status = 409,
-            description = "`roleId` is `Admin` and the user is the last active administrator (MAIR-678): nothing changes, in Core or in Keycloak.",
+            description = "`roleId` is `Admin` and the user is the last active administrator (MAIR-678): nothing changes.",
             body = String,
             content_type = "text/plain",
             example = json!("This user is the last active administrator: give the Admin role to another active user first.")
         ),
         (
             status = 500,
-            description = "The role or the account could not be read, the Keycloak account found by e-mail is already linked to another Core account (nothing is changed), or the write failed (the Keycloak mapping, if it had been removed, is restored). The cause is logged by the server.",
+            description = "The role or the account could not be read, or the write failed. The cause is logged by the server.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
-        ),
-        (
-            status = 502,
-            description = "Keycloak could not be reached or refused Core's service account. Nothing is changed.",
-            body = String,
-            content_type = "text/plain",
-            examples(
-                ("Unavailable" = (value = json!("Keycloak is unavailable."))),
-                ("Service account refused" = (value = json!("Keycloak refused Core's service account.")))
-            )
         ),
     ),
     security(
@@ -223,16 +147,9 @@ async fn remove_role_from_user(
 pub async fn admin_delete_user_role(
     _: AdminUser,
     state: web::Data<AppState>,
-    admin: Option<web::Data<KeycloakAdminClient>>,
     params: web::Path<(u64, u64)>,
 ) -> Result<impl Responder, RemoveUserRoleError> {
     let (user_id, role_id) = params.into_inner();
-    remove_role_from_user(
-        state,
-        admin.as_ref().map(web::Data::get_ref),
-        user_id,
-        role_id,
-    )
-    .await?;
+    remove_role_from_user(state, user_id, role_id).await?;
     Ok(HttpResponse::NoContent())
 }

@@ -106,3 +106,13 @@ pub fn reset_token(body: &Value) -> String {
         .map(|(_, token)| token.to_string())
         .expect("RESET_URL without a token")
 }
+
+/// The token carried by the `SET_PASSWORD_URL` of a recorded invitation e-mail.
+#[must_use]
+pub fn invitation_token(body: &Value) -> String {
+    body["template"]["variables"]["SET_PASSWORD_URL"]
+        .as_str()
+        .and_then(|url| url.split_once("token="))
+        .map(|(_, token)| token.to_string())
+        .expect("SET_PASSWORD_URL without a token")
+}

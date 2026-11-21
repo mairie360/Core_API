@@ -1,6 +1,7 @@
 use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use crate::database::users::get_user_by_id::GetUserByIdQueryView;
+use crate::email_change;
 use crate::endpoints::v1::user::me::get::view::GetMeResponseView;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, HttpResponse, Responder, ResponseError};
@@ -57,6 +58,14 @@ async fn trigger_get_me(
             GetMeError::DatabaseError
         })?;
 
+    // A Redis failure only hides the pending change: the profile is still served.
+    let pending_email = email_change::pending_email(state.get_redis(), user_id)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!("Get me: could not read the pending e-mail change: {e}");
+            None
+        });
+
     Ok(GetMeResponseView::new(
         result.first_name(),
         result.last_name(),
@@ -66,6 +75,7 @@ async fn trigger_get_me(
         result.status(),
         role.iter().map(|r| r.name().to_string()).collect(),
         groups,
+        pending_email,
     ))
 }
 

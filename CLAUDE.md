@@ -54,6 +54,15 @@ and verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib
 get a fresh key pair per run from `stack_secrets.sh`; the dev compose uses the lib's committed test pair, accepted
 only with `JWT_ALLOW_WEAK_SECRET=true`.
 
+WebAuthn (MAIR-810): `WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN` enable passkeys (see "Passkeys" below); the dev and test composes use
+`localhost` / `http://localhost`.
+
+Second factor key (MAIR-805): `TOTP_ENCRYPTION_KEY` (base64 of 32 bytes, `openssl rand -base64 32`) seals the TOTP
+secrets with AES-256-GCM before they reach `user_totp`. Without it `main.rs` registers no `SecretCipher`: the
+`/user/me/2fa/*` setup routes answer `503` and an account that already has a factor cannot log in (`503`, never a
+session without the factor). Losing the key loses every enrolled secret (administrators reset them). The test
+stacks get a random key per run from `stack_secrets.sh`; the dev compose has a throwaway one.
+
 E-mails (MAIR-522, `src/emails/`): every e-mail is a **published Resend template** filled in by Core,
 never a body written in the code. `emails::PasswordResetEmail` implements the lib's `EmailTemplate` (alias
 `account-password-reset`, variables `USER_FIRST_NAME`, `RESET_URL`, `EXPIRE_MINUTES`, optional
@@ -67,39 +76,39 @@ implementing `EmailTemplate` here. The compose stacks run a fake Resend (WireMoc
 reached through `RESEND_BASE_URL`; the dev stack exposes its journal on `localhost:8025/__admin/requests`.
 The integration tests use the one of `tests/common/fake_resend.rs`.
 
-Keycloak sign-in (`POST /api/v1/auth/keycloak`, `src/keycloak/`) is optional and read with
-`get_env_var`: `KEYCLOAK_REALM_URL` + `KEYCLOAK_CLIENT_ID` enable it, `KEYCLOAK_CLIENT_SECRET`
-(confidential client) and `KEYCLOAK_ISSUER` (public issuer when Core reaches Keycloak through an
-internal URL) are optional. Without them the route answers `503` and only the password login
-works. Core redeems the authorization code, verifies the ID token against the realm JWKS and opens
-the same Core session (JWT + refresh token) as a password login. The account is resolved by the
-Keycloak user id (`sub`) recorded in `user_identities` (`resolve_user_identity()`), falling back to
-the token's verified e-mail for an account not linked yet, which links it on the spot
-(`link_user_identity()`); no account is created and a subject linked to another account is
-refused. Tests use a local fake realm (`tests/common/keycloak_mock.rs`, throwaway RSA keys in
-`tests/fixtures/`), no Keycloak needed.
+Account invitation (`src/emails/account_invitation.rs`): `POST /api/v1/admin/users/` e-mails the Resend template
+`account-invitation` (`USER_FIRST_NAME`, `SET_PASSWORD_URL`, `EXPIRE_DAYS`, optional `MAIRIE_NAME`) after the insert. The
+link is `<PUBLIC_URL>/reset-password?token=…`, valid `INVITATION_TTL_SECONDS` (7 days), and its token is stored like a
+forgot-password token **without** the per-address key (`<email>/forgot_password_token`), so a pending invitation never
+silences a later `POST /auth/forgot_password`; `POST /auth/reset_password` consumes it. A failed e-mail is logged and never
+undoes the account. The template must be published in Resend before deploying. There is no Keycloak any more: no sign-in,
+no migration binary, no mirroring of the administration routes (the account system is Core alone).
 
-Account migration to Keycloak (MAIR-141): `POST /api/v1/admin/keycloak/migration` (admin only)
-and the `keycloak_migration` binary (`src/bin/`, shipped in the image as `/app/keycloak-migration`,
-same env vars, `--send-password-setup-email` flag) both run `keycloak::migration::migrate_users`:
-read `v_users_sso_export`, find or create each account in the realm through the Admin REST API
-(`src/keycloak/admin.rs`, service account of the confidential client, which needs the
-`realm-management` roles `manage-users`, `view-realm`, `manage-realm`), map Core roles as realm
-roles, disable archived accounts, then link through `link_user_identity()`. Replayable without
-duplicates. Requires the `1.4.0` schema (`user_identities`, `users.password` nullable): the
-compose files and the testcontainers (`TEST_DB_VERSION`) run the Database image of the stage (`${UPSTREAM_TAG:-dev}`, MAIR-998).
+E-mail change (`src/email_change.rs`): `PATCH /api/v1/user/me/` with a new `email` (and `current_password`, rate limited per user as
+before) no longer writes it. The address is recorded as a pending request in Redis for `EMAIL_CHANGE_TTL_SECONDS` (1 hour:
+`<token>/email_change_request` = `<user id>|<new address>`, `<user id>/email_change_token` = the token, `<token>/email_change_spent` = `SET NX` marker of a used token, so a user has one pending
+request, a newer one replaces it once its e-mail was delivered (a failed delivery keeps the request already sent), a token that is not the
+current one of its user is refused, and sending the current address again cancels it) and the Resend template
+`account-email-change-confirm` (`USER_FIRST_NAME`, `CONFIRM_URL`, `NEW_EMAIL`, `EXPIRE_MINUTES`, optional `MAIRIE_NAME`) is
+sent to the NEW address; the account keeps its address until `POST /api/v1/auth/confirm_email {token}` (public, single-use,
+`401` for an unknown / used / expired token or an archived account, `409` when another account took the address meanwhile, rate
+limited, its own `confirm_email_per_ip` budget) writes it and sends the alert `account-email-changed` (`USER_FIRST_NAME`, `NEW_EMAIL`,
+`DATE`) to the OLD address; a failed alert is logged, never undoes the change. The link is `<PUBLIC_URL>/confirm-email?token=…`:
+that page of the login front must exist before the feature is used for real. The address is checked against every account,
+archived ones included and whatever the letter case (`EmailInUseQueryView`), and the `409` never says whose it is. The mail is
+sent **before** anything is written: a refused or unsent confirmation (`500`) changes nothing, not even the other fields of the
+same request, which are otherwise written at once. `GET /api/v1/user/me/` answers the waiting address as `pending_email`. Both
+Resend templates must be published before deploying. Tests: `tests/endpoints/mair_696_email_change.rs` and the newman folder
+"E-mail change confirmation".
 
-Administration mirroring (MAIR-142, `src/keycloak/sync.rs`): when `main.rs` registers a
-`KeycloakAdminClient` as app data (confidential client only), `POST /api/v1/admin/users/`,
-`PATCH`/`DELETE /api/v1/admin/users/{id}/` and the role grant/revoke take it as
-`Option<web::Data<KeycloakAdminClient>>` and mirror the change into the realm **before** the
-Core write, compensating the Keycloak side (delete the reserved account, restore the former
-profile, re-enable, re-map...) when Core refuses. Accounts are found by the recorded link, then
-by e-mail (linked on the spot); an account unknown to Keycloak is left to the migration, and
-without the client only Core is written. `DELETE /api/v1/admin/users/{id}/` archives through
-`DELETE FROM v_users_active` (the schema has no `delete_user()` function; the endpoint was
-broken before MAIR-142). The fake realm of `tests/common/keycloak_mock.rs` covers the Admin API
-subset used; `tests/endpoints/admin_users_keycloak.rs` exercises every path.
+Accounts without a password (`src/invitations.rs`, `src/bin/invite_passwordless.rs`): the accounts the former Keycloak
+synchronisation created have `users.password IS NULL`. The `invite_passwordless` binary (shipped as
+`/app/invite-passwordless` in the image) lists the non-archived ones and e-mails each the same invitation
+(`emails::invite_account`, shared with `POST /admin/users/`). Without argument it is a dry run (counts, sends nothing);
+`--send` sends, prints a JSON report (ids only, never an address) and exits `1` when an e-mail failed: run it again, it
+invites whoever still has no password with a fresh 7-day link. Same variables as the API (`DB_*`, `REDIS_URL`,
+`RESEND_API_KEY`, `EMAIL_DOMAIN`, `PUBLIC_URL`). Run it before each instance switches
+(`kubectl exec deploy/<core> -- /app/invite-passwordless`, then `--send`). Tests: `tests/endpoints/passwordless_invitation.rs`.
 
 Tests:
 
@@ -175,10 +184,7 @@ stack and stay in the handler tests. Three collection-level scripts, identical i
   and expects a documented `401 text/plain`;
 - `OpenAPI coverage`, the last request, fails when an operation has no success case or a documented status above
   was never answered, and when an entry of the collection variable `openapi_coverage_exceptions` (`"METHOD /path
-  STATUS": "reason"`, `2xx` for the success) is no longer needed. The exceptions are the Keycloak routes,
-  which answer `503` without a realm (covered by `tests/endpoints/keycloak_login.rs` / `keycloak_migration.rs`),
-  the `403` of `GET /admin-access` (needs a second administrator demoted after the link was issued:
-  `tests/mair_609_keycloak_console_access.rs`) and the directory `403`s, only produced with
+  STATUS": "reason"`, `2xx` for the success) is no longer needed. The exceptions are the directory `403`s, only produced with
   `DIRECTORY_GUEST_ACCESS=none` (`tests/endpoints/access_matrix.rs`). The run ends by dropping `openapi_spec` and
   `openapi_covered`, so a next run in the Postman app starts from the spec of the image it tests.
 
@@ -370,8 +376,7 @@ against the ACL Redis. Without a reachable Redis (most tests) the cache is bypas
 The database keys `user_roles` by the user (Database 3.1.0, `mair-564-01`): a user holds at most
 one role. `POST /api/v1/admin/users/{userId}/roles/` **replaces** the role
 (`AddRolesQueryView`: `INSERT … ON CONFLICT (user_id) DO UPDATE … RETURNING`, no row = the role was
-already held, `409`), and its Keycloak mirror unmaps the former Core role before Core writes
-(mapped back if Core refuses). An account registered without a role holds `Guest`; the schema's
+already held, `409`). An account registered without a role holds `Guest`; the schema's
 `tr_user_roles_replace_default` lets a raw `INSERT INTO user_roles` replace that default Guest,
 any other second role is a `23505`. The responses expose the role as `role` (`/user/{id}/`,
 `/user/me/`, the directory, the admin list and record); the `roles` lists are deprecated (at most
@@ -385,13 +390,79 @@ An instance keeps at least one active administrator (role named `Admin`, account
 (`admin/users/{id}/roles` POST / DELETE, `DELETE admin/users/{id}/`) run their write in a
 transaction that first locks the `Admin` role row (`endpoints::last_admin::lock`, `FOR NO KEY
 UPDATE`), then checks `any_left` after the write and rolls back with `409`
-`LAST_ADMIN_MESSAGE` when none is left. The Keycloak paths make an unlocked `is_last` check
-before touching the realm. A new write that can demote or archive a user must do the same.
+`LAST_ADMIN_MESSAGE` when none is left. A new write that can demote or archive a user must do the same.
 `tests/mair_678_last_admin_guard.rs` is its own test binary (it controls how many administrators
 exist). The erasure is guarded by `anonymize_user()` itself (`23001`). A system role (`can_be_deleted =
 false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` answer `403` to
 `can_be_deleted: true`, so the role can be neither renamed nor deleted afterwards. A custom role
 that an administrator protects becomes a system role for good.
+
+### Second factor (MAIR-805)
+
+TOTP (RFC 6238, SHA-1, 6 digits, 30 s, ±1 step) plus 10 single-use backup codes, all in `second_factor.rs`
+(primitives, no I/O), `two_factor.rs` (service: verification, anti-replay by `user_totp.last_used_step` spent
+with an atomic `UPDATE … RETURNING`, backup codes stored as Argon2 hashes) and `database/second_factor.rs`
+(query views). Routes: `/user/me/2fa/` (status, `setup`, `confirm`, `disable`, `backup-codes`), `POST
+/auth/login/2fa` and the administrator reset `DELETE /admin/users/{userId}/2fa` (revokes the sessions, `AUDIT`
+log line). A password login on a protected account answers `202 {"status":"2fa_required","token"}` with **no
+session**; the token lives in Redis (`2fa_login/<token>`, 5 minutes, burnt after 5 wrong codes) and opens no
+route. `reset_password` goes through the same second step: owning the mailbox is not a second factor.
+Redis `secure_set_ex` only writes an absent key (`SET NX`); use `set_ex` to overwrite.
+
+Races of the second factor (review of MAIR-805), each pinned by a `mair_805_*` test of `tests/endpoints/second_factor.rs`:
+the login token carries its absolute `expires_at` (a wrong code rewrites the counter with what is left of the TTL, it
+never renews it: the lib's `Redis` has no `KEEPTTL`), it is spent by one `SET NX` on `2fa_spent/<token>` (no
+`GETDEL` in the lib), the anti-replay step and the confirmation are written `WHERE secret_encrypted = <the secret that
+was checked>`, `issue_backup_codes` locks the account row first, and the second step writes the session in a transaction
+that holds `FOR SHARE` on the factor (`LockActiveTotpQueryView`): the administrator reset (`DELETE FROM user_totp`) waits
+for it, then revokes that session too. The revocation list publication has no outbox: the table is the retry state,
+`DELETE /admin/users/{id}/2fa` republishes every session revoked within `JWT_TIMEOUT`
+(`RecentlyRevokedSessionsQueryView`) and answers `503` when Redis refuses, so repeating the call is effective.
+`reset_password` checks that the instance can verify the account's factor **before** it changes anything.
+
+### Mandatory second factor (MAIR-808)
+
+The instance policy is the single row of `two_factor_policy` (Database 3.6.0: `required`, `totp_allowed`,
+`passkey_allowed`, `backup_codes_allowed`), read and written by Core alone (`database/two_factor_policy.rs`,
+`two_factor::load_policy`), changed by administrators through `GET` / `PUT /api/v1/admin/two-factor-policy` (every
+change is audited by a trigger in `two_factor_policy_audit_log`, plus an `AUDIT:` log line). `passkey_allowed: true`
+is refused (`400`) while the instance has no WebAuthn configuration (`Passkeys` app data, MAIR-810); at least one mode must stay allowed.
+A factor whose mode was removed does not count (`verify_code_under_policy`: TOTP refused when `!totp_allowed`, a backup
+code when `!backup_codes_allowed`). With `required` and no usable factor, `login` and `reset_password` open **no
+session** and answer `202 {"status":"2fa_setup_required","token","policy":{totp_allowed,passkey_allowed,backup_codes_allowed}}` (the policy lets the
+Login screen offer only what is allowed; `2fa_required` carries none); the token lives in Redis (`2fa_setup/<token>`,
+5 minutes, burnt after 5 wrong codes) and only opens the public `POST /auth/2fa/setup {token}` (secret + `otpauth_uri`,
+the same enrolment as `/user/me/2fa/setup`) and `POST /auth/2fa/confirm {token, code}` (activates the factor, opens the
+session like a login and returns the ten backup codes once). `POST /user/me/2fa/disable` answers `403` while the policy is
+`required`. The policy table has no foreign key on purpose: the test tooling truncates `users` with CASCADE.
+`load-test.js` runs the four operations in an isolated one-iteration `policy` scenario (a mandatory policy would make every
+other login answer 202) and restores the optional policy.
+
+### Passkeys (MAIR-810)
+
+WebAuthn through `webauthn-rs` (`src/passkeys.rs`, relying party built by `Passkeys::from_env`): `WEBAUTHN_RP_ID` (the
+site's registrable domain, e.g. `mairie360-eip.fr`) and `WEBAUTHN_RP_ORIGIN` (the origins the browser signs for, comma-separated: passkeys are registered from the settings front
+and used from the login front, e.g. `https://login.mairie360-eip.fr,https://settings.mairie360-eip.fr`) must be set **together**; with neither, `main.rs` registers no `Passkeys`, the passkey
+routes answer `503` and `PUT /admin/two-factor-policy` refuses `passkey_allowed: true`. Passkeys are discoverable
+(resident) credentials (the options sent to the browser carry `residentKey: "required"`, added in `require_resident_key` because `webauthn-rs` only exposes it for attested registrations; the software authenticator of the tests cannot hold one, so `for_software_authenticator` lowers it), user verification required, no attestation (synchronised passkeys are accepted). The key of an
+agent is stored as the `webauthn-rs` `Passkey` JSON in `user_passkeys` (Database 3.7.0, one row per passkey, `credential_id`
+unique, `ON DELETE CASCADE`); the user handle given to the authenticator is a v5 UUID of the user id (`user_handle`).
+Ceremonies live in Redis, two minutes, read once (`passkeys::begin_*` / `take_*`: the first attempt burns them, right or
+wrong). Routes: public `POST /auth/passkey/options` (challenge, no account named: nobody can be enumerated) and
+`POST /auth/passkey/setup/options` + `POST /auth/passkey/setup` (mandatory enrolment by passkey: the `2fa_setup_required` token is the credential, the ceremony is kept per account, a refused answer counts like a wrong code and the token is burnt at the fifth, success spends the token, opens the session like `login`, sends the security e-mail and issues no backup codes), `POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
+signature / counter, moves the counter forward, opens the session exactly like `login`; **every** refusal is the same
+`401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
+`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
+(own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
+satisfies a mandatory policy); The name of the manager (`user_passkeys.provider`, Database 3.10.0) is deduced at registration from the AAGUID of the attestation object (`passkey_managers.rs`: CBOR `authData`, table = the community list `passkey-authenticator-aaguids`, names as published; an all-zero, absent or unknown AAGUID gives `null`) and returned as `provider` by the registration and the list, so the front can offer it as the name of the passkey. The password sign-ins (`POST /auth/login` and `/auth/login/2fa`) also answer `passkey_offer: { allowed, registered }` (not `passkey`: the GDPR contract check refuses response fields named after the credentials column `user_passkeys.passkey`) (`allowed` = relying party configured and policy accepts passkeys, `registered` = the account has one) so the login screen can propose a passkey; a failed lookup reads as nothing to propose and never blocks the sign-in, and a sign-in by passkey carries no `passkey_offer` field. `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
+the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `ajoutée` /
+`supprimée`, French because the template cannot branch, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
+published before deploying, and a failed e-mail never undoes the change. The sign-in shares the `login_per_ip` budget, the
+authenticated routes `second_factor_per_user`. Tests use the software authenticator of `webauthn-authenticator-rs`
+(`tests/endpoints/passkeys.rs`): it only signs for a listed credential and returns no user handle, so the test names the
+credential and sets `userHandle` as a browser would. The newman journey cannot sign (no authenticator in the sandbox): it
+covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` stay in the coverage exceptions.
+`load-test.js` runs the non-read passkey handlers in the isolated `policy` scenario (passkeys are refused by default).
 
 ### Sessions / auth flow
 
@@ -402,11 +473,17 @@ logging in, forcing a password change via `force_change_password`. On success it
 (`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
+Each rotation overwrites the replaced hash and its time (`sessions.previous_token_hash`, `rotated_at`, Database
+`v3.8.0`), so only the token replaced by the latest rotation is recognized; an older one is only refused. That
+token presented again within `REFRESH_REUSE_GRACE_SECONDS` (10 s on the Postgres clock, concurrent renewals of
+several fronts) is only refused (`401`); later, `find_reused_refresh_token` revokes the whole session, the refresh
+handler publishes it to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log) and logs an
+`audit` event (`refresh_token_reuse`, never the token), and the answer is the same `401`.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
 `role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also
 carry `iss` and `aud`.
-`session_jwt::user_role_name` reads it at every login (password, Keycloak, reset password) and every refresh,
+`session_jwt::user_role_name` reads it at every login (password, reset password) and every refresh,
 so a role change reaches the JWT at the next refresh only. The BFFs read the role from the token (`bffs_lib`
 `sessionRole`) instead of calling `/user/me/`; JWTs issued before MAIR-529 have an empty `role`. There is no
 `roles` claim any more (tokens signed with one still decode: unknown claims are ignored).
@@ -421,7 +498,7 @@ Security knobs added by MAIR-390, all optional:
   `Forwarded` is trusted; loopback + private ranges by default, empty string = trust none. Read client
   addresses with `client_ip::client_ip`, never `realip_remote_addr()`.
 - `RATE_LIMIT_ENABLED=false` (`rate_limit.rs`) turns off the in-memory per-replica budgets of login,
-  keycloak, forgot/reset/force_change_password, refresh and the current-password check of
+  forgot/reset/force_change_password, refresh and the current-password check of
   `PATCH /user/me/` (per user, MAIR-746) (`429` + `Retry-After`). A new route that checks a password
   spends `password_check_per_user` before comparing the hash. Handlers take
   `Option<web::Data<RateLimits>>`; tests that do not register it are not limited.
@@ -480,9 +557,7 @@ of `DELETE /api/v1/admin/users/{userId}/`: it calls `anonymize_user()` of Devops
 `SECURITY DEFINER`, granted to `core_api`), which applies the `erasure` of `gdpr/inventory.yaml`
 (identity cleared, memberships and sessions deleted, private events deleted, groups / projects /
 events handed over to an active admin, audit identity hashed), then publishes the returned
-`revoked_sessions` to the revocation list. With a confidential Keycloak client the Keycloak account
-is found first (link, then e-mail, while Core still has them), disabled before the Core erasure,
-re-enabled if Core refuses, deleted after. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
+`revoked_sessions` to the revocation list. SQLSTATE `P0002` → 404, `23001` (seeded admin, or no
 other active admin to take the objects over) → 409. `GET /api/v1/user/me/export` and
 `GET /api/v1/admin/users/{userId}/export` return `export_user_data()` as is (`src/endpoints/export_data.rs`).
 The views are in `src/database/users/erasure/`. `tests/endpoints/erasure.rs` runs against the
@@ -509,8 +584,7 @@ Guest role (`src/endpoints/v1/user/directory_access.rs`).
 push, with no input other than the package name and the CICD version. The `uses:` is pinned by commit SHA with the
 tag in a comment, `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
 the two secrets the workflow declares are passed (no `secrets: inherit`). Both Dockerfiles build on the template's
-Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the staging gates of `promote-staging.yml` (MAIR-494) run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` auto-approves Renovate
-PRs.
+Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the staging gates of `promote-staging.yml` (MAIR-494) run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` calls the reusable auto-approval of mairie360/CICD (same tag on `uses:` and `cicd_version`), which approves a Renovate PR only while Renovate alone wrote and pushed it and takes the approval back after any other push; `pull-requests: write` only (`tests/mair_685_auto_approve.rs`).
 
 ## Pull request reviewers
 

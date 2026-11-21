@@ -51,81 +51,13 @@ filters shared by every caller (MAIR-524). Every write through Core that changes
 group member add/remove) invalidates it immediately; a change made directly in the database shows
 up after at most 60 seconds. When Redis is unavailable the directory is read from Postgres.
 
-## 🔐 Keycloak single sign-on
+## ✉️ Account invitation
 
-Keycloak sign-in is optional. Set these variables on the `core` service to enable
-`POST /api/v1/auth/keycloak` (they are empty in `docker-compose.yml`):
+`POST /api/v1/admin/users/` creates the account with a provisional password and e-mails the user the
+Resend template `account-invitation` (variables `USER_FIRST_NAME`, `SET_PASSWORD_URL`, `EXPIRE_DAYS`,
+optional `MAIRIE_NAME`). The link, `<PUBLIC_URL>/reset-password?token=…`, is valid 7 days and is consumed
+by `POST /api/v1/auth/reset_password` like a forgot-password link: the agent picks their password and
+gets a session. A failed e-mail never undoes the account; the agent can ask for a reset link on the login
+page. The template must be published in Resend before deploying.
 
-| Variable | Role |
-| --- | --- |
-| `KEYCLOAK_REALM_URL` | Realm URL as Core reaches it, e.g. `http://keycloak:8080/realms/mairie360` |
-| `KEYCLOAK_CLIENT_ID` | Core's OIDC client |
-| `KEYCLOAK_CLIENT_SECRET` | Secret of that client (confidential client); required for the migration and the administration mirroring below |
-| `KEYCLOAK_ISSUER` | Public issuer of the tokens, when it differs from the realm URL (optional) |
-
-A Keycloak user is matched to a Mairie 360 account by the link stored in `user_identities`, or by
-its verified e-mail on the first sign-in. No account is created from Keycloak.
-
-### Migrating the existing accounts and roles
-
-Existing accounts must exist in Keycloak before users can sign in through the SSO. The migration
-creates them (e-mail as username, no password), carries their roles over as realm roles, disables
-archived accounts and records the links. It is safe to run again: nothing is duplicated.
-
-Prerequisites: the client above must be **confidential** with **service accounts enabled**, and its
-service account must hold the `realm-management` roles `manage-users`, `view-realm` and
-`manage-realm`.
-
-- From the API, as an administrator: `POST /api/v1/admin/keycloak/migration`, optional body
-  `{ "send_password_setup_email": true }` to have Keycloak e-mail every newly created account a
-  link to set its password (the realm needs SMTP settings). The response lists every account and
-  what happened to it.
-- From the image, as a one-shot job with the API's environment variables:
-
-```bash
-docker run --rm --env-file core.env ghcr.io/mairie360/core-api:<tag> /app/keycloak-migration [--send-password-setup-email]
-```
-
-The report is printed as JSON; the exit code is `1` when the run could not complete or at least
-one account failed (for example a Keycloak account already linked to another Mairie 360 account).
-
-### Managing users from the administration
-
-Once the client is confidential, the administration endpoints keep the realm in step with what
-administrators change in Core (the same `realm-management` roles are needed):
-
-- `POST /api/v1/admin/users/` creates the Keycloak account (or adopts one with the same e-mail),
-  asks Keycloak to e-mail it a link to set its password, links it and maps its default role;
-- `PATCH /api/v1/admin/users/{id}/` writes the new names / e-mail to the Keycloak account;
-- `DELETE /api/v1/admin/users/{id}/` disables the Keycloak account (never deletes it) and ends its
-  Keycloak sessions;
-- `POST` / `DELETE /api/v1/admin/users/{id}/roles/...` map and unmap the realm role of the same
-  name.
-
-Keycloak is called **before** Core writes, and put back as it was when Core refuses the write, so
-a failure on either side (`409`, `502`, ...) leaves nothing half done. Accounts that Keycloak does
-not know yet (not migrated) are left to the migration; without `KEYCLOAK_CLIENT_SECRET`, only Core
-is written.
-
-### Temporary access to the Keycloak admin console (MAIR-609)
-
-The realm admin console (`/admin/<realm>/console/` on the Keycloak host) is closed by default.
-Core opens it for a short time to the town-hall administrators; Keycloak then still asks them to
-sign in with a realm account holding the `realm-management` roles. It needs the public realm URL (`KEYCLOAK_ISSUER`, else `KEYCLOAK_REALM_URL`) and
-Core's Ed25519 session key (`JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY`, MAIR-680); without them the
-three routes answer `503`.
-
-1. `POST /api/v1/admin/keycloak/console-access` (Admin only, at most 10 per administrator per 15
-   minutes) answers `{ "url": "<keycloak host>/admin-access?token=…", "expires_in": 120 }`: a
-   link valid 2 minutes, usable once.
-2. `GET /admin-access?token=…`, routed to Core on the Keycloak host, checks the link, records it
-   as used (Redis) and checks again that its user is still an active Admin. It then sets the
-   `__Secure-mairie360-kc-console` cookie (`Path=/admin`, `HttpOnly`, `Secure`,
-   `SameSite=Strict`, 30 minutes) and redirects (`303`) to the realm console.
-3. `GET /internal/keycloak-console/verify` is the Traefik `ForwardAuth` check in front of
-   `/admin` (MAIR-610, `Devops/Deploiment`): `200` while the cookie is valid **and** its user is
-   still an active Admin, `401` otherwise. A demoted or archived administrator loses the console
-   on the next request.
-
-Link tokens, console cookies and session JWTs are signed with the same key but carry their own
-`typ` and `aud`: none of them is accepted in place of another.
+Core is the only account system: there is no external identity provider.

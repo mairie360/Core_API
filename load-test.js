@@ -24,6 +24,7 @@
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
+import crypto from 'k6/crypto';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -170,11 +171,45 @@ function login(account) {
   return { jwt: res.headers.Authorization.replace(/^Bearer /, ''), refresh: res.json('refresh_token') };
 }
 
+// MAIR-805: second factor. RFC 6238 code of `secret` (base32) at `step`, as an authenticator app computes it.
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function totp(secret, step) {
+  let bits = '';
+  for (const ch of secret) bits += BASE32.indexOf(ch).toString(2).padStart(5, '0');
+  const key = new Uint8Array(Math.floor(bits.length / 8));
+  for (let i = 0; i < key.length; i += 1) key[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  const counter = new Uint8Array(8);
+  for (let i = 7, n = step; i >= 0; i -= 1, n = Math.floor(n / 256)) counter[i] = n % 256;
+  const mac = new Uint8Array(crypto.hmac('sha1', key.buffer, counter.buffer, 'binary'));
+  const o = mac[19] & 0x0f;
+  const n = (((mac[o] & 0x7f) << 24) | (mac[o + 1] << 16) | (mac[o + 2] << 8) | mac[o + 3]) % 1000000;
+  return String(n).padStart(6, '0');
+}
+const currentStep = () => Math.floor(Date.now() / 30000);
+
+/** Active account whose second factor is enrolled: its session, TOTP secret and backup codes. */
+function protectedAccount(tag) {
+  const account = activeAccount(tag);
+  const session = login(account);
+  const headers = bearer(session.jwt);
+  const secret = fixture('POST', '/api/v1/user/me/2fa/setup/', undefined, { headers }).json('secret');
+  const codes = fixture('POST', '/api/v1/user/me/2fa/confirm/', { code: totp(secret, currentStep()) }, { headers }).json('backup_codes');
+  return { account, session, headers, secret, codes };
+}
+
+/** Password login of a protected account: the login token of the second step (202). */
+function loginToken(account) {
+  return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+    expected: [202],
+  }).json('token');
+}
+
 /**
  * Password reset token the API e-mailed to `email`: the `RESET_URL` variable of the
- * `account-password-reset` template, read back from the fake Resend's request journal.
+ * `account-password-reset` template, read back from the fake Resend's request journal. `variable`
+ * names another link variable (`CONFIRM_URL` of `account-email-change-confirm`).
  */
-function resetToken(email) {
+function resetToken(email, variable = 'RESET_URL') {
   const query = JSON.stringify({
     method: 'POST',
     url: '/emails',
@@ -188,7 +223,7 @@ function resetToken(email) {
     const requests = found.status === 200 ? found.json('requests') || [] : [];
     if (requests.length > 0) {
       const body = JSON.parse(requests[requests.length - 1].body);
-      const url = (body.template && body.template.variables && body.template.variables.RESET_URL) || '';
+      const url = (body.template && body.template.variables && body.template.variables[variable]) || '';
       const token = /[?&]token=([0-9a-f-]{36})/.exec(url);
       if (token) return token[1];
     }
@@ -270,6 +305,10 @@ const readHandlers = {
     });
   },
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
+  'GET /api/v1/user/me/2fa/': ({ request }) =>
+    check(request(), { 'second factor status 200': (r) => r.status === 200 && r.json('enabled') === false }),
+  'GET /api/v1/user/me/passkeys/': ({ request }) =>
+    check(request(), { 'passkeys 200': (r) => r.status === 200 && Array.isArray(r.json()) }),
   'GET /api/v1/user/me/notifications/': ({ request }) =>
     check(request(), { 'notification settings 200': (r) => r.status === 200 }),
   'GET /api/v1/user/me/preferences/': ({ request }) =>
@@ -406,6 +445,20 @@ const writeHandlers = {
     deleteUser(account.id);
   },
 
+  // E-mail change: PATCH /user/me asks for a new address, its link (fake Resend) confirms it.
+  'POST /api/v1/auth/confirm_email': ({ request }) => {
+    const account = activeAccount('confirm');
+    const session = login(account);
+    const newEmail = `k6.moved.${unique()}@mairie360.fr`;
+    fixture('PATCH', '/api/v1/user/me/', { email: newEmail, current_password: PASSWORD }, {
+      headers: bearer(session.jwt),
+    });
+    check(request({ body: { token: resetToken(newEmail, 'CONFIRM_URL') } }), {
+      'confirm e-mail 200': (r) => r.status === 200,
+    });
+    deleteUser(account.id);
+  },
+
   // Own profile of the Admin (idempotent value).
   'PATCH /api/v1/user/me/': ({ request }) =>
     check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR' } }), { 'patch me 200': (r) => r.status === 200 }),
@@ -413,6 +466,47 @@ const writeHandlers = {
     check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/preferences/': ({ request }) =>
     check(request({ body: { theme: 'light' } }), { 'patch preferences 200': (r) => r.status === 200 }),
+
+  // MAIR-805: second factor, on throwaway accounts (the Admin is never enrolled).
+  'POST /api/v1/user/me/2fa/setup/': ({ request }) => {
+    const account = activeAccount('2fa-setup');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt) }), { '2fa setup 200': (r) => r.status === 200 && !!r.json('secret') });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/2fa/confirm/': ({ request }) => {
+    const account = activeAccount('2fa-confirm');
+    const headers = bearer(login(account).jwt);
+    const secret = fixture('POST', '/api/v1/user/me/2fa/setup/', undefined, { headers }).json('secret');
+    const res = request({ body: { code: totp(secret, currentStep()) }, headers });
+    check(res, { '2fa confirm 200': (r) => r.status === 200 && r.json('backup_codes').length === 10 });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/2fa/backup-codes/': ({ request }) => {
+    const p = protectedAccount('2fa-codes');
+    check(request({ body: { code: p.codes[0] }, headers: p.headers }), {
+      '2fa backup codes 200': (r) => r.status === 200 && r.json('backup_codes').length === 10,
+    });
+    deleteUser(p.account.id);
+  },
+  'POST /api/v1/user/me/2fa/disable/': ({ request }) => {
+    const p = protectedAccount('2fa-disable');
+    check(request({ body: { password: PASSWORD, code: p.codes[0] }, headers: p.headers }), {
+      '2fa disable 204': (r) => r.status === 204,
+    });
+    deleteUser(p.account.id);
+  },
+  'POST /api/v1/auth/login/2fa': ({ request }) => {
+    const p = protectedAccount('2fa-login');
+    const res = request({ body: { token: loginToken(p.account), code: p.codes[0] } });
+    check(res, { '2fa login 200': (r) => r.status === 200 && !!r.headers.Authorization && !!r.json('refresh_token') });
+    deleteUser(p.account.id);
+  },
+  'DELETE /api/v1/admin/users/{userId}/2fa': ({ request }) => {
+    const p = protectedAccount('2fa-reset');
+    check(request({ path: { userId: p.account.id } }), { 'admin reset 2fa 204': (r) => r.status === 204 });
+    deleteUser(p.account.id);
+  },
 
   // Administration of accounts: create → patch → password → roles → delete.
   'POST /api/v1/admin/users/': ({ request }) => {
@@ -607,14 +701,135 @@ const exportHandlers = {
 };
 const isExport = (method, path) => method === 'get' && /\/export\/?$/.test(path);
 
+// Two-factor policy (MAIR-808): making the second factor mandatory answers every login 202 until it
+// is lifted, so these operations run alone, after every other scenario, in their own one-iteration
+// scenario. The policy is back to optional when they end.
+// MAIR-810: the passkey routes depend on the policy too (passkeys are refused by default), so they
+// run in the isolated `policy` scenario, except the plain read of the list.
+const isPolicy = (method, path) =>
+  path.includes('/admin/two-factor-policy')
+  || path.includes('/auth/2fa/')
+  || (path.includes('/passkey') && !READ_METHODS.includes(method));
+const OPTIONAL_POLICY = { required: false, totp_allowed: true, passkey_allowed: false, backup_codes_allowed: true };
+
+/** The enrolment token of a login that the mandatory policy answers `2fa_setup_required`. */
+function setupToken(account) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true });
+  try {
+    return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+      expected: [202],
+    }).json('token');
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
+/** Runs `fn` with passkeys allowed by the policy, then puts the optional policy back. */
+function withPasskeysAllowed(fn) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, passkey_allowed: true });
+  try {
+    return fn();
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
+// What a browser would send; nothing here is a real authenticator answer, so the routes refuse it.
+const FORGED_SIGN_IN = {
+  id: 'AAAA',
+  rawId: 'AAAA',
+  type: 'public-key',
+  response: { authenticatorData: 'AAAA', clientDataJSON: 'AAAA', signature: 'AAAA', userHandle: null },
+  extensions: {},
+};
+const FORGED_REGISTRATION = {
+  id: 'AAAA',
+  rawId: 'AAAA',
+  type: 'public-key',
+  response: { attestationObject: 'AAAA', clientDataJSON: 'AAAA' },
+  extensions: {},
+};
+
+const policyHandlers = {
+  'POST /api/v1/auth/passkey/options': ({ request }) =>
+    withPasskeysAllowed(() =>
+      check(request(), {
+        'passkey sign-in options 200': (r) => r.status === 200 && !!r.json('id') && !!r.json('options.publicKey.challenge'),
+      })),
+  'POST /api/v1/auth/passkey': ({ request }) =>
+    withPasskeysAllowed(() => {
+      const ceremony = fixture('POST', '/api/v1/auth/passkey/options', {}).json('id');
+      return check(
+        request({
+          body: { id: ceremony, credential: FORGED_SIGN_IN, device_info: DEVICE },
+          params: { responseCallback: http.expectedStatuses(401) },
+        }),
+        { 'forged passkey 401': (r) => r.status === 401 && !r.headers.Authorization },
+      );
+    }),
+  'POST /api/v1/user/me/passkeys/options/': ({ request }) =>
+    withPasskeysAllowed(() =>
+      check(request(), {
+        'passkey registration options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
+      })),
+  'POST /api/v1/user/me/passkeys/': ({ request }) =>
+    withPasskeysAllowed(() => {
+      fixture('POST', '/api/v1/user/me/passkeys/options/', {});
+      return check(
+        request({
+          body: { label: 'k6', credential: FORGED_REGISTRATION },
+          params: { responseCallback: http.expectedStatuses(400) },
+        }),
+        { 'forged registration 400': (r) => r.status === 400 },
+      );
+    }),
+  'DELETE /api/v1/user/me/passkeys/{id}/': ({ request }) =>
+    check(
+      request({ path: { id: 999999999 }, params: { responseCallback: http.expectedStatuses(404) } }),
+      { 'unknown passkey 404': (r) => r.status === 404 },
+    ),
+  'GET /api/v1/admin/two-factor-policy': ({ request }) =>
+    check(request(), {
+      'policy 200': (r) => r.status === 200 && r.json('required') === false && r.json('totp_allowed') === true,
+    }),
+  'PUT /api/v1/admin/two-factor-policy': ({ request }) =>
+    check(request({ body: OPTIONAL_POLICY }), {
+      'put policy 200': (r) => r.status === 200 && r.json('required') === false && !!r.json('updated_at'),
+    }),
+  'POST /api/v1/auth/2fa/setup': ({ request }) => {
+    const account = activeAccount('2fa-setup');
+    check(request({ body: { token: setupToken(account) } }), {
+      'mandatory setup 200': (r) => r.status === 200 && !!r.json('secret') && !!r.json('otpauth_uri'),
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/2fa/confirm': ({ request }) => {
+    const account = activeAccount('2fa-confirm');
+    const token = setupToken(account);
+    const secret = fixture('POST', '/api/v1/auth/2fa/setup', { token }).json('secret');
+    const res = request({ body: { token, code: totp(secret, currentStep()) } });
+    check(res, {
+      'mandatory confirm 200': (r) =>
+        r.status === 200 && !!r.headers.Authorization && !!r.json('refresh_token') && r.json('backup_codes').length === 10,
+    });
+    deleteUser(account.id);
+  },
+};
+
 const reads = createCoverage(readHandlers, {
-  spec: specSubset(spec, (method, path) => READ_METHODS.includes(method) && !isExport(method, path)),
+  spec: specSubset(
+    spec,
+    (method, path) => READ_METHODS.includes(method) && !isExport(method, path) && !isPolicy(method, path),
+  ),
+});
+const policyCoverage = createCoverage(policyHandlers, {
+  spec: specSubset(spec, (method, path) => isPolicy(method, path)),
 });
 const exportsCoverage = createCoverage(exportHandlers, {
   spec: specSubset(spec, (method, path) => isExport(method, path)),
 });
 const writes = createCoverage(writeHandlers, {
-  spec: specSubset(spec, (method) => !READ_METHODS.includes(method)),
+  spec: specSubset(spec, (method, path) => !READ_METHODS.includes(method) && !isPolicy(method, path)),
 });
 
 /** One `p(95)` threshold per operation (`op` tag) of `coverage`. */
@@ -655,6 +870,15 @@ export const options = {
       preAllocatedVUs: 2,
       maxVUs: 4,
     },
+    // MAIR-808: alone, once everything else is over (the policy makes every login answer 202).
+    policy: {
+      executor: 'shared-iterations',
+      exec: 'policyScenario',
+      vus: 1,
+      iterations: 1,
+      startTime: '3m30s',
+      maxDuration: '1m',
+    },
     login_rush: {
       executor: 'ramping-arrival-rate',
       exec: 'loginRushScenario',
@@ -675,6 +899,7 @@ export const options = {
     ...latencyThresholds(reads, READ_BUDGET_MS),
     ...latencyThresholds(writes, WRITE_BUDGET_MS),
     ...latencyThresholds(exportsCoverage, EXPORT_BUDGET_MS),
+    ...latencyThresholds(policyCoverage, WRITE_BUDGET_MS),
     'http_req_duration{op:login_rush}': [`p(95)<${LOGIN_RUSH_BUDGET_MS}`],
     // The login rush must not be shed: every arrival gets a VU.
     dropped_iterations: ['count==0'],
@@ -728,6 +953,11 @@ export function readScenario(data) {
 /** Both GDPR exports once, at EXPORT_RATE_PER_MINUTE (no sleep: the arrival rate paces it). */
 export function exportScenario(data) {
   exportsCoverage.run({ headers: AUTH, data });
+}
+
+/** Once, alone: the two-factor policy and the mandatory enrolment (MAIR-808). */
+export function policyScenario(data) {
+  policyCoverage.run({ headers: AUTH, data });
 }
 
 export function writeScenario(data) {

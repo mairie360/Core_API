@@ -5,6 +5,9 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 use crate::client_ip::client_ip;
+use crate::database::sessions::find_reused_refresh_token::{
+    FindReusedRefreshTokenQueryView, ReusedRefreshToken,
+};
 use crate::database::sessions::get_active_session_by_token::ActiveSession;
 use crate::database::sessions::rotate_refresh_token::RotateRefreshTokenQueryView;
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
@@ -13,6 +16,15 @@ use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::refresh_token;
 use crate::session_jwt::{generate_session_jwt, user_role_name};
+use crate::session_revocation::publish_revoked_sessions;
+use uuid::Uuid;
+
+/// Seconds during which the refresh token replaced by a rotation is only refused.
+///
+/// Several fronts of the same browser share the session cookie and may renew it at the same time:
+/// the losers present the token the winner has just replaced. Beyond this window, the replaced
+/// token coming back means someone else holds it, and the whole session is revoked.
+pub const REFRESH_REUSE_GRACE_SECONDS: i64 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
@@ -60,14 +72,16 @@ async fn refresh_request(
     // statement that finds its session, so a stolen token stops working as soon as either party
     // refreshes (MAIR-390).
     let new_refresh_token = refresh_token::generate();
-    let db_view = RotateRefreshTokenQueryView::new(
-        &refresh_token::hash(&view.refresh_token()),
-        &refresh_token::hash(&new_refresh_token),
-    );
+    let current_hash = refresh_token::hash(&view.refresh_token());
+    let db_view =
+        RotateRefreshTokenQueryView::new(&current_hash, &refresh_token::hash(&new_refresh_token));
 
     let session: ActiveSession = match state.get_smart_db().fetch_one(&db_view).await {
         Ok(session) => session,
-        Err(ApiLibError::Database(DbError::NotFound)) => return Err(RefreshError::InvalidToken),
+        Err(ApiLibError::Database(DbError::NotFound)) => {
+            handle_reuse(&state, &current_hash).await?;
+            return Err(RefreshError::InvalidToken);
+        }
         Err(e) => {
             tracing::error!("Refresh DB Error: {e}");
             return Err(RefreshError::DatabaseError);
@@ -86,6 +100,77 @@ async fn refresh_request(
         RefreshError::DatabaseError
     })?;
     Ok((jwt, new_refresh_token))
+}
+
+/// Handles a refresh token that matches no current token: when it is the token the
+/// last rotation of a session replaced, presented after [`REFRESH_REUSE_GRACE_SECONDS`], the
+/// session is revoked (Postgres, then the Redis revocation list) and an `audit` event is logged.
+/// The caller answers `401` in every case, so the answer never tells a reuse from an unknown token.
+async fn handle_reuse(state: &AppState, token_hash: &str) -> Result<(), RefreshError> {
+    let reused: ReusedRefreshToken = match state
+        .get_smart_db()
+        .fetch_one(&FindReusedRefreshTokenQueryView::new(
+            token_hash,
+            REFRESH_REUSE_GRACE_SECONDS,
+        ))
+        .await
+    {
+        Ok(reused) => reused,
+        Err(ApiLibError::Database(DbError::NotFound)) => return Ok(()),
+        Err(e) => {
+            tracing::error!("Refresh token reuse lookup DB Error: {e}");
+            return Err(RefreshError::DatabaseError);
+        }
+    };
+    if !reused.revoked() {
+        tracing::info!(
+            session_id = %reused.id(),
+            "Previous refresh token presented within the grace window, refused without revocation"
+        );
+        return Ok(());
+    }
+    // The token itself is never logged, only the session it belongs to.
+    tracing::warn!(
+        target: "audit",
+        event = "refresh_token_reuse",
+        session_id = %reused.id(),
+        user_id = reused.user_id(),
+        session_was_active = reused.was_active(),
+        "Refresh token reused after its rotation: session revoked"
+    );
+    // Other APIs refuse the session's JWTs only through the shared revocation list: a short
+    // Redis outage must not leave them accepting a stolen session, so the write is retried.
+    // Core already refuses the session through `session_guard` either way.
+    publish_with_retry(state, reused.id()).await;
+    Ok(())
+}
+
+/// Waits before each new attempt of [`publish_with_retry`]: about 1.4 s in all.
+const REVOCATION_RETRY_DELAYS: [std::time::Duration; 3] = [
+    std::time::Duration::from_millis(100),
+    std::time::Duration::from_millis(300),
+    std::time::Duration::from_secs(1),
+];
+
+/// Publishes the revoked session to Redis, retried after each of [`REVOCATION_RETRY_DELAYS`].
+/// Returns whether the key was written; a final failure is logged as critical.
+async fn publish_with_retry(state: &AppState, session_id: Uuid) -> bool {
+    if publish_revoked_sessions(state.get_redis(), &[session_id]).await {
+        return true;
+    }
+    for delay in REVOCATION_RETRY_DELAYS {
+        tokio::time::sleep(delay).await;
+        if publish_revoked_sessions(state.get_redis(), &[session_id]).await {
+            return true;
+        }
+    }
+    tracing::error!(
+        target: "audit",
+        event = "refresh_token_reuse_unpublished",
+        session_id = %session_id,
+        "[CRITICAL] Reused refresh token: session revoked in Postgres but not on the Redis revocation list"
+    );
+    false
 }
 
 /// Registered outside the `/api` scope guarded by `JwtMiddleware` (see `sessions::public_config`):
@@ -107,6 +192,12 @@ async fn refresh_request(
                    must use the one returned here. Presenting an already used token answers \
                    `401`, as do two concurrent refreshes with the same token for the loser. The \
                    session itself, its id and its expiry are unchanged.\n\n\
+                   **Reuse detection**: the token replaced by the last rotation is \
+                   only refused (`401`) during the 10 seconds after that rotation (concurrent \
+                   renewals of several fronts). Presented later, it means another party holds \
+                   the session's tokens: the whole session is revoked, the current refresh token \
+                   and the JWTs included (also through the Redis revocation list), an `audit` \
+                   event is logged, and the answer is the same `401`.\n\n\
                    Rate limited: 60 requests per minute per client address, `429` beyond.",
     request_body(
         content = RefreshRequestView,
@@ -132,7 +223,7 @@ async fn refresh_request(
         ),
         (
             status = 401,
-            description = "Unknown, revoked, expired or already rotated refresh token.",
+            description = "Unknown, revoked, expired or already rotated refresh token. The token replaced by the latest rotation, presented more than 10 seconds after it, also revokes its session; an older token is only refused.",
             body = String,
             content_type = "text/plain",
             example = json!("Session not found")

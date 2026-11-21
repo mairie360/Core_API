@@ -4,15 +4,19 @@
 #![allow(clippy::multiple_crate_versions)]
 pub mod client_ip;
 pub mod database;
+pub mod email_change;
 pub mod emails;
 pub mod endpoints;
-pub mod keycloak;
-pub mod keycloak_console;
+pub mod invitations;
+pub mod passkey_managers;
+pub mod passkeys;
 pub mod passwords;
 pub mod phone;
 pub mod rate_limit;
 pub mod redis_keys;
 pub mod refresh_token;
 pub mod request_log;
+pub mod second_factor;
 pub mod session_jwt;
 pub mod session_revocation;
+pub mod two_factor;

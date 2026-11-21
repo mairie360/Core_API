@@ -68,3 +68,38 @@ impl Display for RevokeUserSessionsQueryView {
         )
     }
 }
+
+/// The ids of the sessions of `user_id` revoked in the last `seconds`, one JSON string per row.
+///
+/// Read with `fetch_all::<Uuid>`. A revocation is published to Redis after its commit and that
+/// write can fail: these sessions are the ones whose JWT may still be accepted, so the same
+/// request replays the publication from the table (the table is the retry state, nothing is lost
+/// with the process).
+#[derive(serde::Deserialize)]
+pub struct RecentlyRevokedSessionsQueryView {
+    params: Vec<QueryParam>,
+}
+
+impl RecentlyRevokedSessionsQueryView {
+    #[must_use]
+    pub fn new(user_id: u64, seconds: u64) -> Self {
+        Self {
+            params: vec![
+                QueryParam::I64(id_to_sql_i64(user_id)),
+                QueryParam::I64(i64::try_from(seconds).unwrap_or(i64::MAX)),
+            ],
+        }
+    }
+}
+
+impl ApiRequestDto for RecentlyRevokedSessionsQueryView {
+    fn query_sql(&self) -> &'static str {
+        "SELECT to_json(id) FROM sessions \
+         WHERE user_id = $1 AND revoked_at IS NOT NULL \
+           AND revoked_at > now() - $2::bigint * INTERVAL '1 second'"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
+    }
+}

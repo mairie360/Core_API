@@ -6,8 +6,12 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
 use mairie360_api_lib::state::AppState;
 
+use crate::database::auth::email_in_use::EmailInUseQueryView;
 use crate::database::auth::user_password::{GetUserPasswordQueryView, UserPassword};
+use crate::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
 use crate::database::users::patch_user::PatchUserQueryView;
+use crate::email_change;
+use crate::emails::AccountEmails;
 use crate::endpoints::v1::auth::login::endpoint::is_password_valid;
 use crate::endpoints::v1::user::me::patch::view::PatchMeView;
 use crate::endpoints::validation::ValidatedJson;
@@ -18,6 +22,10 @@ enum PatchMeError {
     BadRequest(String),
     EmailAlreadyUsed,
     DatabaseError,
+    /// The confirmation e-mail could not be sent (or no mailer is configured): nothing was changed.
+    Mail,
+    /// Redis refused to record the pending change.
+    Redis,
     WrongPassword,
     /// The user used up their budget of password checks (MAIR-746): seconds before retrying.
     TooManyRequests(u64),
@@ -33,6 +41,8 @@ impl std::fmt::Display for PatchMeError {
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
+            Self::Mail => write!(f, "An error occurred while sending the email."),
+            Self::Redis => write!(f, "An error occurred while accessing Redis."),
             Self::WrongPassword => write!(f, "The current password is incorrect."),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
         }
@@ -44,7 +54,7 @@ impl ResponseError for PatchMeError {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::EmailAlreadyUsed => StatusCode::CONFLICT,
-            Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DatabaseError | Self::Mail | Self::Redis => StatusCode::INTERNAL_SERVER_ERROR,
             Self::WrongPassword => StatusCode::FORBIDDEN,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         }
@@ -59,7 +69,7 @@ impl ResponseError for PatchMeError {
 }
 
 /// Changing the e-mail address requires the current password (MAIR-390). Accounts without a
-/// password (Keycloak only) cannot change it here.
+/// password cannot change it here.
 async fn check_current_password(
     state: &AppState,
     user_id: u64,
@@ -79,8 +89,66 @@ async fn check_current_password(
     }
 }
 
+/// Starts the change of the e-mail address: the new address is not written, it gets a
+/// confirmation link and the account keeps its current address until the link is used. An address
+/// already held by an account is refused without saying whose it is.
+async fn request_email_change(
+    state: &AppState,
+    emails: Option<&AccountEmails>,
+    user_id: u64,
+    new_email: &str,
+) -> Result<(), PatchMeError> {
+    let smart_db = state.get_smart_db();
+    let current: GetUserByIdQueryResultView = smart_db
+        .fetch_one(&GetUserByIdQueryView::new(user_id))
+        .await
+        .map_err(|e| {
+            tracing::error!("Patch me DB Error: {e}");
+            PatchMeError::DatabaseError
+        })?;
+    let redis = state.get_redis();
+    if new_email.eq_ignore_ascii_case(current.email()) {
+        // Back to the current address: a request still waiting is no longer wanted.
+        return email_change::cancel(redis, user_id).await.map_err(|e| {
+            tracing::error!("Patch me Redis Error: {e}");
+            PatchMeError::Redis
+        });
+    }
+    let in_use: i32 = smart_db
+        .fetch_scalar(&EmailInUseQueryView::new(new_email))
+        .await
+        .map_err(|e| {
+            tracing::error!("Patch me DB Error: {e}");
+            PatchMeError::DatabaseError
+        })?;
+    if in_use != 0 {
+        return Err(PatchMeError::EmailAlreadyUsed);
+    }
+    let Some(emails) = emails else {
+        tracing::error!("Patch me: no mailer is registered, the confirmation cannot be sent");
+        return Err(PatchMeError::Mail);
+    };
+    let token = email_change::new_token();
+    if let Err(e) = emails
+        .send_email_change_confirmation(new_email, current.first_name(), &token)
+        .await
+    {
+        // The request already waiting, if any, is left as it was: its link was delivered.
+        tracing::error!("Patch me: the confirmation e-mail could not be sent: {e}");
+        return Err(PatchMeError::Mail);
+    }
+    email_change::publish(redis, user_id, new_email, &token)
+        .await
+        .map_err(|e| {
+            tracing::error!("Patch me Redis Error: {e}");
+            PatchMeError::Redis
+        })?;
+    Ok(())
+}
+
 async fn trigger_patch_me(
     state: web::Data<AppState>,
+    emails: Option<&AccountEmails>,
     view: PatchMeView,
     user_id: u64,
     limits: Option<&RateLimits>,
@@ -107,11 +175,15 @@ async fn trigger_patch_me(
     let phone = view
         .phone_change()
         .map_err(|e| PatchMeError::BadRequest(e.to_string()))?;
+    // Before anything is written, so a refused or unsent confirmation changes nothing.
+    if let Some(new_email) = view.email() {
+        request_email_change(&state, emails, user_id, new_email).await?;
+    }
     let db_view = PatchUserQueryView::new(
         user_id,
         view.first_name(),
         view.last_name(),
-        view.email(),
+        None,
         &phone,
         None,
     );
@@ -147,6 +219,12 @@ async fn trigger_patch_me(
                    `phone_country` (`\"06 12 34 56 78\"` + `\"FR\"`) or in E.164 \
                    (`\"+33612345678\"`). It is validated against the numbering plan of the country and \
                    read back in E.164 by `GET /api/v1/user/me/`.\n\n\
+                   **E-mail address.** A new `email` (with `current_password`) is not written: a \
+                   confirmation link, valid one hour, is e-mailed to the NEW address and the account keeps \
+                   its current address until `POST /api/v1/auth/confirm_email` is called with that \
+                   link's token. The address waiting for confirmation is read as `pending_email` by \
+                   `GET /api/v1/user/me/`; a newer request replaces it, and sending the current \
+                   address again cancels it. The other fields are written at once.\n\n\
                    The password and the roles are not changed here: use \
                    `/api/v1/auth/forgot_password` for the password and \
                    `/api/v1/admin/users/` for the roles. The response has an empty body; call \
@@ -163,7 +241,7 @@ async fn trigger_patch_me(
     responses(
         (
             status = 200,
-            description = "Profile updated, or nothing to update. Empty body.",
+            description = "Profile updated, or nothing to update; a new `email` is pending confirmation (see `pending_email` of `GET /api/v1/user/me/`). Empty body.",
         ),
         (
             status = 400,
@@ -181,7 +259,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 403,
-            description = "`email` was sent with a wrong `current_password`, or the account has no password (Keycloak only). Nothing is changed.",
+            description = "`email` was sent with a wrong `current_password`, or the account has no password. Nothing is changed.",
             body = String,
             content_type = "text/plain",
             example = json!("The current password is incorrect.")
@@ -196,17 +274,17 @@ async fn trigger_patch_me(
         ),
         (
             status = 409,
-            description = "`email` is already used by another account.",
+            description = "`email` is already used by another account (archived ones included). The answer never says whose it is. Nothing is changed.",
             body = String,
             content_type = "text/plain",
             example = json!("Another account already uses this e-mail address.")
         ),
         (
             status = 500,
-            description = "Database error while updating the profile.",
+            description = "Database or Redis error, or the confirmation e-mail could not be sent (then nothing is changed).",
             body = String,
             content_type = "text/plain",
-            example = json!("An error occurred while accessing the database.")
+            example = json!("An error occurred while sending the email.")
         )
     ),
     tag = "Users",
@@ -220,9 +298,11 @@ pub async fn patch_me(
     view: ValidatedJson<PatchMeView>,
     auth_user: AuthenticatedUser,
     limits: Option<web::Data<RateLimits>>,
+    emails: Option<web::Data<AccountEmails>>,
 ) -> Result<impl Responder, PatchMeError> {
     trigger_patch_me(
         state,
+        emails.as_ref().map(web::Data::get_ref),
         view.into_inner(),
         auth_user.id,
         limits.as_ref().map(web::Data::get_ref),

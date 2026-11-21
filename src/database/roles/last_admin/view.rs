@@ -13,7 +13,6 @@
 //!
 //! The check is a separate statement run after the lock: under `READ COMMITTED` each statement
 //! takes a new snapshot, so it sees what the transaction that held the lock before committed.
-use crate::database::ids::id_to_sql;
 use mairie360_api_lib::database::db_interface::{ApiRequestDto, QueryParam};
 use std::fmt::Display;
 
@@ -99,54 +98,5 @@ impl ApiRequestDto for HasActiveAdminQueryView {
 impl Display for HasActiveAdminQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "HasActiveAdminQueryView")
-    }
-}
-
-/// Whether `user_id` is an active administrator and no other active administrator exists
-/// (`fetch_scalar::<bool>`).
-///
-/// Unlocked early check, used before Core mirrors a change into Keycloak, so that a refused
-/// change does not touch the realm (disabling an account ends its Keycloak sessions). The
-/// transaction of the write still makes the authoritative check.
-#[derive(serde::Deserialize)]
-pub struct IsLastActiveAdminQueryView {
-    user_id: u64,
-    params: Vec<QueryParam>,
-}
-
-impl IsLastActiveAdminQueryView {
-    #[must_use]
-    pub fn new(user_id: u64) -> Self {
-        Self {
-            user_id,
-            params: vec![
-                QueryParam::I32(id_to_sql(user_id)),
-                QueryParam::Text(ADMIN_ROLE.to_string()),
-            ],
-        }
-    }
-
-    #[must_use]
-    pub const fn user_id(&self) -> u64 {
-        self.user_id
-    }
-}
-
-impl ApiRequestDto for IsLastActiveAdminQueryView {
-    fn query_sql(&self) -> &'static str {
-        "SELECT COALESCE(bool_and(ur.user_id = $1), false) FROM user_roles ur \
-         JOIN roles r ON r.id = ur.role_id \
-         JOIN users u ON u.id = ur.user_id \
-         WHERE r.name = $2 AND u.is_archived IS NOT TRUE"
-    }
-
-    fn query_params(&self) -> &[QueryParam] {
-        &self.params
-    }
-}
-
-impl Display for IsLastActiveAdminQueryView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "IsLastActiveAdminQueryView: user_id = {}", self.user_id)
     }
 }

@@ -3,7 +3,6 @@ pub mod db_error;
 pub mod export_data;
 pub mod headers;
 pub mod health;
-pub mod keycloak_console;
 pub mod last_admin;
 pub mod pagination;
 pub mod ready;
@@ -33,10 +32,4 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 /// Routes under `/api` reachable without a valid JWT, to register before the `/api` scope.
 pub fn public_config(cfg: &mut web::ServiceConfig) {
     cfg.configure(v1::sessions::public_config);
-}
-
-/// Root routes of the Keycloak console access (MAIR-609): `GET /admin-access` and
-/// `GET /internal/keycloak-console/verify`, outside `/api` and its JWT middleware.
-pub fn keycloak_console_config(cfg: &mut web::ServiceConfig) {
-    cfg.configure(keycloak_console::config);
 }

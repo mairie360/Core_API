@@ -123,7 +123,7 @@ impl RateLimiter {
 /// Budgets of the public authentication routes.
 #[derive(Debug)]
 pub struct RateLimits {
-    /// `POST /auth/login` and `POST /auth/keycloak`, per client address.
+    /// `POST /auth/login`, per client address.
     pub login_per_ip: RateLimiter,
     /// `POST /auth/login`, per e-mail address.
     pub login_per_email: RateLimiter,
@@ -133,15 +133,22 @@ pub struct RateLimits {
     pub forgot_password_per_email: RateLimiter,
     /// `POST /auth/reset_password` and `POST /auth/force_change_password`, per client address.
     pub password_token_per_ip: RateLimiter,
+    /// `POST /auth/confirm_email`, per client address: its own budget, a confirmation link must not
+    /// spend the one of the password tokens.
+    pub confirm_email_per_ip: RateLimiter,
     /// `POST /sessions/refresh`, per client address.
     pub refresh_per_ip: RateLimiter,
     /// Checks of the current password by an authenticated route (`PATCH /user/me` changing the
     /// e-mail), per user (MAIR-746). Counted per account, not per address: the caller is a BFF
     /// pod, and a stolen session must not get unlimited guesses whatever address it comes from.
     pub password_check_per_user: RateLimiter,
-    /// `POST /admin/keycloak/console-access`, per administrator (MAIR-609): each call signs a
-    /// console link, a handful per quarter of an hour is plenty.
-    pub console_access_per_user: RateLimiter,
+    /// Codes of the second factor typed on the account routes (`/user/me/2fa/`), per user (MAIR-805).
+    pub second_factor_per_user: RateLimiter,
+    /// `POST /auth/login/2fa`, per client address (MAIR-805).
+    pub login_2fa_per_ip: RateLimiter,
+    /// `POST /auth/login/2fa`, per account (MAIR-805): the budget of the login token (five codes)
+    /// does not stop an attacker who restarts the login with the stolen password.
+    pub login_2fa_per_user: RateLimiter,
 }
 
 impl Default for RateLimits {
@@ -153,9 +160,12 @@ impl Default for RateLimits {
             forgot_password_per_ip: RateLimiter::new(10, 15 * MINUTE),
             forgot_password_per_email: RateLimiter::new(3, 60 * MINUTE),
             password_token_per_ip: RateLimiter::new(10, 15 * MINUTE),
+            confirm_email_per_ip: RateLimiter::new(10, 15 * MINUTE),
             refresh_per_ip: RateLimiter::new(60, MINUTE),
             password_check_per_user: RateLimiter::new(5, 15 * MINUTE),
-            console_access_per_user: RateLimiter::new(10, 15 * MINUTE),
+            second_factor_per_user: RateLimiter::new(20, 15 * MINUTE),
+            login_2fa_per_ip: RateLimiter::new(30, MINUTE),
+            login_2fa_per_user: RateLimiter::new(10, 15 * MINUTE),
         }
     }
 }

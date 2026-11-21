@@ -31,6 +31,17 @@ macro_rules! init_app {
         test::init_service(
             App::new()
                 .app_data($state.clone())
+                // MAIR-805: the second factor routes need their cipher to answer.
+                .app_data(web::Data::new(
+                    core_api::second_factor::SecretCipher::from_base64(
+                        "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk=",
+                    )
+                    .unwrap(),
+                ))
+                // MAIR-810: so do the passkey routes (the instance policy then answers).
+                .app_data(web::Data::new(
+                    core_api::passkeys::Passkeys::new("localhost", "https://localhost").unwrap(),
+                ))
                 .configure(public_config)
                 .service(
                     web::scope("/api")
@@ -471,11 +482,18 @@ async fn only_the_authentication_routes_are_public() {
         public,
         [
             "GET /api/v1/auth/jwks",
+            "POST /api/v1/auth/2fa/confirm",
+            "POST /api/v1/auth/2fa/setup",
+            "POST /api/v1/auth/confirm_email",
             "POST /api/v1/auth/force_change_password",
             "POST /api/v1/auth/forgot_password",
-            "POST /api/v1/auth/keycloak",
             "POST /api/v1/auth/login",
+            "POST /api/v1/auth/login/2fa",
             "POST /api/v1/auth/logout",
+            "POST /api/v1/auth/passkey",
+            "POST /api/v1/auth/passkey/options",
+            "POST /api/v1/auth/passkey/setup",
+            "POST /api/v1/auth/passkey/setup/options",
             "POST /api/v1/auth/reset_password",
             "POST /api/v1/sessions/refresh",
         ]

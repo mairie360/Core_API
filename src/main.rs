@@ -7,11 +7,11 @@ use core_api::database::pg_url::build_pg_url;
 use core_api::emails::AccountEmails;
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::{is_swagger_enabled, ApiDoc};
-use core_api::endpoints::{config, keycloak_console_config, public_config};
+use core_api::endpoints::{config, public_config};
 use core_api::endpoints::{health, ready};
-use core_api::keycloak::{KeycloakAdminClient, KeycloakClient, KeycloakConfig};
-use core_api::keycloak_console::ConsoleAccessConfig;
+use core_api::passkeys::Passkeys;
 use core_api::rate_limit::RateLimits;
+use core_api::second_factor::SecretCipher;
 use mairie360_api_lib::security::JwtMiddleware;
 
 use mairie360_api_lib::env_manager::{get_critical_env_var, get_env_var};
@@ -70,28 +70,6 @@ async fn main() -> std::io::Result<()> {
     // answer every request with a 500 (MAIR-423).
     wait_for_postgres(&state).await?;
     let data = web::Data::new(state);
-    // Keycloak sign-in is optional during the transition: without its env vars, only the
-    // password login is available and `POST /api/v1/auth/keycloak` answers 503.
-    let keycloak_config = KeycloakConfig::from_env();
-    let keycloak = keycloak_config
-        .clone()
-        .map(|config| web::Data::new(KeycloakClient::new(config)));
-    // The administration endpoints mirror the accounts they change into the realm through the
-    // Admin API (MAIR-142), which needs a confidential client: with a public client (or without
-    // Keycloak) they only write to Core.
-    let keycloak_admin = keycloak_config
-        .map(KeycloakAdminClient::new)
-        .filter(|admin| {
-            if admin.is_configured() {
-                true
-            } else {
-                tracing::warn!(
-                    "Keycloak account synchronisation disabled: KEYCLOAK_CLIENT_SECRET is not set or KEYCLOAK_REALM_URL has no /realms/ segment."
-                );
-                false
-            }
-        })
-        .map(web::Data::new);
     // The e-mails go through Resend templates, from no-reply@<EMAIL_DOMAIN> (MAIR-522): refuse
     // to start without them rather than failing every password reset.
     let account_emails = web::Data::new(AccountEmails::from_env().map_err(|e| {
@@ -101,9 +79,22 @@ async fn main() -> std::io::Result<()> {
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);
-    // Temporary access to the Keycloak realm admin console (MAIR-609), from the public issuer:
-    // without it the console routes answer 503.
-    let console_access = ConsoleAccessConfig::from_env().map(web::Data::new);
+    // Key sealing the TOTP secrets (MAIR-805). Without it the second factor is off: accounts that
+    // have one cannot sign in (503) rather than being opened without it.
+    let second_factor_cipher = SecretCipher::from_env()
+        .map_err(|e| {
+            tracing::error!("TOTP_ENCRYPTION_KEY: {e}");
+            std::io::Error::other(e.to_string())
+        })?
+        .map(web::Data::new);
+    // WebAuthn relying party (MAIR-810): `WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN`. Without them the
+    // passkey routes answer 503 and the policy refuses `passkey_allowed`.
+    let passkeys = Passkeys::from_env()
+        .map_err(|e| {
+            tracing::error!("WebAuthn configuration: {e}");
+            std::io::Error::other(e)
+        })?
+        .map(web::Data::new);
     // Swagger UI and the spec are only served where SWAGGER_ENABLED=true (MAIR-424).
     let swagger = is_swagger_enabled(get_env_var).then(ApiDoc::openapi);
     let host = get_critical_env_var("HOST");
@@ -113,20 +104,16 @@ async fn main() -> std::io::Result<()> {
         let app = App::new()
             .app_data(data.clone())
             .app_data(account_emails.clone());
-        let app = match &keycloak {
-            Some(keycloak) => app.app_data(keycloak.clone()),
-            None => app,
-        };
-        let app = match &keycloak_admin {
-            Some(admin) => app.app_data(admin.clone()),
-            None => app,
-        };
         let app = match &rate_limits {
             Some(limits) => app.app_data(limits.clone()),
             None => app,
         };
-        let app = match &console_access {
-            Some(console) => app.app_data(console.clone()),
+        let app = match &second_factor_cipher {
+            Some(cipher) => app.app_data(cipher.clone()),
+            None => app,
+        };
+        let app = match &passkeys {
+            Some(passkeys) => app.app_data(passkeys.clone()),
             None => app,
         };
         let app = match &swagger {
@@ -145,10 +132,6 @@ async fn main() -> std::io::Result<()> {
             .wrap(core_api::endpoints::headers::default_headers())
             .service(health::health)
             .service(ready::ready)
-            // Keycloak console access (MAIR-609): `/admin-access` (browser, through the ingress
-            // of auth.<domain>) and `/internal/keycloak-console/verify` (Traefik ForwardAuth),
-            // outside the JWT-protected `/api` scope.
-            .configure(keycloak_console_config)
             // Public /api routes (JWT refresh): before the protected scope, which would catch them otherwise
             .configure(public_config)
             // 3. Endpoints protected by JWT

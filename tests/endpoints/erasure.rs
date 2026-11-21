@@ -123,9 +123,9 @@ async fn admin_erasure_anonymizes_the_account_and_revokes_its_sessions() {
         body["revocation_published"], true,
         "Redis accepted both sessions"
     );
-    assert_eq!(
-        body["keycloak_account_deleted"], false,
-        "no Keycloak in this test"
+    assert!(
+        body.get("keycloak_account_deleted").is_none(),
+        "the Keycloak field is gone from the contract"
     );
 
     // The sessions are on the revocation list, the JWT is refused.

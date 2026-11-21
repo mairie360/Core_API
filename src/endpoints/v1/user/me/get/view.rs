@@ -25,6 +25,11 @@ pub struct GetMeResponseView {
     /// ISO 3166-1 alpha-2 code of the phone number's country (`FR`), `null` when `phone` is.
     #[schema(example = "FR")]
     phone_country: Option<String>,
+    /// New e-mail address asked through `PATCH /api/v1/user/me/` and still waiting for its
+    /// confirmation link to be used (valid one hour), `null` when there is none. `email` stays the
+    /// address of the account until then.
+    #[schema(format = Email, example = "jean.dupont@nouvelle-adresse.fr")]
+    pending_email: Option<String>,
     /// Status of the account as stored in the database.
     #[schema(example = "active")]
     status: String,
@@ -54,6 +59,7 @@ impl GetMeResponseView {
         status: &str,
         roles: Vec<String>,
         groups: Vec<Group>,
+        pending_email: Option<String>,
     ) -> Self {
         Self {
             first_name: first_name.to_string(),
@@ -62,6 +68,7 @@ impl GetMeResponseView {
             phone,
             phone_country: phone_country.map(std::string::ToString::to_string),
             status: status.to_string(),
+            pending_email,
             role: roles.first().cloned().unwrap_or_default(),
             roles,
             groups,
@@ -143,6 +150,7 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
                 .phone_country()
                 .map(std::string::ToString::to_string),
             status: query_result.status().to_string(),
+            pending_email: None,
             role: String::new(),
             roles: Vec::new(),
             groups: Vec::new(),

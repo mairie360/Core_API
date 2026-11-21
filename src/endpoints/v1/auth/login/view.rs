@@ -1,3 +1,4 @@
+use crate::database::two_factor_policy::TwoFactorPolicyRecord;
 use crate::endpoints::validation::{
     check_opaque, deserialize_email, Validate, ValidationError, MAX_EMAIL_LENGTH,
     MAX_PASSWORD_LENGTH, MAX_TOKEN_LENGTH,
@@ -56,12 +57,37 @@ pub struct LoginResponseView {
     /// without asking for the password again. Keep it on the client side, never in a URL.
     #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
     refresh_token: String,
+    /// Only after a password sign-in: what the login screen needs to propose a passkey. Absent after a
+    /// sign-in by passkey, which needs no proposal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    passkey_offer: Option<PasskeyOfferView>,
+}
+
+/// Whether to propose a passkey right after a password sign-in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct PasskeyOfferView {
+    /// Passkeys are usable: the instance has a WebAuthn relying party and the administrator accepts them.
+    #[schema(example = true)]
+    pub allowed: bool,
+    /// The account already has at least one passkey.
+    #[schema(example = false)]
+    pub registered: bool,
 }
 
 impl LoginResponseView {
     #[must_use]
     pub const fn new(refresh_token: String) -> Self {
-        Self { refresh_token }
+        Self {
+            refresh_token,
+            passkey_offer: None,
+        }
+    }
+
+    /// Adds the passkey proposal data (password sign-ins only).
+    #[must_use]
+    pub const fn with_passkey(mut self, offer: PasskeyOfferView) -> Self {
+        self.passkey_offer = Some(offer);
+        self
     }
 
     #[must_use]
@@ -78,9 +104,7 @@ impl Display for LoginResponseView {
 
 impl From<String> for LoginResponseView {
     fn from(token: String) -> Self {
-        Self {
-            refresh_token: token,
-        }
+        Self::new(token)
     }
 }
 
@@ -117,6 +141,70 @@ impl Display for LoginFirstConnectionResponseView {
 impl From<String> for LoginFirstConnectionResponseView {
     fn from(token: String) -> Self {
         Self { token }
+    }
+}
+
+/// What the administrator allows, given to the agent who has to enrol so that the screen only offers
+/// what will be accepted (the agent has no session yet, so it cannot read the policy itself).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct TwoFactorSetupPolicyView {
+    /// The authenticator application (TOTP) is an accepted mode.
+    #[schema(example = true)]
+    pub totp_allowed: bool,
+    /// Passkeys are an accepted mode.
+    #[schema(example = false)]
+    pub passkey_allowed: bool,
+    /// Backup codes are accepted to finish a login: when `false`, none must be shown.
+    #[schema(example = true)]
+    pub backup_codes_allowed: bool,
+}
+
+impl From<&TwoFactorPolicyRecord> for TwoFactorSetupPolicyView {
+    fn from(record: &TwoFactorPolicyRecord) -> Self {
+        Self {
+            totp_allowed: record.totp_allowed,
+            passkey_allowed: record.passkey_allowed,
+            backup_codes_allowed: record.backup_codes_allowed,
+        }
+    }
+}
+
+/// Answer of `POST /auth/login` (and of `POST /auth/reset_password`) for an account protected by
+/// the second factor: no session yet, only the token of the second step.
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct TwoFactorRequiredView {
+    /// `2fa_required`: give a code to `POST /api/v1/auth/login/2fa`. `2fa_setup_required` (the
+    /// instance makes the second factor mandatory and the account has none): enrol with
+    /// `POST /api/v1/auth/2fa/setup` then `POST /api/v1/auth/2fa/confirm`.
+    #[schema(pattern = r"^2fa_(setup_)?required$", example = "2fa_required")]
+    status: String,
+    /// Login or enrolment token: valid five minutes, usable on the call `status` names and
+    /// nowhere else (it opens no other route). Keep it on the client side, never in a URL.
+    #[schema(example = "8Xo0Qm2rUu0M9v2YF3sJkQ7bN1pW4dC6hL8zT5aR0eE")]
+    token: String,
+    /// Only with `2fa_setup_required`: the modes the administrator allows, to offer nothing else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    policy: Option<TwoFactorSetupPolicyView>,
+}
+
+impl TwoFactorRequiredView {
+    #[must_use]
+    pub fn new(token: String) -> Self {
+        Self {
+            status: "2fa_required".to_string(),
+            token,
+            policy: None,
+        }
+    }
+
+    /// The enrolment answer: the account must set up a second factor before any session.
+    #[must_use]
+    pub fn setup(token: String, policy: TwoFactorSetupPolicyView) -> Self {
+        Self {
+            status: "2fa_setup_required".to_string(),
+            token,
+            policy: Some(policy),
+        }
     }
 }
 
