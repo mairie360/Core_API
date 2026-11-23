@@ -22,7 +22,7 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "^\\.github/workflows/(cicd|promote-staging|promote-prod)\\.yml$"
+        "^\\.github/workflows/(cicd|promote-staging|promote-prod|nightly-gates)\\.yml$"
       ],
       "matchStrings": [
         "cicd_version:\\s*(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
