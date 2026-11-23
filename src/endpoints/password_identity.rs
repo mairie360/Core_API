@@ -2,11 +2,16 @@
 //!
 //! On the routes that set the password of an existing account, the password must not contain the account's e-mail (local part), first name
 //! or last name. The length and common-password rules are applied by the views' `Validate`.
+//!
+//! The routes check it twice: [`check`] before anything is spent (the one-time token or the reset link stays
+//! usable after a refusal), then [`check_in`] inside the transaction that writes the password, on the account row
+//! locked until the commit, so a rename committed in between cannot slip into the stored password.
 
 use crate::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
 use crate::endpoints::validation::{check_password_identity, ValidationError};
 use crate::password_policy::Identity;
-use mairie360_api_lib::smart_db::SmartDatabase;
+use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::smart_db::{SmartDatabase, SmartTransaction};
 
 /// Why the identity rule could not accept the password.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,9 +47,38 @@ pub async fn check(
     password: &str,
     changes: IdentityChanges<'_>,
 ) -> Result<(), IdentityCheckError> {
-    let user: GetUserByIdQueryResultView = smart_db
+    let users = smart_db
         .fetch_all::<GetUserByIdQueryResultView, _>(&GetUserByIdQueryView::new(user_id))
-        .await
+        .await;
+    apply(users, field, password, changes)
+}
+
+/// [`check`] inside the transaction `tx` that writes the password: the account row stays locked
+/// (`FOR NO KEY UPDATE`) until `tx` ends, so the identity checked is the one the password is stored with.
+///
+/// # Errors
+///
+/// Same as [`check`].
+pub async fn check_in(
+    tx: &mut SmartTransaction,
+    user_id: u64,
+    field: &str,
+    password: &str,
+    changes: IdentityChanges<'_>,
+) -> Result<(), IdentityCheckError> {
+    let users = tx
+        .fetch_all::<GetUserByIdQueryResultView, _>(&GetUserByIdQueryView::locked(user_id))
+        .await;
+    apply(users, field, password, changes)
+}
+
+fn apply(
+    users: Result<Vec<GetUserByIdQueryResultView>, ApiLibError>,
+    field: &str,
+    password: &str,
+    changes: IdentityChanges<'_>,
+) -> Result<(), IdentityCheckError> {
+    let user = users
         .map_err(|e| {
             tracing::error!("Password policy: could not read the account: {e}");
             IdentityCheckError::Database

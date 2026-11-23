@@ -10,6 +10,7 @@ use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::session_revocation::publish_revoked_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,6 +50,14 @@ impl ResponseError for ResetPasswordError {
     }
 }
 
+fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
+    match e {
+        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownUser,
+        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
+    }
+}
+
 async fn reset_password(
     state: web::Data<AppState>,
     user_id: u64,
@@ -66,11 +75,7 @@ async fn reset_password(
         IdentityChanges::default(),
     )
     .await
-    .map_err(|e| match e {
-        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
-        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownUser,
-        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
-    })?;
+    .map_err(identity_error)?;
 
     let hashed_password = passwords::hash(view.new_password())
         .await
@@ -79,14 +84,27 @@ async fn reset_password(
             ResetPasswordError::DatabaseError
         })?;
 
-    let result: AdminResetPasswordResult = state
-        .get_smart_db()
+    let database_error = |error: ApiLibError| {
+        tracing::error!("{error:?}");
+        ResetPasswordError::DatabaseError
+    };
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    // Checked again on the row locked until the commit: a rename committed since the first check
+    // cannot end up in the stored password (MAIR-757).
+    password_identity::check_in(
+        &mut tx,
+        user_id,
+        "new_password",
+        view.new_password(),
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
+    let result: AdminResetPasswordResult = tx
         .fetch_one(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
-        .map_err(|error| {
-            tracing::error!("{error:?}");
-            ResetPasswordError::DatabaseError
-        })?;
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
 
     if result.updated() {
         // The reset revoked every session of the user: other APIs refuse their JWTs too.

@@ -71,6 +71,14 @@ async fn get_user_id(state: &AppState, token: &str) -> Option<u64> {
     }
 }
 
+fn identity_error(e: IdentityCheckError) -> ForceChanhePasswordError {
+    match e {
+        IdentityCheckError::Rejected(e) => ForceChanhePasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ForceChanhePasswordError::Forbidden,
+        IdentityCheckError::Database => ForceChanhePasswordError::DatabaseError,
+    }
+}
+
 /// Sets the new password and revokes the previous sessions in one transaction (MAIR-420). The
 /// update itself checks that the first connection is still pending, so two requests racing
 /// with the same token cannot both change the password.
@@ -88,6 +96,17 @@ async fn change_password(
         ForceChanhePasswordError::DatabaseError
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
+    // Checked again on the row locked until the commit: a rename committed since the first check
+    // cannot end up in the stored password (MAIR-757).
+    password_identity::check_in(
+        &mut tx,
+        user_id,
+        "new_password",
+        new_password,
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
     let changed: i64 = tx
         .fetch_scalar(&UnsetFirstConnectionQueryView::pending_only(
             user_id,
@@ -123,11 +142,7 @@ async fn force_change_password_trigger(
         IdentityChanges::default(),
     )
     .await
-    .map_err(|e| match e {
-        IdentityCheckError::Rejected(e) => ForceChanhePasswordError::Rejected(e.to_string()),
-        IdentityCheckError::UnknownUser => ForceChanhePasswordError::Forbidden,
-        IdentityCheckError::Database => ForceChanhePasswordError::DatabaseError,
-    })?;
+    .map_err(identity_error)?;
 
     let revoked = change_password(state.get_smart_db(), user_id, view.new_password()).await?;
     publish_revoked_sessions(state.get_redis(), &revoked).await;

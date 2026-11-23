@@ -235,3 +235,72 @@ async fn mair_757_administrator_reset_applies_the_policy() {
     );
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+/// Review of MAIR-757: the identity rule is checked again inside the transaction that writes the password, on the account
+/// row locked until the commit. While that transaction is open, a rename from another connection waits, so the password
+/// can never be stored next to an identity it was not checked against.
+#[tokio::test]
+async fn mair_757_the_identity_check_locks_the_account_until_the_password_is_written() {
+    use core_api::endpoints::password_identity::{check_in, IdentityChanges, IdentityCheckError};
+
+    let smart_db = get_pool().await;
+    let marker = unique_marker("lock");
+    let user = u64::try_from(create_user(&smart_db, "Honorine", &marker).await).unwrap();
+
+    let mut tx = smart_db.begin().await.unwrap();
+    let refused = check_in(
+        &mut tx,
+        user,
+        "new_password",
+        "Honorine-Mairie-2026",
+        IdentityChanges::default(),
+    )
+    .await;
+    assert!(
+        matches!(refused, Err(IdentityCheckError::Rejected(_))),
+        "{refused:?}"
+    );
+    check_in(
+        &mut tx,
+        user,
+        "new_password",
+        COMPLIANT,
+        IdentityChanges::default(),
+    )
+    .await
+    .unwrap();
+
+    let other = sqlx::postgres::PgPool::connect(&core_db_url().await)
+        .await
+        .unwrap();
+    let mut rename = other.begin().await.unwrap();
+    sqlx::query("SET LOCAL lock_timeout = '300ms'")
+        .execute(&mut *rename)
+        .await
+        .unwrap();
+    let blocked = sqlx::query("UPDATE users SET last_name = 'Bellerive' WHERE id = $1")
+        .bind(i32::try_from(user).unwrap())
+        .execute(&mut *rename)
+        .await
+        .expect_err("the rename must wait for the transaction that checked the identity");
+    assert_eq!(
+        blocked
+            .as_database_error()
+            .and_then(|e| e.code())
+            .as_deref(),
+        Some("55P03"),
+        "{blocked}"
+    );
+    drop(rename);
+    tx.rollback().await.unwrap();
+
+    let missing = check_in(
+        &mut smart_db.begin().await.unwrap(),
+        2_147_483_000,
+        "new_password",
+        COMPLIANT,
+        IdentityChanges::default(),
+    )
+    .await;
+    assert_eq!(missing, Err(IdentityCheckError::UnknownUser));
+}

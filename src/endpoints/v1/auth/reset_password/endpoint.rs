@@ -118,6 +118,14 @@ async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, Reset
         .ok_or(ResetPasswordError::UnknownToken)
 }
 
+fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
+    match e {
+        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownToken,
+        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
+    }
+}
+
 /// Sets the new password and revokes every session opened with the previous one, in one
 /// transaction (MAIR-420). Returns the revoked sessions, to publish once committed.
 async fn reset_pwd(
@@ -134,6 +142,18 @@ async fn reset_pwd(
         ResetPasswordError::DatabaseError
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
+    // Checked again on the row locked until the commit: a rename committed since the first check
+    // cannot end up in the stored password (MAIR-757). The link is already spent then; the agent asks
+    // for a new one, which only happens when the account was renamed during the reset.
+    password_identity::check_in(
+        &mut tx,
+        user_id,
+        "new_password",
+        new_password,
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
     // Proving ownership of the mailbox also completes a pending first connection: the account no
     // longer asks for a password change at the next login (MAIR-390).
     let _: i64 = tx
@@ -180,11 +200,7 @@ async fn reset_password_trigger(
         IdentityChanges::default(),
     )
     .await
-    .map_err(|e| match e {
-        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
-        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownToken,
-        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
-    })?;
+    .map_err(identity_error)?;
 
     // Checked before anything is written: an instance that cannot verify the second factor of this
     // account answers `503` with the password, the sessions and the reset token untouched, so the

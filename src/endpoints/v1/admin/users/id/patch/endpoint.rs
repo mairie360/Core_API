@@ -100,6 +100,22 @@ async fn patch_in_core(
         }
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
+    if let Some(password) = view.password() {
+        let changes = IdentityChanges {
+            email: view.email(),
+            first_name: view.first_name(),
+            last_name: view.last_name(),
+        };
+        // Checked again on the row locked until the commit: a rename committed since the first
+        // check cannot end up in the stored password (MAIR-757).
+        match password_identity::check_in(&mut tx, user_id, "password", password, changes).await {
+            Ok(()) | Err(IdentityCheckError::UnknownUser) => {}
+            Err(IdentityCheckError::Rejected(e)) => {
+                return Err(PatchUserError::BadRequest(e.to_string()))
+            }
+            Err(IdentityCheckError::Database) => return Err(PatchUserError::DatabaseError),
+        }
+    }
     tx.execute(&query).await.map_err(database_error)?;
     // A new password ends the sessions opened with the previous one, in every API, like
     // `PATCH /admin/users/{userId}/password` (MAIR-390).
