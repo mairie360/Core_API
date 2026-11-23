@@ -217,9 +217,10 @@ async fn login_works_after_a_hashed_login_migration() {
 async fn mair_694_login_ignores_the_case_of_the_email() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    // A real Redis: since MAIR-772 a login publishes the session state there and refuses to hand
+    // out a session it could not publish.
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
     let raw_pool = get_raw_pool(host.clone()).await;
     let stored = format!(
