@@ -118,6 +118,21 @@ passkey_view!(
 );
 
 passkey_view!(
+    /// Renames a passkey of the user (MAIR-811): its row after the change, `DbError::NotFound` when the user has
+    /// no such passkey (another account's included).
+    RenamePasskeyQueryView(user_id: u64, passkey_id: u64, label: &str)
+        -> vec![
+            QueryParam::I32(id_to_sql(user_id)),
+            QueryParam::I32(id_to_sql(passkey_id)),
+            QueryParam::Text(label.to_string()),
+        ],
+    "WITH r AS (\
+        UPDATE user_passkeys SET label = $3 WHERE user_id = $1 AND id = $2 \
+        RETURNING id, label, provider, created_at, last_used_at\
+    ) SELECT row_to_json(r) FROM r"
+);
+
+passkey_view!(
     /// The passkey a sign-in names, if its owner is neither archived nor suspended (MAIR-904); `DbError::NotFound` otherwise.
     FindPasskeyQueryView(credential_id_base64: &str)
         -> vec![QueryParam::Text(credential_id_base64.to_string())],

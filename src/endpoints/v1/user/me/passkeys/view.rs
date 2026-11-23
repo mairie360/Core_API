@@ -92,3 +92,31 @@ impl Validate for PasskeyRegisterView {
         check_label("label", &self.label, MAX_LABEL_LENGTH)
     }
 }
+
+/// New name of one of the caller's passkeys (MAIR-811).
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct PasskeyRenameView {
+    /// Name of the passkey, to recognise it in the list (usually the passkey manager the registration
+    /// answered `provider`).
+    #[schema(min_length = 1, max_length = 100, example = "Google Password Manager")]
+    label: String,
+}
+
+impl PasskeyRenameView {
+    #[must_use]
+    pub fn label(&self) -> &str {
+        self.label.trim()
+    }
+}
+
+impl std::fmt::Display for PasskeyRenameView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PasskeyRenameView {{ label: {} }}", self.label)
+    }
+}
+
+impl Validate for PasskeyRenameView {
+    fn validate(&self) -> Result<(), ValidationError> {
+        check_label("label", &self.label, MAX_LABEL_LENGTH)
+    }
+}

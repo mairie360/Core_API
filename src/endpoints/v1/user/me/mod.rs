@@ -30,6 +30,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(passkeys::endpoint::list_my_passkeys)
             .service(passkeys::endpoint::passkey_register_options)
             .service(passkeys::endpoint::register_passkey)
-            .service(passkeys::endpoint::delete_my_passkey),
+            .service(passkeys::endpoint::delete_my_passkey)
+            .service(passkeys::endpoint::rename_my_passkey),
     );
 }
