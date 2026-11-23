@@ -24,6 +24,7 @@ static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
 });
 
 const PASSWORD: &str = "Correct!Pass123";
+const NEW_PASSWORD: &str = "Changed!Pass456";
 
 macro_rules! init_app {
     ($state:expr) => {
@@ -213,12 +214,11 @@ async fn mair_823_change_password_revokes_the_other_sessions() {
     let (user, _) = create_account(&raw).await;
     let (current, jwt) = open_session(&state, user).await;
     let (other, _) = open_session(&state, user).await;
-    let new_password = "Nouveau-mot-de-passe-2026";
 
     assert_eq!(
         status!(
             app,
-            change_password(&jwt, PASSWORD, new_password).to_request()
+            change_password(&jwt, PASSWORD, NEW_PASSWORD).to_request()
         ),
         StatusCode::NO_CONTENT
     );
@@ -227,7 +227,7 @@ async fn mair_823_change_password_revokes_the_other_sessions() {
         .fetch_one(&raw)
         .await
         .unwrap();
-    assert!(mairie360_api_lib::password::verify_password(new_password, &hash).unwrap());
+    assert!(mairie360_api_lib::password::verify_password(NEW_PASSWORD, &hash).unwrap());
     assert!(is_revoked(&raw, other).await);
     assert!(!is_revoked(&raw, current).await);
 }
@@ -248,7 +248,7 @@ async fn mair_823_change_password_refusals() {
     assert_eq!(
         status!(
             app,
-            change_password(&jwt, "Wrong!Pass123", "Nouveau-mot-de-passe-2026").to_request()
+            change_password(&jwt, "Wrong!Pass123", NEW_PASSWORD).to_request()
         ),
         StatusCode::FORBIDDEN
     );
@@ -261,19 +261,19 @@ async fn mair_823_change_password_refusals() {
     let req = test::TestRequest::post()
         .uri("/api/v1/user/me/password")
         .insert_header(("Authorization", format!("Bearer {jwt}")))
-        .set_json(json!({ "current_password": PASSWORD, "new_password": "Nouveau-mot-de-passe-2026", "x": 1 }))
+        .set_json(json!({ "current_password": PASSWORD, "new_password": NEW_PASSWORD, "x": 1 }))
         .to_request();
     assert_eq!(status!(app, req), StatusCode::BAD_REQUEST);
     // The budget (5 checks per 15 minutes) is spent: the next check is refused with Retry-After.
     for _ in 0..3 {
         let _ = status!(
             app,
-            change_password(&jwt, "Wrong!Pass123", "Nouveau-mot-de-passe-2026").to_request()
+            change_password(&jwt, "Wrong!Pass123", NEW_PASSWORD).to_request()
         );
     }
     let resp = test::try_call_service(
         &app,
-        change_password(&jwt, PASSWORD, "Nouveau-mot-de-passe-2026").to_request(),
+        change_password(&jwt, PASSWORD, NEW_PASSWORD).to_request(),
     )
     .await
     .unwrap();
