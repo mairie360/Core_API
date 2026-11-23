@@ -4,6 +4,8 @@ mod history;
 mod logout;
 mod refresh;
 mod revoke;
+mod revoke_by_id;
+mod revoke_others;
 pub mod view;
 
 use actix_web::web;
@@ -14,7 +16,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(get::endpoint::get_active_sessions)
             .service(history::endpoint::history)
             .service(logout::endpoint::logout)
-            .service(revoke::endpoint::revoke),
+            .service(revoke::endpoint::revoke)
+            .service(revoke_others::endpoint::revoke_other_sessions)
+            .service(revoke_by_id::endpoint::revoke_session_by_id),
     );
 }
 

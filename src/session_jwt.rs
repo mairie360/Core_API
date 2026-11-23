@@ -112,3 +112,13 @@ pub fn decode_session_jwt(jwt: &str) -> Result<SessionClaims, Error> {
         sid,
     })
 }
+
+/// The session id (`sid`) of the JWT of `request`, `None` for a token issued without one
+/// (MAIR-823: the session routes keep the caller's own session).
+#[must_use]
+pub fn current_session_id(request: &actix_web::HttpRequest) -> Option<uuid::Uuid> {
+    mairie360_api_lib::jwt_manager::get_jwt_from_request(request)
+        .and_then(|jwt| decode_session_jwt(&jwt).ok())
+        .as_ref()
+        .and_then(SessionClaims::session_id)
+}

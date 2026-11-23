@@ -559,6 +559,7 @@ pub async fn login(
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
     relying_party: Option<web::Data<crate::passkeys::Passkeys>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
@@ -571,6 +572,13 @@ pub async fn login(
 
     let (jwt, refresh_token, user_id) =
         login_user(&login_view, state.clone(), ip_address, secrets.is_some()).await?;
+    crate::login_alert::spawn(
+        &state,
+        emails.as_ref(),
+        user_id,
+        &login_view.device_info(),
+        ip_address,
+    );
     let offer = passkey_offer(&state, relying_party.is_some(), user_id).await;
 
     Ok(HttpResponse::Ok()

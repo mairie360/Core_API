@@ -152,6 +152,7 @@ async fn reset_password_trigger(
     view: ResetPasswordView,
     ip_adress: std::net::IpAddr,
     can_verify_second_factor: bool,
+    emails: Option<&web::Data<crate::emails::AccountEmails>>,
 ) -> Result<(String, String), ResetPasswordError> {
     let smart_db = state.get_smart_db();
     let redis = state.get_redis();
@@ -224,8 +225,11 @@ async fn reset_password_trigger(
         }
     }
 
-    match generate_session(user_id, &view.device_info(), ip_adress, state).await {
-        Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),
+    match generate_session(user_id, &view.device_info(), ip_adress, state.clone()).await {
+        Ok((jwt, refresh_token)) => {
+            crate::login_alert::spawn(&state, emails, user_id, &view.device_info(), ip_adress);
+            Ok((jwt, refresh_token))
+        }
         Err(e) => {
             tracing::error!("Failed to generate session: {e:?}");
             Err(ResetPasswordError::TokenGenerationError)
@@ -322,6 +326,7 @@ pub async fn reset_password(
     body: ValidatedJson<ResetPasswordView>,
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, ResetPasswordError> {
     let ip_address = client_ip(&request);
@@ -331,8 +336,14 @@ pub async fn reset_password(
             .hit(&ip_key(ip_address))
             .map_err(|refused| ResetPasswordError::TooManyRequests(refused.retry_after_seconds))?;
     }
-    let (jwt, refresh_token) =
-        reset_password_trigger(state, body.into_inner(), ip_address, secrets.is_some()).await?;
+    let (jwt, refresh_token) = reset_password_trigger(
+        state,
+        body.into_inner(),
+        ip_address,
+        secrets.is_some(),
+        emails.as_ref(),
+    )
+    .await?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

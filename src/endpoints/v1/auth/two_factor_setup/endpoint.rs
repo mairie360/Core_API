@@ -272,6 +272,7 @@ pub async fn confirm_login_two_factor(
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, SetupLoginError> {
     let view = payload.into_inner();
@@ -319,6 +320,13 @@ pub async fn confirm_login_two_factor(
                 tracing::error!("Enrolment session error: {e:?}");
                 SetupLoginError::Internal
             })?;
+    crate::login_alert::spawn(
+        &state,
+        emails.as_ref(),
+        user_id,
+        &pending.device_info,
+        ip_address,
+    );
     tracing::info!(user_id, "Mandatory second factor enrolled");
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

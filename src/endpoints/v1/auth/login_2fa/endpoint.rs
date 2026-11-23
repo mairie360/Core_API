@@ -134,6 +134,7 @@ pub async fn login_two_factor(
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
     relying_party: Option<web::Data<crate::passkeys::Passkeys>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginTwoFactorError> {
     let view = payload.into_inner();
@@ -236,6 +237,13 @@ pub async fn login_two_factor(
         tracing::error!("Second step: commit: {e}");
         LoginTwoFactorError::Internal
     })?;
+    crate::login_alert::spawn(
+        &state,
+        emails.as_ref(),
+        pending.user_id,
+        &pending.device_info,
+        ip_address,
+    );
     let offer = crate::endpoints::v1::auth::login::endpoint::passkey_offer(
         &state,
         relying_party.is_some(),
