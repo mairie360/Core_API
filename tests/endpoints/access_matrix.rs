@@ -263,7 +263,9 @@ fn request(spec: &Value, name: &str, f: &Fixtures, refresh_token: &str) -> test:
         .replace("{group_id}", &f.group.to_string())
         .replace("{user_id}", &f.target.to_string())
         .replace("{userId}", &f.target.to_string())
-        .replace("{roleId}", &f.role.to_string());
+        .replace("{roleId}", &f.role.to_string())
+        // A session of nobody: an allowed caller gets 404, never 401 / 403.
+        .replace("{sessionId}", &Uuid::new_v4().to_string());
     uri = if path.starts_with("/api/v1/admin/roles/") {
         uri.replace("{id}", &f.role.to_string())
     } else if path.starts_with("/api/v1/ressources/") {

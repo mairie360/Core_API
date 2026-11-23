@@ -397,6 +397,22 @@ false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` a
 `can_be_deleted: true`, so the role can be neither renamed nor deleted afterwards. A custom role
 that an administrator protects becomes a system role for good.
 
+### Sessions of a user and suspension (MAIR-584, MAIR-904)
+
+The administration reads the sessions of a user in `GET /api/v1/admin/users/{userId}/` (`sessions`, latest 100) and
+closes them with `DELETE /api/v1/admin/users/{userId}/sessions` (every active one; republishes every session revoked
+within `JWT_TIMEOUT`, `503` when Redis refuses, so repeating it is effective) and `DELETE
+/api/v1/admin/users/{userId}/sessions/{sessionId}` (one, `404` when unknown, another user's or already ended).
+`POST /api/v1/admin/users/{userId}/suspend` sets `users.status = 'suspended'` (Database `mair-904-01`) and revokes
+every session in one transaction guarded like the last-administrator writes (an administrator cannot suspend their
+own account: `409`); `POST .../reactivate` gives back `offline`. A suspended account keeps its roles, groups and
+factors, but the sign-in views (`LoginUserQueryView`, `GetActiveUserIdByEmailQueryView`, `ResetRecipientQueryView`,
+the passkey lookups) skip it like an archived one, `HasActiveAdminQueryView` does not count it, and Database's
+`is_admin()` / `check_access()` deny it. API_lib is unchanged: the revoked sessions reach every API through the
+revocation list. The admin list rows carry `active_sessions`, `last_login_at` and `two_factor { methods,
+last_verified_at }` (never a secret). Tests: `tests/endpoints/mair_584_admin_user_sessions.rs` (needs a Database image
+with `mair-904-01`) and the newman folder "Sessions and suspension of a user".
+
 ### Second factor (MAIR-805)
 
 TOTP (RFC 6238, SHA-1, 6 digits, 30 s, ±1 step) plus 10 single-use backup codes, all in `second_factor.rs`

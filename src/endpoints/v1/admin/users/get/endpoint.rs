@@ -78,7 +78,10 @@ async fn list_users(
     path = "",
     summary = "List the users (administration)",
     description = "Paginated administration view of the user accounts, archived ones included, \
-                   with phone, status and roles. Reserved to administrators.\n\n\
+                   with phone, status and roles, the number of active sessions, the last sign-in and the \
+                   second factor (methods and last verification, never a secret). Reserved to \
+                   administrators. `status` is `suspended` for an account an administrator \
+                   suspended (MAIR-904).\n\n\
                    Not to be confused with `GET /api/v1/user/`, the directory open to everyone: that one \
                    hides the archived accounts, is not paginated and returns neither phone nor status.\n\n\
                    `total` counts the users matching the filters, across all \
@@ -102,7 +105,10 @@ async fn list_users(
                         "status": "active",
                         "is_archived": false,
                         "role": { "id": 2, "name": "agent" },
-                        "roles": [{ "id": 2, "name": "agent" }]
+                        "roles": [{ "id": 2, "name": "agent" }],
+                        "active_sessions": 2,
+                        "last_login_at": "2026-09-16T08:42:11Z",
+                        "two_factor": { "methods": ["totp", "backup_codes"], "last_verified_at": "2026-09-16T08:42:30Z" }
                     }
                 ],
                 "page": 1,

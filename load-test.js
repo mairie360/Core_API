@@ -508,6 +508,35 @@ const writeHandlers = {
     deleteUser(p.account.id);
   },
 
+  // MAIR-584: an administrator closes the sessions of a user; MAIR-904: suspension.
+  'DELETE /api/v1/admin/users/{userId}/sessions/{sessionId}': ({ request }) => {
+    const account = activeAccount('close-one');
+    login(account);
+    const sessionId = fixture('GET', `/api/v1/admin/users/${account.id}/`).json('sessions.0.id');
+    check(request({ path: { userId: account.id, sessionId } }), { 'admin close session 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'DELETE /api/v1/admin/users/{userId}/sessions': ({ request }) => {
+    const account = activeAccount('close-all');
+    login(account);
+    check(request({ path: { userId: account.id } }), { 'admin close sessions 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'POST /api/v1/admin/users/{userId}/suspend': ({ request }) => {
+    const account = activeAccount('suspend');
+    check(request({ path: { userId: account.id } }), { 'admin suspend 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'POST /api/v1/admin/users/{userId}/reactivate': ({ request }) => {
+    const account = activeAccount('reactivate');
+    fixture('POST', `/api/v1/admin/users/${account.id}/suspend`);
+    check(request({ path: { userId: account.id } }), { 'admin reactivate 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
   // Administration of accounts: create → patch → password → roles → delete.
   'POST /api/v1/admin/users/': ({ request }) => {
     const email = `k6.admin.${unique()}@mairie360.fr`;
