@@ -281,8 +281,16 @@ mod tests {
 
     #[test]
     fn a_code_is_accepted_once_per_step() {
-        let secret = generate_secret();
         let now = 1_700_000_000;
+        // A random secret gives the next step the same code once in a million draws, which the drift
+        // window then accepts as a later step: draw one whose neighbouring codes differ.
+        let secret = std::iter::repeat_with(generate_secret)
+            .find(|secret| {
+                let code = code_for_step(secret, step_at(now));
+                code != code_for_step(secret, step_at(now) + 1)
+                    && code != code_for_step(secret, step_at(now) - 1)
+            })
+            .expect("a secret");
         let code = code_for_step(&secret, step_at(now));
         let step = verify_code(&secret, &code, now, None).expect("fresh code accepted");
         assert_eq!(step, step_at(now));
