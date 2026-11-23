@@ -76,7 +76,6 @@ const ADMIN_PAGE_SIZE = 20;
 
 const READ_METHODS = ['get', 'head', 'options'];
 
-const CONSOLE_COOKIE = '__Secure-mairie360-kc-console';
 
 /** The served spec restricted to the operations whose method passes `keep`. */
 function specSubset(spec, keep) {
@@ -356,22 +355,6 @@ const readHandlers = {
   'GET /api/v1/admin/services/': ({ request }) =>
     check(request(), { 'admin services 200': (r) => r.status === 200 && Array.isArray(r.json('services')) }),
 
-  // Keycloak console access (MAIR-609), with the console cookie and the used link of setup().
-  // Traefik calls verify on every request of the console: it re-reads the Admin role each time.
-  'GET /internal/keycloak-console/verify': ({ request, data }) =>
-    check(request({ headers: { Cookie: `${CONSOLE_COOKIE}=${data.consoleCookie}` } }), {
-      'console verify 200': (r) => r.status === 200,
-    }),
-  // A link works once: replaying the one of setup() measures the full check (signature, used-link
-  // record in Redis) and answers 401, expected so it does not count in `http_req_failed`.
-  'GET /admin-access': ({ request, data }) =>
-    check(
-      request({
-        query: { token: data.usedLinkToken },
-        params: { redirects: 0, responseCallback: http.expectedStatuses(401) },
-      }),
-      { 'used console link 401': (r) => r.status === 401 },
-    ),
 };
 
 const writeHandlers = {
@@ -698,27 +681,6 @@ const writeHandlers = {
     check(request({ path: { id: roleId } }), { 'delete role 204': (r) => r.status === 204 });
   },
 
-  // Keycloak is not configured in the test stack: both routes answer 503 (expected, so it does not
-  // count in `http_req_failed`). The sign-in itself is covered by tests/keycloak_*.rs.
-  'POST /api/v1/auth/keycloak': ({ request }) =>
-    check(
-      request({
-        body: { code: 'k6-code', redirect_uri: 'https://login.mairie360.fr/auth/callback', device_info: DEVICE },
-        params: { responseCallback: http.expectedStatuses(503) },
-      }),
-      { 'keycloak sign-in 503 (not configured)': (r) => r.status === 503 },
-    ),
-  // MAIR-609: docker-compose-performance.yml sets RATE_LIMIT_ENABLED=false, so no 429 here (the
-  // 10 links per 15 minutes are tested in tests/mair_609_keycloak_console_access.rs).
-  'POST /api/v1/admin/keycloak/console-access': ({ request }) =>
-    check(request(), {
-      'console link 200': (r) => r.status === 200 && r.json('expires_in') === 120,
-    }),
-  'POST /api/v1/admin/keycloak/migration': ({ request }) =>
-    check(request({ params: { responseCallback: http.expectedStatuses(503) } }), {
-      'keycloak migration 503 (not configured)': (r) => r.status === 503,
-    }),
-
   // Accesses of a resource instance (here a group): grant → list → revoke.
   'POST /api/v1/ressources/add_access': ({ request }) => {
     const groupId = createGroup('access-add');
@@ -835,6 +797,22 @@ function withPasskeysAllowed(fn) {
   }
 }
 
+/**
+ * Runs `fn(token)` with the enrolment token of a login under a mandatory policy that accepts passkeys
+ * (mandatory enrolment by passkey), then puts the optional policy back.
+ */
+function withPasskeyEnrolment(account, fn) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true, passkey_allowed: true });
+  try {
+    const token = fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+      expected: [202],
+    }).json('token');
+    return fn(token);
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
 // What a browser would send; nothing here is a real authenticator answer, so the routes refuse it.
 const FORGED_SIGN_IN = {
   id: 'AAAA',
@@ -868,6 +846,29 @@ const policyHandlers = {
         { 'forged passkey 401': (r) => r.status === 401 && !r.headers.Authorization },
       );
     }),
+  // Mandatory enrolment by passkey: the challenge, then a forged answer the route refuses (400).
+  'POST /api/v1/auth/passkey/setup/options': ({ request }) => {
+    const account = activeAccount('passkey-setup-options');
+    withPasskeyEnrolment(account, (token) =>
+      check(request({ body: { token } }), {
+        'passkey enrolment options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
+      }));
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/passkey/setup': ({ request }) => {
+    const account = activeAccount('passkey-setup');
+    withPasskeyEnrolment(account, (token) => {
+      fixture('POST', '/api/v1/auth/passkey/setup/options', { token });
+      check(
+        request({
+          body: { token, label: 'k6', credential: FORGED_REGISTRATION },
+          params: { responseCallback: http.expectedStatuses(400) },
+        }),
+        { 'forged enrolment 400': (r) => r.status === 400 && !r.headers.Authorization },
+      );
+    });
+    deleteUser(account.id);
+  },
   'POST /api/v1/user/me/passkeys/options/': ({ request }) =>
     withPasskeysAllowed(() =>
       check(request(), {
@@ -1016,32 +1017,15 @@ export const options = {
   },
 };
 
-/**
- * Read fixtures: a group with user 2 as member, a Keycloak console cookie and the (now used) link
- * that opened it (MAIR-609). Login rush: active accounts.
- */
-function consoleAccess() {
-  const url = fixture('POST', '/api/v1/admin/keycloak/console-access').json('url');
-  const usedLinkToken = url.split('token=')[1];
-  const res = http.get(`${BASE_URL}/admin-access?token=${usedLinkToken}`, {
-    redirects: 0,
-    tags: { op: 'fixture' },
-    responseCallback: http.expectedStatuses(303),
-  });
-  const cookie = (res.cookies[CONSOLE_COOKIE] || [])[0];
-  if (res.status !== 303 || !cookie) fail(`fixture GET /admin-access answered ${res.status}: ${res.body}`);
-  return { consoleCookie: cookie.value, usedLinkToken };
-}
-
+/** Read fixtures: a group with user 2 as member. Login rush: active accounts. */
 export function setup() {
   const groupId = createGroup('read');
   addGroupMember(groupId, MEMBER_ID);
-  const { consoleCookie, usedLinkToken } = consoleAccess();
   const rushAccounts = [];
   for (let i = 0; i < LOGIN_RUSH_ACCOUNTS; i += 1) {
     rushAccounts.push(activeAccount('rush'));
   }
-  return { groupId, rushAccounts, consoleCookie, usedLinkToken };
+  return { groupId, rushAccounts };
 }
 
 export function teardown(data) {
