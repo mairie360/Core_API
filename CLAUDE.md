@@ -673,8 +673,8 @@ Guest role (`src/endpoints/v1/user/directory_access.rs`).
 ## CI
 
 `.github/workflows/cicd.yml` delegates to the reusable `mairie360/CICD` workflow (`APIs_cicd.yml`) on every
-push, with no input other than the package name and the CICD version. The `uses:` is pinned by commit SHA with the
-tag in a comment, `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
+push, with no input other than the package name and the CICD version. The `uses:` is pinned by release tag (the org
+Renovate preset sets `pinDigests: false`; no SHA pin, `tests/mair_685_auto_approve.rs` checks the tag), `cicd_version` carries the same tag, and Renovate bumps both in one `mairie360/CICD` group; only
 the two secrets the workflow declares are passed (no `secrets: inherit`). Both Dockerfiles build on the template's
 Rust toolchain pinned by digest, with `--locked` and a dependency-cache layer (MAIR-427); the staging gates of `promote-staging.yml` (MAIR-494) run the three `*_test.sh` scripts with `IMAGE_REF` set to the `dev-<sha>` image published by `release-dev` (newman, no Postman account involved). `auto-approve.yml` calls the reusable auto-approval of mairie360/CICD (same tag on `uses:` and `cicd_version`), which approves a Renovate PR only while Renovate alone wrote and pushed it and takes the approval back after any other push; `pull-requests: write` only (`tests/mair_685_auto_approve.rs`).
 
