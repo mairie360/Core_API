@@ -2,6 +2,7 @@ use crate::database::admin::reset_password::{
     AdminResetPasswordQueryView, AdminResetPasswordResult,
 };
 use crate::endpoints::admin_guard::AdminUser;
+use crate::endpoints::password_identity::{self, IdentityChanges, IdentityCheckError};
 use crate::endpoints::v1::admin::users::id::password::view::{
     AdminResetPasswordView, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH,
 };
@@ -9,11 +10,14 @@ use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::session_revocation::publish_revoked_sessions;
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
+use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
     InvalidPassword,
+    /// The password breaks the identity rule (MAIR-757); the text names it.
+    Rejected(String),
     UnknownUser,
     DatabaseError,
 }
@@ -25,6 +29,7 @@ impl std::fmt::Display for ResetPasswordError {
                 f,
                 "The password must contain between {MIN_PASSWORD_LENGTH} and {MAX_PASSWORD_LENGTH} characters"
             ),
+            Self::Rejected(reason) => f.write_str(reason),
             Self::UnknownUser => write!(f, "Unknown user"),
             Self::DatabaseError => write!(f, "Database error occurred"),
         }
@@ -34,7 +39,7 @@ impl std::fmt::Display for ResetPasswordError {
 impl ResponseError for ResetPasswordError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::InvalidPassword => StatusCode::BAD_REQUEST,
+            Self::InvalidPassword | Self::Rejected(_) => StatusCode::BAD_REQUEST,
             Self::UnknownUser => StatusCode::NOT_FOUND,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -42,6 +47,14 @@ impl ResponseError for ResetPasswordError {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code()).body(self.to_string())
+    }
+}
+
+fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
+    match e {
+        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownUser,
+        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
     }
 }
 
@@ -54,6 +67,15 @@ async fn reset_password(
     if !(MIN_PASSWORD_LENGTH..=MAX_PASSWORD_LENGTH).contains(&length) {
         return Err(ResetPasswordError::InvalidPassword);
     }
+    password_identity::check(
+        state.get_smart_db(),
+        user_id,
+        "new_password",
+        view.new_password(),
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
 
     let hashed_password = passwords::hash(view.new_password())
         .await
@@ -62,14 +84,27 @@ async fn reset_password(
             ResetPasswordError::DatabaseError
         })?;
 
-    let result: AdminResetPasswordResult = state
-        .get_smart_db()
+    let database_error = |error: ApiLibError| {
+        tracing::error!("{error:?}");
+        ResetPasswordError::DatabaseError
+    };
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    // Checked again on the row locked until the commit: a rename committed since the first check
+    // cannot end up in the stored password (MAIR-757).
+    password_identity::check_in(
+        &mut tx,
+        user_id,
+        "new_password",
+        view.new_password(),
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
+    let result: AdminResetPasswordResult = tx
         .fetch_one(&AdminResetPasswordQueryView::new(user_id, &hashed_password))
         .await
-        .map_err(|error| {
-            tracing::error!("{error:?}");
-            ResetPasswordError::DatabaseError
-        })?;
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)?;
 
     if result.updated() {
         // The reset revoked every session of the user: other APIs refuse their JWTs too.
@@ -87,14 +122,15 @@ async fn reset_password(
     description = "Gives an account a new password, without going through the reset \
                    e-mail. Used to unblock a user who no longer has access to their \
                    mailbox. Reserved to administrators.\n\n\
-                   The password must hold 8 to 255 characters, counted in \
-                   characters, not in bytes. The response has an empty body.",
+                   The password must hold 12 to 255 characters, counted in \
+                   characters, not in bytes, must not be a commonly used password and must not \
+                   contain the account's e-mail, first name or last name (MAIR-757). The response has an empty body.",
     params(
         ("userId" = u64, Path, description = "Id of the user.", example = 42)
     ),
     request_body(
         content = AdminResetPasswordView,
-        description = "New password, 8 to 255 characters.",
+        description = "New password, 12 to 255 characters, not a commonly used password, not containing the account's e-mail, first name or last name.",
         example = json!({ "new_password": "NouveauMotDePasse!123" })
     ),
     responses(
@@ -104,10 +140,10 @@ async fn reset_password(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
+            description = "Malformed JSON body, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's e-mail, first name or last name.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must be at least 8 characters")
+            example = json!("Invalid `new_password`: must be at least 12 characters")
         ),
         (
             status = 401,

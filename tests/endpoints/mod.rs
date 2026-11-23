@@ -13,6 +13,7 @@ mod mair_534_negative_cases;
 mod mair_584_admin_user_sessions;
 mod mair_692_logout_by_refresh_token;
 mod mair_696_email_change;
+mod mair_757_password_policy;
 mod mair_823_settings_v2;
 mod mair_916_923_admin_v2;
 mod pagination;
