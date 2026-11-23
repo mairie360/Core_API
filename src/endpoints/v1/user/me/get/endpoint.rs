@@ -74,6 +74,9 @@ async fn trigger_get_me(
         result.phone_country(),
         result.status(),
         role.iter().map(|r| r.name().to_string()).collect(),
+        role.first()
+            .map(crate::database::roles::get_roles_by_id::Role::modules)
+            .unwrap_or_default(),
         groups,
         pending_email,
     ))
@@ -101,9 +104,10 @@ async fn trigger_get_me(
                 "phone_country": "FR",
                 "status": "active",
                 "role": "agent",
+                "modules": ["dashboard", "projects", "calendar"],
                 "roles": ["agent"],
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing", "color": "teal", "project_count": 2 }
                 ]
             })
         ),

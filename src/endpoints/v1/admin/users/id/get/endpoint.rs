@@ -124,7 +124,7 @@ async fn get_user(
                 "role": { "id": 2, "name": "agent", "description": "Agent municipal" },
                 "roles": [{ "id": 2, "name": "agent", "description": "Agent municipal" }],
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing", "color": "teal", "project_count": 2 }
                 ],
                 "sessions": [
                     {

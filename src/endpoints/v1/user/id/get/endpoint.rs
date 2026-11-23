@@ -151,7 +151,7 @@ async fn trigger_get_user(
                 "role": "agent",
                 "roles": ["agent"],
                 "groups": [
-                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
+                    { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing", "color": "teal", "project_count": 2 }
                 ]
             })
         ),

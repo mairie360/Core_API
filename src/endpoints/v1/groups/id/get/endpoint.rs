@@ -92,7 +92,7 @@ async fn trigger_get_group(
             description = "The requested group.",
             body = GetGroupResultView,
             example = json!({
-                "group": { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing" }
+                "group": { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing", "color": "teal", "project_count": 2 }
             })
         ),
         (

@@ -22,8 +22,9 @@ pub const MAX_NAME_LENGTH: usize = 64;
 pub const MAX_EMAIL_LENGTH: usize = 320;
 /// Role and group descriptions (`TEXT` columns, capped to keep the payloads reasonable).
 pub const MAX_DESCRIPTION_LENGTH: usize = 1000;
-/// Passwords, as typed by the user, on the routes that create an account or set a password.
-pub const MIN_PASSWORD_LENGTH: usize = 8;
+/// Passwords, as typed by the user, on the routes that create an account or set a password
+/// (MAIR-757: 12, the CNIL 2022 minimum for a password used alone).
+pub const MIN_PASSWORD_LENGTH: usize = crate::password_policy::MIN_LENGTH;
 pub const MAX_PASSWORD_LENGTH: usize = 255;
 /// Opaque values the API issued itself (refresh tokens, one-time tokens) and client-provided
 /// labels (`device_info`).
@@ -173,11 +174,12 @@ pub fn check_phone_change(
     }
 }
 
-/// A password: between `min` and [`MAX_PASSWORD_LENGTH`] characters, no control character.
+/// A password: between `min` and [`MAX_PASSWORD_LENGTH`] characters, no control character, and
+/// not one of the most common passwords (MAIR-757, [`crate::password_policy::is_common`]).
 ///
 /// # Errors
 ///
-/// Returns a [`ValidationError`] naming `field` when one of the rules is broken.
+/// Returns a [`ValidationError`] naming `field` and the rule that is broken.
 pub fn check_password(field: &str, value: &str, min: usize) -> Result<(), ValidationError> {
     if value.chars().count() < min {
         return Err(ValidationError::new(
@@ -186,7 +188,33 @@ pub fn check_password(field: &str, value: &str, min: usize) -> Result<(), Valida
         ));
     }
     check_length(field, value, MAX_PASSWORD_LENGTH)?;
-    check_no_control(field, value)
+    check_no_control(field, value)?;
+    if crate::password_policy::is_common(value) {
+        return Err(ValidationError::new(
+            field,
+            "must not be a commonly used password",
+        ));
+    }
+    Ok(())
+}
+
+/// A password that does not contain the e-mail (local part), first name or last name of the
+/// account it is set for (MAIR-757).
+///
+/// # Errors
+///
+/// Returns a [`ValidationError`] naming `field` and the part of the identity it contains.
+pub fn check_password_identity(
+    field: &str,
+    value: &str,
+    identity: crate::password_policy::Identity<'_>,
+) -> Result<(), ValidationError> {
+    crate::password_policy::identity_fragment(value, identity).map_or(Ok(()), |fragment| {
+        Err(ValidationError::new(
+            field,
+            &format!("must not contain the account's {fragment}"),
+        ))
+    })
 }
 
 /// An opaque value only compared or stored as text (token, credential, `device_info`, search
@@ -344,10 +372,35 @@ mod tests {
     }
 
     #[test]
+    fn mair_757_password_rules_name_the_broken_rule() {
+        let short = check_password("new_password", "Velo-2026", MIN_PASSWORD_LENGTH).unwrap_err();
+        assert_eq!(
+            short.to_string(),
+            "Invalid `new_password`: must be at least 12 characters"
+        );
+        let common =
+            check_password("new_password", "Unbelievable", MIN_PASSWORD_LENGTH).unwrap_err();
+        assert!(
+            common.to_string().contains("commonly used password"),
+            "{common}"
+        );
+        let identity = crate::password_policy::Identity {
+            email: "jean.dupont@mairie.fr",
+            first_name: "Jean",
+            last_name: "Dupont",
+        };
+        let with_last_name = "Dupont-de-la-Mairie";
+        let own_name =
+            check_password_identity("new_password", with_last_name, identity).unwrap_err();
+        assert!(own_name.to_string().contains("last name"), "{own_name}");
+        assert!(check_password_identity("new_password", "Velo-Riviere-2026", identity).is_ok());
+    }
+
+    #[test]
     fn password_and_opaque_reject_nul() {
-        assert!(check_password("password", "MotDePasse!123", 8).is_ok());
-        assert!(check_password("password", "court", 8).is_err());
-        assert!(check_password("password", "MotDe\0Passe!123", 8).is_err());
+        assert!(check_password("password", "MotDePasse!123", MIN_PASSWORD_LENGTH).is_ok());
+        assert!(check_password("password", "court", MIN_PASSWORD_LENGTH).is_err());
+        assert!(check_password("password", "MotDe\0Passe!123", MIN_PASSWORD_LENGTH).is_err());
         assert!(check_opaque("refresh_token", "abc\0", MAX_TOKEN_LENGTH).is_err());
         assert!(check_opaque("refresh_token", "Zm9vYmFy", MAX_TOKEN_LENGTH).is_ok());
     }

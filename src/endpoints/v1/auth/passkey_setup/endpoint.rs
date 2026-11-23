@@ -330,6 +330,7 @@ pub async fn passkey_setup(
             tracing::error!("Passkey enrolment session error: {e:?}");
             SetupLoginError::Internal
         })?;
+    crate::login_alert::spawn(&state, emails.as_ref(), user_id, &device_info, ip_address);
     tracing::info!(user_id, "Mandatory second factor enrolled with a passkey");
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

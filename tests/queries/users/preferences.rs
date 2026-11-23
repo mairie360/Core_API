@@ -171,3 +171,51 @@ async fn notification_settings_round_trip() {
         .unwrap();
     assert_eq!(read, expected);
 }
+
+/// MAIR-823: auto-save, system updates and login alerts are stored like the other settings.
+#[tokio::test]
+async fn mair_823_settings_v2_fields_round_trip() {
+    let pool = get_pool().await;
+    let user_id = register_fresh_user(&pool).await;
+
+    let created = patch_preferences(
+        &pool,
+        user_id,
+        &PreferencesPatch {
+            autosave: Some(Some(true)),
+            ..PreferencesPatch::default()
+        },
+    )
+    .await;
+    assert_eq!(created.autosave, Some(true));
+    let reset = patch_preferences(
+        &pool,
+        user_id,
+        &PreferencesPatch {
+            autosave: Some(None),
+            ..PreferencesPatch::default()
+        },
+    )
+    .await;
+    assert_eq!(reset.autosave, None);
+
+    let rows: Vec<UserNotificationSettings> = pool
+        .fetch_all(&PatchNotificationSettingsQueryView::new(
+            user_id,
+            NotificationSettingsPatch {
+                system_updates: Some(Some(false)),
+                login_alerts: Some(Some(true)),
+                ..NotificationSettingsPatch::default()
+            },
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rows[0].system_updates, Some(false));
+    assert_eq!(rows[0].login_alerts, Some(true));
+    let read: UserNotificationSettings = pool
+        .fetch_one(&GetNotificationSettingsQueryView::new(user_id))
+        .await
+        .unwrap();
+    assert_eq!(read.login_alerts, Some(true));
+    assert_eq!(read.email, None);
+}

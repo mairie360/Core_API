@@ -14,7 +14,7 @@ pub struct ForceChangePasswordView {
     )]
     token: String,
     /// Password chosen by the user, replacing the one given when the account was created.
-    #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 12, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
 }
 

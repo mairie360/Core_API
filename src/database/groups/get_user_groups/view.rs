@@ -44,9 +44,9 @@ impl GetUserGroupsQuerView {
 impl ApiRequestDto for GetUserGroupsQuerView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (\
-            SELECT * FROM groups \
-            WHERE id IN (SELECT group_id FROM group_members WHERE user_id = $1) \
-            ORDER BY name, id LIMIT $2 OFFSET $3\
+            SELECT g.*, (SELECT count(pg.group_id) FROM project_groups pg WHERE pg.group_id = g.id)::int AS project_count FROM groups g \
+            WHERE g.id IN (SELECT group_id FROM group_members WHERE user_id = $1) \
+            ORDER BY g.name, g.id LIMIT $2 OFFSET $3\
         ) t"
     }
 

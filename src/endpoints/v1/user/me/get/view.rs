@@ -42,6 +42,10 @@ pub struct GetMeResponseView {
     #[schema(example = json!(["agent"]))]
     #[deprecated(note = "read `role`, a user holds one role")]
     roles: Vec<String>,
+    /// Modules of the navigation the user's role opens, in the order of the navigation (MAIR-916):
+    /// the fronts hide the others. Empty when the user has no role.
+    #[schema(example = json!(["dashboard", "projects", "calendar"]))]
+    modules: Vec<String>,
     /// Groups the user is a member of. Empty if they belong to none.
     groups: Vec<Group>,
 }
@@ -58,6 +62,7 @@ impl GetMeResponseView {
         phone_country: Option<&str>,
         status: &str,
         roles: Vec<String>,
+        modules: Vec<String>,
         groups: Vec<Group>,
         pending_email: Option<String>,
     ) -> Self {
@@ -71,6 +76,7 @@ impl GetMeResponseView {
             pending_email,
             role: roles.first().cloned().unwrap_or_default(),
             roles,
+            modules,
             groups,
         }
     }
@@ -116,6 +122,12 @@ impl GetMeResponseView {
         &self.roles
     }
 
+    /// Modules of the navigation the user's role opens (MAIR-916).
+    #[must_use]
+    pub fn modules(&self) -> &[String] {
+        &self.modules
+    }
+
     #[must_use]
     pub fn groups(&self) -> &[Group] {
         &self.groups
@@ -153,6 +165,7 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
             pending_email: None,
             role: String::new(),
             roles: Vec::new(),
+            modules: Vec::new(),
             groups: Vec::new(),
         }
     }

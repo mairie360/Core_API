@@ -6,6 +6,8 @@ use std::fmt::Display;
 #[derive(serde::Deserialize)]
 pub struct GetUserByIdQueryView {
     id: u64,
+    #[serde(default)]
+    locked: bool,
     params: Vec<QueryParam>,
 }
 
@@ -14,7 +16,19 @@ impl GetUserByIdQueryView {
     pub fn new(id: u64) -> Self {
         Self {
             id,
+            locked: false,
             params: vec![QueryParam::I32(id_to_sql(id))],
+        }
+    }
+
+    /// The same read, locking the row (`FOR NO KEY UPDATE`) until the transaction ends: a check made
+    /// on what it returns still holds when the transaction writes (MAIR-757, the identity rule of the
+    /// password policy). Only meaningful inside a transaction.
+    #[must_use]
+    pub fn locked(id: u64) -> Self {
+        Self {
+            locked: true,
+            ..Self::new(id)
         }
     }
 
@@ -26,7 +40,11 @@ impl GetUserByIdQueryView {
 
 impl ApiRequestDto for GetUserByIdQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1) t"
+        if self.locked {
+            "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1 FOR NO KEY UPDATE) t"
+        } else {
+            "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1) t"
+        }
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -36,7 +54,11 @@ impl ApiRequestDto for GetUserByIdQueryView {
 
 impl Display for GetUserByIdQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GetUserByIdQueryView: id = {}", self.id)
+        write!(
+            f,
+            "GetUserByIdQueryView: id = {}, locked = {}",
+            self.id, self.locked
+        )
     }
 }
 

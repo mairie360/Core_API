@@ -1,6 +1,7 @@
 use crate::client_ip::client_ip;
 use crate::database::auth::active_user_id::GetActiveUserIdByEmailQueryView;
 use crate::database::auth::unset_first_connection::UnsetFirstConnectionQueryView;
+use crate::endpoints::password_identity::{self, IdentityChanges, IdentityCheckError};
 use crate::endpoints::v1::auth::login::endpoint::{
     generate_session, two_factor_challenge, LoginError, TwoFactorStep,
 };
@@ -11,12 +12,14 @@ use crate::endpoints::v1::auth::reset_password::view::{
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
+use crate::redis_keys::INVITATION_TTL_SECONDS;
 use crate::second_factor::SecretCipher;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use crate::two_factor;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::redis::redis_interface::Redis;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
@@ -24,6 +27,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq)]
 enum ResetPasswordError {
     DatabaseError,
+    /// The new password breaks the identity rule (MAIR-757); the text names it.
+    Rejected(String),
     RedisError,
     TokenGenerationError,
     TooManyRequests(u64),
@@ -49,6 +54,7 @@ impl std::fmt::Display for ResetPasswordError {
                     "The password could not be reset, please try again later."
                 )
             }
+            Self::Rejected(reason) => f.write_str(reason),
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
             Self::UnknownToken => {
                 write!(f, "Unknown token")
@@ -74,6 +80,7 @@ impl ResponseError for ResetPasswordError {
             | Self::RedisError
             | Self::TokenGenerationError
             | Self::SecondStepFailed => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Rejected(_) => StatusCode::BAD_REQUEST,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::UnknownToken => StatusCode::UNAUTHORIZED,
             Self::TwoFactorRequired(_) | Self::TwoFactorSetupRequired(..) => StatusCode::ACCEPTED,
@@ -113,10 +120,25 @@ async fn get_user_id(smart_db: &SmartDatabase, email: &str) -> Result<u64, Reset
         .ok_or(ResetPasswordError::UnknownToken)
 }
 
+fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
+    match e {
+        IdentityCheckError::Rejected(e) => ResetPasswordError::Rejected(e.to_string()),
+        IdentityCheckError::UnknownUser => ResetPasswordError::UnknownToken,
+        IdentityCheckError::Database => ResetPasswordError::DatabaseError,
+    }
+}
+
 /// Sets the new password and revokes every session opened with the previous one, in one
 /// transaction (MAIR-420). Returns the revoked sessions, to publish once committed.
+///
+/// The reset link (`link_keys`) is spent inside that transaction, after the writes and before the
+/// commit: a password the locked identity check refuses leaves the link usable for another try, and a
+/// link that cannot be spent rolls the change back (MAIR-757).
 async fn reset_pwd(
     smart_db: &SmartDatabase,
+    redis: &Redis,
+    spent_key: String,
+    link_keys: [&str; 2],
     new_password: &str,
     user_id: u64,
 ) -> Result<Vec<Uuid>, ResetPasswordError> {
@@ -129,6 +151,17 @@ async fn reset_pwd(
         ResetPasswordError::DatabaseError
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
+    // Checked again on the row locked until the commit: a rename committed since the first check
+    // cannot end up in the stored password (MAIR-757). The link is not spent yet: a refusal here keeps it.
+    password_identity::check_in(
+        &mut tx,
+        user_id,
+        "new_password",
+        new_password,
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
     // Proving ownership of the mailbox also completes a pending first connection: the account no
     // longer asks for a password change at the next login (MAIR-390).
     let _: i64 = tx
@@ -143,6 +176,27 @@ async fn reset_pwd(
     let revoked = revoke_all_user_sessions_in(&mut tx, user_id)
         .await
         .map_err(database_error)?;
+    // The link is single-use: one `SET NX` marker per link, written by the only request that may
+    // commit, so two resets sent at once with the same link cannot both change the password (the
+    // second one waited for the row lock above, then finds the marker). Spent before the commit, so a
+    // failure here leaves nothing written.
+    match redis
+        .secure_set_ex(&spent_key, "1", INVITATION_TTL_SECONDS)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => return Err(ResetPasswordError::UnknownToken),
+        Err(e) => {
+            tracing::error!("Failed to spend the reset link: {e:?}");
+            return Err(ResetPasswordError::RedisError);
+        }
+    }
+    for key in link_keys {
+        if let Err(e) = redis.delete(key).await {
+            tracing::error!("Failed to spend the reset link: {e:?}");
+            return Err(ResetPasswordError::RedisError);
+        }
+    }
     tx.commit().await.map_err(database_error)?;
     Ok(revoked)
 }
@@ -152,6 +206,7 @@ async fn reset_password_trigger(
     view: ResetPasswordView,
     ip_adress: std::net::IpAddr,
     can_verify_second_factor: bool,
+    emails: Option<&web::Data<crate::emails::AccountEmails>>,
 ) -> Result<(String, String), ResetPasswordError> {
     let smart_db = state.get_smart_db();
     let redis = state.get_redis();
@@ -165,6 +220,16 @@ async fn reset_password_trigger(
         }
     };
     let user_id = get_user_id(smart_db, &email).await?;
+    // Checked before the token is consumed, so the e-mailed link stays usable for another try.
+    password_identity::check(
+        smart_db,
+        user_id,
+        "new_password",
+        view.new_password(),
+        IdentityChanges::default(),
+    )
+    .await
+    .map_err(identity_error)?;
 
     // Checked before anything is written: an instance that cannot verify the second factor of this
     // account answers `503` with the password, the sessions and the reset token untouched, so the
@@ -185,16 +250,15 @@ async fn reset_password_trigger(
     }
 
     let reversed_key = format!("{email}/forgot_password_token");
-    if let Err(e) = redis.delete(&reversed_key).await {
-        tracing::error!("Failed to delete reversed key: {e:?}");
-        return Err(ResetPasswordError::RedisError);
-    }
-    if let Err(e) = redis.delete(&key).await {
-        tracing::error!("Failed to delete key: {e:?}");
-        return Err(ResetPasswordError::RedisError);
-    }
-
-    let revoked = reset_pwd(smart_db, view.new_password(), user_id).await?;
+    let revoked = reset_pwd(
+        smart_db,
+        redis,
+        format!("{}/forgot_password_spent", view.token()),
+        [&reversed_key, &key],
+        view.new_password(),
+        user_id,
+    )
+    .await?;
     publish_revoked_sessions(redis, &revoked).await;
 
     // Owning the mailbox is not a second factor: a protected account goes through the second step
@@ -224,8 +288,11 @@ async fn reset_password_trigger(
         }
     }
 
-    match generate_session(user_id, &view.device_info(), ip_adress, state).await {
-        Ok((jwt, refresh_token)) => Ok((jwt, refresh_token)),
+    match generate_session(user_id, &view.device_info(), ip_adress, state.clone()).await {
+        Ok((jwt, refresh_token)) => {
+            crate::login_alert::spawn(&state, emails, user_id, &view.device_info(), ip_adress);
+            Ok((jwt, refresh_token))
+        }
         Err(e) => {
             tracing::error!("Failed to generate session: {e:?}");
             Err(ResetPasswordError::TokenGenerationError)
@@ -274,10 +341,10 @@ async fn reset_password_trigger(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` shorter than 8 characters, longer than 255 characters or containing a control character.",
+            description = "Malformed JSON body, missing field, `token` or `device_info` longer than 512 characters or containing a control character, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's e-mail, first name or last name.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must be at least 8 characters")
+            example = json!("Invalid `new_password`: must be at least 12 characters")
         ),
         (
             status = 401,
@@ -322,6 +389,7 @@ pub async fn reset_password(
     body: ValidatedJson<ResetPasswordView>,
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, ResetPasswordError> {
     let ip_address = client_ip(&request);
@@ -331,8 +399,14 @@ pub async fn reset_password(
             .hit(&ip_key(ip_address))
             .map_err(|refused| ResetPasswordError::TooManyRequests(refused.retry_after_seconds))?;
     }
-    let (jwt, refresh_token) =
-        reset_password_trigger(state, body.into_inner(), ip_address, secrets.is_some()).await?;
+    let (jwt, refresh_token) = reset_password_trigger(
+        state,
+        body.into_inner(),
+        ip_address,
+        secrets.is_some(),
+        emails.as_ref(),
+    )
+    .await?;
 
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))

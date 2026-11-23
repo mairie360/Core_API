@@ -8,9 +8,20 @@ pub const THEMES: [&str; 3] = ["light", "dark", "system"];
 pub const DENSITIES: [&str; 3] = ["compact", "normal", "comfortable"];
 /// Values of `date_format`, the ones the Settings front offers (MAIR-479).
 pub const DATE_FORMATS: [&str; 3] = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"];
-/// Values of `font_family` (MAIR-479): the DSFR font, two common sans-serif fonts, a font for
-/// dyslexic readers and the system font.
-pub const FONT_FAMILIES: [&str; 5] = ["Marianne", "Arial", "Verdana", "OpenDyslexic", "system-ui"];
+/// Values of `font_family`: the closed list of the Settings V2 front (MAIR-912, MAIR-1128: `system`,
+/// `geist`, `atkinson`, `lora`, the named fonts of lib-components), then the values of MAIR-479, still
+/// accepted so the preferences saved before V2 stay valid.
+pub const FONT_FAMILIES: [&str; 9] = [
+    "system",
+    "geist",
+    "atkinson",
+    "lora",
+    "Marianne",
+    "Arial",
+    "Verdana",
+    "OpenDyslexic",
+    "system-ui",
+];
 
 /// Partial update of the display preferences. For every field: absent keeps the stored value,
 /// `null` resets it to the application default, a value stores it.
@@ -55,6 +66,10 @@ pub struct PatchPreferencesView {
     #[serde(default, deserialize_with = "double_option")]
     #[schema(value_type = Option<bool>, example = false)]
     auto_open_notifications: Option<Option<bool>>,
+    /// Save drafts automatically every 30 seconds (MAIR-823).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<bool>, example = true)]
+    autosave: Option<Option<bool>>,
 }
 
 impl PatchPreferencesView {
@@ -76,6 +91,7 @@ impl PatchPreferencesView {
             date_format: Self::text(&self.date_format),
             home_page: Self::text(&self.home_page),
             auto_open_notifications: self.auto_open_notifications,
+            autosave: self.autosave,
         }
     }
 
@@ -179,6 +195,23 @@ mod tests {
             "/etc/localtime",
         ] {
             assert!(!is_time_zone(invalid), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn mair_1128_font_families_of_the_settings_v2_front() {
+        for valid in [
+            "system",
+            "geist",
+            "atkinson",
+            "lora",
+            "Marianne",
+            "system-ui",
+        ] {
+            assert!(FONT_FAMILIES.contains(&valid), "{valid}");
+        }
+        for invalid in ["Lora", "comic-sans", ""] {
+            assert!(!FONT_FAMILIES.contains(&invalid), "{invalid}");
         }
     }
 

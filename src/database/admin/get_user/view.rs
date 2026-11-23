@@ -28,7 +28,9 @@ impl AdminGetUserQueryView {
 
 impl ApiRequestDto for AdminGetUserQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT first_name, last_name, email, phone_number, phone_country, status, is_archived FROM users WHERE id = $1) t"
+        "SELECT row_to_json(t) FROM (SELECT u.first_name, u.last_name, u.email, u.phone_number, u.phone_country, u.status, u.is_archived, \
+         (SELECT jsonb_build_object('id', sv.id, 'name', sv.name) FROM services sv WHERE sv.id = u.service_id) AS service \
+         FROM users u WHERE u.id = $1) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -102,6 +104,10 @@ pub struct User {
     /// `true` if the account is archived: it can no longer sign in.
     #[schema(example = false)]
     is_archived: bool,
+    /// Service of the mairie the agent belongs to (MAIR-923), `null` when none.
+    #[schema(required = true)]
+    #[serde(default)]
+    service: Option<crate::database::admin::list_users::AdminUserService>,
 }
 
 impl User {

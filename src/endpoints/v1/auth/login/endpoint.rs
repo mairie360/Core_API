@@ -13,7 +13,7 @@ use crate::rate_limit::{email_key, ip_key, too_many_requests_response, RateLimit
 use crate::redis_keys::{set_token, FIRST_CONNECTION_TTL_SECONDS};
 use crate::refresh_token;
 use crate::second_factor::SecretCipher;
-use crate::session_jwt::{generate_session_jwt, user_role_name};
+use crate::session_jwt::{generate_session_jwt, publish_active_token, user_role_name};
 use crate::two_factor;
 use actix_web::{http::StatusCode, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::database::error::DbError;
@@ -125,12 +125,17 @@ pub async fn generate_session(
     ip_adress: std::net::IpAddr,
     state: web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
-    let (view, session_id, refresh_token) = new_session(user_id, device_info, ip_adress);
-    state.get_smart_db().execute(view).await.map_err(|e| {
+    // One transaction: the session row is only kept once its JWT is known to Redis (MAIR-772).
+    let mut tx = state.get_smart_db().begin().await.map_err(|e| {
         tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    finish_session(user_id, session_id, refresh_token, &state).await
+    let tokens = generate_session_in(&mut tx, user_id, device_info, ip_adress, &state).await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Create Session DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    Ok(tokens)
 }
 
 /// Same as [`generate_session`], but the session row is written inside `tx`: the caller commits
@@ -151,7 +156,7 @@ pub async fn generate_session_in(
         tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    finish_session(user_id, session_id, refresh_token, state).await
+    finish_session(user_id, session_id, refresh_token, ip_adress, state).await
 }
 
 fn new_session(
@@ -179,6 +184,7 @@ async fn finish_session(
     user_id: u64,
     session_id: Uuid,
     refresh_token: String,
+    ip_address: std::net::IpAddr,
     state: &web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
     // The BFFs read the caller's role from the JWT (MAIR-529).
@@ -190,6 +196,11 @@ async fn finish_session(
         tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
+    // A JWT every API does not know would be refused as soon as the session has a state in Redis:
+    // the sign-in fails rather than handing it out (MAIR-772). The caller drops its transaction.
+    publish_active_token(state, user_id, session_id, &jwt, Some(ip_address))
+        .await
+        .map_err(|_| LoginError::RedisError)?;
     Ok((jwt, refresh_token))
 }
 
@@ -559,6 +570,7 @@ pub async fn login(
     limits: Option<web::Data<RateLimits>>,
     secrets: Option<web::Data<SecretCipher>>,
     relying_party: Option<web::Data<crate::passkeys::Passkeys>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, LoginError> {
     let login_view = payload.into_inner();
@@ -571,6 +583,13 @@ pub async fn login(
 
     let (jwt, refresh_token, user_id) =
         login_user(&login_view, state.clone(), ip_address, secrets.is_some()).await?;
+    crate::login_alert::spawn(
+        &state,
+        emails.as_ref(),
+        user_id,
+        &login_view.device_info(),
+        ip_address,
+    );
     let offer = passkey_offer(&state, relying_party.is_some(), user_id).await;
 
     Ok(HttpResponse::Ok()

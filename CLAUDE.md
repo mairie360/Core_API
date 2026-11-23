@@ -397,6 +397,41 @@ false`, `Admin` first) cannot be unprotected: `PATCH` / `PUT admin/roles/{id}` a
 `can_be_deleted: true`, so the role can be neither renamed nor deleted afterwards. A custom role
 that an administrator protects becomes a system role for good.
 
+### Sessions of a user and suspension (MAIR-584, MAIR-904)
+
+The administration reads the sessions of a user in `GET /api/v1/admin/users/{userId}/` (`sessions`, latest 100) and
+closes them with `DELETE /api/v1/admin/users/{userId}/sessions` (every active one; republishes every session revoked
+within `JWT_TIMEOUT`, `503` when Redis refuses, so repeating it is effective) and `DELETE
+/api/v1/admin/users/{userId}/sessions/{sessionId}` (one, `404` when unknown, another user's or already ended).
+`POST /api/v1/admin/users/{userId}/suspend` sets `users.status = 'suspended'` (Database `mair-904-01`) and revokes
+every session in one transaction guarded like the last-administrator writes (an administrator cannot suspend their
+own account: `409`); `POST .../reactivate` gives back `offline`. A suspended account keeps its roles, groups and
+factors, but the sign-in views (`LoginUserQueryView`, `GetActiveUserIdByEmailQueryView`, `ResetRecipientQueryView`,
+the passkey lookups) skip it like an archived one, `HasActiveAdminQueryView` does not count it, and Database's
+`is_admin()` / `check_access()` deny it. API_lib is unchanged: the revoked sessions reach every API through the
+revocation list. The admin list rows carry `account_status` (`active` / `invited` / `inactive` = archived / `suspended`, computed by
+`admin_account_status_sql!`), `active_sessions`, `last_login_at` and `two_factor { methods, last_verified_at }` (never a
+secret); `GET /admin/users/` filters on `account_status` and `role_id` and sorts with `sort=name|-name`
+(`AdminUsersFilter`, four static SQL variants: searched or not × ascending or descending). Tests: `tests/endpoints/mair_584_admin_user_sessions.rs` (needs a Database image
+with `mair-904-01`) and the newman folder "Sessions and suspension of a user".
+
+### Modules of a role, services, group colours (MAIR-916, MAIR-923)
+
+Database `mair-916-01` / `mair-923-01` / `mair-923-02` (v4.0.0). A role lists the modules it opens
+(`role_modules`, ids of `role_modules::MODULES`: `dashboard`, `projects`, `calendar`, `messages`,
+`training`, `admin`, `settings`): the admin role routes take an optional `modules` list (a new role
+without one opens `dashboard`), `GET /admin/roles/` and the roles of `/user/me/` return them in
+navigation order, and `GET /user/me/` answers the caller's `modules` (the shared navigation hides the
+others; the business APIs do not check them). Taking `admin` away from the `Admin` role is refused by
+the schema trigger (`23514` → `403`). Services of the mairie: `GET` / `POST /admin/services/`,
+`PATCH` / `DELETE /admin/services/{serviceId}` (name unique whatever its case, `409`; deleting one
+leaves its agents without service) and `PUT /admin/users/{userId}/service {service_id | null}` (`404`
+for an unknown user or service); the admin list and record carry `service {id, name}` and the admin
+search also matches the name of the service. Groups take an optional `color` of the charter palette
+(`groups::color::GROUP_COLORS`, `400` otherwise; `null` in a `PATCH` gives back the default) and
+answer `project_count` (rows of `project_groups`, read through the `SELECT (group_id)` grant). Tests:
+`tests/endpoints/mair_916_923_admin_v2.rs`, newman folder "Services, role modules and group colours".
+
 ### Second factor (MAIR-805)
 
 TOTP (RFC 6238, SHA-1, 6 digits, 30 s, ±1 step) plus 10 single-use backup codes, all in `second_factor.rs`
@@ -452,8 +487,9 @@ wrong). Routes: public `POST /auth/passkey/options` (challenge, no account named
 `POST /auth/passkey/setup/options` + `POST /auth/passkey/setup` (mandatory enrolment by passkey: the `2fa_setup_required` token is the credential, the ceremony is kept per account, a refused answer counts like a wrong code and the token is burnt at the fifth, success spends the token, opens the session like `login`, sends the security e-mail and issues no backup codes), `POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
 signature / counter, moves the counter forward, opens the session exactly like `login`; **every** refusal is the same
 `401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
-`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
-(own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
+`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`), `PATCH /user/me/passkeys/{id}/` (MAIR-811:
+`{label}`, `200` with the passkey, no e-mail; the Login screen registers first, then saves the name the agent keeps, the manager by
+default) and `DELETE /user/me/passkeys/{id}/` (own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
 satisfies a mandatory policy); The name of the manager (`user_passkeys.provider`, Database 3.10.0) is deduced at registration from the AAGUID of the attestation object (`passkey_managers.rs`: CBOR `authData`, table = the community list `passkey-authenticator-aaguids`, names as published; an all-zero, absent or unknown AAGUID gives `null`) and returned as `provider` by the registration and the list, so the front can offer it as the name of the passkey. The password sign-ins (`POST /auth/login` and `/auth/login/2fa`) also answer `passkey_offer: { allowed, registered }` (not `passkey`: the GDPR contract check refuses response fields named after the credentials column `user_passkeys.passkey`) (`allowed` = relying party configured and policy accepts passkeys, `registered` = the account has one) so the login screen can propose a passkey; a failed lookup reads as nothing to propose and never blocks the sign-in, and a sign-in by passkey carries no `passkey_offer` field. `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
 the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `ajoutée` /
 `supprimée`, French because the template cannot branch, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
@@ -461,8 +497,53 @@ published before deploying, and a failed e-mail never undoes the change. The sig
 authenticated routes `second_factor_per_user`. Tests use the software authenticator of `webauthn-authenticator-rs`
 (`tests/endpoints/passkeys.rs`): it only signs for a listed credential and returns no user handle, so the test names the
 credential and sets `userHandle` as a browser would. The newman journey cannot sign (no authenticator in the sandbox): it
-covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` stay in the coverage exceptions.
+covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` (and the `200` of the rename) stay in the coverage exceptions.
 `load-test.js` runs the non-read passkey handlers in the isolated `policy` scenario (passkeys are refused by default).
+
+### Settings V2 (MAIR-823)
+
+Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and acting on the caller only:
+
+- `DELETE /api/v1/sessions/{sessionId}/` ends one active session of the caller by its UUID (`204`). The session of the request
+  answers `409` (log out instead); an unknown id, another account's session or one already revoked / expired answers the
+  same `404`; a path that is not a UUID `400`. `POST /api/v1/sessions/revoke-others` ends every active session but the one
+  of the request (`200 {"revoked": n}`; a JWT without `sid` revokes them all). Both publish the revoked ids to the Redis
+  revocation list (`session_jwt::current_session_id` reads the `sid` of the request).
+- `POST /api/v1/user/me/password {current_password, new_password}` changes the caller's password (`204`). It spends
+  `password_check_per_user` first (`429` + `Retry-After`, budget shared with the e-mail change of `PATCH /user/me/`), answers
+  `403` to a wrong current password or an account without one, `400` to a new password outside the 8-255 rule
+  (`MIN_PASSWORD_LENGTH`) or equal to the current one, and writes the hash and revokes every **other** session in one
+  transaction, published after the commit (MAIR-420).
+- Preferences gain `autosave`, notification settings `system_updates` and `login_alerts` (Database `mair-823-01`, nullable
+  booleans like the others).
+- Sign-in alert (`src/login_alert.rs`): when `login_alerts` is `true`, every new session (password login, `login/2fa`,
+  passkey, `reset_password`, the two mandatory enrolments) sends the Resend template `account-login-alert`
+  (`emails::LoginAlertEmail`: `USER_FIRST_NAME`, `DEVICE`, `IP_ADDRESS`, `DATE`, optional `MAIRIE_NAME`) on a background
+  task: it never delays nor blocks the sign-in, and a failure is only logged. **The template must be published in Resend
+  before deploying.** Tests: `tests/endpoints/mair_823_settings_v2.rs`, newman folder "Settings V2: sessions, password,
+  alerts (MAIR-823)".
+
+### Stolen sessions (MAIR-773)
+
+The APIs cannot see the browser: the fronts' Next.js proxies compare each request with its session (device proof,
+network) and report what they found with the session's own JWT, through BFF_user, to `POST /api/v1/sessions/report
+{level, ip_address, device_info}` (`level`: `certain` = bound session without a valid proof, `possible` = unbound
+session from another network, `ip_change` = bound session that changed network with its proof). It calls Database's
+`report_suspicious_session_use()` (Database `mair-773-01`): every report is logged in `connection_logs`,
+`certain` / `possible` revoke the session (`revoked: true`, published to Redis like any revocation) and queue one alert
+per session and level in `session_security_alerts`, `ip_change` moves the session's address. A JWT without `sid`
+answers `400`. `src/session_alerts.rs` e-mails each alert to the agent (Resend
+template `account-session-alert`: `USER_FIRST_NAME`, `CERTAINTY` = `certaine` / `possible`, `DEVICE`, `IP_ADDRESS`
+(only its beginning, `92.184.xxx.xxx`, `emails::mask_ip_address`), `DATE`, `CHANGE_PASSWORD_URL` =
+`<PUBLIC_URL>/forgot-password`, optional `MAIRIE_NAME`) and to every active administrator (`admin-session-alert`:
+`AGENT_NAME` instead of the first name, no `CHANGE_PASSWORD_URL`, and `JOURNAL_URL` =
+`<ADMIN_PUBLIC_URL>/?tab=security&journal=<user id>` when the optional `ADMIN_PUBLIC_URL` is set), right after the report and from a sweep every minute started by `main` (`spawn_sweeper`): each replica
+claims its alerts with `FOR UPDATE SKIP LOCKED`, 5 attempts one minute apart, the failure kind in `last_error`.
+**Both templates must be published in Resend before deploying.** The Login screen reads the latest unread alert with
+`GET /api/v1/user/me/security-alert/` (`204` when none) and marks it read with `POST
+/api/v1/user/me/security-alert/{alertId}/acknowledge/`; the administration reads `GET /api/v1/admin/security-alerts/`
+(30 days, 500 at most, with the agent) and `GET /api/v1/admin/users/{userId}/connection-logs` (latest 100 lines).
+Tests: `tests/endpoints/mair_773_session_alerts.rs`, newman folder "Stolen session alerts (MAIR-773)".
 
 ### Sessions / auth flow
 
@@ -479,6 +560,17 @@ token presented again within `REFRESH_REUSE_GRACE_SECONDS` (10 s on the Postgres
 several fronts) is only refused (`401`); later, `find_reused_refresh_token` revokes the whole session, the refresh
 handler publishes it to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log) and logs an
 `audit` event (`refresh_token_reuse`, never the token), and the answer is the same `401`.
+
+Session state (MAIR-772, `mairie360_api_lib` 5.1.0): every JWT Core issues (`login::finish_session`, so every sign-in path,
+and the refresh) is published as the active token of its session with `session_jwt::publish_active_token`
+(`session:<sid>` = SHA-256 of the JWT, user id, address; TTL `JWT_TIMEOUT` clamped to 15 minutes by the lib), and
+`session_revocation::publish_revoked_session` writes the `revoked` state with `revoked:<sid>` (`mark_session_revoked`).
+The lib's middleware then accepts the current JWT of a session without any database query, refuses the JWT a refresh
+replaced (`401 Replaced token`) and, when the key is missing, asks Database's `session_state()` and caches the answer. A
+failed publication fails the sign-in (`500`) or the refresh (`503`, the rotation is rolled back, the refresh token sent
+stays valid): a JWT Redis does not know would be refused as replaced. With a `JWT_TIMEOUT` above 15 minutes the
+replaced token is only refused while the key lives. Every API role needs `~session:*` in the chart's Redis ACL
+(`tests/common/acl_redis.rs` mirrors it). Tests: `tests/endpoints/mair_772_session_state.rs`.
 
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
 `role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also

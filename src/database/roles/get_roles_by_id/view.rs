@@ -37,9 +37,11 @@ impl GetRolesByIdQueryView {
 impl ApiRequestDto for GetRolesByIdQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (\
-            SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles \
-            WHERE id = ANY(string_to_array(NULLIF($1, ''), ',')::int[]) \
-            ORDER BY id\
+            SELECT r.id, r.name, r.description, r.created_at, r.updated_at, r.can_be_deleted, \
+            COALESCE((SELECT array_agg(rm.module ORDER BY array_position(ARRAY['dashboard','projects','calendar','messages','training','admin','settings'], rm.module)) FROM role_modules rm WHERE rm.role_id = r.id), '{}') AS modules \
+            FROM roles r \
+            WHERE r.id = ANY(string_to_array(NULLIF($1, ''), ',')::int[]) \
+            ORDER BY r.id\
         ) t"
     }
 
@@ -62,6 +64,9 @@ pub struct Role {
     created_at: DateTime<Utc>,
     updated_at: Option<DateTime<Utc>>,
     can_be_deleted: bool,
+    /// Modules the role opens (MAIR-916): read by `GetRolesOfUserQueryView` only, empty otherwise.
+    #[serde(default)]
+    modules: Vec<String>,
 }
 
 impl Role {
@@ -81,8 +86,16 @@ impl Role {
             created_at,
             updated_at,
             can_be_deleted,
+            modules: Vec::new(),
         }
     }
+
+    /// Modules the role opens, in the order of the navigation (MAIR-916).
+    #[must_use]
+    pub fn modules(&self) -> Vec<String> {
+        crate::role_modules::ordered(self.modules.clone())
+    }
+
     #[must_use]
     pub const fn id(&self) -> i32 {
         self.id
