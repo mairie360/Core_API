@@ -30,6 +30,9 @@ pub struct UserPreferences {
     /// Open the notification panel automatically when a notification arrives.
     #[schema(example = false)]
     pub auto_open_notifications: Option<bool>,
+    /// Save drafts automatically every 30 seconds (MAIR-823).
+    #[schema(example = true)]
+    pub autosave: Option<bool>,
 }
 
 /// Reads the preferences of a user: always one row, every field `null` when none is saved.
@@ -52,7 +55,7 @@ impl GetPreferencesQueryView {
 impl ApiRequestDto for GetPreferencesQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT to_jsonb(t) FROM ( \
-         SELECT p.theme, p.font_family, p.font_size, p.density, p.language, p.timezone, p.date_format, p.home_page, p.auto_open_notifications \
+         SELECT p.theme, p.font_family, p.font_size, p.density, p.language, p.timezone, p.date_format, p.home_page, p.auto_open_notifications, p.autosave \
          FROM (SELECT $1::int AS user_id) u \
          LEFT JOIN user_preferences p ON p.user_id = u.user_id \
          ) t"

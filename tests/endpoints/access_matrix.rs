@@ -288,6 +288,11 @@ fn request(spec: &Value, name: &str, f: &Fixtures, refresh_token: &str) -> test:
             Some(json!({ "user_id": f.target }))
         }
         "/api/v1/sessions/revoke" => Some(json!({ "refresh_token": refresh_token })),
+        // The callers' passwords are not known: a new password refused by its rule (400) reaches
+        // the route without checking a password, which would answer the business 403 (MAIR-823).
+        "/api/v1/user/me/password" => {
+            Some(json!({ "current_password": "unknown", "new_password": "short" }))
+        }
         _ if example.is_null() => None,
         _ => Some(example),
     };

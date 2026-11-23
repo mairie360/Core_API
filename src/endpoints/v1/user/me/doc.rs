@@ -7,6 +7,7 @@ use crate::endpoints::v1::user::me::passkeys::endpoint::{
     __path_delete_my_passkey, __path_list_my_passkeys, __path_passkey_register_options,
     __path_register_passkey,
 };
+use crate::endpoints::v1::user::me::password::endpoint::__path_change_my_password;
 use crate::endpoints::v1::user::me::patch::endpoint::__path_patch_me;
 use crate::endpoints::v1::user::me::preferences::endpoint::{
     __path_get_my_preferences, __path_patch_my_preferences,
@@ -23,6 +24,7 @@ use utoipa::OpenApi;
         get_me,
         export_my_data,
         patch_me,
+        change_my_password,
         get_my_preferences,
         patch_my_preferences,
         get_my_notification_settings,
@@ -40,6 +42,7 @@ use utoipa::OpenApi;
     components(schemas(
         super::get::view::GetMeResponseView,
         super::patch::view::PatchMeView,
+        super::password::view::ChangePasswordView,
         super::preferences::view::PatchPreferencesView,
         super::notifications::view::PatchNotificationSettingsView,
         crate::database::users::get_preferences::UserPreferences,

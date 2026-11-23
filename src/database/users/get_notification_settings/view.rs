@@ -21,6 +21,12 @@ pub struct UserNotificationSettings {
     pub projects: Option<bool>,
     #[schema(example = false)]
     pub calendar: Option<bool>,
+    /// Notification type "system updates" (MAIR-823).
+    #[schema(example = true)]
+    pub system_updates: Option<bool>,
+    /// E-mail sent to the account at every new sign-in (MAIR-823). `null` = off.
+    #[schema(example = false)]
+    pub login_alerts: Option<bool>,
 }
 
 /// Reads the notification settings of a user: always one row, every field `null` when none is
@@ -44,7 +50,7 @@ impl GetNotificationSettingsQueryView {
 impl ApiRequestDto for GetNotificationSettingsQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT to_jsonb(t) FROM ( \
-         SELECT p.email, p.push, p.desktop, p.messages, p.projects, p.calendar \
+         SELECT p.email, p.push, p.desktop, p.messages, p.projects, p.calendar, p.system_updates, p.login_alerts \
          FROM (SELECT $1::int AS user_id) u \
          LEFT JOIN user_notification_settings p ON p.user_id = u.user_id \
          ) t"

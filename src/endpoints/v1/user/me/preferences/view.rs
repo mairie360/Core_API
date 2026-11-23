@@ -55,6 +55,10 @@ pub struct PatchPreferencesView {
     #[serde(default, deserialize_with = "double_option")]
     #[schema(value_type = Option<bool>, example = false)]
     auto_open_notifications: Option<Option<bool>>,
+    /// Save drafts automatically every 30 seconds (MAIR-823).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<bool>, example = true)]
+    autosave: Option<Option<bool>>,
 }
 
 impl PatchPreferencesView {
@@ -76,6 +80,7 @@ impl PatchPreferencesView {
             date_format: Self::text(&self.date_format),
             home_page: Self::text(&self.home_page),
             auto_open_notifications: self.auto_open_notifications,
+            autosave: self.autosave,
         }
     }
 
