@@ -1,9 +1,11 @@
-use super::view::{PasskeyRegisterOptionsView, PasskeyRegisterView, PasskeyView};
+use super::view::{
+    PasskeyRegisterOptionsView, PasskeyRegisterView, PasskeyRenameView, PasskeyView,
+};
 use crate::client_ip::client_ip;
 use crate::database::passkeys::{
     DeletePasskeyQueryView, DeletedPasskeyRecord, InsertPasskeyQueryView,
     ListPasskeySecretsQueryView, ListPasskeysQueryView, PasskeyRecord, PasskeySecretRecord,
-    UserContactQueryView, UserContactRecord,
+    RenamePasskeyQueryView, UserContactQueryView, UserContactRecord,
 };
 use crate::emails::{AccountEmails, PasskeyChange};
 use crate::endpoints::db_error::{self, DbFailure};
@@ -12,7 +14,9 @@ use crate::passkeys::{self, Passkeys};
 use crate::rate_limit::{too_many_requests_response, user_key, RateLimits};
 use crate::two_factor;
 use actix_web::http::StatusCode;
-use actix_web::{delete, get, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
+use actix_web::{
+    delete, get, patch, post, web, HttpRequest, HttpResponse, Responder, ResponseError,
+};
 use base64::{engine::general_purpose, Engine as _};
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::security::AuthenticatedUser;
@@ -588,4 +592,86 @@ pub async fn delete_my_passkey(
     )
     .await;
     Ok(HttpResponse::NoContent().finish())
+}
+
+#[utoipa::path(
+    patch,
+    path = "/passkeys/{id}/",
+    summary = "Rename one of my passkeys",
+    description = "Changes the label of a passkey of the caller (MAIR-811): the Login screen registers \
+                   the passkey, then offers the name of its manager (`provider`) and saves the one \
+                   the agent keeps. A passkey of another account answers `404`, like an unknown one. \
+                   The key, its dates and the manager are unchanged; no e-mail is sent (the passkey \
+                   neither appears nor disappears).",
+    params(("id" = u64, Path, description = "Identifier of the passkey, from `GET /api/v1/user/me/passkeys/`.", example = 12)),
+    request_body = PasskeyRenameView,
+    responses(
+        (
+            status = 200,
+            description = "Passkey renamed.",
+            body = PasskeyView,
+            example = json!({
+                "id": 12,
+                "label": "Google Password Manager",
+                "provider": "Google Password Manager",
+                "created_at": "2026-11-17T09:30:00+00:00",
+                "last_used_at": null
+            })
+        ),
+        (
+            status = 400,
+            description = "The id is not an integer, or the label is empty, longer than 100 characters or holds a control character.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid path: ids are integers.")
+        ),
+        (
+            status = 401,
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 404,
+            description = "No such passkey among the caller's.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Passkey not found.")
+        ),
+        (
+            status = 500,
+            description = "Database error.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("An error occurred while accessing the database.")
+        )
+    ),
+    tag = "Users",
+    security(("jwt" = []))
+)]
+#[patch("/passkeys/{id}/")]
+pub async fn rename_my_passkey(
+    path: web::Path<u64>,
+    payload: ValidatedJson<PasskeyRenameView>,
+    state: web::Data<AppState>,
+    auth_user: AuthenticatedUser,
+) -> Result<impl Responder, PasskeyError> {
+    let view = payload.into_inner();
+    let renamed: PasskeyRecord = state
+        .get_smart_db()
+        .fetch_one(&RenamePasskeyQueryView::new(
+            auth_user.id,
+            path.into_inner(),
+            view.label(),
+        ))
+        .await
+        .map_err(|e| db_failure("rename passkey", &e))?;
+    Ok(HttpResponse::Ok().json(PasskeyView {
+        id: renamed.id,
+        label: renamed.label,
+        provider: renamed.provider,
+        created_at: renamed.created_at,
+        last_used_at: renamed.last_used_at,
+    }))
 }

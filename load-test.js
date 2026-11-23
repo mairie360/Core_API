@@ -860,6 +860,11 @@ const policyHandlers = {
       request({ path: { id: 999999999 }, params: { responseCallback: http.expectedStatuses(404) } }),
       { 'unknown passkey 404': (r) => r.status === 404 },
     ),
+  'PATCH /api/v1/user/me/passkeys/{id}/': ({ request }) =>
+    check(
+      request({ path: { id: 999999999 }, body: { label: 'k6' }, params: { responseCallback: http.expectedStatuses(404) } }),
+      { 'rename unknown passkey 404': (r) => r.status === 404 },
+    ),
   'GET /api/v1/admin/two-factor-policy': ({ request }) =>
     check(request(), {
       'policy 200': (r) => r.status === 200 && r.json('required') === false && r.json('totp_allowed') === true,

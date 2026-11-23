@@ -5,7 +5,7 @@ use crate::endpoints::v1::user::me::notifications::endpoint::{
 };
 use crate::endpoints::v1::user::me::passkeys::endpoint::{
     __path_delete_my_passkey, __path_list_my_passkeys, __path_passkey_register_options,
-    __path_register_passkey,
+    __path_register_passkey, __path_rename_my_passkey,
 };
 use crate::endpoints::v1::user::me::password::endpoint::__path_change_my_password;
 use crate::endpoints::v1::user::me::patch::endpoint::__path_patch_me;
@@ -37,7 +37,8 @@ use utoipa::OpenApi;
         list_my_passkeys,
         passkey_register_options,
         register_passkey,
-        delete_my_passkey
+        delete_my_passkey,
+        rename_my_passkey
     ),
     components(schemas(
         super::get::view::GetMeResponseView,
@@ -54,7 +55,8 @@ use utoipa::OpenApi;
         super::two_factor::view::BackupCodesView,
         super::passkeys::view::PasskeyView,
         super::passkeys::view::PasskeyRegisterOptionsView,
-        super::passkeys::view::PasskeyRegisterView
+        super::passkeys::view::PasskeyRegisterView,
+        super::passkeys::view::PasskeyRenameView
     ))
 )]
 pub struct MeDoc;

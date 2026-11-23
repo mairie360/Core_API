@@ -6267,6 +6267,180 @@
           "response": []
         },
         {
+          "name": "MAIR-811 Renaming an unknown passkey answers 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_pk}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/passkeys/999999999/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "passkeys",
+                "999999999",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\": \"Gestionnaire de mots de passe Google\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Nothing tells whether it exists\", function () {",
+                  "    pm.expect(pm.response.text()).to.eql(\"Passkey not found.\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-811 Renaming with a blank label is rejected",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_pk}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/passkeys/999999999/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "passkeys",
+                "999999999",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\": \"   \"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"The label is named\", function () {",
+                  "    pm.expect(pm.response.text()).to.include(\"label\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-811 Renaming with a non numeric id answers 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_pk}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/passkeys/abc/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "passkeys",
+                "abc",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\": \"Ordinateur de la mairie\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "MAIR-810 The sign-in challenge names no account",
           "request": {
             "method": "POST",
@@ -18540,7 +18714,7 @@
     },
     {
       "key": "openapi_coverage_exceptions",
-      "value": "{\n  \"GET /api/v1/user/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"GET /api/v1/user/{id}/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"POST /api/v1/auth/2fa/setup 409\": \"Needs an enrolment token of an account that got a factor meanwhile: tests/endpoints/second_factor.rs (mair_808_setup_refused_when_the_factor_got_active)\",\n  \"POST /api/v1/auth/passkey 2xx\": \"Needs a signature of a real authenticator, the Postman sandbox cannot produce one: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/auth/passkey 403\": \"Checked after the passkey is identified, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_810_sign_in_is_refused_once_the_policy_stops_allowing_passkeys)\",\n  \"POST /api/v1/user/me/passkeys/ 2xx\": \"Needs a registration answer of a real authenticator: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/user/me/passkeys/ 403\": \"Same refusal as the challenge's, reached before the answer is read: tests/endpoints/passkeys.rs (mair_810_the_policy_gates_passkeys_and_the_administrator_may_allow_them)\",\n  \"POST /api/v1/user/me/passkeys/ 409\": \"Needs the same credential registered twice, which the authenticator refuses through excludeCredentials: tests/database (user_passkeys unique credential_id)\",\n  \"DELETE /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\"\n}",
+      "value": "{\n  \"GET /api/v1/user/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"GET /api/v1/user/{id}/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"POST /api/v1/auth/2fa/setup 409\": \"Needs an enrolment token of an account that got a factor meanwhile: tests/endpoints/second_factor.rs (mair_808_setup_refused_when_the_factor_got_active)\",\n  \"POST /api/v1/auth/passkey 2xx\": \"Needs a signature of a real authenticator, the Postman sandbox cannot produce one: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/auth/passkey 403\": \"Checked after the passkey is identified, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_810_sign_in_is_refused_once_the_policy_stops_allowing_passkeys)\",\n  \"POST /api/v1/user/me/passkeys/ 2xx\": \"Needs a registration answer of a real authenticator: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/user/me/passkeys/ 403\": \"Same refusal as the challenge's, reached before the answer is read: tests/endpoints/passkeys.rs (mair_810_the_policy_gates_passkeys_and_the_administrator_may_allow_them)\",\n  \"POST /api/v1/user/me/passkeys/ 409\": \"Needs the same credential registered twice, which the authenticator refuses through excludeCredentials: tests/database (user_passkeys unique credential_id)\",\n  \"DELETE /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"PATCH /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_811_rename_a_passkey)\"\n}",
       "type": "string"
     }
   ]

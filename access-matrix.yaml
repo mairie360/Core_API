@@ -70,6 +70,7 @@ operations:
   POST /api/v1/user/me/passkeys/options/: {access: authenticated, ownership: self, note: "registration challenge (MAIR-810)"}
   POST /api/v1/user/me/passkeys/: {access: authenticated, ownership: self, note: "needs the pending registration; security e-mail to the agent (MAIR-810)"}
   DELETE /api/v1/user/me/passkeys/{id}/: {access: authenticated, ownership: self, note: "own passkeys only, another account's answers 404; security e-mail (MAIR-810)"}
+  PATCH /api/v1/user/me/passkeys/{id}/: {access: authenticated, ownership: self, note: "renames one of the caller's passkeys, another account's answers 404; no e-mail (MAIR-811)"}
   POST /api/v1/user/me/password: {access: authenticated, ownership: self, note: "needs the current password, rate limited per user; revokes the other sessions (MAIR-823)"}
   GET /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
   PATCH /api/v1/user/me/preferences/: {access: authenticated, ownership: self}

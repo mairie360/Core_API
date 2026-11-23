@@ -470,8 +470,9 @@ wrong). Routes: public `POST /auth/passkey/options` (challenge, no account named
 `POST /auth/passkey/setup/options` + `POST /auth/passkey/setup` (mandatory enrolment by passkey: the `2fa_setup_required` token is the credential, the ceremony is kept per account, a refused answer counts like a wrong code and the token is burnt at the fifth, success spends the token, opens the session like `login`, sends the security e-mail and issues no backup codes), `POST /auth/passkey` (identifies the account by the passkey, checks the handle belongs to it, verifies origin / `rpId` /
 signature / counter, moves the counter forward, opens the session exactly like `login`; **every** refusal is the same
 `401`, an unknown or archived account included); authenticated `GET /user/me/passkeys/` (never the key),
-`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`) and `DELETE /user/me/passkeys/{id}/`
-(own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
+`POST /user/me/passkeys/options/`, `POST /user/me/passkeys/` (label + answer, `201`), `PATCH /user/me/passkeys/{id}/` (MAIR-811:
+`{label}`, `200` with the passkey, no e-mail; the Login screen registers first, then saves the name the agent keeps, the manager by
+default) and `DELETE /user/me/passkeys/{id}/` (own passkeys only, another account's is `404`). A passkey is a complete sign-in (it counts as both factors, so it
 satisfies a mandatory policy); The name of the manager (`user_passkeys.provider`, Database 3.10.0) is deduced at registration from the AAGUID of the attestation object (`passkey_managers.rs`: CBOR `authData`, table = the community list `passkey-authenticator-aaguids`, names as published; an all-zero, absent or unknown AAGUID gives `null`) and returned as `provider` by the registration and the list, so the front can offer it as the name of the passkey. The password sign-ins (`POST /auth/login` and `/auth/login/2fa`) also answer `passkey_offer: { allowed, registered }` (not `passkey`: the GDPR contract check refuses response fields named after the credentials column `user_passkeys.passkey`) (`allowed` = relying party configured and policy accepts passkeys, `registered` = the account has one) so the login screen can propose a passkey; a failed lookup reads as nothing to propose and never blocks the sign-in, and a sign-in by passkey carries no `passkey_offer` field. `passkey_allowed = false` answers `403` on every passkey route. Adding or removing one sends
 the security e-mail `account-passkey-changed` (`emails::PasskeyChangedEmail`: `USER_FIRST_NAME`, `CHANGE` = `ajoutée` /
 `supprimée`, French because the template cannot branch, `PASSKEY_LABEL`, `DEVICE`, `DATE`, `IP_ADDRESS`, optional `MAIRIE_NAME`); that Resend template must be
@@ -479,7 +480,7 @@ published before deploying, and a failed e-mail never undoes the change. The sig
 authenticated routes `second_factor_per_user`. Tests use the software authenticator of `webauthn-authenticator-rs`
 (`tests/endpoints/passkeys.rs`): it only signs for a listed credential and returns no user handle, so the test names the
 credential and sets `userHandle` as a browser would. The newman journey cannot sign (no authenticator in the sandbox): it
-covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` stay in the coverage exceptions.
+covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` (and the `200` of the rename) stay in the coverage exceptions.
 `load-test.js` runs the non-read passkey handlers in the isolated `policy` scenario (passkeys are refused by default).
 
 ### Settings V2 (MAIR-823)
