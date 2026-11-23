@@ -61,7 +61,8 @@ impl Display for LockAdminRoleQueryView {
     }
 }
 
-/// Whether at least one active administrator exists (`fetch_scalar::<bool>`).
+/// Whether at least one active administrator exists (`fetch_scalar::<bool>`): neither archived nor
+/// suspended (MAIR-904), as `is_admin()` reads it.
 #[derive(serde::Deserialize)]
 pub struct HasActiveAdminQueryView {
     params: Vec<QueryParam>,
@@ -87,7 +88,8 @@ impl ApiRequestDto for HasActiveAdminQueryView {
         "SELECT EXISTS(SELECT 1 FROM user_roles ur \
          JOIN roles r ON r.id = ur.role_id \
          JOIN users u ON u.id = ur.user_id \
-         WHERE r.name = $1 AND u.is_archived IS NOT TRUE)"
+         WHERE r.name = $1 AND u.is_archived IS NOT TRUE \
+           AND u.status IS DISTINCT FROM 'suspended')"
     }
 
     fn query_params(&self) -> &[QueryParam] {

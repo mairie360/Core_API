@@ -27,7 +27,27 @@ macro_rules! admin_users_row {
                 (SELECT jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name) ORDER BY r.name) \
                  FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
                  WHERE ur.user_id = u.id), \
-                '[]'::jsonb) AS roles \
+                '[]'::jsonb) AS roles, \
+            (SELECT count(*)::int FROM sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL \
+                AND (s.expires_at IS NULL OR s.expires_at > now())) AS active_sessions, \
+            (SELECT to_char(max(s.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') \
+                FROM sessions s WHERE s.user_id = u.id) AS last_login_at, \
+            jsonb_build_object( \
+                'methods', to_jsonb(array_remove(ARRAY[ \
+                    CASE WHEN EXISTS (SELECT 1 FROM user_totp t \
+                        WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL) THEN 'totp' END, \
+                    CASE WHEN EXISTS (SELECT 1 FROM user_passkeys p WHERE p.user_id = u.id) \
+                        THEN 'passkey' END, \
+                    CASE WHEN EXISTS (SELECT 1 FROM user_backup_codes b \
+                        WHERE b.user_id = u.id AND b.used_at IS NULL) THEN 'backup_codes' END \
+                ], NULL)), \
+                'last_verified_at', (SELECT to_char(max(v.at) AT TIME ZONE 'UTC', \
+                        'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM ( \
+                    SELECT to_timestamp(t.last_used_step * 30) AS at FROM user_totp t \
+                    WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL \
+                    UNION ALL SELECT p.last_used_at FROM user_passkeys p WHERE p.user_id = u.id \
+                    UNION ALL SELECT b.used_at FROM user_backup_codes b WHERE b.user_id = u.id) v) \
+            ) AS two_factor \
          FROM page JOIN users u ON u.id = page.id \
          ORDER BY u.last_name, u.first_name, u.id"
     };
@@ -211,6 +231,33 @@ pub struct AdminUserRow {
     /// roles. At most one entry, empty when the user has none. Read `role` instead.
     #[schema(deprecated)]
     pub roles: Vec<AdminUserRole>,
+    /// Number of sessions of the user still active: neither revoked nor expired (MAIR-584). The
+    /// administration shows the user as online when it is above 0.
+    #[schema(example = 2)]
+    #[serde(default)]
+    pub active_sessions: i32,
+    /// Opening date of the latest session of the user (its last sign-in), RFC 3339 in UTC, or
+    /// `null` when the user never signed in.
+    #[schema(example = "2026-09-16T08:42:11Z")]
+    #[serde(default)]
+    pub last_login_at: Option<String>,
+    /// Second factor of the user (MAIR-824, security tab of the administration).
+    #[serde(default)]
+    pub two_factor: AdminUserTwoFactor,
+}
+
+/// Second factor of a user, as the administrators see it: never a secret, a code or a key.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+pub struct AdminUserTwoFactor {
+    /// Methods the user has enrolled, among `totp` (authenticator application, confirmed),
+    /// `passkey` (at least one passkey) and `backup_codes` (at least one unused backup code).
+    /// Empty when the user has no second factor.
+    #[schema(example = json!(["totp", "backup_codes"]))]
+    pub methods: Vec<String>,
+    /// Latest successful verification of a second factor (TOTP code, passkey sign-in or backup
+    /// code), RFC 3339 in UTC, or `null` when none was ever verified.
+    #[schema(example = "2026-09-16T08:42:11Z")]
+    pub last_verified_at: Option<String>,
 }
 
 impl AdminUserRow {

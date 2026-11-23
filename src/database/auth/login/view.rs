@@ -33,7 +33,8 @@ impl ApiRequestDto for LoginUserQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (\
             SELECT id, password, first_connect FROM users \
-            WHERE email = $1 AND NOT COALESCE(is_archived, FALSE)\
+            WHERE email = $1 AND NOT COALESCE(is_archived, FALSE) \
+              AND status IS DISTINCT FROM 'suspended'\
         ) t"
     }
 

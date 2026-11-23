@@ -118,13 +118,14 @@ passkey_view!(
 );
 
 passkey_view!(
-    /// The passkey a sign-in names, if its owner is not archived; `DbError::NotFound` otherwise.
+    /// The passkey a sign-in names, if its owner is neither archived nor suspended (MAIR-904); `DbError::NotFound` otherwise.
     FindPasskeyQueryView(credential_id_base64: &str)
         -> vec![QueryParam::Text(credential_id_base64.to_string())],
     "SELECT row_to_json(t) FROM (\
         SELECT p.id, p.user_id, p.passkey FROM user_passkeys p \
         JOIN users u ON u.id = p.user_id \
-        WHERE p.credential_id = decode($1, 'base64') AND u.is_archived IS NOT TRUE\
+        WHERE p.credential_id = decode($1, 'base64') AND u.is_archived IS NOT TRUE \
+          AND u.status IS DISTINCT FROM 'suspended'\
     ) t"
 );
 
@@ -144,11 +145,12 @@ pub struct ActiveAccountRecord {
 }
 
 passkey_view!(
-    /// The account, if it is not archived; `DbError::NotFound` otherwise.
+    /// The account, if it is neither archived nor suspended (MAIR-904); `DbError::NotFound` otherwise.
     ActiveAccountQueryView(user_id: u64)
         -> vec![QueryParam::I32(id_to_sql(user_id))],
     "SELECT row_to_json(t) FROM (\
-        SELECT u.id FROM users u WHERE u.id = $1 AND u.is_archived IS NOT TRUE\
+        SELECT u.id FROM users u WHERE u.id = $1 AND u.is_archived IS NOT TRUE \
+          AND u.status IS DISTINCT FROM 'suspended'\
     ) t"
 );
 

@@ -130,7 +130,7 @@ operations:
   GET /api/v1/admin/users/:
     access: admin
     roles: [Admin]
-    personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, created_at]
+    personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, created_at, active_sessions, last_login_at, two_factor]
   POST /api/v1/admin/users/: {access: admin, roles: [Admin]}
   GET /api/v1/admin/users/{userId}/:
     access: admin
@@ -140,6 +140,10 @@ operations:
   DELETE /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin], note: "archives the account and revokes its sessions"}
   PATCH /api/v1/admin/users/{userId}/password: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/2fa: {access: admin, roles: [Admin], note: "removes the TOTP secret and backup codes, closes every session of the user (MAIR-805)"}
+  DELETE /api/v1/admin/users/{userId}/sessions: {access: admin, roles: [Admin], note: "closes every session of the user, published to the revocation list (MAIR-584)"}
+  DELETE /api/v1/admin/users/{userId}/sessions/{sessionId}: {access: admin, roles: [Admin], note: "closes one session of the user (MAIR-584)"}
+  POST /api/v1/admin/users/{userId}/suspend: {access: admin, roles: [Admin], note: "suspends the account and closes its sessions; not one's own account (MAIR-904)"}
+  POST /api/v1/admin/users/{userId}/reactivate: {access: admin, roles: [Admin], note: "ends the suspension (MAIR-904)"}
   GET /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "reads the two-factor policy of the instance (MAIR-808)"}
   PUT /api/v1/admin/two-factor-policy: {access: admin, roles: [Admin], note: "replaces the two-factor policy: mandatory or not, allowed modes; audited (MAIR-808)"}
   POST /api/v1/admin/users/{userId}/erase: {access: admin, roles: [Admin], note: "erasure (GDPR art. 17, MAIR-289): anonymize_user(), sessions revoked"}

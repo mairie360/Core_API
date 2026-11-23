@@ -10,6 +10,7 @@ mod forgot_password;
 mod free_text;
 mod id_aliases;
 mod mair_534_negative_cases;
+mod mair_584_admin_user_sessions;
 mod mair_692_logout_by_refresh_token;
 mod mair_696_email_change;
 mod pagination;

@@ -103,3 +103,52 @@ impl ApiRequestDto for RecentlyRevokedSessionsQueryView {
         &self.params
     }
 }
+
+/// Revokes the session `session_id` of `user_id` when it is still active.
+///
+/// Returns its id (`fetch_all::<Uuid>`: one row, or none when the session is unknown, belongs to another user,
+/// or already ended). Used by the administrators (MAIR-584).
+#[derive(serde::Deserialize)]
+pub struct RevokeUserSessionQueryView {
+    user_id: u64,
+    session_id: Uuid,
+    params: Vec<QueryParam>,
+}
+
+impl RevokeUserSessionQueryView {
+    #[must_use]
+    pub fn new(user_id: u64, session_id: Uuid) -> Self {
+        Self {
+            user_id,
+            session_id,
+            params: vec![
+                QueryParam::I64(id_to_sql_i64(user_id)),
+                QueryParam::Uuid(session_id),
+            ],
+        }
+    }
+}
+
+impl ApiRequestDto for RevokeUserSessionQueryView {
+    fn query_sql(&self) -> &'static str {
+        "WITH revoked AS (\
+            UPDATE sessions SET revoked_at = now() \
+            WHERE user_id = $1 AND id = $2 AND revoked_at IS NULL \
+            AND (expires_at IS NULL OR expires_at > now()) RETURNING id\
+        ) SELECT to_json(id) FROM revoked"
+    }
+
+    fn query_params(&self) -> &[QueryParam] {
+        &self.params
+    }
+}
+
+impl Display for RevokeUserSessionQueryView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "RevokeUserSessionQueryView: user_id = {}, session_id = {}",
+            self.user_id, self.session_id
+        )
+    }
+}
