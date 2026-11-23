@@ -11,6 +11,7 @@ mod invitation;
 mod login_alert;
 mod passkey_changed;
 mod password_reset;
+mod session_alert;
 
 pub use account_emails::{AccountEmails, PUBLIC_URL};
 pub use account_invitation::AccountInvitationEmail;
@@ -20,3 +21,4 @@ pub use invitation::{invite_account, InviteError};
 pub use login_alert::LoginAlertEmail;
 pub use passkey_changed::{PasskeyChange, PasskeyChangedEmail};
 pub use password_reset::PasswordResetEmail;
+pub use session_alert::{certainty_label, AdminSessionAlertEmail, SessionAlertEmail};

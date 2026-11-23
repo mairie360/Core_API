@@ -15,6 +15,7 @@ mod mair_692_logout_by_refresh_token;
 mod mair_696_email_change;
 mod mair_757_password_policy;
 mod mair_772_session_state;
+mod mair_773_session_alerts;
 mod mair_823_settings_v2;
 mod mair_916_923_admin_v2;
 mod pagination;

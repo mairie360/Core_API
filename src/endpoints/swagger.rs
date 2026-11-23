@@ -68,6 +68,7 @@ invalid field, e.g. ``Invalid `email`: must be a valid e-mail address``. |
         (name = "Groups", description = "Groups of users and management of their members."),
         (name = "Admin - Users", description = "Administration of the user accounts. Reserved to administrators."),
         (name = "Admin - Roles", description = "Administration of the roles and their permissions. Reserved to administrators."),
+        (name = "Admin - Security", description = "Stolen-session alerts and sign-in journals of the agents (MAIR-773). Reserved to administrators."),
         (name = "Admin - Two-factor policy", description = "Two-factor policy of the instance: mandatory or optional, accepted modes (MAIR-808). Reserved to administrators."),
         (name = "Service", description = "Unauthenticated technical probes, used by Docker and Kubernetes.")
     ),

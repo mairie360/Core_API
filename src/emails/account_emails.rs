@@ -207,4 +207,55 @@ impl AccountEmails {
         };
         self.mailer.send(to, &email).await.map(|_| ())
     }
+
+    /// Sends the stolen-session alert to the agent (MAIR-773, `account-session-alert`).
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_session_alert(
+        &self,
+        to: &str,
+        first_name: &str,
+        level: &str,
+        device: &str,
+        ip_address: &str,
+        date: &str,
+    ) -> Result<(), MailerError> {
+        let email = super::SessionAlertEmail {
+            first_name: first_name.to_string(),
+            certainty: super::certainty_label(level).to_string(),
+            device: device.to_string(),
+            ip_address: ip_address.to_string(),
+            date: date.to_string(),
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(to, &email).await.map(|_| ())
+    }
+
+    /// Sends the stolen-session alert of `agent_name` to an administrator (MAIR-773,
+    /// `admin-session-alert`).
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_admin_session_alert(
+        &self,
+        to: &str,
+        agent_name: &str,
+        level: &str,
+        device: &str,
+        ip_address: &str,
+        date: &str,
+    ) -> Result<(), MailerError> {
+        let email = super::AdminSessionAlertEmail {
+            agent_name: agent_name.to_string(),
+            certainty: super::certainty_label(level).to_string(),
+            device: device.to_string(),
+            ip_address: ip_address.to_string(),
+            date: date.to_string(),
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(to, &email).await.map(|_| ())
+    }
 }

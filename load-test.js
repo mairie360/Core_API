@@ -354,6 +354,15 @@ const readHandlers = {
   'GET /api/v1/admin/roles/': ({ request }) => check(request(), { 'admin roles 200': (r) => r.status === 200 }),
   'GET /api/v1/admin/services/': ({ request }) =>
     check(request(), { 'admin services 200': (r) => r.status === 200 && Array.isArray(r.json('services')) }),
+  // MAIR-773: stolen-session alerts (the static JWT's account has none) and the sign-in journal.
+  'GET /api/v1/user/me/security-alert/': ({ request }) =>
+    check(request(), { 'no pending security alert 204': (r) => r.status === 204 }),
+  'GET /api/v1/admin/security-alerts/': ({ request }) =>
+    check(request(), { 'security alerts 200': (r) => r.status === 200 && Array.isArray(r.json()) }),
+  'GET /api/v1/admin/users/{userId}/connection-logs': ({ request }) =>
+    check(request({ path: { userId: MEMBER_ID } }), {
+      'connection logs 200': (r) => r.status === 200 && Array.isArray(r.json()),
+    }),
 
 };
 
@@ -423,6 +432,26 @@ const writeHandlers = {
     check(request({ path: { sessionId: sessionIdOf(other.jwt) }, headers: bearer(current.jwt) }), {
       'revoke session by id 204': (r) => r.status === 204,
     });
+    deleteUser(account.id);
+  },
+  // MAIR-773: a front proxy reports a network change of a bound session (logged, nothing closed).
+  'POST /api/v1/sessions/report': ({ request }) => {
+    const account = activeAccount('report');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt), body: { level: 'ip_change', ip_address: '203.0.113.7', device_info: DEVICE } }), {
+      'report 200': (r) => r.status === 200 && r.json('revoked') === false,
+    });
+    deleteUser(account.id);
+  },
+  // A possible stolen session closes it and queues an alert, which the next sign-in reads and acknowledges.
+  'POST /api/v1/user/me/security-alert/{alertId}/acknowledge/': ({ request }) => {
+    const account = activeAccount('alert');
+    fixture('POST', '/api/v1/sessions/report', { level: 'possible', ip_address: '203.0.113.7', device_info: DEVICE }, {
+      headers: bearer(login(account).jwt),
+    });
+    const session = login(account);
+    const alertId = fixture('GET', '/api/v1/user/me/security-alert/', undefined, { headers: bearer(session.jwt) }).json('id');
+    check(request({ headers: bearer(session.jwt), path: { alertId } }), { 'acknowledge alert 204': (r) => r.status === 204 });
     deleteUser(account.id);
   },
   'POST /api/v1/sessions/revoke-others': ({ request }) => {

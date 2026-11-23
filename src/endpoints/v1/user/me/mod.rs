@@ -9,6 +9,7 @@ pub mod passkeys;
 pub mod password;
 pub mod patch;
 pub mod preferences;
+pub mod security_alert;
 pub mod two_factor;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -31,6 +32,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(passkeys::endpoint::passkey_register_options)
             .service(passkeys::endpoint::register_passkey)
             .service(passkeys::endpoint::delete_my_passkey)
-            .service(passkeys::endpoint::rename_my_passkey),
+            .service(passkeys::endpoint::rename_my_passkey)
+            .service(security_alert::endpoint::get_my_security_alert)
+            .service(security_alert::endpoint::acknowledge_my_security_alert),
     );
 }

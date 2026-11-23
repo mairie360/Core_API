@@ -523,6 +523,26 @@ Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and ac
   before deploying.** Tests: `tests/endpoints/mair_823_settings_v2.rs`, newman folder "Settings V2: sessions, password,
   alerts (MAIR-823)".
 
+### Stolen sessions (MAIR-773)
+
+The APIs cannot see the browser: the fronts' Next.js proxies compare each request with its session (device proof,
+network) and report what they found with the session's own JWT, through BFF_user, to `POST /api/v1/sessions/report
+{level, ip_address, device_info}` (`level`: `certain` = bound session without a valid proof, `possible` = unbound
+session from another network, `ip_change` = bound session that changed network with its proof). It calls Database's
+`report_suspicious_session_use()` (Database `mair-773-01`): every report is logged in `connection_logs`,
+`certain` / `possible` revoke the session (`revoked: true`, published to Redis like any revocation) and queue one alert
+per session and level in `session_security_alerts`, `ip_change` moves the session's address. A JWT without `sid`
+answers `400`. `src/session_alerts.rs` e-mails each alert to the agent (Resend
+template `account-session-alert`: `USER_FIRST_NAME`, `CERTAINTY` = `certaine` / `possible`, `DEVICE`, `IP_ADDRESS`,
+`DATE`, optional `MAIRIE_NAME`) and to every active administrator (`admin-session-alert`: `AGENT_NAME` instead of the
+first name), right after the report and from a sweep every minute started by `main` (`spawn_sweeper`): each replica
+claims its alerts with `FOR UPDATE SKIP LOCKED`, 5 attempts one minute apart, the failure kind in `last_error`.
+**Both templates must be published in Resend before deploying.** The Login screen reads the latest unread alert with
+`GET /api/v1/user/me/security-alert/` (`204` when none) and marks it read with `POST
+/api/v1/user/me/security-alert/{alertId}/acknowledge/`; the administration reads `GET /api/v1/admin/security-alerts/`
+(30 days, 500 at most, with the agent) and `GET /api/v1/admin/users/{userId}/connection-logs` (latest 100 lines).
+Tests: `tests/endpoints/mair_773_session_alerts.rs`, newman folder "Stolen session alerts (MAIR-773)".
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

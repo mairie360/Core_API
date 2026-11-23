@@ -12,6 +12,9 @@ use crate::endpoints::v1::user::me::patch::endpoint::__path_patch_me;
 use crate::endpoints::v1::user::me::preferences::endpoint::{
     __path_get_my_preferences, __path_patch_my_preferences,
 };
+use crate::endpoints::v1::user::me::security_alert::endpoint::{
+    __path_acknowledge_my_security_alert, __path_get_my_security_alert,
+};
 use crate::endpoints::v1::user::me::two_factor::endpoint::{
     __path_confirm_two_factor, __path_disable_two_factor, __path_get_two_factor_status,
     __path_regenerate_backup_codes, __path_setup_two_factor,
@@ -38,7 +41,9 @@ use utoipa::OpenApi;
         passkey_register_options,
         register_passkey,
         delete_my_passkey,
-        rename_my_passkey
+        rename_my_passkey,
+        get_my_security_alert,
+        acknowledge_my_security_alert
     ),
     components(schemas(
         super::get::view::GetMeResponseView,
@@ -56,7 +61,8 @@ use utoipa::OpenApi;
         super::passkeys::view::PasskeyView,
         super::passkeys::view::PasskeyRegisterOptionsView,
         super::passkeys::view::PasskeyRegisterView,
-        super::passkeys::view::PasskeyRenameView
+        super::passkeys::view::PasskeyRenameView,
+        crate::database::security_alerts::SecurityAlert
     ))
 )]
 pub struct MeDoc;
