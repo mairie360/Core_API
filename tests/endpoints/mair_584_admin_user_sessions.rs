@@ -458,3 +458,49 @@ async fn mair_904_a_suspended_administrator_loses_the_administration() {
     );
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
+
+#[actix_web::test]
+async fn mair_904_the_admin_list_filters_by_account_status_and_refuses_unknown_filters() {
+    let env = env().await;
+    let app = init_app!(env.state, env.cipher);
+    let admin = admin(&env.state).await;
+    let (id, email) = create_account(&env.raw).await;
+    let (status, ..) = call!(
+        app,
+        test::TestRequest::post()
+            .uri(&format!("/api/v1/admin/users/{id}/suspend"))
+            .insert_header(admin.clone())
+    );
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, body, _) = call!(
+        app,
+        test::TestRequest::get()
+            .uri(&format!(
+                "/api/v1/admin/users/?search={email}&account_status=suspended&sort=-name"
+            ))
+            .insert_header(admin.clone())
+    );
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["users"][0]["account_status"], "suspended");
+    let (_, body, _) = call!(
+        app,
+        test::TestRequest::get()
+            .uri(&format!(
+                "/api/v1/admin/users/?search={email}&account_status=active"
+            ))
+            .insert_header(admin.clone())
+    );
+    assert_eq!(body["total"], 0);
+
+    for query in ["account_status=deleted", "sort=email"] {
+        let (status, _, text) = call!(
+            app,
+            test::TestRequest::get()
+                .uri(&format!("/api/v1/admin/users/?{query}"))
+                .insert_header(admin.clone())
+        );
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {text}");
+    }
+}
