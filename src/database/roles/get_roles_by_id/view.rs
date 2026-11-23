@@ -37,9 +37,11 @@ impl GetRolesByIdQueryView {
 impl ApiRequestDto for GetRolesByIdQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (\
-            SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles \
-            WHERE id = ANY(string_to_array(NULLIF($1, ''), ',')::int[]) \
-            ORDER BY id\
+            SELECT r.id, r.name, r.description, r.created_at, r.updated_at, r.can_be_deleted, \
+            COALESCE((SELECT array_agg(rm.module ORDER BY array_position(ARRAY['dashboard','projects','calendar','messages','training','admin','settings'], rm.module)) FROM role_modules rm WHERE rm.role_id = r.id), '{}') AS modules \
+            FROM roles r \
+            WHERE r.id = ANY(string_to_array(NULLIF($1, ''), ',')::int[]) \
+            ORDER BY r.id\
         ) t"
     }
 

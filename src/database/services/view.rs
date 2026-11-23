@@ -164,7 +164,7 @@ impl DeleteServiceQueryView {
 
 impl ApiRequestDto for DeleteServiceQueryView {
     fn query_sql(&self) -> &'static str {
-        "DELETE FROM services WHERE id = $1 RETURNING id"
+        "DELETE FROM services WHERE id = $1 RETURNING to_jsonb(id)"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -203,7 +203,7 @@ impl SetUserServiceQueryView {
 
 impl ApiRequestDto for SetUserServiceQueryView {
     fn query_sql(&self) -> &'static str {
-        "UPDATE users SET service_id = $2 WHERE id = $1 AND is_archived IS NOT TRUE RETURNING id"
+        "UPDATE users SET service_id = $2 WHERE id = $1 AND is_archived IS NOT TRUE RETURNING to_jsonb(id)"
     }
 
     fn query_params(&self) -> &[QueryParam] {

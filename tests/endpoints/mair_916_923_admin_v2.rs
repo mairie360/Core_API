@@ -367,7 +367,7 @@ async fn mair_923_a_group_has_a_colour_of_the_palette_and_counts_its_projects() 
     assert_eq!(color.as_deref(), Some("teal"));
 
     let project_id: i32 = sqlx::query_scalar(
-        "INSERT INTO projects (name, owner_id) VALUES ('Projet couleur', $1) RETURNING id",
+        "INSERT INTO projects (title, owner_id) VALUES ('Projet couleur', $1) RETURNING id",
     )
     .bind(*ADMIN_ID.get().unwrap())
     .fetch_one(&env.raw)
