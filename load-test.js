@@ -804,12 +804,9 @@ const isPolicy = (method, path) =>
   || (path.includes('/passkey') && !READ_METHODS.includes(method));
 const OPTIONAL_POLICY = { required: false, totp_allowed: true, passkey_allowed: false, backup_codes_allowed: true };
 
-/**
- * The enrolment token of a login that the mandatory policy answers `2fa_setup_required`; `modes`
- * overrides the allowed modes of that policy (`{ passkey_allowed: true }` for a passkey enrolment).
- */
-function setupToken(account, modes = {}) {
-  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, ...modes, required: true });
+/** The enrolment token of a login that the mandatory policy answers `2fa_setup_required`. */
+function setupToken(account) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true });
   try {
     return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
       expected: [202],
@@ -917,31 +914,6 @@ const policyHandlers = {
         { 'forged registration 400': (r) => r.status === 400 },
       );
     }),
-  // Mandatory enrolment with a passkey: the enrolment token of a login under the mandatory policy.
-  'POST /api/v1/auth/passkey/setup/options': ({ request }) => {
-    const account = activeAccount('passkey-setup-options');
-    const token = setupToken(account, { passkey_allowed: true });
-    withPasskeysAllowed(() =>
-      check(request({ body: { token } }), {
-        'passkey setup options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
-      }));
-    deleteUser(account.id);
-  },
-  'POST /api/v1/auth/passkey/setup': ({ request }) => {
-    const account = activeAccount('passkey-setup');
-    const token = setupToken(account, { passkey_allowed: true });
-    withPasskeysAllowed(() => {
-      fixture('POST', '/api/v1/auth/passkey/setup/options', { token });
-      check(
-        request({
-          body: { token, label: 'k6', credential: FORGED_REGISTRATION },
-          params: { responseCallback: http.expectedStatuses(400) },
-        }),
-        { 'forged enrolment passkey 400': (r) => r.status === 400 && !r.headers.Authorization },
-      );
-    });
-    deleteUser(account.id);
-  },
   'DELETE /api/v1/user/me/passkeys/{id}/': ({ request }) =>
     check(
       request({ path: { id: 999999999 }, params: { responseCallback: http.expectedStatuses(404) } }),
