@@ -48,7 +48,8 @@ async fn create_session(state: &web::Data<AppState>, token: &str) {
 #[tokio::test]
 async fn test_refresh_works_with_expired_jwt() {
     std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
 
     let token = format!("refresh_expired_jwt_{}", uuid::Uuid::new_v4());
@@ -74,7 +75,8 @@ async fn test_refresh_works_with_expired_jwt() {
 #[tokio::test]
 async fn test_refresh_revoked_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
 
     let token = format!("refresh_revoked_{}", uuid::Uuid::new_v4());
@@ -100,7 +102,8 @@ async fn test_refresh_revoked_token_returns_401() {
 #[tokio::test]
 async fn test_refresh_unknown_token_returns_401() {
     std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
 
     let req = test::TestRequest::post()
@@ -115,7 +118,8 @@ async fn test_refresh_unknown_token_returns_401() {
 #[tokio::test]
 async fn test_other_session_routes_still_require_jwt() {
     std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
 
     let req = test::TestRequest::post()

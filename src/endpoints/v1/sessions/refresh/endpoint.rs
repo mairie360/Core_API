@@ -31,6 +31,8 @@ pub enum RefreshError {
     DatabaseError,
     InvalidToken,
     TooManyRequests(u64),
+    /// The new JWT could not be published to Redis: the rotation is rolled back (MAIR-772).
+    SessionStoreUnavailable,
 }
 
 impl std::fmt::Display for RefreshError {
@@ -41,6 +43,10 @@ impl std::fmt::Display for RefreshError {
                 write!(f, "An error occurred while accessing the database.")
             }
             Self::TooManyRequests(_) => write!(f, "Too many requests, please try again later."),
+            Self::SessionStoreUnavailable => write!(
+                f,
+                "The session store is unavailable: the refresh token is unchanged, retry later."
+            ),
         }
     }
 }
@@ -51,6 +57,7 @@ impl ResponseError for RefreshError {
             Self::InvalidToken => StatusCode::UNAUTHORIZED,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
+            Self::SessionStoreUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -77,9 +84,16 @@ async fn refresh_request(
     let db_view =
         RotateRefreshTokenQueryView::new(&current_hash, &refresh_token::hash(&new_refresh_token));
 
-    let session: ActiveSession = match state.get_smart_db().fetch_one(&db_view).await {
+    // One transaction: the rotation is only kept once the new JWT is known to Redis (MAIR-772), so a
+    // refresh that fails there leaves the presented refresh token valid.
+    let mut tx = state.get_smart_db().begin().await.map_err(|e| {
+        tracing::error!("Refresh DB Error: {e}");
+        RefreshError::DatabaseError
+    })?;
+    let session: ActiveSession = match tx.fetch_one(&db_view).await {
         Ok(session) => session,
         Err(ApiLibError::Database(DbError::NotFound)) => {
+            drop(tx);
             handle_reuse(&state, &current_hash).await?;
             return Err(RefreshError::InvalidToken);
         }
@@ -100,7 +114,13 @@ async fn refresh_request(
         tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;
-    publish_active_token(&state, user_id, session.id(), &jwt, Some(ip_address)).await;
+    publish_active_token(&state, user_id, session.id(), &jwt, Some(ip_address))
+        .await
+        .map_err(|_| RefreshError::SessionStoreUnavailable)?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Refresh DB Error: {e}");
+        RefreshError::DatabaseError
+    })?;
     Ok((jwt, new_refresh_token))
 }
 
@@ -246,6 +266,13 @@ async fn publish_with_retry(state: &AppState, session_id: Uuid) -> bool {
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
+        ),
+        (
+            status = 503,
+            description = "The new JWT could not be published to the session store (Redis): nothing is changed, the refresh token sent is still valid. Retry later.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("The session store is unavailable: the refresh token is unchanged, retry later.")
         )
     ),
     tag = "Sessions"

@@ -95,29 +95,32 @@ pub fn generate_session_jwt(user_id: u64, session_id: Uuid, role: &str) -> Resul
 
 /// Publishes `jwt` as the active token of its session in Redis (`session:<sid>`, MAIR-772): every API
 /// then accepts it without a database query and refuses the token it replaces. Called after each
-/// sign-in and refresh. A failure is only logged: the APIs then check the database, and a stale state
-/// left by a previous token (Redis back after an outage) lasts at most that token's lifetime, after which
-/// a refresh publishes the new one.
+/// sign-in and refresh. The caller must not hand the JWT out when it fails: a token Redis does not know
+/// would be refused by every API as replaced.
+///
+/// # Errors
+///
+/// The Redis error (logged here, with the session id only).
 pub async fn publish_active_token(
     state: &AppState,
     user_id: u64,
     session_id: Uuid,
     jwt: &str,
     ip: Option<std::net::IpAddr>,
-) {
+) -> Result<(), mairie360_api_lib::redis::error::RedisError> {
     let ip = ip.map(|ip| ip.to_string());
     let session_state = SessionState::active_with_token(user_id, jwt, ip.as_deref());
     let ttl = crate::session_revocation::max_jwt_lifetime();
-    if let Err(e) = publish_session_state(
+    publish_session_state(
         state.get_redis(),
         &session_id.to_string(),
         &session_state,
         ttl,
     )
     .await
-    {
-        tracing::warn!(%session_id, error = %e, "Could not publish the session state to Redis");
-    }
+    .inspect_err(|e| {
+        tracing::error!(%session_id, error = %e, "Could not publish the session state to Redis");
+    })
 }
 
 /// Decodes and verifies `jwt` like every API does (`mairie360_api_lib::jwt_manager::decode_jwt`:

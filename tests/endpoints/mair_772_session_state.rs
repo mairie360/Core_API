@@ -183,3 +183,29 @@ async fn mair_772_a_session_revoked_in_the_database_only_is_refused() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn mair_772_a_refresh_redis_cannot_publish_is_rolled_back() {
+    std::sync::LazyLock::force(&INIT);
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    // Same database, Redis unreachable.
+    let down =
+        web::Data::new(AppState::new("redis://127.0.0.1:1".to_string(), core_db_url().await).await);
+    let (_, refresh_token) = open_session(&state).await;
+    let refresh = || {
+        test::TestRequest::post()
+            .uri(REFRESH_PATH)
+            .set_json(json!({ "refresh_token": refresh_token }))
+            .to_request()
+    };
+
+    let app_down = init_app!(down);
+    assert_eq!(
+        status!(app_down, refresh()),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    // Nothing was rotated: the same refresh token still works once Redis answers.
+    let app = init_app!(state);
+    assert_eq!(status!(app, refresh()), StatusCode::OK);
+}
