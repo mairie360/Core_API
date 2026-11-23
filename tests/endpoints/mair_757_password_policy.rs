@@ -358,7 +358,9 @@ async fn mair_757_a_rename_during_a_reset_is_refused_and_keeps_the_link() {
         .unwrap();
     let request = async { call!(app, reset(WITH_NEW_FIRST_NAME)) };
     let commit = async {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        // Commit only once the reset waits on the row lock: its first check has then read the old
+        // name and passed, so the refusal can only come from the locked check.
+        wait_for_a_lock_wait(&raw).await;
         rename.commit().await.unwrap();
     };
     let ((status, body), ()) = tokio::join!(request, commit);
@@ -370,5 +372,75 @@ async fn mair_757_a_rename_during_a_reset_is_refused_and_keeps_the_link() {
         status,
         StatusCode::OK,
         "the link must survive the refusal: {body}"
+    );
+}
+
+/// Waits until a session of the test database waits on a row lock (10 s at most).
+async fn wait_for_a_lock_wait(raw: &sqlx::PgPool) {
+    for _ in 0..200 {
+        let waiting: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pg_stat_activity \
+             WHERE datname = current_database() AND wait_event_type = 'Lock'",
+        )
+        .fetch_one(raw)
+        .await
+        .unwrap();
+        if waiting > 0 {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    panic!("no request ever waited on the account row");
+}
+
+/// Review of MAIR-757: the reset link is single-use even for two resets sent at once. Both pass the first checks; the
+/// second one waits for the row lock of the first, then finds the link spent (`SET NX` marker) and answers `401`.
+#[tokio::test]
+async fn mair_757_two_resets_at_once_spend_the_link_once() {
+    std::sync::LazyLock::force(&INIT);
+    let host = crate::common::own_db_url().await;
+    let (_redis, redis_config) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let marker = unique_marker("twice");
+    let user = create_user(&get_pool().await, "Hortense", &marker).await;
+    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&crate::common::get_raw_pool(host).await)
+        .await
+        .unwrap();
+    let token = Uuid::new_v4().to_string();
+    let redis = state.get_redis();
+    redis
+        .set_ex(
+            &format!("{token}/forgot_password_email"),
+            email.as_str(),
+            900,
+        )
+        .await
+        .unwrap();
+    redis
+        .set_ex(
+            &format!("{email}/forgot_password_token"),
+            token.as_str(),
+            900,
+        )
+        .await
+        .unwrap();
+    let reset = |password: &str| {
+        test::TestRequest::post()
+            .uri("/api/v1/auth/reset_password")
+            .set_json(json!({ "token": token, "new_password": password, "device_info": "test" }))
+    };
+
+    let (first, second) = tokio::join!(async { call!(app, reset(COMPLIANT)) }, async {
+        call!(app, reset(WITH_NEW_FIRST_NAME))
+    });
+    let mut statuses = [first.0, second.0];
+    statuses.sort_unstable();
+    assert_eq!(
+        statuses,
+        [StatusCode::OK, StatusCode::UNAUTHORIZED],
+        "{first:?} {second:?}"
     );
 }

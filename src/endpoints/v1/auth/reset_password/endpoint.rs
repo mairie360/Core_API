@@ -12,6 +12,7 @@ use crate::endpoints::v1::auth::reset_password::view::{
 use crate::endpoints::validation::ValidatedJson;
 use crate::passwords;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
+use crate::redis_keys::INVITATION_TTL_SECONDS;
 use crate::second_factor::SecretCipher;
 use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use crate::two_factor;
@@ -136,6 +137,7 @@ fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
 async fn reset_pwd(
     smart_db: &SmartDatabase,
     redis: &Redis,
+    spent_key: String,
     link_keys: [&str; 2],
     new_password: &str,
     user_id: u64,
@@ -174,7 +176,21 @@ async fn reset_pwd(
     let revoked = revoke_all_user_sessions_in(&mut tx, user_id)
         .await
         .map_err(database_error)?;
-    // The link is single-use: spent before the commit, so a failure here leaves nothing written.
+    // The link is single-use: one `SET NX` marker per link, written by the only request that may
+    // commit, so two resets sent at once with the same link cannot both change the password (the
+    // second one waited for the row lock above, then finds the marker). Spent before the commit, so a
+    // failure here leaves nothing written.
+    match redis
+        .secure_set_ex(&spent_key, "1", INVITATION_TTL_SECONDS)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => return Err(ResetPasswordError::UnknownToken),
+        Err(e) => {
+            tracing::error!("Failed to spend the reset link: {e:?}");
+            return Err(ResetPasswordError::RedisError);
+        }
+    }
     for key in link_keys {
         if let Err(e) = redis.delete(key).await {
             tracing::error!("Failed to spend the reset link: {e:?}");
@@ -237,6 +253,7 @@ async fn reset_password_trigger(
     let revoked = reset_pwd(
         smart_db,
         redis,
+        format!("{}/forgot_password_spent", view.token()),
         [&reversed_key, &key],
         view.new_password(),
         user_id,
