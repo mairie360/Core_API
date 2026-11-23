@@ -224,6 +224,12 @@ async fn mair_694_a_differently_cased_address_gets_one_reset_email() {
 
     let (status, body) = forgot!(app, shouted);
     assert_eq!(status, StatusCode::OK, "{body:?}");
+    // The answer is `200` whether or not the address matched: check the delivery itself.
+    assert_eq!(
+        fake_resend::sent_to(&email).len(),
+        1,
+        "the padded, upper-case address must reach the account"
+    );
     let (status, _) = forgot!(app, email.replacen('j', "J", 1));
     assert_eq!(status, StatusCode::OK);
 
