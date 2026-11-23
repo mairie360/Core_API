@@ -377,6 +377,11 @@ async fn mair_757_a_rename_during_a_reset_is_refused_and_keeps_the_link() {
 
 /// Waits until a session of the test database waits on a row lock (10 s at most).
 async fn wait_for_a_lock_wait(raw: &sqlx::PgPool) {
+    wait_for_lock_waits(raw, 1).await;
+}
+
+/// Waits until `count` sessions of the test database wait on a lock (10 s at most).
+async fn wait_for_lock_waits(raw: &sqlx::PgPool, count: i64) {
     for _ in 0..200 {
         let waiting: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM pg_stat_activity \
@@ -385,12 +390,12 @@ async fn wait_for_a_lock_wait(raw: &sqlx::PgPool) {
         .fetch_one(raw)
         .await
         .unwrap();
-        if waiting > 0 {
+        if waiting >= count {
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    panic!("no request ever waited on the account row");
+    panic!("{count} requests never waited on the account row at once");
 }
 
 /// Review of MAIR-757: the reset link is single-use even for two resets sent at once. Both pass the first checks; the
@@ -404,9 +409,10 @@ async fn mair_757_two_resets_at_once_spend_the_link_once() {
     let app = init_app!(state);
     let marker = unique_marker("twice");
     let user = create_user(&get_pool().await, "Hortense", &marker).await;
+    let raw = crate::common::get_raw_pool(host).await;
     let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
         .bind(user)
-        .fetch_one(&crate::common::get_raw_pool(host).await)
+        .fetch_one(&raw)
         .await
         .unwrap();
     let token = Uuid::new_v4().to_string();
@@ -433,9 +439,23 @@ async fn mair_757_two_resets_at_once_spend_the_link_once() {
             .set_json(json!({ "token": token, "new_password": password, "device_info": "test" }))
     };
 
-    let (first, second) = tokio::join!(async { call!(app, reset(COMPLIANT)) }, async {
-        call!(app, reset(WITH_NEW_FIRST_NAME))
-    });
+    // The account row is held until both resets wait on it: both have read the link by then, so only
+    // the spent marker can stop the second one.
+    let mut hold = raw.begin().await.unwrap();
+    sqlx::query("SELECT id FROM users WHERE id = $1 FOR UPDATE")
+        .bind(user)
+        .execute(&mut *hold)
+        .await
+        .unwrap();
+    let release = async {
+        wait_for_lock_waits(&raw, 2).await;
+        hold.rollback().await.unwrap();
+    };
+    let (first, second, ()) = tokio::join!(
+        async { call!(app, reset(COMPLIANT)) },
+        async { call!(app, reset(WITH_NEW_FIRST_NAME)) },
+        release
+    );
     let mut statuses = [first.0, second.0];
     statuses.sort_unstable();
     assert_eq!(
