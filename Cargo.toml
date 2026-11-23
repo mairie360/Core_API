@@ -11,7 +11,7 @@ categories = ["web-programming", "database"]
 [dependencies]
 actix-web = "4"
 # TOTP second factor (MAIR-805): the secret is sealed with AES-256-GCM before it reaches the database.
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 async-trait = "0.1.89"
 base64 = "0.23.0"
 chrono = { version = "0.4", features = ["serde"] }
