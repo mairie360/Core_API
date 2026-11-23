@@ -539,6 +539,16 @@ several fronts) is only refused (`401`); later, `find_reused_refresh_token` revo
 handler publishes it to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log) and logs an
 `audit` event (`refresh_token_reuse`, never the token), and the answer is the same `401`.
 
+Session state (MAIR-772, `mairie360_api_lib` 5.1.0): every JWT Core issues (`login::finish_session`, so every sign-in path,
+and the refresh) is published as the active token of its session with `session_jwt::publish_active_token`
+(`session:<sid>` = SHA-256 of the JWT, user id, address; TTL `JWT_TIMEOUT` clamped to 15 minutes by the lib), and
+`session_revocation::publish_revoked_session` writes the `revoked` state with `revoked:<sid>` (`mark_session_revoked`).
+The lib's middleware then accepts the current JWT of a session without any database query, refuses the JWT a refresh
+replaced (`401 Replaced token`) and, when the key is missing, asks Database's `session_state()` and caches the answer. A
+failed publication is only logged: the APIs check the database meanwhile. With a `JWT_TIMEOUT` above 15 minutes the
+replaced token is only refused while the key lives. Every API role needs `~session:*` in the chart's Redis ACL
+(`tests/common/acl_redis.rs` mirrors it). Tests: `tests/endpoints/mair_772_session_state.rs`.
+
 The JWT claims (`session_jwt::SessionClaims`) are `sub`, `exp`, `sid` (session id, MAIR-226) and, since MAIR-529,
 `role` (the user's role, one per user since MAIR-564, empty string when none); the `EdDSA` tokens (MAIR-680) also
 carry `iss` and `aud`.

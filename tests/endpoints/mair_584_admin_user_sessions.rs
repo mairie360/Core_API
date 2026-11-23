@@ -448,7 +448,9 @@ async fn mair_904_a_suspended_administrator_loses_the_administration() {
             .insert_header(admin)
     );
     assert_eq!(status, StatusCode::NO_CONTENT);
-    // Even with a session opened behind Core's back, the administration refuses the account.
+    // Even with a session opened behind Core's back, the account is refused: since MAIR-772 the JWT
+    // middleware asks `session_state()`, which reads a session of a suspended account as inactive (401)
+    // before the administration guard would answer 403.
     let (_, auth) = open_session(&env.state, id).await;
     let (status, ..) = call!(
         app,
@@ -456,7 +458,7 @@ async fn mair_904_a_suspended_administrator_loses_the_administration() {
             .uri("/api/v1/admin/users/")
             .insert_header(auth)
     );
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[actix_web::test]

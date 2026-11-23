@@ -15,7 +15,7 @@ use crate::endpoints::v1::sessions::refresh::response_view::RefreshResponseView;
 use crate::endpoints::validation::ValidatedJson;
 use crate::rate_limit::{ip_key, too_many_requests_response, RateLimits};
 use crate::refresh_token;
-use crate::session_jwt::{generate_session_jwt, user_role_name};
+use crate::session_jwt::{generate_session_jwt, publish_active_token, user_role_name};
 use crate::session_revocation::publish_revoked_sessions;
 use uuid::Uuid;
 
@@ -66,6 +66,7 @@ impl ResponseError for RefreshError {
 async fn refresh_request(
     view: RefreshRequestView,
     state: web::Data<AppState>,
+    ip_address: std::net::IpAddr,
 ) -> Result<(String, String), RefreshError> {
     // The JWT is typically expired at this point: the user is identified by the refresh token,
     // not by an `AuthenticatedUser`. The token is single use: it is replaced in the same
@@ -99,6 +100,7 @@ async fn refresh_request(
         tracing::error!("JWT Generation Error: {e}");
         RefreshError::DatabaseError
     })?;
+    publish_active_token(&state, user_id, session.id(), &jwt, Some(ip_address)).await;
     Ok((jwt, new_refresh_token))
 }
 
@@ -263,7 +265,8 @@ pub async fn refresh(
             .hit(&ip_key(client_ip(&request)))
             .map_err(|refused| RefreshError::TooManyRequests(refused.retry_after_seconds))?;
     }
-    let (new_jwt, new_refresh_token) = refresh_request(body.into_inner(), state).await?;
+    let (new_jwt, new_refresh_token) =
+        refresh_request(body.into_inner(), state, client_ip(&request)).await?;
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {new_jwt}")))
         .json(RefreshResponseView::new(new_refresh_token)))
