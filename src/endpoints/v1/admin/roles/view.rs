@@ -18,9 +18,21 @@ pub struct RoleWriteView {
     /// Absent or `null` lets the database apply its default value.
     #[schema(example = true)]
     can_be_deleted: Option<bool>,
+    /// Modules of the navigation the agents of the role reach (MAIR-916), among `dashboard`, `projects`,
+    /// `calendar`, `messages`, `training`, `admin` and `settings`. Absent or `null`: on creation the role
+    /// opens the dashboard only; on replacement its modules stay unchanged. The `Admin` role always keeps
+    /// `admin` (`403`).
+    #[schema(example = json!(["dashboard", "projects"]))]
+    modules: Option<Vec<String>>,
 }
 
 impl RoleWriteView {
+    /// Modules given in the body, if any.
+    #[must_use]
+    pub fn modules(&self) -> Option<&[String]> {
+        self.modules.as_deref()
+    }
+
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
@@ -40,6 +52,9 @@ impl RoleWriteView {
 impl Validate for RoleWriteView {
     fn validate(&self) -> Result<(), ValidationError> {
         check_label("name", &self.name, MAX_NAME_LENGTH)?;
-        check_description("description", &self.description, MAX_DESCRIPTION_LENGTH)
+        check_description("description", &self.description, MAX_DESCRIPTION_LENGTH)?;
+        self.modules.as_deref().map_or(Ok(()), |modules| {
+            crate::role_modules::check_modules("modules", modules)
+        })
     }
 }

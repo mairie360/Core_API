@@ -10,3 +10,4 @@ pub mod is_rename_forbidden;
 pub mod last_admin;
 pub mod lock_role;
 pub mod patch_role;
+pub mod set_role_modules;

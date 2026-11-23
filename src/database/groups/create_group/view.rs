@@ -21,8 +21,16 @@ impl CreateGroupQueryView {
                 QueryParam::I32(id_to_sql(owner_id)),
                 QueryParam::Text(name.to_string()),
                 QueryParam::Text(description.to_string()),
+                QueryParam::Text(String::new()),
             ],
         }
+    }
+
+    /// Also sets the colour of the group (MAIR-923); `None` leaves it to the default.
+    #[must_use]
+    pub fn with_color(mut self, color: Option<&str>) -> Self {
+        self.params[3] = QueryParam::Text(color.unwrap_or_default().to_string());
+        self
     }
 
     #[must_use]
@@ -49,7 +57,7 @@ impl ApiRequestDto for CreateGroupQueryView {
     }
 
     fn query_sql(&self) -> &'static str {
-        "INSERT INTO groups (owner_id, name, description) VALUES ($1, $2, $3) RETURNING id"
+        "INSERT INTO groups (owner_id, name, description, color) VALUES ($1, $2, $3, NULLIF($4, '')) RETURNING id"
     }
 
     fn query_params(&self) -> &[QueryParam] {

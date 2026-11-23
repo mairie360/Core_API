@@ -415,6 +415,23 @@ secret); `GET /admin/users/` filters on `account_status` and `role_id` and sorts
 (`AdminUsersFilter`, four static SQL variants: searched or not × ascending or descending). Tests: `tests/endpoints/mair_584_admin_user_sessions.rs` (needs a Database image
 with `mair-904-01`) and the newman folder "Sessions and suspension of a user".
 
+### Modules of a role, services, group colours (MAIR-916, MAIR-923)
+
+Database `mair-916-01` / `mair-923-01` / `mair-923-02` (v4.0.0). A role lists the modules it opens
+(`role_modules`, ids of `role_modules::MODULES`: `dashboard`, `projects`, `calendar`, `messages`,
+`training`, `admin`, `settings`): the admin role routes take an optional `modules` list (a new role
+without one opens `dashboard`), `GET /admin/roles/` and the roles of `/user/me/` return them in
+navigation order, and `GET /user/me/` answers the caller's `modules` (the shared navigation hides the
+others; the business APIs do not check them). Taking `admin` away from the `Admin` role is refused by
+the schema trigger (`23514` → `403`). Services of the mairie: `GET` / `POST /admin/services/`,
+`PATCH` / `DELETE /admin/services/{serviceId}` (name unique whatever its case, `409`; deleting one
+leaves its agents without service) and `PUT /admin/users/{userId}/service {service_id | null}` (`404`
+for an unknown user or service); the admin list and record carry `service {id, name}` and the admin
+search also matches the name of the service. Groups take an optional `color` of the charter palette
+(`groups::color::GROUP_COLORS`, `400` otherwise; `null` in a `PATCH` gives back the default) and
+answer `project_count` (rows of `project_groups`, read through the `SELECT (group_id)` grant). Tests:
+`tests/endpoints/mair_916_923_admin_v2.rs`, newman folder "Services, role modules and group colours".
+
 ### Second factor (MAIR-805)
 
 TOTP (RFC 6238, SHA-1, 6 digits, 30 s, ±1 step) plus 10 single-use backup codes, all in `second_factor.rs`

@@ -22,6 +22,10 @@ pub struct PatchView {
     #[schema(example = true)]
     #[allow(clippy::option_option)] // Tri-state on purpose: omitted, `null`, or a value.
     can_be_deleted: Option<Option<bool>>,
+    /// New modules of the navigation the agents of the role reach (MAIR-916), the whole list. Absent
+    /// or `null` to leave them unchanged. The `Admin` role always keeps `admin` (`403`).
+    #[schema(example = json!(["dashboard", "projects", "calendar"]))]
+    modules: Option<Vec<String>>,
 }
 
 impl PatchView {
@@ -37,6 +41,12 @@ impl PatchView {
     pub const fn can_be_deleted(&self) -> Option<Option<bool>> {
         self.can_be_deleted
     }
+
+    /// New modules, if given.
+    #[must_use]
+    pub fn modules(&self) -> Option<&[String]> {
+        self.modules.as_deref()
+    }
 }
 
 impl Validate for PatchView {
@@ -46,6 +56,9 @@ impl Validate for PatchView {
         })?;
         check_optional(self.description.as_deref(), |description| {
             check_description("description", description, MAX_DESCRIPTION_LENGTH)
+        })?;
+        self.modules.as_deref().map_or(Ok(()), |modules| {
+            crate::role_modules::check_modules("modules", modules)
         })
     }
 }

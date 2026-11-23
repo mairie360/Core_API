@@ -1,4 +1,5 @@
 use crate::database::roles::create_role::CreateRoleQueryView;
+use crate::database::roles::set_role_modules::SetRoleModulesQueryView;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::view::RoleWriteView;
 
@@ -41,26 +42,36 @@ impl ResponseError for PostError {
     }
 }
 
+/// Creates the role and its modules in one transaction (MAIR-916): the dashboard alone when the body
+/// names none.
 async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Result<(), PostError> {
+    let database_error = |e: ApiLibError| match e {
+        ApiLibError::Database(DbError::UniqueViolation(_)) => PostError::Duplicate,
+        e => {
+            tracing::error!("Create role DB Error: {e}");
+            PostError::DatabaseError
+        }
+    };
     let view = CreateRoleQueryView::new(
         payload.name(),
         payload.description(),
         payload.can_be_deleted(),
     );
-
-    state
-        .get_smart_db()
-        .execute(view)
+    let modules: Vec<String> = payload.modules().map_or_else(
+        || {
+            crate::role_modules::DEFAULT_MODULES
+                .iter()
+                .map(|module| (*module).to_string())
+                .collect()
+        },
+        <[String]>::to_vec,
+    );
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    tx.execute(&view).await.map_err(database_error)?;
+    tx.execute(&SetRoleModulesQueryView::for_name(payload.name(), &modules))
         .await
-        .map_err(|e| match e {
-            ApiLibError::Database(DbError::UniqueViolation(_)) => PostError::Duplicate,
-            e => {
-                tracing::error!("Create role DB Error: {e}");
-                PostError::DatabaseError
-            }
-        })?;
-
-    Ok(())
+        .map_err(database_error)?;
+    tx.commit().await.map_err(database_error)
 }
 
 #[utoipa::path(
@@ -69,6 +80,8 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
     summary = "Create a role",
     description = "Creates a role, identified by its name, which must be unique. Reserved to \
                    administrators.\n\n\
+                   `modules` lists the modules of the navigation its agents reach (MAIR-916); without it the \
+                   role opens the dashboard only.\n\n\
                    The response has an empty body and does not return the assigned id: read the \
                    list again with `GET /api/v1/admin/roles/` to get it.\n\n\
                    Only a duplicate name answers `409`; any other database failure answers \
@@ -79,7 +92,8 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         example = json!({
             "name": "agent",
             "description": "Agent municipal",
-            "can_be_deleted": true
+            "can_be_deleted": true,
+            "modules": ["dashboard", "projects"]
         })
     ),
     responses(
@@ -89,7 +103,7 @@ async fn create_role(payload: RoleWriteView, state: web::Data<AppState>) -> Resu
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs.",
+            description = "Malformed JSON body, missing field, or a field breaking its rules: `name` 1 to 64 characters, not blank, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs; `modules` only known modules, each once.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `name`: must not be empty")

@@ -46,7 +46,8 @@ async fn create_group(
     state: web::Data<AppState>,
     view: PostGroupView,
 ) -> Result<PostGroupResultView, PostGroupError> {
-    let db_view = CreateGroupQueryView::new(user.id, view.name(), view.description());
+    let db_view = CreateGroupQueryView::new(user.id, view.name(), view.description())
+        .with_color(view.color());
     let id: i32 =
         state
             .get_smart_db()
@@ -88,7 +89,7 @@ async fn create_group(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, a field breaking its rules (`name` 1 to 64 characters once trimmed, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs), or failed insert. This endpoint answers `400` where others would answer `500`.",
+            description = "Malformed JSON body, missing field, a field breaking its rules (`name` 1 to 64 characters once trimmed, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs; `color` one of `blue`, `teal`, `green`, `orange`, `purple`, `pink`, `neutral`), or failed insert. This endpoint answers `400` where others would answer `500`.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `name`: must be at most 64 characters")

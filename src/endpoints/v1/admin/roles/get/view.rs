@@ -15,6 +15,12 @@ struct Role {
     /// Readable description of the role. Empty string if the role has none.
     #[schema(example = "Agent municipal")]
     description: String,
+    /// `false` for a system role (`Admin` first), which can be neither renamed nor deleted.
+    #[schema(example = true)]
+    can_be_deleted: bool,
+    /// Modules of the navigation the agents of the role reach, in the order of the navigation (MAIR-916).
+    #[schema(example = json!(["dashboard", "projects", "calendar"]))]
+    modules: Vec<String>,
 }
 
 impl From<RoleQueryResult> for Role {
@@ -23,6 +29,8 @@ impl From<RoleQueryResult> for Role {
             id: id_from_sql(result.id()),
             name: result.name().to_string(),
             description: result.description().unwrap_or_default().to_string(),
+            can_be_deleted: result.can_be_deleted(),
+            modules: result.modules(),
         }
     }
 }

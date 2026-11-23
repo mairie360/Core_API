@@ -48,12 +48,16 @@ macro_rules! admin_users_filters {
 }
 
 // Filter of a search: case-insensitive match on the full names (both orders) and the e-mail
-// (`user_search_text_sql!`), plus the shared filters. $1 = search.
+// (`user_search_text_sql!`), or on the name of the agent's service (MAIR-904 F01, through the ids of the
+// matching services so the trigram index of the names stays usable), plus the shared filters.
+// $1 = search.
 macro_rules! admin_users_search_filter {
     () => {
         concat!(
+            "(",
             crate::user_search_text_sql!(),
-            " LIKE '%' || lower($1) || '%' AND ",
+            " LIKE '%' || lower($1) || '%' OR u.service_id = ANY(ARRAY( \
+                SELECT sv.id FROM services sv WHERE lower(sv.name) LIKE '%' || lower($1) || '%'))) AND ",
             admin_users_filters!("u")
         )
     };
@@ -92,7 +96,9 @@ macro_rules! admin_users_row {
                     WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL \
                     UNION ALL SELECT p.last_used_at FROM user_passkeys p WHERE p.user_id = u.id \
                     UNION ALL SELECT b.used_at FROM user_backup_codes b WHERE b.user_id = u.id) v) \
-            ) AS two_factor \
+            ) AS two_factor, \
+            (SELECT jsonb_build_object('id', sv.id, 'name', sv.name) FROM services sv \
+                WHERE sv.id = u.service_id) AS service \
          FROM page JOIN users u ON u.id = page.id \
          ORDER BY ", $order
         )
@@ -379,6 +385,21 @@ pub struct AdminUserRow {
     /// Second factor of the user (MAIR-824, security tab of the administration).
     #[serde(default)]
     pub two_factor: AdminUserTwoFactor,
+    /// Service of the mairie the agent belongs to (MAIR-923), `null` when none.
+    #[schema(required = true)]
+    #[serde(default)]
+    pub service: Option<AdminUserService>,
+}
+
+/// Service of an agent, in the administration (MAIR-923).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+pub struct AdminUserService {
+    /// Id of the service.
+    #[schema(example = 3)]
+    pub id: i32,
+    /// Name of the service.
+    #[schema(example = "Roads")]
+    pub name: String,
 }
 
 /// Second factor of a user, as the administrators see it: never a secret, a code or a key.

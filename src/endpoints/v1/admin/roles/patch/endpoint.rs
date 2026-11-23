@@ -1,6 +1,7 @@
 use crate::database::roles::is_rename_forbidden::IsRenameForbiddenQueryView;
 use crate::database::roles::lock_role::LockRoleQueryView;
 use crate::database::roles::patch_role::PatchRoleQueryView;
+use crate::database::roles::set_role_modules::SetRoleModulesQueryView;
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::roles::patch::view::PatchView;
 
@@ -13,6 +14,8 @@ use mairie360_api_lib::state::AppState;
 
 #[derive(Debug, Clone, PartialEq)]
 enum PatchError {
+    /// MAIR-916: the `Admin` role always opens the Administration module.
+    ProtectedModule,
     NotFound,
     Duplicate,
     ProtectedName,
@@ -25,6 +28,9 @@ impl std::fmt::Display for PatchError {
         match self {
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
+            }
+            Self::ProtectedModule => {
+                write!(f, "The Admin role always opens the Administration module.")
             }
             Self::NotFound => {
                 write!(f, "The requested resource was not found.")
@@ -51,7 +57,9 @@ impl ResponseError for PatchError {
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Duplicate => StatusCode::CONFLICT,
-            Self::ProtectedName | Self::ProtectedFlag => StatusCode::FORBIDDEN,
+            Self::ProtectedName | Self::ProtectedFlag | Self::ProtectedModule => {
+                StatusCode::FORBIDDEN
+            }
         }
     }
 
@@ -109,7 +117,30 @@ async fn patch_role(
     if !query.is_noop() {
         tx.execute(&query).await.map_err(database_error)?;
     }
+    if let Some(modules) = payload.modules() {
+        write_modules(&mut tx, id, modules).await?;
+    }
     tx.commit().await.map_err(database_error)
+}
+
+/// Writes the modules of the role (MAIR-916); the trigger refusing to take `admin` from the `Admin`
+/// role answers `23514`, mapped to `403`.
+async fn write_modules(
+    tx: &mut mairie360_api_lib::smart_db::SmartTransaction,
+    id: u64,
+    modules: &[String],
+) -> Result<(), PatchError> {
+    tx.execute(&SetRoleModulesQueryView::for_id(id, modules))
+        .await
+        .map_err(|e| {
+            if crate::endpoints::export_data::sqlstate(&e).as_deref() == Some("23514") {
+                PatchError::ProtectedModule
+            } else {
+                tracing::error!("Patch role modules DB Error: {e}");
+                PatchError::DatabaseError
+            }
+        })?;
+    Ok(())
 }
 
 #[utoipa::path(
@@ -150,7 +181,7 @@ async fn patch_role(
         ),
         (
             status = 403,
-            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`), or `can_be_deleted` is set to `true` on a system role, which would let it be renamed or deleted (`System roles stay protected: can_be_deleted cannot be changed.`, MAIR-678).",
+            description = "The user is authenticated but is not an administrator (`Forbidden: User is not an admin.`), `name` renames a system role (`can_be_deleted = false`, e.g. `Admin`, `Maire`), whose names are reserved (`System roles cannot be renamed.`), or `can_be_deleted` is set to `true` on a system role, which would let it be renamed or deleted (`System roles stay protected: can_be_deleted cannot be changed.`, MAIR-678), or `modules` takes `admin` away from the `Admin` role (`The Admin role always opens the Administration module.`, MAIR-916).",
             body = String,
             content_type = "text/plain",
             example = json!("System roles cannot be renamed.")
