@@ -409,8 +409,10 @@ own account: `409`); `POST .../reactivate` gives back `offline`. A suspended acc
 factors, but the sign-in views (`LoginUserQueryView`, `GetActiveUserIdByEmailQueryView`, `ResetRecipientQueryView`,
 the passkey lookups) skip it like an archived one, `HasActiveAdminQueryView` does not count it, and Database's
 `is_admin()` / `check_access()` deny it. API_lib is unchanged: the revoked sessions reach every API through the
-revocation list. The admin list rows carry `active_sessions`, `last_login_at` and `two_factor { methods,
-last_verified_at }` (never a secret). Tests: `tests/endpoints/mair_584_admin_user_sessions.rs` (needs a Database image
+revocation list. The admin list rows carry `account_status` (`active` / `invited` / `inactive` = archived / `suspended`, computed by
+`admin_account_status_sql!`), `active_sessions`, `last_login_at` and `two_factor { methods, last_verified_at }` (never a
+secret); `GET /admin/users/` filters on `account_status` and `role_id` and sorts with `sort=name|-name`
+(`AdminUsersFilter`, four static SQL variants: searched or not × ascending or descending). Tests: `tests/endpoints/mair_584_admin_user_sessions.rs` (needs a Database image
 with `mair-904-01`) and the newman folder "Sessions and suspension of a user".
 
 ### Second factor (MAIR-805)

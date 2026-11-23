@@ -24,7 +24,21 @@ pub struct AdminListUsersQuery {
     /// Restricts the list to the members of this group.
     #[param(example = 3)]
     group_id: Option<u64>,
+    /// Restricts the list to one state of account (MAIR-904): `active`, `invited`, `inactive`
+    /// (archived) or `suspended`, as `account_status` reads it. Any other value answers `400`.
+    #[param(example = "suspended")]
+    account_status: Option<String>,
+    /// Restricts the list to the holders of this role (MAIR-904).
+    #[param(example = 2)]
+    role_id: Option<u64>,
+    /// Order of the list (MAIR-904): `name` (last name, first name, ascending, the default) or
+    /// `-name` (descending). Any other value answers `400`.
+    #[param(example = "-name")]
+    sort: Option<String>,
 }
+
+/// The states `account_status` accepts.
+pub const ACCOUNT_STATUSES: [&str; 4] = ["active", "invited", "inactive", "suspended"];
 
 impl AdminListUsersQuery {
     pub const fn page(&self) -> Option<u64> {
@@ -41,6 +55,19 @@ impl AdminListUsersQuery {
 
     pub const fn group_id(&self) -> Option<u64> {
         self.group_id
+    }
+
+    pub fn account_status(&self) -> Option<&str> {
+        self.account_status.as_deref()
+    }
+
+    pub const fn role_id(&self) -> Option<u64> {
+        self.role_id
+    }
+
+    /// Whether the list is sorted by name descending (`sort=-name`).
+    pub fn descending(&self) -> bool {
+        self.sort.as_deref() == Some("-name")
     }
 }
 
@@ -67,6 +94,20 @@ impl Validate for AdminListUsersQuery {
     fn validate(&self) -> Result<(), ValidationError> {
         check_optional(self.search.as_deref(), |search| {
             check_opaque("search", search, MAX_SEARCH_LENGTH)
-        })
+        })?;
+        if let Some(status) = self.account_status.as_deref() {
+            if !ACCOUNT_STATUSES.contains(&status) {
+                return Err(ValidationError::new(
+                    "account_status",
+                    "must be active, invited, inactive or suspended",
+                ));
+            }
+        }
+        if let Some(sort) = self.sort.as_deref() {
+            if sort != "name" && sort != "-name" {
+                return Err(ValidationError::new("sort", "must be name or -name"));
+            }
+        }
+        Ok(())
     }
 }
