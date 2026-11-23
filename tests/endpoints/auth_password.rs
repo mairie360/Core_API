@@ -88,9 +88,8 @@ fn admin_auth_header() -> (&'static str, String) {
 async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
     let raw_pool = get_raw_pool(host.clone()).await;
 
@@ -117,9 +116,8 @@ async fn admin_user_creation_stores_a_hash_not_the_plaintext_password() {
 async fn login_migrates_legacy_plaintext_password_to_a_hash() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
     let raw_pool = get_raw_pool(host.clone()).await;
 
@@ -146,9 +144,8 @@ async fn login_migrates_legacy_plaintext_password_to_a_hash() {
 async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migrating() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
     let raw_pool = get_raw_pool(host.clone()).await;
 
@@ -175,9 +172,8 @@ async fn login_rejects_wrong_password_for_legacy_plaintext_account_without_migra
 async fn login_works_after_a_hashed_login_migration() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     let app = init_app!(state);
     let raw_pool = get_raw_pool(host.clone()).await;
 

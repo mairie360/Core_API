@@ -43,7 +43,8 @@ fn init_env() {
 async fn setup() -> (web::Data<AppState>, PgPool) {
     init_env();
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     (state, get_raw_pool(host.clone()).await)
 }
 
