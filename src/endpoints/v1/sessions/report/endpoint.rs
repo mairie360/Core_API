@@ -83,7 +83,8 @@ impl ResponseError for ReportSessionError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::NoSession => StatusCode::BAD_REQUEST,
-            Self::UnknownSession => StatusCode::NOT_FOUND,
+            // The session guard refuses a JWT whose session is gone: only a race reaches this.
+            Self::UnknownSession => StatusCode::UNAUTHORIZED,
             Self::Database => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -126,17 +127,10 @@ impl ResponseError for ReportSessionError {
         ),
         (
             status = 401,
-            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
+            description = "Missing `Authorization` header, invalid or expired JWT, revoked session, or a session that no longer exists.",
             body = String,
             content_type = "text/plain",
             example = json!("Jeton expiré")
-        ),
-        (
-            status = 404,
-            description = "The session of the JWT no longer exists.",
-            body = String,
-            content_type = "text/plain",
-            example = json!("Unknown session")
         ),
         (
             status = 500,

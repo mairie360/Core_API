@@ -108,9 +108,11 @@ fn report(jwt: &str, level: &str) -> test::TestRequest {
         .set_json(json!({ "level": level, "ip_address": "198.51.100.23", "device_info": "Thief browser" }))
 }
 
-fn admin_jwt() -> String {
+/// A session of the seeded administrator: Core's `session_guard` refuses a JWT whose session is not in
+/// the database.
+async fn admin_jwt(state: &web::Data<AppState>) -> String {
     let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
-    generate_session_jwt(admin, Uuid::new_v4(), "Admin").unwrap()
+    open_session(state, admin).await.1
 }
 
 #[tokio::test]
@@ -189,7 +191,7 @@ async fn mair_773_a_possible_theft_closes_the_session_and_the_next_sign_in_reads
         app,
         test::TestRequest::get()
             .uri("/api/v1/admin/security-alerts/")
-            .insert_header(bearer(&admin_jwt()))
+            .insert_header(bearer(&admin_jwt(&state).await))
             .to_request()
     );
     assert_eq!(status, StatusCode::OK);
@@ -205,7 +207,7 @@ async fn mair_773_a_possible_theft_closes_the_session_and_the_next_sign_in_reads
         app,
         test::TestRequest::get()
             .uri(&format!("/api/v1/admin/users/{user}/connection-logs"))
-            .insert_header(bearer(&admin_jwt()))
+            .insert_header(bearer(&admin_jwt(&state).await))
             .to_request()
     );
     assert_eq!(status, StatusCode::OK);
@@ -276,7 +278,7 @@ async fn mair_773_invalid_reports_are_refused() {
 }
 
 #[tokio::test]
-async fn mair_773_a_report_of_a_deleted_session_answers_404() {
+async fn mair_773_a_report_of_a_deleted_session_is_refused_by_the_session_guard() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
     let (user, _) = create_account(&raw).await;
@@ -288,7 +290,7 @@ async fn mair_773_a_report_of_a_deleted_session_answers_404() {
         .unwrap();
     assert_eq!(
         call!(app, report(&jwt, "possible").to_request()).0,
-        StatusCode::NOT_FOUND
+        StatusCode::UNAUTHORIZED
     );
 }
 
@@ -300,7 +302,7 @@ async fn mair_773_the_connection_logs_of_an_unknown_user_answer_404() {
         app,
         test::TestRequest::get()
             .uri("/api/v1/admin/users/999999999/connection-logs")
-            .insert_header(bearer(&admin_jwt()))
+            .insert_header(bearer(&admin_jwt(&state).await))
             .to_request()
     );
     assert_eq!(status, StatusCode::NOT_FOUND);

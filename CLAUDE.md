@@ -532,7 +532,7 @@ session from another network, `ip_change` = bound session that changed network w
 `report_suspicious_session_use()` (Database `mair-773-01`): every report is logged in `connection_logs`,
 `certain` / `possible` revoke the session (`revoked: true`, published to Redis like any revocation) and queue one alert
 per session and level in `session_security_alerts`, `ip_change` moves the session's address. A JWT without `sid`
-answers `400`, a session that no longer exists `404`. `src/session_alerts.rs` e-mails each alert to the agent (Resend
+answers `400`. `src/session_alerts.rs` e-mails each alert to the agent (Resend
 template `account-session-alert`: `USER_FIRST_NAME`, `CERTAINTY` = `certaine` / `possible`, `DEVICE`, `IP_ADDRESS`,
 `DATE`, optional `MAIRIE_NAME`) and to every active administrator (`admin-session-alert`: `AGENT_NAME` instead of the
 first name), right after the report and from a sweep every minute started by `main` (`spawn_sweeper`): each replica
