@@ -24,7 +24,7 @@ futures-util = "0.3"
 hmac = "0.13"
 # Trusted reverse proxies of `client_ip` (CIDR ranges).
 ipnet = "2.12"
-jsonwebtoken = { version = "11.0.0", default-features = false, features = ["rust_crypto"] }
+jsonwebtoken = { version = "12.0.0", default-features = false, features = ["rust_crypto"] }
 # Only `lettre::Address`, to validate e-mail addresses (the e-mails themselves go through Resend).
 lettre = { version = "0.11", default-features = false }
 # Logs and OpenTelemetry traces (MAIR-503): `logging::telemetry` and its re-exports.
