@@ -24,6 +24,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(two_factor::endpoint::admin_reset_user_two_factor)
             .service(sessions::endpoint::admin_revoke_user_sessions)
             .service(sessions::endpoint::admin_revoke_user_session)
+            .service(sessions::endpoint::admin_get_user_connection_logs)
             .service(service::endpoint::admin_set_user_service)
             .service(suspension::endpoint::admin_suspend_user)
             .service(suspension::endpoint::admin_reactivate_user)

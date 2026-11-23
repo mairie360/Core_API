@@ -9,6 +9,7 @@ pub mod ressources;
 pub mod rights;
 pub mod roles;
 pub mod second_factor;
+pub mod security_alerts;
 pub mod services;
 pub mod sessions;
 pub mod two_factor_policy;

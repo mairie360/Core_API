@@ -76,6 +76,9 @@ async fn main() -> std::io::Result<()> {
         tracing::error!("E-mail configuration: {e}");
         std::io::Error::other(e.to_string())
     })?);
+    // Stolen-session alerts (MAIR-773): the alerts that could not be sent right after their report are
+    // retried every minute.
+    core_api::session_alerts::spawn_sweeper(data.clone(), account_emails.clone());
     // Budgets of the public authentication routes (MAIR-390), shared by every worker of this
     // replica. `RATE_LIMIT_ENABLED=false` turns them off (load tests).
     let rate_limits = RateLimits::from_env().map(web::Data::new);

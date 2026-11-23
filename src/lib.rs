@@ -20,6 +20,7 @@ pub mod refresh_token;
 pub mod request_log;
 pub mod role_modules;
 pub mod second_factor;
+pub mod session_alerts;
 pub mod session_jwt;
 pub mod session_revocation;
 pub mod two_factor;

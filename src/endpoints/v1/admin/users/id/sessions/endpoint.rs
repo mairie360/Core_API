@@ -264,3 +264,71 @@ pub async fn admin_revoke_user_session(
     }
     Ok(HttpResponse::NoContent().finish())
 }
+
+#[utoipa::path(
+    get,
+    path = "connection-logs",
+    summary = "Sign-in journal of a user (administration)",
+    description = "The latest 100 lines of the sign-in journal of the user, newest first (MAIR-773): sign-ins, \
+                   refreshes, logouts, expirations, and the uses of a session from another device \
+                   (`STOLEN_SESSION_ATTEMPT`, `SUSPICIOUS_IP_CHANGE`, `IP_CHANGE`). Reserved to administrators; \
+                   an archived account answers `404` like an unknown one.",
+    params(
+        ("userId" = u64, Path, description = "Id of the user.", example = 42)
+    ),
+    responses(
+        (status = 200, description = "The journal.", body = Vec<crate::database::security_alerts::ConnectionLog>),
+        (
+            status = 400,
+            description = "`userId` is not an integer.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Invalid path: ids are integers.")
+        ),
+        (
+            status = 401,
+            description = "Missing `Authorization` header, invalid or expired JWT, or revoked session.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Jeton expiré")
+        ),
+        (
+            status = 403,
+            description = "The user is authenticated but is not an administrator.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Forbidden: User is not an admin.")
+        ),
+        (
+            status = 404,
+            description = "No active user has this id (unknown or archived).",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Unknown user")
+        ),
+        (
+            status = 500,
+            description = "Database error. Safe to retry.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("Database error occurred")
+        )
+    ),
+    tag = "Admin - Security",
+    security(("jwt" = []))
+)]
+#[actix_web::get("/connection-logs")]
+pub async fn admin_get_user_connection_logs(
+    _admin: AdminUser,
+    state: web::Data<AppState>,
+    path: web::Path<u64>,
+) -> Result<impl Responder, UserSessionsError> {
+    let user_id = path.into_inner();
+    ensure_user(&state, user_id).await?;
+    let logs: Vec<crate::database::security_alerts::ConnectionLog> = state
+        .get_smart_db()
+        .fetch_all(&crate::database::security_alerts::ConnectionLogsQueryView::new(user_id))
+        .await
+        .map_err(|e| database_error("Admin user connection logs", &e))?;
+    Ok(HttpResponse::Ok().json(logs))
+}
