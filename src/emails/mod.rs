@@ -8,6 +8,7 @@ mod account_invitation;
 mod email_change_confirmation;
 mod email_changed;
 mod invitation;
+mod login_alert;
 mod passkey_changed;
 mod password_reset;
 
@@ -16,5 +17,6 @@ pub use account_invitation::AccountInvitationEmail;
 pub use email_change_confirmation::EmailChangeConfirmationEmail;
 pub use email_changed::EmailChangedEmail;
 pub use invitation::{invite_account, InviteError};
+pub use login_alert::LoginAlertEmail;
 pub use passkey_changed::{PasskeyChange, PasskeyChangedEmail};
 pub use password_reset::PasswordResetEmail;

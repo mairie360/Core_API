@@ -70,6 +70,7 @@ operations:
   POST /api/v1/user/me/passkeys/options/: {access: authenticated, ownership: self, note: "registration challenge (MAIR-810)"}
   POST /api/v1/user/me/passkeys/: {access: authenticated, ownership: self, note: "needs the pending registration; security e-mail to the agent (MAIR-810)"}
   DELETE /api/v1/user/me/passkeys/{id}/: {access: authenticated, ownership: self, note: "own passkeys only, another account's answers 404; security e-mail (MAIR-810)"}
+  POST /api/v1/user/me/password: {access: authenticated, ownership: self, note: "needs the current password, rate limited per user; revokes the other sessions (MAIR-823)"}
   GET /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
   PATCH /api/v1/user/me/preferences/: {access: authenticated, ownership: self}
   GET /api/v1/sessions/:
@@ -82,6 +83,8 @@ operations:
     personal: [ip_address, device_info, timestamp, action_type]
   POST /api/v1/sessions/logout: {access: authenticated, ownership: self}
   POST /api/v1/sessions/revoke: {access: authenticated, ownership: self, token: true, note: "a session of the caller only, named by its refresh token"}
+  DELETE /api/v1/sessions/{sessionId}/: {access: authenticated, ownership: self, note: "an active session of the caller only, never the current one (409); another account's answers 404 (MAIR-823)"}
+  POST /api/v1/sessions/revoke-others: {access: authenticated, ownership: self, note: "every active session of the caller but the current one (MAIR-823)"}
 
   # --- Directory ---
   GET /api/v1/user/:

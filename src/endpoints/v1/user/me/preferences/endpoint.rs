@@ -57,7 +57,8 @@ impl ResponseError for PreferencesError {
                 "timezone": "Europe/Paris",
                 "date_format": null,
                 "home_page": null,
-                "auto_open_notifications": false
+                "auto_open_notifications": false,
+                "autosave": true
             })
         ),
         (
@@ -123,7 +124,8 @@ pub async fn get_my_preferences(
                 "timezone": "Europe/Paris",
                 "date_format": null,
                 "home_page": null,
-                "auto_open_notifications": false
+                "auto_open_notifications": false,
+                "autosave": true
             })
         ),
         (

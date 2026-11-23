@@ -2,8 +2,8 @@ use mairie360_api_lib::email::{MailerError, ResendMailer, TemplateMailer};
 use mairie360_api_lib::env_manager::get_env_var;
 
 use super::{
-    AccountInvitationEmail, EmailChangeConfirmationEmail, EmailChangedEmail, PasskeyChange,
-    PasskeyChangedEmail, PasswordResetEmail,
+    AccountInvitationEmail, EmailChangeConfirmationEmail, EmailChangedEmail, LoginAlertEmail,
+    PasskeyChange, PasskeyChangedEmail, PasswordResetEmail,
 };
 use crate::redis_keys::{
     EMAIL_CHANGE_TTL_SECONDS, FORGOT_PASSWORD_TTL_SECONDS, INVITATION_TTL_SECONDS,
@@ -181,6 +181,28 @@ impl AccountEmails {
             device: device.to_string(),
             date: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
             ip_address: ip_address.to_string(),
+            mairie_name: self.mairie_name.clone(),
+        };
+        self.mailer.send(to, &email).await.map(|_| ())
+    }
+
+    /// Sends the sign-in alert of an account that turned it on (MAIR-823).
+    ///
+    /// # Errors
+    ///
+    /// The [`MailerError`] of Resend.
+    pub async fn send_login_alert(
+        &self,
+        to: &str,
+        first_name: &str,
+        device: &str,
+        ip_address: &str,
+    ) -> Result<(), MailerError> {
+        let email = LoginAlertEmail {
+            first_name: first_name.to_string(),
+            device: device.to_string(),
+            ip_address: ip_address.to_string(),
+            date: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
             mairie_name: self.mairie_name.clone(),
         };
         self.mailer.send(to, &email).await.map(|_| ())

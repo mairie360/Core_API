@@ -12,6 +12,7 @@ mod id_aliases;
 mod mair_534_negative_cases;
 mod mair_692_logout_by_refresh_token;
 mod mair_696_email_change;
+mod mair_823_settings_v2;
 mod pagination;
 mod passkeys;
 mod passwordless_invitation;

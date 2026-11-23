@@ -464,6 +464,29 @@ credential and sets `userHandle` as a browser would. The newman journey cannot s
 covers the challenges, the refusals and the policy gate, and the `201` / `204` / `409` stay in the coverage exceptions.
 `load-test.js` runs the non-read passkey handlers in the isolated `policy` scenario (passkeys are refused by default).
 
+### Settings V2 (MAIR-823)
+
+Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and acting on the caller only:
+
+- `DELETE /api/v1/sessions/{sessionId}/` ends one active session of the caller by its UUID (`204`). The session of the request
+  answers `409` (log out instead); an unknown id, another account's session or one already revoked / expired answers the
+  same `404`; a path that is not a UUID `400`. `POST /api/v1/sessions/revoke-others` ends every active session but the one
+  of the request (`200 {"revoked": n}`; a JWT without `sid` revokes them all). Both publish the revoked ids to the Redis
+  revocation list (`session_jwt::current_session_id` reads the `sid` of the request).
+- `POST /api/v1/user/me/password {current_password, new_password}` changes the caller's password (`204`). It spends
+  `password_check_per_user` first (`429` + `Retry-After`, budget shared with the e-mail change of `PATCH /user/me/`), answers
+  `403` to a wrong current password or an account without one, `400` to a new password outside the 8-255 rule
+  (`MIN_PASSWORD_LENGTH`) or equal to the current one, and writes the hash and revokes every **other** session in one
+  transaction, published after the commit (MAIR-420).
+- Preferences gain `autosave`, notification settings `system_updates` and `login_alerts` (Database `mair-823-01`, nullable
+  booleans like the others).
+- Sign-in alert (`src/login_alert.rs`): when `login_alerts` is `true`, every new session (password login, `login/2fa`,
+  passkey, `reset_password`, the two mandatory enrolments) sends the Resend template `account-login-alert`
+  (`emails::LoginAlertEmail`: `USER_FIRST_NAME`, `DEVICE`, `IP_ADDRESS`, `DATE`, optional `MAIRIE_NAME`) on a background
+  task: it never delays nor blocks the sign-in, and a failure is only logged. **The template must be published in Resend
+  before deploying.** Tests: `tests/endpoints/mair_823_settings_v2.rs`, newman folder "Settings V2: sessions, password,
+  alerts (MAIR-823)".
+
 ### Sessions / auth flow
 
 Login (`endpoints/v1/auth/login/endpoint.rs`) always checks the password first (archived and

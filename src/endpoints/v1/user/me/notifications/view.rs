@@ -34,6 +34,14 @@ pub struct PatchNotificationSettingsView {
     #[serde(default, deserialize_with = "double_option")]
     #[schema(value_type = Option<bool>, example = false)]
     calendar: Option<Option<bool>>,
+    /// Notifications of the system updates (MAIR-823).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<bool>, example = true)]
+    system_updates: Option<Option<bool>>,
+    /// E-mail sent to the account at every new sign-in (MAIR-823).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<bool>, example = false)]
+    login_alerts: Option<Option<bool>>,
 }
 
 impl PatchNotificationSettingsView {
@@ -46,6 +54,8 @@ impl PatchNotificationSettingsView {
             messages: self.messages,
             projects: self.projects,
             calendar: self.calendar,
+            system_updates: self.system_updates,
+            login_alerts: self.login_alerts,
         }
     }
 }

@@ -40,8 +40,8 @@ impl ResponseError for NotificationSettingsError {
     path = "/notifications/",
     summary = "Read one's notification settings",
     description = "Returns the notification settings of the user carried by the JWT, per \
-                   channel (e-mail, push, desktop) and per module (messages, projects, \
-                   calendar). A user who never saved any setting gets every field `null`: the \
+                   channel (e-mail, push, desktop), per module (messages, projects, \
+                   calendar, system updates) and the sign-in alert e-mail (`login_alerts`). A user who never saved any setting gets every field `null`: the \
                    application defaults apply.",
     responses(
         (
@@ -54,7 +54,9 @@ impl ResponseError for NotificationSettingsError {
                 "desktop": true,
                 "messages": true,
                 "projects": null,
-                "calendar": false
+                "calendar": false,
+                "system_updates": null,
+                "login_alerts": true
             })
         ),
         (
@@ -117,7 +119,9 @@ pub async fn get_my_notification_settings(
                 "desktop": true,
                 "messages": true,
                 "projects": null,
-                "calendar": null
+                "calendar": null,
+                "system_updates": true,
+                "login_alerts": true
             })
         ),
         (

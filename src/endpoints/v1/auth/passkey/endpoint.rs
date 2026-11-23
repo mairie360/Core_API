@@ -246,6 +246,7 @@ pub async fn passkey_login(
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
     relying_party: Option<web::Data<Passkeys>>,
+    emails: Option<web::Data<crate::emails::AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, PasskeyLoginError> {
     let view = payload.into_inner();
@@ -309,12 +310,20 @@ pub async fn passkey_login(
         })?;
     }
 
-    let (jwt, refresh_token) = generate_session(user_id, view.device_info(), ip_address, state)
-        .await
-        .map_err(|e| {
-            tracing::error!("Passkey sign-in session error: {e:?}");
-            PasskeyLoginError::Internal
-        })?;
+    let (jwt, refresh_token) =
+        generate_session(user_id, view.device_info(), ip_address, state.clone())
+            .await
+            .map_err(|e| {
+                tracing::error!("Passkey sign-in session error: {e:?}");
+                PasskeyLoginError::Internal
+            })?;
+    crate::login_alert::spawn(
+        &state,
+        emails.as_ref(),
+        user_id,
+        view.device_info(),
+        ip_address,
+    );
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {jwt}")))
         .json(LoginResponseView::from(refresh_token)))

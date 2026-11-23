@@ -207,7 +207,7 @@ async fn notification_settings_round_trip() {
     let body: Value = test::call_and_read_body_json(&app, req).await;
     assert_eq!(
         body,
-        json!({ "email": true, "push": false, "desktop": null, "messages": null, "projects": null, "calendar": null })
+        json!({ "email": true, "push": false, "desktop": null, "messages": null, "projects": null, "calendar": null, "system_updates": null, "login_alerts": null })
     );
 
     let req = test::TestRequest::get()

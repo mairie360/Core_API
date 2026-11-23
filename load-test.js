@@ -25,6 +25,7 @@ import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
 import crypto from 'k6/crypto';
+import encoding from 'k6/encoding';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -119,6 +120,11 @@ function fixture(method, path, body, { headers = AUTH, expected = [200, 201, 204
     fail(`fixture ${method} ${path} answered ${res.status}: ${res.body}`);
   }
   return res;
+}
+
+/** The session id (`sid` claim) of a session JWT (MAIR-823). */
+function sessionIdOf(jwt) {
+  return JSON.parse(encoding.b64decode(jwt.split('.')[1], 'rawurl', 's')).sid;
 }
 
 function bearer(jwt) {
@@ -424,6 +430,39 @@ const writeHandlers = {
     deleteUser(account.id);
   },
 
+  // MAIR-823: end one other session by its id, or every other session; change one's own password.
+  'DELETE /api/v1/sessions/{sessionId}/': ({ request }) => {
+    const account = activeAccount('revoke-id');
+    const current = login(account);
+    const other = login(account);
+    check(request({ path: { sessionId: sessionIdOf(other.jwt) }, headers: bearer(current.jwt) }), {
+      'revoke session by id 204': (r) => r.status === 204,
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/sessions/revoke-others': ({ request }) => {
+    const account = activeAccount('revoke-others');
+    const current = login(account);
+    login(account);
+    login(account);
+    check(request({ headers: bearer(current.jwt) }), {
+      'revoke others 200': (r) => r.status === 200 && r.json('revoked') === 2,
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/password': ({ request }) => {
+    const account = activeAccount('password');
+    const session = login(account);
+    check(
+      request({
+        body: { current_password: PASSWORD, new_password: `${PASSWORD}-new` },
+        headers: bearer(session.jwt),
+      }),
+      { 'change password 204': (r) => r.status === 204 },
+    );
+    deleteUser(account.id);
+  },
+
   // Password reset: forgot_password → e-mail (fake Resend) → reset_password.
   'POST /api/v1/auth/forgot_password': ({ request }) => {
     const account = activeAccount('forgot');
@@ -463,9 +502,13 @@ const writeHandlers = {
   'PATCH /api/v1/user/me/': ({ request }) =>
     check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR' } }), { 'patch me 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/notifications/': ({ request }) =>
-    check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
+    check(request({ body: { email: true, system_updates: true, login_alerts: false } }), {
+      'patch notification settings 200': (r) => r.status === 200 && r.json('system_updates') === true,
+    }),
   'PATCH /api/v1/user/me/preferences/': ({ request }) =>
-    check(request({ body: { theme: 'light' } }), { 'patch preferences 200': (r) => r.status === 200 }),
+    check(request({ body: { theme: 'light', autosave: true } }), {
+      'patch preferences 200': (r) => r.status === 200 && r.json('autosave') === true,
+    }),
 
   // MAIR-805: second factor, on throwaway accounts (the Admin is never enrolled).
   'POST /api/v1/user/me/2fa/setup/': ({ request }) => {

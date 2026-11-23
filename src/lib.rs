@@ -8,6 +8,7 @@ pub mod email_change;
 pub mod emails;
 pub mod endpoints;
 pub mod invitations;
+pub mod login_alert;
 pub mod passkey_managers;
 pub mod passkeys;
 pub mod passwords;
