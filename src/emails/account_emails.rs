@@ -14,13 +14,26 @@ use crate::redis_keys::{
 pub const PUBLIC_URL: &str = "PUBLIC_URL";
 /// Optional name of the town hall shown in the e-mails.
 pub const MAIRIE_NAME: &str = "MAIRIE_NAME";
+/// Optional public URL of the administration front, where the administrators' alerts link to
+/// (`https://admin.mairie360-eip.fr`, MAIR-773).
+pub const ADMIN_PUBLIC_URL: &str = "ADMIN_PUBLIC_URL";
 
 /// The e-mails Core sends about an account, registered as app data by `main`.
 #[derive(Clone)]
 pub struct AccountEmails {
     mailer: ResendMailer,
     public_url: String,
+    admin_url: Option<String>,
     mairie_name: Option<String>,
+}
+
+/// An absolute `http(s)` URL without its trailing slash, `None` otherwise.
+fn absolute_url(url: &str) -> Option<String> {
+    let url = url.trim().trim_end_matches('/');
+    let has_host = url
+        .split_once("://")
+        .is_some_and(|(scheme, rest)| (scheme == "https" || scheme == "http") && !rest.is_empty());
+    (has_host && !url.chars().any(char::is_whitespace)).then(|| url.to_string())
 }
 
 impl AccountEmails {
@@ -32,26 +45,53 @@ impl AccountEmails {
         public_url: &str,
         mairie_name: Option<String>,
     ) -> Result<Self, MailerError> {
-        let public_url = public_url.trim().trim_end_matches('/');
-        let has_host = public_url.split_once("://").is_some_and(|(scheme, rest)| {
-            (scheme == "https" || scheme == "http") && !rest.is_empty()
-        });
-        if !has_host || public_url.chars().any(char::is_whitespace) {
+        let Some(public_url) = absolute_url(public_url) else {
             return Err(MailerError::Config(format!(
                 "{PUBLIC_URL} must be an absolute http(s) URL, got {public_url:?}"
             )));
-        }
+        };
         Ok(Self {
             mailer,
-            public_url: public_url.to_string(),
+            public_url,
+            admin_url: None,
             mairie_name: mairie_name
                 .map(|name| name.trim().to_string())
                 .filter(|name| !name.is_empty()),
         })
     }
 
-    /// Reads `RESEND_API_KEY`, `EMAIL_DOMAIN`, `EMAIL_SENDER_NAME` (optional), `PUBLIC_URL` and
-    /// `MAIRIE_NAME` (optional).
+    /// Sets the URL of the administration front the administrators' alerts link to (MAIR-773). An
+    /// invalid URL is ignored with a warning: the alerts are then sent without the link.
+    #[must_use]
+    pub fn with_admin_url(mut self, admin_url: Option<&str>) -> Self {
+        self.admin_url = admin_url.and_then(|url| {
+            let parsed = absolute_url(url);
+            if parsed.is_none() {
+                tracing::warn!("{ADMIN_PUBLIC_URL} is not an absolute http(s) URL: ignored");
+            }
+            parsed
+        });
+        self
+    }
+
+    /// The link of the stolen-session alert of an agent: `<PUBLIC_URL>/forgot-password`, where the
+    /// agent asks for a password reset link (MAIR-773).
+    #[must_use]
+    pub fn change_password_url(&self) -> String {
+        format!("{}/forgot-password", self.public_url)
+    }
+
+    /// The link of the administrators' alert: the sign-in journal of the agent in the administration,
+    /// `<ADMIN_PUBLIC_URL>/?tab=security&journal=<user id>`; `None` without `ADMIN_PUBLIC_URL`.
+    #[must_use]
+    pub fn journal_url(&self, user_id: i64) -> Option<String> {
+        self.admin_url
+            .as_ref()
+            .map(|admin_url| format!("{admin_url}/?tab=security&journal={user_id}"))
+    }
+
+    /// Reads `RESEND_API_KEY`, `EMAIL_DOMAIN`, `EMAIL_SENDER_NAME` (optional), `PUBLIC_URL`,
+    /// `ADMIN_PUBLIC_URL` (optional) and `MAIRIE_NAME` (optional).
     ///
     /// # Errors
     ///
@@ -59,11 +99,12 @@ impl AccountEmails {
     pub fn from_env() -> Result<Self, MailerError> {
         let public_url = get_env_var(PUBLIC_URL)
             .ok_or_else(|| MailerError::Config(format!("{PUBLIC_URL} is not set")))?;
-        Self::new(
+        Ok(Self::new(
             ResendMailer::from_env()?,
             &public_url,
             get_env_var(MAIRIE_NAME),
-        )
+        )?
+        .with_admin_url(get_env_var(ADMIN_PUBLIC_URL).as_deref()))
     }
 
     /// The link of the password reset e-mail: `<PUBLIC_URL>/reset-password?token=<token>`.
@@ -226,8 +267,9 @@ impl AccountEmails {
             first_name: first_name.to_string(),
             certainty: super::certainty_label(level).to_string(),
             device: device.to_string(),
-            ip_address: ip_address.to_string(),
+            ip_address: super::mask_ip_address(ip_address),
             date: date.to_string(),
+            change_password_url: self.change_password_url(),
             mairie_name: self.mairie_name.clone(),
         };
         self.mailer.send(to, &email).await.map(|_| ())
@@ -239,9 +281,11 @@ impl AccountEmails {
     /// # Errors
     ///
     /// The [`MailerError`] of Resend.
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_admin_session_alert(
         &self,
         to: &str,
+        agent_id: i64,
         agent_name: &str,
         level: &str,
         device: &str,
@@ -252,8 +296,9 @@ impl AccountEmails {
             agent_name: agent_name.to_string(),
             certainty: super::certainty_label(level).to_string(),
             device: device.to_string(),
-            ip_address: ip_address.to_string(),
+            ip_address: super::mask_ip_address(ip_address),
             date: date.to_string(),
+            journal_url: self.journal_url(agent_id),
             mairie_name: self.mairie_name.clone(),
         };
         self.mailer.send(to, &email).await.map(|_| ())

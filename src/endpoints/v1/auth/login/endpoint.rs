@@ -125,12 +125,17 @@ pub async fn generate_session(
     ip_adress: std::net::IpAddr,
     state: web::Data<AppState>,
 ) -> Result<(String, String), LoginError> {
-    let (view, session_id, refresh_token) = new_session(user_id, device_info, ip_adress);
-    state.get_smart_db().execute(view).await.map_err(|e| {
+    // One transaction: the session row is only kept once its JWT is known to Redis (MAIR-772).
+    let mut tx = state.get_smart_db().begin().await.map_err(|e| {
         tracing::error!("Create Session DB Error: {e}");
         LoginError::DatabaseError
     })?;
-    finish_session(user_id, session_id, refresh_token, ip_adress, &state).await
+    let tokens = generate_session_in(&mut tx, user_id, device_info, ip_adress, &state).await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Create Session DB Error: {e}");
+        LoginError::DatabaseError
+    })?;
+    Ok(tokens)
 }
 
 /// Same as [`generate_session`], but the session row is written inside `tx`: the caller commits
@@ -191,7 +196,11 @@ async fn finish_session(
         tracing::error!("JWT Generation Error: {e}");
         LoginError::TokenGenerationError
     })?;
-    publish_active_token(state, user_id, session_id, &jwt, Some(ip_address)).await;
+    // A JWT every API does not know would be refused as soon as the session has a state in Redis:
+    // the sign-in fails rather than handing it out (MAIR-772). The caller drops its transaction.
+    publish_active_token(state, user_id, session_id, &jwt, Some(ip_address))
+        .await
+        .map_err(|_| LoginError::RedisError)?;
     Ok((jwt, refresh_token))
 }
 

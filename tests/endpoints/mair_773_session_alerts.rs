@@ -329,8 +329,13 @@ async fn mair_773_alerts_are_e_mailed_to_the_agent_and_the_administrators_once()
     assert_eq!(sent.len(), 1, "{sent:?}");
     let variables = &sent[0]["template"]["variables"];
     assert_eq!(variables["CERTAINTY"], json!("certaine"));
-    assert_eq!(variables["IP_ADDRESS"], json!("198.51.100.23"));
+    // Only the beginning of the address, and the way to a new password.
+    assert_eq!(variables["IP_ADDRESS"], json!("198.51.xxx.xxx"));
     assert_eq!(variables["DEVICE"], json!("Thief browser"));
+    assert!(variables["CHANGE_PASSWORD_URL"]
+        .as_str()
+        .unwrap()
+        .ends_with("/forgot-password"));
     assert!(sent[0].to_string().contains("account-session-alert"));
     let to_admin = fake_resend::sent_to("admin@test.com");
     assert!(to_admin

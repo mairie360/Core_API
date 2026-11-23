@@ -91,6 +91,7 @@ async fn deliver(
         if let Err(e) = emails
             .send_admin_session_alert(
                 admin,
+                alert.user_id,
                 &agent_name,
                 &alert.level,
                 device,

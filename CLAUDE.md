@@ -533,9 +533,11 @@ session from another network, `ip_change` = bound session that changed network w
 `certain` / `possible` revoke the session (`revoked: true`, published to Redis like any revocation) and queue one alert
 per session and level in `session_security_alerts`, `ip_change` moves the session's address. A JWT without `sid`
 answers `400`. `src/session_alerts.rs` e-mails each alert to the agent (Resend
-template `account-session-alert`: `USER_FIRST_NAME`, `CERTAINTY` = `certaine` / `possible`, `DEVICE`, `IP_ADDRESS`,
-`DATE`, optional `MAIRIE_NAME`) and to every active administrator (`admin-session-alert`: `AGENT_NAME` instead of the
-first name), right after the report and from a sweep every minute started by `main` (`spawn_sweeper`): each replica
+template `account-session-alert`: `USER_FIRST_NAME`, `CERTAINTY` = `certaine` / `possible`, `DEVICE`, `IP_ADDRESS`
+(only its beginning, `92.184.xxx.xxx`, `emails::mask_ip_address`), `DATE`, `CHANGE_PASSWORD_URL` =
+`<PUBLIC_URL>/forgot-password`, optional `MAIRIE_NAME`) and to every active administrator (`admin-session-alert`:
+`AGENT_NAME` instead of the first name, no `CHANGE_PASSWORD_URL`, and `JOURNAL_URL` =
+`<ADMIN_PUBLIC_URL>/?tab=security&journal=<user id>` when the optional `ADMIN_PUBLIC_URL` is set), right after the report and from a sweep every minute started by `main` (`spawn_sweeper`): each replica
 claims its alerts with `FOR UPDATE SKIP LOCKED`, 5 attempts one minute apart, the failure kind in `last_error`.
 **Both templates must be published in Resend before deploying.** The Login screen reads the latest unread alert with
 `GET /api/v1/user/me/security-alert/` (`204` when none) and marks it read with `POST
@@ -565,7 +567,8 @@ and the refresh) is published as the active token of its session with `session_j
 `session_revocation::publish_revoked_session` writes the `revoked` state with `revoked:<sid>` (`mark_session_revoked`).
 The lib's middleware then accepts the current JWT of a session without any database query, refuses the JWT a refresh
 replaced (`401 Replaced token`) and, when the key is missing, asks Database's `session_state()` and caches the answer. A
-failed publication is only logged: the APIs check the database meanwhile. With a `JWT_TIMEOUT` above 15 minutes the
+failed publication fails the sign-in (`500`) or the refresh (`503`, the rotation is rolled back, the refresh token sent
+stays valid): a JWT Redis does not know would be refused as replaced. With a `JWT_TIMEOUT` above 15 minutes the
 replaced token is only refused while the key lives. Every API role needs `~session:*` in the chart's Redis ACL
 (`tests/common/acl_redis.rs` mirrors it). Tests: `tests/endpoints/mair_772_session_state.rs`.
 

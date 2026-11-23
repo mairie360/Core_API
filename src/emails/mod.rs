@@ -21,4 +21,6 @@ pub use invitation::{invite_account, InviteError};
 pub use login_alert::LoginAlertEmail;
 pub use passkey_changed::{PasskeyChange, PasskeyChangedEmail};
 pub use password_reset::PasswordResetEmail;
-pub use session_alert::{certainty_label, AdminSessionAlertEmail, SessionAlertEmail};
+pub use session_alert::{
+    certainty_label, mask_ip_address, AdminSessionAlertEmail, SessionAlertEmail,
+};
