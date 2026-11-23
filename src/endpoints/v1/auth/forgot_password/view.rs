@@ -1,4 +1,4 @@
-use crate::endpoints::validation::{check_email, Validate, ValidationError};
+use crate::endpoints::validation::{check_email, deserialize_email, Validate, ValidationError};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -7,6 +7,7 @@ use utoipa::ToSchema;
 pub struct ForgotPasswordView {
     /// E-mail address of the account whose password must be reset.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
+    #[serde(deserialize_with = "deserialize_email")]
     email: String,
 }
 

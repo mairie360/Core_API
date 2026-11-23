@@ -209,3 +209,39 @@ async fn without_a_mailer_a_known_address_answers_500() {
         .unwrap();
     assert!(token.is_none());
 }
+
+/// MAIR-694: the address is matched whatever its case and surrounding spaces, and case variants
+/// share one pending reset (a single e-mail, under the canonical Redis key).
+#[tokio::test]
+#[serial(fake_resend)]
+async fn mair_694_a_differently_cased_address_gets_one_reset_email() {
+    let host = crate::common::own_db_url().await;
+    let (_redis, redis_config) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (email, _) = known_email(&host, &unique_marker("casing")).await;
+    let shouted = format!("  {}  ", email.to_uppercase());
+
+    let (status, body) = forgot!(app, shouted);
+    assert_eq!(status, StatusCode::OK, "{body:?}");
+    // The answer is `200` whether or not the address matched: check the delivery itself.
+    assert_eq!(
+        fake_resend::sent_to(&email).len(),
+        1,
+        "the padded, upper-case address must reach the account"
+    );
+    let (status, _) = forgot!(app, email.replacen('j', "J", 1));
+    assert_eq!(status, StatusCode::OK);
+
+    let sent = fake_resend::sent_to(&email);
+    assert_eq!(sent.len(), 1, "one e-mail for every case variant: {sent:?}");
+    let token: Option<String> = state
+        .get_redis()
+        .secure_get(&format!("{email}/forgot_password_token"))
+        .await
+        .unwrap();
+    assert_eq!(
+        token.as_deref(),
+        Some(fake_resend::reset_token(&sent[0]).as_str())
+    );
+}

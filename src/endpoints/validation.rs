@@ -15,6 +15,7 @@ use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 
 use crate::phone::{Phone, PhoneChange};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer};
 
 /// `users.first_name`, `users.last_name`, `roles.name` and `groups.name` are `VARCHAR(64)`.
 pub const MAX_NAME_LENGTH: usize = 64;
@@ -130,6 +131,25 @@ pub fn check_email(field: &str, value: &str) -> Result<(), ValidationError> {
         ));
     }
     Ok(())
+}
+
+/// Canonical form of an e-mail address typed on an auth route (MAIR-694).
+///
+/// Trimmed and lowercased, so `Jean.Dupont@Mairie.fr ` reaches the account `jean.dupont@mairie.fr`, case variants share one
+/// pending reset and one rate-limit budget, and lookups match the `uq_users_email_lower` index.
+#[must_use]
+pub fn normalize_email(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+/// `deserialize_with` helper: reads an e-mail field and stores its [`normalize_email`] form, so the
+/// validation and every use of the view see the canonical address.
+///
+/// # Errors
+///
+/// Returns the deserializer's error when the field is not a string.
+pub fn deserialize_email<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    String::deserialize(deserializer).map(|email| normalize_email(&email))
 }
 
 /// A phone number as typed, with the country picked for it (MAIR-480), see [`Phone::parse`].
@@ -298,6 +318,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mair_694_normalize_email_trims_and_lowercases() {
+        assert_eq!(
+            super::normalize_email("  Jean.Dupont@Mairie.FR "),
+            "jean.dupont@mairie.fr"
+        );
+    }
+
     use super::*;
 
     #[test]

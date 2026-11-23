@@ -22,7 +22,7 @@ impl GetActiveUserIdByEmailQueryView {
 impl ApiRequestDto for GetActiveUserIdByEmailQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT COALESCE((\
-            SELECT id FROM users WHERE email = $1 AND NOT COALESCE(is_archived, FALSE) \
+            SELECT id FROM users WHERE lower(email) = lower($1) AND NOT COALESCE(is_archived, FALSE) \
               AND status IS DISTINCT FROM 'suspended'\
         ), 0)"
     }

@@ -209,3 +209,48 @@ async fn login_works_after_a_hashed_login_migration() {
         StatusCode::OK
     );
 }
+
+/// MAIR-694: the password login matches the address whatever its case and surrounding spaces,
+/// both ways: an address typed with capitals reaches a lowercase account, and an account stored
+/// with capitals is reached by its lowercase form. A wrong password is still refused.
+#[tokio::test]
+async fn mair_694_login_ignores_the_case_of_the_email() {
+    std::sync::LazyLock::force(&INIT);
+    let host = crate::common::own_db_url().await;
+    // A real Redis: since MAIR-772 a login publishes the session state there and refuses to hand
+    // out a session it could not publish.
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
+    let app = init_app!(state);
+    let raw_pool = get_raw_pool(host.clone()).await;
+    let stored = format!(
+        "Jean.Dupont.{}@Mairie.example.com",
+        uuid::Uuid::new_v4().simple()
+    );
+    sqlx::query(
+        "INSERT INTO users (first_name, last_name, email, password, status, first_connect) \
+         VALUES ('Jean', 'Dupont', $1, $2, 'active', false)",
+    )
+    .bind(&stored)
+    .bind(mairie360_api_lib::test_setup::queries_setup::seed_password_hash())
+    .execute(&raw_pool)
+    .await
+    .unwrap();
+
+    let login = |email: String, password: &'static str| {
+        test::TestRequest::post()
+            .uri("/api/v1/auth/login")
+            .set_json(json!({ "email": email, "password": password, "device_info": "test suite" }))
+            .to_request()
+    };
+    let seed = mairie360_api_lib::test_setup::queries_setup::SEED_PASSWORD;
+    for typed in [
+        stored.to_lowercase(),
+        format!("  {}  ", stored.to_uppercase()),
+    ] {
+        let resp = test::call_service(&app, login(typed.clone(), seed)).await;
+        assert_eq!(resp.status(), StatusCode::OK, "login with {typed:?}");
+    }
+    let resp = test::call_service(&app, login(stored.to_lowercase(), "wrong_password")).await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
