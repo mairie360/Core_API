@@ -1,5 +1,6 @@
 pub mod doc;
 pub mod roles;
+pub mod services;
 pub mod two_factor_policy;
 pub mod users;
 
@@ -13,6 +14,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             // On the scope itself, not decided from the path: see `admin_guard` (MAIR-390).
             .wrap(from_fn(admin_guard))
             .configure(roles::config)
+            .configure(services::config)
             .configure(two_factor_policy::config)
             .configure(users::config),
     );

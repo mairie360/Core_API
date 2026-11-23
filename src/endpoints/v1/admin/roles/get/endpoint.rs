@@ -59,8 +59,8 @@ async fn get_roles(state: web::Data<AppState>) -> Result<AdminGetRolesResultView
             body = AdminGetRolesResultView,
             example = json!({
                 "roles": [
-                    { "id": 1, "name": "admin", "description": "Platform administrator" },
-                    { "id": 2, "name": "agent", "description": "Agent municipal" }
+                    { "id": 1, "name": "Admin", "description": "Platform administrator", "can_be_deleted": false, "modules": ["dashboard", "projects", "calendar", "messages", "training", "admin", "settings"] },
+                    { "id": 2, "name": "agent", "description": "Agent municipal", "can_be_deleted": true, "modules": ["dashboard", "projects"] }
                 ]
             })
         ),

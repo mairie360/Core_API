@@ -51,7 +51,7 @@ async fn trigger_patch_group(
     view: PatchGroupView,
 ) -> Result<Group, PatchGroupError> {
     let name = view.name().map(str::trim);
-    if view.name().is_none() && view.description().is_none() {
+    if view.name().is_none() && view.description().is_none() && view.color().is_none() {
         return Err(PatchGroupError::BadRequest);
     }
     if name.is_some_and(|name| name.is_empty() || name.chars().count() > MAX_GROUP_NAME_LENGTH) {
@@ -60,11 +60,9 @@ async fn trigger_patch_group(
 
     let groups: Vec<Group> = state
         .get_smart_db()
-        .fetch_all(&UpdateGroupQueryView::new(
-            group_id,
-            name,
-            view.description(),
-        ))
+        .fetch_all(
+            &UpdateGroupQueryView::new(group_id, name, view.description()).with_color(view.color()),
+        )
         .await
         .map_err(|error| match error {
             // `groups.name` is UNIQUE.
@@ -85,7 +83,7 @@ async fn trigger_patch_group(
     patch,
     path = "",
     summary = "Update a group",
-    description = "Updates the name or the description of a group and returns the group as \
+    description = "Updates the name, the description or the colour (MAIR-923) of a group and returns the group as \
                    saved. Partial update: an absent or `null` field stays \
                    unchanged.\n\n\
                    At least one of the two fields must be given: an empty body is refused with \
@@ -110,12 +108,14 @@ async fn trigger_patch_group(
                 "id": 3,
                 "owner_id": 2,
                 "name": "Urban planning department",
-                "description": "Building permits and prior declarations processing"
+                "description": "Building permits and prior declarations processing",
+                "color": "teal",
+                "project_count": 2
             })
         ),
         (
             status = 400,
-            description = "Malformed JSON body, no field to update, or a field breaking its rules: `name` 1 to 64 characters once trimmed, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs.",
+            description = "Malformed JSON body, no field to update, or a field breaking its rules: `name` 1 to 64 characters once trimmed, no control character; `description` at most 1000 characters, no control character other than line breaks and tabs; `color` one of `blue`, `teal`, `green`, `orange`, `purple`, `pink`, `neutral`.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `name`: must not be empty")

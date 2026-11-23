@@ -153,6 +153,11 @@ operations:
   GET /api/v1/admin/users/{userId}/export: {access: admin, roles: [Admin], personal: [user, data], note: "export_user_data() (GDPR art. 15 and 20, MAIR-289)"}
   POST /api/v1/admin/users/{userId}/roles/: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/roles/{roleId}: {access: admin, roles: [Admin]}
+  PUT /api/v1/admin/users/{userId}/service: {access: admin, roles: [Admin], note: "attaches the agent to a service of the mairie, or detaches them (MAIR-923)"}
+  GET /api/v1/admin/services/: {access: admin, roles: [Admin], note: "services of the mairie and their agent counts (MAIR-923)"}
+  POST /api/v1/admin/services/: {access: admin, roles: [Admin]}
+  PATCH /api/v1/admin/services/{serviceId}: {access: admin, roles: [Admin]}
+  DELETE /api/v1/admin/services/{serviceId}: {access: admin, roles: [Admin], note: "its agents are left without a service"}
   GET /api/v1/admin/roles/: {access: admin, roles: [Admin]}
   POST /api/v1/admin/roles/: {access: admin, roles: [Admin]}
   PUT /api/v1/admin/roles/{id}: {access: admin, roles: [Admin]}

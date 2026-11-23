@@ -6,6 +6,7 @@ mod get;
 mod password;
 mod patch;
 mod roles;
+mod service;
 mod sessions;
 mod suspension;
 mod two_factor;
@@ -23,6 +24,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(two_factor::endpoint::admin_reset_user_two_factor)
             .service(sessions::endpoint::admin_revoke_user_sessions)
             .service(sessions::endpoint::admin_revoke_user_session)
+            .service(service::endpoint::admin_set_user_service)
             .service(suspension::endpoint::admin_suspend_user)
             .service(suspension::endpoint::admin_reactivate_user)
             .service(get::endpoint::admin_get_user),
