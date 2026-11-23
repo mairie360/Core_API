@@ -12,7 +12,7 @@
 
 use crate::database::sessions::revoke_user_sessions::RevokeUserSessionsQueryView;
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::{get_jwt_timeout, revoke_session};
+use mairie360_api_lib::jwt_manager::{get_jwt_timeout, mark_session_revoked};
 use mairie360_api_lib::redis::error::RedisError;
 use mairie360_api_lib::redis::redis_interface::Redis;
 use mairie360_api_lib::smart_db::SmartTransaction;
@@ -37,7 +37,9 @@ pub fn max_jwt_lifetime() -> u64 {
         .unwrap_or(3600)
 }
 
-/// Marks `session_id` as revoked for `ttl_seconds` (clamped to 1..=`JWT_TIMEOUT`).
+/// Marks `session_id` as revoked for `ttl_seconds` (clamped to 1..=`JWT_TIMEOUT`): `revoked:<sid>` and
+/// the `revoked` state of `session:<sid>` (MAIR-772), so no API accepts its JWTs from its Redis state.
+/// The state is written with user id 0: a revoked state is refused before its owner is read.
 ///
 /// # Errors
 ///
@@ -48,7 +50,7 @@ pub async fn publish_revoked_session(
     ttl_seconds: u64,
 ) -> Result<(), RedisError> {
     let ttl = ttl_seconds.clamp(1, max_jwt_lifetime().max(1));
-    revoke_session(redis, &session_id.to_string(), ttl).await
+    mark_session_revoked(redis, &session_id.to_string(), 0, ttl).await
 }
 
 /// Marks every session of `session_ids` as revoked for `JWT_TIMEOUT`.

@@ -20,7 +20,9 @@ use crate::database::roles::get_roles_by_id::Role;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use jsonwebtoken::errors::{Error, ErrorKind};
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::{decode_jwt, generate_session_jwt as sign_session_jwt};
+use mairie360_api_lib::jwt_manager::{
+    decode_jwt, generate_session_jwt as sign_session_jwt, publish_session_state, SessionState,
+};
 use mairie360_api_lib::state::AppState;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -89,6 +91,33 @@ pub async fn user_role_name(state: &AppState, user_id: u64) -> Result<String, Ap
 /// cannot be signed.
 pub fn generate_session_jwt(user_id: u64, session_id: Uuid, role: &str) -> Result<String, Error> {
     sign_session_jwt(&user_id.to_string(), role, Some(&session_id.to_string()))
+}
+
+/// Publishes `jwt` as the active token of its session in Redis (`session:<sid>`, MAIR-772): every API
+/// then accepts it without a database query and refuses the token it replaces. Called after each
+/// sign-in and refresh. A failure is only logged: the APIs then check the database, and a stale state
+/// left by a previous token (Redis back after an outage) lasts at most that token's lifetime, after which
+/// a refresh publishes the new one.
+pub async fn publish_active_token(
+    state: &AppState,
+    user_id: u64,
+    session_id: Uuid,
+    jwt: &str,
+    ip: Option<std::net::IpAddr>,
+) {
+    let ip = ip.map(|ip| ip.to_string());
+    let session_state = SessionState::active_with_token(user_id, jwt, ip.as_deref());
+    let ttl = crate::session_revocation::max_jwt_lifetime();
+    if let Err(e) = publish_session_state(
+        state.get_redis(),
+        &session_id.to_string(),
+        &session_state,
+        ttl,
+    )
+    .await
+    {
+        tracing::warn!(%session_id, error = %e, "Could not publish the session state to Redis");
+    }
 }
 
 /// Decodes and verifies `jwt` like every API does (`mairie360_api_lib::jwt_manager::decode_jwt`:

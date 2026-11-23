@@ -9,15 +9,15 @@ use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 pub const ACL_PASSWORD: &str = "acl-test-password";
 
 /// Same lines as the chart's `entrypoint.sh`: `default` off, `admin`, `core-api` (read-write on
-/// `revoked:*`), `project-api` (read-only on `revoked:*`).
+/// `revoked:*` and `session:*`), `project-api` (read-only on `revoked:*`, read-write on `session:*`).
 fn chart_acl_lines() -> Vec<String> {
     let commands = "+get +set +del +exists +expire";
     vec![
         "default off resetkeys resetchannels -@all".to_string(),
         format!("admin on >{ACL_PASSWORD} ~* &* allcommands"),
-        format!("core-api on >{ACL_PASSWORD} ~core-api:* ~revoked:* resetchannels -@all {commands}"),
+        format!("core-api on >{ACL_PASSWORD} ~core-api:* ~revoked:* ~session:* resetchannels -@all {commands}"),
         format!(
-            "project-api on >{ACL_PASSWORD} ~project-api:* %R~revoked:* resetchannels -@all {commands}"
+            "project-api on >{ACL_PASSWORD} ~project-api:* %R~revoked:* ~session:* resetchannels -@all {commands}"
         ),
     ]
 }
