@@ -20,7 +20,9 @@ use crate::database::roles::get_roles_by_id::Role;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use jsonwebtoken::errors::{Error, ErrorKind};
 use mairie360_api_lib::error::ApiLibError;
-use mairie360_api_lib::jwt_manager::{decode_jwt, generate_session_jwt as sign_session_jwt};
+use mairie360_api_lib::jwt_manager::{
+    decode_jwt, generate_session_jwt as sign_session_jwt, publish_session_state, SessionState,
+};
 use mairie360_api_lib::state::AppState;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -91,6 +93,36 @@ pub fn generate_session_jwt(user_id: u64, session_id: Uuid, role: &str) -> Resul
     sign_session_jwt(&user_id.to_string(), role, Some(&session_id.to_string()))
 }
 
+/// Publishes `jwt` as the active token of its session in Redis (`session:<sid>`, MAIR-772): every API
+/// then accepts it without a database query and refuses the token it replaces. Called after each
+/// sign-in and refresh. The caller must not hand the JWT out when it fails: a token Redis does not know
+/// would be refused by every API as replaced.
+///
+/// # Errors
+///
+/// The Redis error (logged here, with the session id only).
+pub async fn publish_active_token(
+    state: &AppState,
+    user_id: u64,
+    session_id: Uuid,
+    jwt: &str,
+    ip: Option<std::net::IpAddr>,
+) -> Result<(), mairie360_api_lib::redis::error::RedisError> {
+    let ip = ip.map(|ip| ip.to_string());
+    let session_state = SessionState::active_with_token(user_id, jwt, ip.as_deref());
+    let ttl = crate::session_revocation::max_jwt_lifetime();
+    publish_session_state(
+        state.get_redis(),
+        &session_id.to_string(),
+        &session_state,
+        ttl,
+    )
+    .await
+    .inspect_err(|e| {
+        tracing::error!(%session_id, error = %e, "Could not publish the session state to Redis");
+    })
+}
+
 /// Decodes and verifies `jwt` like every API does (`mairie360_api_lib::jwt_manager::decode_jwt`:
 /// signature, `iss`/`aud` of the Ed25519 tokens, expiry without leeway).
 ///
@@ -111,4 +143,14 @@ pub fn decode_session_jwt(jwt: &str) -> Result<SessionClaims, Error> {
         exp: claims.expiration(),
         sid,
     })
+}
+
+/// The session id (`sid`) of the JWT of `request`, `None` for a token issued without one
+/// (MAIR-823: the session routes keep the caller's own session).
+#[must_use]
+pub fn current_session_id(request: &actix_web::HttpRequest) -> Option<uuid::Uuid> {
+    mairie360_api_lib::jwt_manager::get_jwt_from_request(request)
+        .and_then(|jwt| decode_session_jwt(&jwt).ok())
+        .as_ref()
+        .and_then(SessionClaims::session_id)
 }

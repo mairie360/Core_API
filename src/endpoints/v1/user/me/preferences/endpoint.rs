@@ -57,7 +57,8 @@ impl ResponseError for PreferencesError {
                 "timezone": "Europe/Paris",
                 "date_format": null,
                 "home_page": null,
-                "auto_open_notifications": false
+                "auto_open_notifications": false,
+                "autosave": true
             })
         ),
         (
@@ -123,12 +124,13 @@ pub async fn get_my_preferences(
                 "timezone": "Europe/Paris",
                 "date_format": null,
                 "home_page": null,
-                "auto_open_notifications": false
+                "auto_open_notifications": false,
+                "autosave": true
             })
         ),
         (
             status = 400,
-            description = "Malformed JSON body, field of an unexpected type, or a value outside the ones the application understands (MAIR-479): `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` is `Marianne`, `Arial`, `Verdana`, `OpenDyslexic` or `system-ui`; `density` is `compact`, `normal` or `comfortable`; `date_format` is `DD/MM/YYYY`, `MM/DD/YYYY` or `YYYY-MM-DD`; `language` a language code such as `fr` or `fr-FR`; `timezone` an IANA time zone such as `Europe/Paris` (case-sensitive); `home_page` a path such as `/dashboard` (lowercase letters, digits, `-`, `_`, `/`, no `//`, 128 characters at most). The body names the first invalid field. Nothing is saved.",
+            description = "Malformed JSON body, field of an unexpected type, or a value outside the ones the application understands (MAIR-479): `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` is `system`, `geist`, `atkinson` or `lora` (Settings V2, MAIR-1128), or one of the earlier `Marianne`, `Arial`, `Verdana`, `OpenDyslexic`, `system-ui`; `density` is `compact`, `normal` or `comfortable`; `date_format` is `DD/MM/YYYY`, `MM/DD/YYYY` or `YYYY-MM-DD`; `language` a language code such as `fr` or `fr-FR`; `timezone` an IANA time zone such as `Europe/Paris` (case-sensitive); `home_page` a path such as `/dashboard` (lowercase letters, digits, `-`, `_`, `/`, no `//`, 128 characters at most). The body names the first invalid field. Nothing is saved.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `density`: must be one of `compact`, `normal`, `comfortable`")

@@ -15,7 +15,7 @@ pub struct ResetPasswordView {
     )]
     token: String,
     /// New password, in plain text.
-    #[schema(min_length = 8, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
+    #[schema(min_length = 12, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
     new_password: String,
     /// Free description of the device, kept on the session opened by this call.
     #[schema(max_length = 512, example = "Chrome 140 sur Windows 11")]

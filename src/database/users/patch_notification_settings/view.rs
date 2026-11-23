@@ -14,6 +14,8 @@ pub struct NotificationSettingsPatch {
     pub messages: Option<Option<bool>>,
     pub projects: Option<Option<bool>>,
     pub calendar: Option<Option<bool>>,
+    pub system_updates: Option<Option<bool>>,
+    pub login_alerts: Option<Option<bool>>,
 }
 
 /// Creates or partially updates the notification settings row of a user and returns the stored
@@ -35,6 +37,8 @@ impl PatchNotificationSettingsQueryView {
             patch.messages,
             patch.projects,
             patch.calendar,
+            patch.system_updates,
+            patch.login_alerts,
         ] {
             push_bool(&mut params, field);
         }
@@ -45,11 +49,11 @@ impl PatchNotificationSettingsQueryView {
 impl ApiRequestDto for PatchNotificationSettingsQueryView {
     fn query_sql(&self) -> &'static str {
         "WITH t AS ( \
-         INSERT INTO user_notification_settings (user_id, email, push, desktop, messages, projects, calendar) \
-         VALUES ($1, CASE WHEN $2 AND NOT $3 THEN $4::boolean END, CASE WHEN $5 AND NOT $6 THEN $7::boolean END, CASE WHEN $8 AND NOT $9 THEN $10::boolean END, CASE WHEN $11 AND NOT $12 THEN $13::boolean END, CASE WHEN $14 AND NOT $15 THEN $16::boolean END, CASE WHEN $17 AND NOT $18 THEN $19::boolean END) \
+         INSERT INTO user_notification_settings (user_id, email, push, desktop, messages, projects, calendar, system_updates, login_alerts) \
+         VALUES ($1, CASE WHEN $2 AND NOT $3 THEN $4::boolean END, CASE WHEN $5 AND NOT $6 THEN $7::boolean END, CASE WHEN $8 AND NOT $9 THEN $10::boolean END, CASE WHEN $11 AND NOT $12 THEN $13::boolean END, CASE WHEN $14 AND NOT $15 THEN $16::boolean END, CASE WHEN $17 AND NOT $18 THEN $19::boolean END, CASE WHEN $20 AND NOT $21 THEN $22::boolean END, CASE WHEN $23 AND NOT $24 THEN $25::boolean END) \
          ON CONFLICT (user_id) DO UPDATE SET \
-         email = CASE WHEN $2 THEN EXCLUDED.email ELSE user_notification_settings.email END, push = CASE WHEN $5 THEN EXCLUDED.push ELSE user_notification_settings.push END, desktop = CASE WHEN $8 THEN EXCLUDED.desktop ELSE user_notification_settings.desktop END, messages = CASE WHEN $11 THEN EXCLUDED.messages ELSE user_notification_settings.messages END, projects = CASE WHEN $14 THEN EXCLUDED.projects ELSE user_notification_settings.projects END, calendar = CASE WHEN $17 THEN EXCLUDED.calendar ELSE user_notification_settings.calendar END \
-         RETURNING email, push, desktop, messages, projects, calendar \
+         email = CASE WHEN $2 THEN EXCLUDED.email ELSE user_notification_settings.email END, push = CASE WHEN $5 THEN EXCLUDED.push ELSE user_notification_settings.push END, desktop = CASE WHEN $8 THEN EXCLUDED.desktop ELSE user_notification_settings.desktop END, messages = CASE WHEN $11 THEN EXCLUDED.messages ELSE user_notification_settings.messages END, projects = CASE WHEN $14 THEN EXCLUDED.projects ELSE user_notification_settings.projects END, calendar = CASE WHEN $17 THEN EXCLUDED.calendar ELSE user_notification_settings.calendar END, system_updates = CASE WHEN $20 THEN EXCLUDED.system_updates ELSE user_notification_settings.system_updates END, login_alerts = CASE WHEN $23 THEN EXCLUDED.login_alerts ELSE user_notification_settings.login_alerts END \
+         RETURNING email, push, desktop, messages, projects, calendar, system_updates, login_alerts \
          ) \
          SELECT to_jsonb(t) FROM t"
     }

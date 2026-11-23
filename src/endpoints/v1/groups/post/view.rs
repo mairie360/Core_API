@@ -13,9 +13,18 @@ pub struct PostGroupView {
     /// Description of the group. Required on creation; pass an empty string if there is none.
     #[schema(max_length = 1000, example = "Building permit processing")]
     description: String,
+    /// Colour of the group card (MAIR-923): `blue`, `teal`, `green`, `orange`, `purple`, `pink` or
+    /// `neutral`. Absent or `null`: the default colour.
+    #[schema(nullable, example = "teal")]
+    #[serde(default)]
+    color: Option<String>,
 }
 
 impl PostGroupView {
+    pub fn color(&self) -> Option<&str> {
+        self.color.as_deref()
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -42,6 +51,7 @@ impl PostGroupResultView {
 impl Validate for PostGroupView {
     fn validate(&self) -> Result<(), ValidationError> {
         check_label("name", &self.name, MAX_NAME_LENGTH)?;
-        check_description("description", &self.description, MAX_DESCRIPTION_LENGTH)
+        check_description("description", &self.description, MAX_DESCRIPTION_LENGTH)?;
+        crate::endpoints::v1::groups::color::check_color(self.color.as_deref())
     }
 }

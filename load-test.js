@@ -25,6 +25,7 @@ import http from 'k6/http';
 import exec from 'k6/execution';
 import { check, fail, sleep } from 'k6';
 import crypto from 'k6/crypto';
+import encoding from 'k6/encoding';
 import { createCoverage, loadSpec } from '/coverage.js';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -75,7 +76,6 @@ const ADMIN_PAGE_SIZE = 20;
 
 const READ_METHODS = ['get', 'head', 'options'];
 
-const CONSOLE_COOKIE = '__Secure-mairie360-kc-console';
 
 /** The served spec restricted to the operations whose method passes `keep`. */
 function specSubset(spec, keep) {
@@ -119,6 +119,11 @@ function fixture(method, path, body, { headers = AUTH, expected = [200, 201, 204
     fail(`fixture ${method} ${path} answered ${res.status}: ${res.body}`);
   }
   return res;
+}
+
+/** The session id (`sid` claim) of a session JWT (MAIR-823). */
+function sessionIdOf(jwt) {
+  return JSON.parse(encoding.b64decode(jwt.split('.')[1], 'rawurl', 's')).sid;
 }
 
 function bearer(jwt) {
@@ -347,23 +352,18 @@ const readHandlers = {
   'GET /api/v1/admin/users/{userId}/': ({ request }) =>
     check(request({ path: { userId: MEMBER_ID } }), { 'admin user 200': (r) => r.status === 200 }),
   'GET /api/v1/admin/roles/': ({ request }) => check(request(), { 'admin roles 200': (r) => r.status === 200 }),
-
-  // Keycloak console access (MAIR-609), with the console cookie and the used link of setup().
-  // Traefik calls verify on every request of the console: it re-reads the Admin role each time.
-  'GET /internal/keycloak-console/verify': ({ request, data }) =>
-    check(request({ headers: { Cookie: `${CONSOLE_COOKIE}=${data.consoleCookie}` } }), {
-      'console verify 200': (r) => r.status === 200,
+  'GET /api/v1/admin/services/': ({ request }) =>
+    check(request(), { 'admin services 200': (r) => r.status === 200 && Array.isArray(r.json('services')) }),
+  // MAIR-773: stolen-session alerts (the static JWT's account has none) and the sign-in journal.
+  'GET /api/v1/user/me/security-alert/': ({ request }) =>
+    check(request(), { 'no pending security alert 204': (r) => r.status === 204 }),
+  'GET /api/v1/admin/security-alerts/': ({ request }) =>
+    check(request(), { 'security alerts 200': (r) => r.status === 200 && Array.isArray(r.json()) }),
+  'GET /api/v1/admin/users/{userId}/connection-logs': ({ request }) =>
+    check(request({ path: { userId: MEMBER_ID } }), {
+      'connection logs 200': (r) => r.status === 200 && Array.isArray(r.json()),
     }),
-  // A link works once: replaying the one of setup() measures the full check (signature, used-link
-  // record in Redis) and answers 401, expected so it does not count in `http_req_failed`.
-  'GET /admin-access': ({ request, data }) =>
-    check(
-      request({
-        query: { token: data.usedLinkToken },
-        params: { redirects: 0, responseCallback: http.expectedStatuses(401) },
-      }),
-      { 'used console link 401': (r) => r.status === 401 },
-    ),
+
 };
 
 const writeHandlers = {
@@ -424,6 +424,59 @@ const writeHandlers = {
     deleteUser(account.id);
   },
 
+  // MAIR-823: end one other session by its id, or every other session; change one's own password.
+  'DELETE /api/v1/sessions/{sessionId}/': ({ request }) => {
+    const account = activeAccount('revoke-id');
+    const current = login(account);
+    const other = login(account);
+    check(request({ path: { sessionId: sessionIdOf(other.jwt) }, headers: bearer(current.jwt) }), {
+      'revoke session by id 204': (r) => r.status === 204,
+    });
+    deleteUser(account.id);
+  },
+  // MAIR-773: a front proxy reports a network change of a bound session (logged, nothing closed).
+  'POST /api/v1/sessions/report': ({ request }) => {
+    const account = activeAccount('report');
+    const session = login(account);
+    check(request({ headers: bearer(session.jwt), body: { level: 'ip_change', ip_address: '203.0.113.7', device_info: DEVICE } }), {
+      'report 200': (r) => r.status === 200 && r.json('revoked') === false,
+    });
+    deleteUser(account.id);
+  },
+  // A possible stolen session closes it and queues an alert, which the next sign-in reads and acknowledges.
+  'POST /api/v1/user/me/security-alert/{alertId}/acknowledge/': ({ request }) => {
+    const account = activeAccount('alert');
+    fixture('POST', '/api/v1/sessions/report', { level: 'possible', ip_address: '203.0.113.7', device_info: DEVICE }, {
+      headers: bearer(login(account).jwt),
+    });
+    const session = login(account);
+    const alertId = fixture('GET', '/api/v1/user/me/security-alert/', undefined, { headers: bearer(session.jwt) }).json('id');
+    check(request({ headers: bearer(session.jwt), path: { alertId } }), { 'acknowledge alert 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/sessions/revoke-others': ({ request }) => {
+    const account = activeAccount('revoke-others');
+    const current = login(account);
+    login(account);
+    login(account);
+    check(request({ headers: bearer(current.jwt) }), {
+      'revoke others 200': (r) => r.status === 200 && r.json('revoked') === 2,
+    });
+    deleteUser(account.id);
+  },
+  'POST /api/v1/user/me/password': ({ request }) => {
+    const account = activeAccount('password');
+    const session = login(account);
+    check(
+      request({
+        body: { current_password: PASSWORD, new_password: `${PASSWORD}-new` },
+        headers: bearer(session.jwt),
+      }),
+      { 'change password 204': (r) => r.status === 204 },
+    );
+    deleteUser(account.id);
+  },
+
   // Password reset: forgot_password → e-mail (fake Resend) → reset_password.
   'POST /api/v1/auth/forgot_password': ({ request }) => {
     const account = activeAccount('forgot');
@@ -463,9 +516,13 @@ const writeHandlers = {
   'PATCH /api/v1/user/me/': ({ request }) =>
     check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR' } }), { 'patch me 200': (r) => r.status === 200 }),
   'PATCH /api/v1/user/me/notifications/': ({ request }) =>
-    check(request({ body: { email: true } }), { 'patch notification settings 200': (r) => r.status === 200 }),
+    check(request({ body: { email: true, system_updates: true, login_alerts: false } }), {
+      'patch notification settings 200': (r) => r.status === 200 && r.json('system_updates') === true,
+    }),
   'PATCH /api/v1/user/me/preferences/': ({ request }) =>
-    check(request({ body: { theme: 'light' } }), { 'patch preferences 200': (r) => r.status === 200 }),
+    check(request({ body: { theme: 'light', autosave: true } }), {
+      'patch preferences 200': (r) => r.status === 200 && r.json('autosave') === true,
+    }),
 
   // MAIR-805: second factor, on throwaway accounts (the Admin is never enrolled).
   'POST /api/v1/user/me/2fa/setup/': ({ request }) => {
@@ -506,6 +563,35 @@ const writeHandlers = {
     const p = protectedAccount('2fa-reset');
     check(request({ path: { userId: p.account.id } }), { 'admin reset 2fa 204': (r) => r.status === 204 });
     deleteUser(p.account.id);
+  },
+
+  // MAIR-584: an administrator closes the sessions of a user; MAIR-904: suspension.
+  'DELETE /api/v1/admin/users/{userId}/sessions/{sessionId}': ({ request }) => {
+    const account = activeAccount('close-one');
+    login(account);
+    const sessionId = fixture('GET', `/api/v1/admin/users/${account.id}/`).json('sessions.0.id');
+    check(request({ path: { userId: account.id, sessionId } }), { 'admin close session 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'DELETE /api/v1/admin/users/{userId}/sessions': ({ request }) => {
+    const account = activeAccount('close-all');
+    login(account);
+    check(request({ path: { userId: account.id } }), { 'admin close sessions 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'POST /api/v1/admin/users/{userId}/suspend': ({ request }) => {
+    const account = activeAccount('suspend');
+    check(request({ path: { userId: account.id } }), { 'admin suspend 204': (r) => r.status === 204 });
+    deleteUser(account.id);
+  },
+
+  'POST /api/v1/admin/users/{userId}/reactivate': ({ request }) => {
+    const account = activeAccount('reactivate');
+    fixture('POST', `/api/v1/admin/users/${account.id}/suspend`);
+    check(request({ path: { userId: account.id } }), { 'admin reactivate 204': (r) => r.status === 204 });
+    deleteUser(account.id);
   },
 
   // Administration of accounts: create → patch → password → roles → delete.
@@ -562,6 +648,33 @@ const writeHandlers = {
     deleteUser(account.id);
   },
 
+  // Services of the mairie and the service of an agent (MAIR-923).
+  'POST /api/v1/admin/services/': ({ request }) => {
+    const res = request({ body: { name: `k6-service-${unique()}` } });
+    check(res, { 'create service 201': (r) => r.status === 201 });
+    if (res.status === 201) fixture('DELETE', `/api/v1/admin/services/${res.json('id')}`);
+  },
+  'PATCH /api/v1/admin/services/{serviceId}': ({ request }) => {
+    const id = fixture('POST', '/api/v1/admin/services/', { name: `k6-rename-${unique()}` }).json('id');
+    check(request({ path: { serviceId: id }, body: { name: `k6-renamed-${unique()}` } }), {
+      'rename service 200': (r) => r.status === 200,
+    });
+    fixture('DELETE', `/api/v1/admin/services/${id}`);
+  },
+  'DELETE /api/v1/admin/services/{serviceId}': ({ request }) => {
+    const id = fixture('POST', '/api/v1/admin/services/', { name: `k6-delete-${unique()}` }).json('id');
+    check(request({ path: { serviceId: id } }), { 'delete service 204': (r) => r.status === 204 });
+  },
+  'PUT /api/v1/admin/users/{userId}/service': ({ request }) => {
+    const account = activeAccount('service');
+    const id = fixture('POST', '/api/v1/admin/services/', { name: `k6-agent-${unique()}` }).json('id');
+    check(request({ path: { userId: account.id }, body: { service_id: id } }), {
+      'set user service 204': (r) => r.status === 204,
+    });
+    fixture('DELETE', `/api/v1/admin/services/${id}`);
+    deleteUser(account.id);
+  },
+
   // Administration of roles: create → put → patch → delete.
   'POST /api/v1/admin/roles/': ({ request }) => {
     const name = `k6-create-${unique()}`;
@@ -596,27 +709,6 @@ const writeHandlers = {
     const roleId = createRole('delete');
     check(request({ path: { id: roleId } }), { 'delete role 204': (r) => r.status === 204 });
   },
-
-  // Keycloak is not configured in the test stack: both routes answer 503 (expected, so it does not
-  // count in `http_req_failed`). The sign-in itself is covered by tests/keycloak_*.rs.
-  'POST /api/v1/auth/keycloak': ({ request }) =>
-    check(
-      request({
-        body: { code: 'k6-code', redirect_uri: 'https://login.mairie360.fr/auth/callback', device_info: DEVICE },
-        params: { responseCallback: http.expectedStatuses(503) },
-      }),
-      { 'keycloak sign-in 503 (not configured)': (r) => r.status === 503 },
-    ),
-  // MAIR-609: docker-compose-performance.yml sets RATE_LIMIT_ENABLED=false, so no 429 here (the
-  // 10 links per 15 minutes are tested in tests/mair_609_keycloak_console_access.rs).
-  'POST /api/v1/admin/keycloak/console-access': ({ request }) =>
-    check(request(), {
-      'console link 200': (r) => r.status === 200 && r.json('expires_in') === 120,
-    }),
-  'POST /api/v1/admin/keycloak/migration': ({ request }) =>
-    check(request({ params: { responseCallback: http.expectedStatuses(503) } }), {
-      'keycloak migration 503 (not configured)': (r) => r.status === 503,
-    }),
 
   // Accesses of a resource instance (here a group): grant → list → revoke.
   'POST /api/v1/ressources/add_access': ({ request }) => {
@@ -712,9 +804,12 @@ const isPolicy = (method, path) =>
   || (path.includes('/passkey') && !READ_METHODS.includes(method));
 const OPTIONAL_POLICY = { required: false, totp_allowed: true, passkey_allowed: false, backup_codes_allowed: true };
 
-/** The enrolment token of a login that the mandatory policy answers `2fa_setup_required`. */
-function setupToken(account) {
-  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true });
+/**
+ * The enrolment token of a login that the mandatory policy answers `2fa_setup_required`; `modes`
+ * overrides the allowed modes of that policy (`{ passkey_allowed: true }` for a passkey enrolment).
+ */
+function setupToken(account, modes = {}) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, ...modes, required: true });
   try {
     return fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
       expected: [202],
@@ -729,6 +824,22 @@ function withPasskeysAllowed(fn) {
   fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, passkey_allowed: true });
   try {
     return fn();
+  } finally {
+    fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
+  }
+}
+
+/**
+ * Runs `fn(token)` with the enrolment token of a login under a mandatory policy that accepts passkeys
+ * (mandatory enrolment by passkey), then puts the optional policy back.
+ */
+function withPasskeyEnrolment(account, fn) {
+  fixture('PUT', '/api/v1/admin/two-factor-policy', { ...OPTIONAL_POLICY, required: true, passkey_allowed: true });
+  try {
+    const token = fixture('POST', '/api/v1/auth/login', { email: account.email, password: PASSWORD, device_info: DEVICE }, {
+      expected: [202],
+    }).json('token');
+    return fn(token);
   } finally {
     fixture('PUT', '/api/v1/admin/two-factor-policy', OPTIONAL_POLICY);
   }
@@ -767,6 +878,29 @@ const policyHandlers = {
         { 'forged passkey 401': (r) => r.status === 401 && !r.headers.Authorization },
       );
     }),
+  // Mandatory enrolment by passkey: the challenge, then a forged answer the route refuses (400).
+  'POST /api/v1/auth/passkey/setup/options': ({ request }) => {
+    const account = activeAccount('passkey-setup-options');
+    withPasskeyEnrolment(account, (token) =>
+      check(request({ body: { token } }), {
+        'passkey enrolment options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
+      }));
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/passkey/setup': ({ request }) => {
+    const account = activeAccount('passkey-setup');
+    withPasskeyEnrolment(account, (token) => {
+      fixture('POST', '/api/v1/auth/passkey/setup/options', { token });
+      check(
+        request({
+          body: { token, label: 'k6', credential: FORGED_REGISTRATION },
+          params: { responseCallback: http.expectedStatuses(400) },
+        }),
+        { 'forged enrolment 400': (r) => r.status === 400 && !r.headers.Authorization },
+      );
+    });
+    deleteUser(account.id);
+  },
   'POST /api/v1/user/me/passkeys/options/': ({ request }) =>
     withPasskeysAllowed(() =>
       check(request(), {
@@ -783,10 +917,40 @@ const policyHandlers = {
         { 'forged registration 400': (r) => r.status === 400 },
       );
     }),
+  // Mandatory enrolment with a passkey: the enrolment token of a login under the mandatory policy.
+  'POST /api/v1/auth/passkey/setup/options': ({ request }) => {
+    const account = activeAccount('passkey-setup-options');
+    const token = setupToken(account, { passkey_allowed: true });
+    withPasskeysAllowed(() =>
+      check(request({ body: { token } }), {
+        'passkey setup options 200': (r) => r.status === 200 && !!r.json('options.publicKey.challenge'),
+      }));
+    deleteUser(account.id);
+  },
+  'POST /api/v1/auth/passkey/setup': ({ request }) => {
+    const account = activeAccount('passkey-setup');
+    const token = setupToken(account, { passkey_allowed: true });
+    withPasskeysAllowed(() => {
+      fixture('POST', '/api/v1/auth/passkey/setup/options', { token });
+      check(
+        request({
+          body: { token, label: 'k6', credential: FORGED_REGISTRATION },
+          params: { responseCallback: http.expectedStatuses(400) },
+        }),
+        { 'forged enrolment passkey 400': (r) => r.status === 400 && !r.headers.Authorization },
+      );
+    });
+    deleteUser(account.id);
+  },
   'DELETE /api/v1/user/me/passkeys/{id}/': ({ request }) =>
     check(
       request({ path: { id: 999999999 }, params: { responseCallback: http.expectedStatuses(404) } }),
       { 'unknown passkey 404': (r) => r.status === 404 },
+    ),
+  'PATCH /api/v1/user/me/passkeys/{id}/': ({ request }) =>
+    check(
+      request({ path: { id: 999999999 }, body: { label: 'k6' }, params: { responseCallback: http.expectedStatuses(404) } }),
+      { 'rename unknown passkey 404': (r) => r.status === 404 },
     ),
   'GET /api/v1/admin/two-factor-policy': ({ request }) =>
     check(request(), {
@@ -910,32 +1074,15 @@ export const options = {
   },
 };
 
-/**
- * Read fixtures: a group with user 2 as member, a Keycloak console cookie and the (now used) link
- * that opened it (MAIR-609). Login rush: active accounts.
- */
-function consoleAccess() {
-  const url = fixture('POST', '/api/v1/admin/keycloak/console-access').json('url');
-  const usedLinkToken = url.split('token=')[1];
-  const res = http.get(`${BASE_URL}/admin-access?token=${usedLinkToken}`, {
-    redirects: 0,
-    tags: { op: 'fixture' },
-    responseCallback: http.expectedStatuses(303),
-  });
-  const cookie = (res.cookies[CONSOLE_COOKIE] || [])[0];
-  if (res.status !== 303 || !cookie) fail(`fixture GET /admin-access answered ${res.status}: ${res.body}`);
-  return { consoleCookie: cookie.value, usedLinkToken };
-}
-
+/** Read fixtures: a group with user 2 as member. Login rush: active accounts. */
 export function setup() {
   const groupId = createGroup('read');
   addGroupMember(groupId, MEMBER_ID);
-  const { consoleCookie, usedLinkToken } = consoleAccess();
   const rushAccounts = [];
   for (let i = 0; i < LOGIN_RUSH_ACCOUNTS; i += 1) {
     rushAccounts.push(activeAccount('rush'));
   }
-  return { groupId, rushAccounts, consoleCookie, usedLinkToken };
+  return { groupId, rushAccounts };
 }
 
 export function teardown(data) {

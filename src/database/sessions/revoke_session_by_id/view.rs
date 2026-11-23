@@ -45,10 +45,14 @@ impl RevokeSessionByIdQueryView {
 
 impl ApiRequestDto for RevokeSessionByIdQueryView {
     fn query_sql(&self) -> &'static str {
-        "UPDATE sessions
-         SET revoked_at = $1
-         WHERE user_id = $2
-         AND id = $3"
+        // Only an active session moves (MAIR-823): the ids it revoked come back, one JSON string
+        // per row (`fetch_all::<Uuid>`), so the caller publishes them and tells an unknown, foreign
+        // or already ended session (no row) from a revoked one.
+        "WITH revoked AS ( \
+         UPDATE sessions SET revoked_at = $1 \
+         WHERE user_id = $2 AND id = $3 AND revoked_at IS NULL \
+         AND (expires_at IS NULL OR expires_at > now()) RETURNING id \
+         ) SELECT to_json(id) FROM revoked"
     }
 
     fn query_params(&self) -> &[QueryParam] {

@@ -10,7 +10,9 @@ pub struct GetRolesQueryView {
 
 impl ApiRequestDto for GetRolesQueryView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT id, name, description, created_at, updated_at, can_be_deleted FROM roles) t"
+        "SELECT row_to_json(t) FROM (SELECT r.id, r.name, r.description, r.created_at, r.updated_at, r.can_be_deleted, \
+         COALESCE((SELECT array_agg(rm.module ORDER BY array_position(ARRAY['dashboard','projects','calendar','messages','training','admin','settings'], rm.module)) FROM role_modules rm WHERE rm.role_id = r.id), '{}') AS modules \
+         FROM roles r) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -26,6 +28,9 @@ pub struct RoleQueryResult {
     created_at: DateTime<Utc>,
     updated_at: Option<DateTime<Utc>>,
     can_be_deleted: bool,
+    /// Modules the role opens (MAIR-916), in no particular order.
+    #[serde(default)]
+    modules: Vec<String>,
 }
 
 impl RoleQueryResult {
@@ -45,7 +50,14 @@ impl RoleQueryResult {
             created_at,
             updated_at,
             can_be_deleted,
+            modules: Vec::new(),
         }
+    }
+
+    /// Modules the role opens, in the order of the navigation (MAIR-916).
+    #[must_use]
+    pub fn modules(&self) -> Vec<String> {
+        crate::role_modules::ordered(self.modules.clone())
     }
 
     #[must_use]

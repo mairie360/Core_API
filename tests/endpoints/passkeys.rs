@@ -988,3 +988,108 @@ async fn mair_810_a_token_of_an_archived_or_already_protected_account_enrols_not
         .unwrap();
     assert_eq!(stored, 0);
 }
+
+// MAIR-811: the Login screen registers the passkey, then saves the name the agent keeps (the passkey
+// manager by default).
+#[actix_web::test]
+#[serial(fake_resend)]
+async fn mair_811_rename_a_passkey() {
+    let env = env().await;
+    let app = init_app!(env.state, env.passkeys);
+    let (owner, email) = create_account(&env.raw).await;
+    let (other, _) = create_account(&env.raw).await;
+    let owner_auth = bearer(&env.state, u64::try_from(owner).unwrap()).await;
+    let other_auth = bearer(&env.state, u64::try_from(other).unwrap()).await;
+    let mut device = SoftPasskey::new(true);
+    let (status, _, created) = register!(app, device, owner_auth, "Passkey");
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let passkey_id = created["id"].as_i64().unwrap();
+    let mails = fake_resend::sent_to(&email).len();
+
+    let rename = |auth: (&'static str, String), id: String, body: Value| {
+        test::TestRequest::patch()
+            .uri(&format!("/api/v1/user/me/passkeys/{id}/"))
+            .insert_header(auth)
+            .set_json(body)
+    };
+
+    // The owner renames it: the new label (trimmed), the rest unchanged, no e-mail.
+    let (status, _, body) = json_of!(
+        app,
+        rename(
+            owner_auth.clone(),
+            passkey_id.to_string(),
+            json!({ "label": "  Ordinateur de la mairie  " })
+        )
+    );
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["id"].as_i64(), Some(passkey_id));
+    assert_eq!(body["label"], "Ordinateur de la mairie");
+    assert_eq!(body["created_at"], created["created_at"]);
+    assert_eq!(body["provider"], created["provider"]);
+    assert!(body.get("passkey").is_none(), "the key is never returned");
+    assert_eq!(
+        fake_resend::sent_to(&email).len(),
+        mails,
+        "renaming sends no e-mail"
+    );
+    let (_, _, list) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/passkeys/")
+            .insert_header(owner_auth.clone())
+    );
+    assert_eq!(list[0]["label"], "Ordinateur de la mairie");
+
+    // Another account gets the same 404 as for an unknown passkey, and changes nothing.
+    let (status, _, _) = json_of!(
+        app,
+        rename(
+            other_auth,
+            passkey_id.to_string(),
+            json!({ "label": "Volée" })
+        )
+    );
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _, _) = json_of!(
+        app,
+        rename(
+            owner_auth.clone(),
+            "999999999".to_string(),
+            json!({ "label": "Inconnue" })
+        )
+    );
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // A blank, too long or control-character label and a non numeric id are 400.
+    for label in [json!("   "), json!("x".repeat(101)), json!("a\u{0}b")] {
+        let (status, _, _) = json_of!(
+            app,
+            rename(
+                owner_auth.clone(),
+                passkey_id.to_string(),
+                json!({ "label": label })
+            )
+        );
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{label}");
+    }
+    let (status, _, _) = json_of!(
+        app,
+        rename(
+            owner_auth.clone(),
+            "abc".to_string(),
+            json!({ "label": "Ordinateur" })
+        )
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, _, list) = json_of!(
+        app,
+        test::TestRequest::get()
+            .uri("/api/v1/user/me/passkeys/")
+            .insert_header(owner_auth)
+    );
+    assert_eq!(
+        list[0]["label"], "Ordinateur de la mairie",
+        "the refused renames changed nothing"
+    );
+}

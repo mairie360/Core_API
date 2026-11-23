@@ -47,9 +47,8 @@ macro_rules! init_app {
 async fn setup() -> (web::Data<AppState>, PgPool) {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
+    let state =
+        web::Data::new(AppState::new(crate::common::redis_url().await, core_db_url().await).await);
     (state, get_raw_pool(host.clone()).await)
 }
 

@@ -1,5 +1,5 @@
 use crate::database::admin::list_users::{
-    AdminCountUsersQueryView, AdminListUsersQueryView, AdminUserRow,
+    AdminCountUsersQueryView, AdminListUsersQueryView, AdminUserRow, AdminUsersFilter,
 };
 use crate::endpoints::admin_guard::AdminUser;
 use crate::endpoints::v1::admin::users::get::view::{
@@ -48,9 +48,15 @@ async fn list_users(
     }
 
     let smart_db = state.get_smart_db();
+    let filter = AdminUsersFilter {
+        search: query.search().map(str::to_string),
+        group_id: query.group_id(),
+        account_status: query.account_status().map(str::to_string),
+        role_id: query.role_id(),
+    };
     let users_view =
-        AdminListUsersQueryView::new(query.search(), query.group_id(), page, page_size);
-    let count_view = AdminCountUsersQueryView::new(query.search(), query.group_id());
+        AdminListUsersQueryView::filtered(&filter, query.descending(), page, page_size);
+    let count_view = AdminCountUsersQueryView::filtered(&filter);
     let (users, total) = futures_util::try_join!(
         smart_db.fetch_all::<AdminUserRow, _>(&users_view),
         smart_db.fetch_scalar::<i64, _>(&count_view),
@@ -78,9 +84,15 @@ async fn list_users(
     path = "",
     summary = "List the users (administration)",
     description = "Paginated administration view of the user accounts, archived ones included, \
-                   with phone, status and roles. Reserved to administrators.\n\n\
+                   with phone, status and roles, the number of active sessions, the last sign-in and the \
+                   second factor (methods and last verification, never a secret). Reserved to \
+                   administrators. `status` is `suspended` for an account an administrator \
+                   suspended (MAIR-904).\n\n\
                    Not to be confused with `GET /api/v1/user/`, the directory open to everyone: that one \
                    hides the archived accounts, is not paginated and returns neither phone nor status.\n\n\
+                   Filters (MAIR-904): `search`, `group_id`, `account_status` (the state the \
+                   administration shows: active, invited, inactive, suspended) and `role_id` \
+                   combine; `sort=-name` reverses the order by name.\n\n\
                    `total` counts the users matching the filters, across all \
                    pages; `total_pages` follows from it. A `page` past `total_pages` \
                    returns an empty list, not an error.",
@@ -100,9 +112,13 @@ async fn list_users(
                         "phone_number": "+33612345678",
                         "phone_country": "FR",
                         "status": "active",
+                        "account_status": "active",
                         "is_archived": false,
                         "role": { "id": 2, "name": "agent" },
-                        "roles": [{ "id": 2, "name": "agent" }]
+                        "roles": [{ "id": 2, "name": "agent" }],
+                        "active_sessions": 2,
+                        "last_login_at": "2026-09-16T08:42:11Z",
+                        "two_factor": { "methods": ["totp", "backup_codes"], "last_verified_at": "2026-09-16T08:42:30Z" }
                     }
                 ],
                 "page": 1,
@@ -113,7 +129,7 @@ async fn list_users(
         ),
         (
             status = 400,
-            description = "`page` is 0, `page_size` is 0 or above 500, or `search` is longer than 255 characters or contains a control character.",
+            description = "`page` is 0, `page_size` is 0 or above 500, `search` is longer than 255 characters or contains a control character, `account_status` is not `active`, `invited`, `inactive` or `suspended`, or `sort` is not `name` or `-name`.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid pagination")

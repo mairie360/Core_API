@@ -2,7 +2,7 @@
 # change what gets built. Same toolchain as API_template (MAIR-427). Builder, runtime and
 # development.Dockerfile share one Debian release (13 "trixie"), so the binary links against the
 # glibc and OpenSSL the runtime image ships (MAIR-741: Debian 12's distroless libssl3 is unpatched).
-FROM rust:1.99-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS builder
+FROM rust:1.100-slim-trixie@sha256:6f14b2b4b278ec0d50aa1d69541c304ce0f95e0f6268487aa9924af1c2e9aebe AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -31,7 +31,7 @@ RUN touch src/main.rs src/lib.rs src/bin/invite_passwordless.rs \
 # `:nonroot` runs as uid/gid 65532. The binary stays owned by root and is only readable and
 # executable by that user: the API never writes to the filesystem (configuration comes from
 # environment variables, state lives in Postgres and Redis), so a read-only root filesystem works.
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cc66d222f0a7ec996b78a99fe76a969bc80b539a5016ad866c14d1949bc6d0ab
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:532c7a94f9e96ba9db75eb9388f4227751131c7cb0a411d1a8521af4096135de
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api

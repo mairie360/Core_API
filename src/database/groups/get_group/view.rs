@@ -27,7 +27,9 @@ impl GetGroupQuerView {
 
 impl ApiRequestDto for GetGroupQuerView {
     fn query_sql(&self) -> &'static str {
-        "SELECT row_to_json(t) FROM (SELECT * FROM groups WHERE id = $1) t"
+        "SELECT row_to_json(t) FROM (SELECT g.*, \
+         (SELECT count(pg.group_id) FROM project_groups pg WHERE pg.group_id = g.id)::int AS project_count \
+         FROM groups g WHERE g.id = $1) t"
     }
 
     fn query_params(&self) -> &[QueryParam] {
@@ -57,6 +59,15 @@ pub struct Group {
     /// Description of the group, or `null` if it has none.
     #[schema(example = "Building permit processing")]
     description: Option<String>,
+    /// Colour of the group card, a name of the charter palette (`blue`, `teal`, `green`,
+    /// `orange`, `purple`, `pink`, `neutral`), or `null` for the default one (MAIR-923).
+    #[serde(default)]
+    #[schema(example = "teal")]
+    color: Option<String>,
+    /// Number of projects linked to the group (Project API, MAIR-683).
+    #[serde(default)]
+    #[schema(example = 2)]
+    project_count: i32,
 }
 
 impl Group {
@@ -67,7 +78,26 @@ impl Group {
             name: name.to_string(),
             owner_id,
             description: description.map(std::string::ToString::to_string),
+            color: None,
+            project_count: 0,
         }
+    }
+
+    /// The same group with a colour.
+    #[must_use]
+    pub fn with_color(mut self, color: Option<&str>) -> Self {
+        self.color = color.map(str::to_string);
+        self
+    }
+
+    #[must_use]
+    pub fn color(&self) -> Option<&str> {
+        self.color.as_deref()
+    }
+
+    #[must_use]
+    pub const fn project_count(&self) -> i32 {
+        self.project_count
     }
 
     #[must_use]

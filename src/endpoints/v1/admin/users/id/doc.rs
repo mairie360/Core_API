@@ -5,6 +5,9 @@ use crate::endpoints::v1::admin::users::id::get::doc::GetUserDoc;
 use crate::endpoints::v1::admin::users::id::password::doc::ResetPasswordDoc;
 use crate::endpoints::v1::admin::users::id::patch::doc::PatchUserDoc;
 use crate::endpoints::v1::admin::users::id::roles::doc::RolesDoc;
+use crate::endpoints::v1::admin::users::id::service::doc::UserServiceDoc;
+use crate::endpoints::v1::admin::users::id::sessions::doc::UserSessionsDoc;
+use crate::endpoints::v1::admin::users::id::suspension::doc::SuspensionDoc;
 use crate::endpoints::v1::admin::users::id::two_factor::doc::ResetTwoFactorDoc;
 use utoipa::OpenApi;
 
@@ -28,6 +31,9 @@ impl OpenApi for RootDoc {
         doc.merge(EraseUserDoc::openapi());
         doc.merge(ExportUserDataDoc::openapi());
         doc.merge(ResetTwoFactorDoc::openapi());
+        doc.merge(UserSessionsDoc::openapi());
+        doc.merge(SuspensionDoc::openapi());
+        doc.merge(UserServiceDoc::openapi());
         doc
     }
 }

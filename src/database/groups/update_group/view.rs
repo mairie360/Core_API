@@ -21,8 +21,21 @@ impl UpdateGroupQueryView {
                 QueryParam::Bool(description.is_some()),
                 QueryParam::Text(description.unwrap_or_default().to_string()),
                 QueryParam::I32(id_to_sql(group_id)),
+                QueryParam::Bool(false),
+                QueryParam::Text(String::new()),
             ],
         }
+    }
+
+    /// Also changes the colour: `None` keeps it, `Some(None)` clears it (MAIR-923).
+    #[must_use]
+    #[allow(clippy::option_option)]
+    pub fn with_color(mut self, color: Option<Option<&str>>) -> Self {
+        if let Some(color) = color {
+            self.params[5] = QueryParam::Bool(true);
+            self.params[6] = QueryParam::Text(color.unwrap_or_default().to_string());
+        }
+        self
     }
 
     #[must_use]
@@ -36,11 +49,14 @@ impl ApiRequestDto for UpdateGroupQueryView {
         "WITH t AS ( \
             UPDATE groups SET \
                 name = CASE WHEN $1 THEN $2 ELSE name END, \
-                description = CASE WHEN $3 THEN $4 ELSE description END \
+                description = CASE WHEN $3 THEN $4 ELSE description END, \
+                color = CASE WHEN $6 THEN NULLIF($7, '') ELSE color END \
             WHERE id = $5 \
-            RETURNING id, owner_id, name, description \
+            RETURNING id, owner_id, name, description, color \
          ) \
-         SELECT to_jsonb(t) FROM t"
+         SELECT to_jsonb(t) || jsonb_build_object('project_count', \
+            (SELECT count(pg.group_id) FROM project_groups pg WHERE pg.group_id = t.id)::int) \
+         FROM t"
     }
 
     fn query_params(&self) -> &[QueryParam] {

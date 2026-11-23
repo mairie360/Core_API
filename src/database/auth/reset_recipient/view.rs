@@ -21,7 +21,8 @@ impl ApiRequestDto for ResetRecipientQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT row_to_json(t) FROM (\
             SELECT first_name FROM users \
-            WHERE lower(email) = lower($1) AND NOT COALESCE(is_archived, FALSE)\
+            WHERE lower(email) = lower($1) AND NOT COALESCE(is_archived, FALSE) \
+              AND status IS DISTINCT FROM 'suspended'\
         ) t"
     }
 

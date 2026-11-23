@@ -1,3 +1,4 @@
+pub mod color;
 pub mod doc;
 mod get;
 mod id;
