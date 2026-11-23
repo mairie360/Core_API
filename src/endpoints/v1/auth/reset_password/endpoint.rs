@@ -18,6 +18,7 @@ use crate::two_factor;
 use actix_web::http::StatusCode;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use mairie360_api_lib::error::ApiLibError;
+use mairie360_api_lib::redis::redis_interface::Redis;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
 use uuid::Uuid;
@@ -128,8 +129,14 @@ fn identity_error(e: IdentityCheckError) -> ResetPasswordError {
 
 /// Sets the new password and revokes every session opened with the previous one, in one
 /// transaction (MAIR-420). Returns the revoked sessions, to publish once committed.
+///
+/// The reset link (`link_keys`) is spent inside that transaction, after the writes and before the
+/// commit: a password the locked identity check refuses leaves the link usable for another try, and a
+/// link that cannot be spent rolls the change back (MAIR-757).
 async fn reset_pwd(
     smart_db: &SmartDatabase,
+    redis: &Redis,
+    link_keys: [&str; 2],
     new_password: &str,
     user_id: u64,
 ) -> Result<Vec<Uuid>, ResetPasswordError> {
@@ -143,8 +150,7 @@ async fn reset_pwd(
     };
     let mut tx = smart_db.begin().await.map_err(database_error)?;
     // Checked again on the row locked until the commit: a rename committed since the first check
-    // cannot end up in the stored password (MAIR-757). The link is already spent then; the agent asks
-    // for a new one, which only happens when the account was renamed during the reset.
+    // cannot end up in the stored password (MAIR-757). The link is not spent yet: a refusal here keeps it.
     password_identity::check_in(
         &mut tx,
         user_id,
@@ -168,6 +174,13 @@ async fn reset_pwd(
     let revoked = revoke_all_user_sessions_in(&mut tx, user_id)
         .await
         .map_err(database_error)?;
+    // The link is single-use: spent before the commit, so a failure here leaves nothing written.
+    for key in link_keys {
+        if let Err(e) = redis.delete(key).await {
+            tracing::error!("Failed to spend the reset link: {e:?}");
+            return Err(ResetPasswordError::RedisError);
+        }
+    }
     tx.commit().await.map_err(database_error)?;
     Ok(revoked)
 }
@@ -221,16 +234,14 @@ async fn reset_password_trigger(
     }
 
     let reversed_key = format!("{email}/forgot_password_token");
-    if let Err(e) = redis.delete(&reversed_key).await {
-        tracing::error!("Failed to delete reversed key: {e:?}");
-        return Err(ResetPasswordError::RedisError);
-    }
-    if let Err(e) = redis.delete(&key).await {
-        tracing::error!("Failed to delete key: {e:?}");
-        return Err(ResetPasswordError::RedisError);
-    }
-
-    let revoked = reset_pwd(smart_db, view.new_password(), user_id).await?;
+    let revoked = reset_pwd(
+        smart_db,
+        redis,
+        [&reversed_key, &key],
+        view.new_password(),
+        user_id,
+    )
+    .await?;
     publish_revoked_sessions(redis, &revoked).await;
 
     // Owning the mailbox is not a second factor: a protected account goes through the second step

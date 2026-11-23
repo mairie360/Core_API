@@ -18,6 +18,7 @@ use uuid::Uuid;
 /// the JSON bodies below carry no literal value after a `password` key (Gitleaks `generic-api-key`).
 const COMPLIANT: &str = "Ecole-Jardin-Pont-2026";
 const WITH_LAST_NAME: &str = "Rivoire-Mairie-2026";
+const WITH_NEW_FIRST_NAME: &str = "Bellerive-Velo-2026";
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     std::env::set_var("JWT_SECRET", "refresh_test_secret");
@@ -303,4 +304,71 @@ async fn mair_757_the_identity_check_locks_the_account_until_the_password_is_wri
     )
     .await;
     assert_eq!(missing, Err(IdentityCheckError::UnknownUser));
+}
+
+/// Review of MAIR-757: a rename committed between the first identity check of a password reset and the transaction
+/// that writes the password is caught by the locked check, and the reset link survives that refusal (it is only spent
+/// with the write, just before the commit).
+#[tokio::test]
+async fn mair_757_a_rename_during_a_reset_is_refused_and_keeps_the_link() {
+    std::sync::LazyLock::force(&INIT);
+    let host = crate::common::own_db_url().await;
+    let (_redis, redis_config) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis_config.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let marker = unique_marker("rename");
+    let user = create_user(&get_pool().await, "Hortense", &marker).await;
+    let raw = crate::common::get_raw_pool(host).await;
+    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    let token = Uuid::new_v4().to_string();
+    let redis = state.get_redis();
+    redis
+        .set_ex(
+            &format!("{token}/forgot_password_email"),
+            email.as_str(),
+            900,
+        )
+        .await
+        .unwrap();
+    redis
+        .set_ex(
+            &format!("{email}/forgot_password_token"),
+            token.as_str(),
+            900,
+        )
+        .await
+        .unwrap();
+    let reset = |password: &str| {
+        test::TestRequest::post()
+            .uri("/api/v1/auth/reset_password")
+            .set_json(json!({ "token": token, "new_password": password, "device_info": "test" }))
+    };
+
+    // Another connection renames the account and holds the row until it commits: the first check of the reset reads
+    // the committed name (Hortense) and accepts the password, the locked check waits for the rename.
+    let mut rename = raw.begin().await.unwrap();
+    sqlx::query("UPDATE users SET first_name = 'Bellerive' WHERE id = $1")
+        .bind(user)
+        .execute(&mut *rename)
+        .await
+        .unwrap();
+    let request = async { call!(app, reset(WITH_NEW_FIRST_NAME)) };
+    let commit = async {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        rename.commit().await.unwrap();
+    };
+    let ((status, body), ()) = tokio::join!(request, commit);
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("first name"), "{body}");
+
+    let (status, body) = call!(app, reset(COMPLIANT));
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "the link must survive the refusal: {body}"
+    );
 }
