@@ -287,9 +287,10 @@ async fn refresh_tokens_are_hashed_and_rotated() {
     let second = body["refresh_token"].as_str().unwrap().to_string();
     assert_ne!(first, second);
 
-    // The rotated-out token is dead, the new one works.
+    // The rotated-out token is dead, the new one works. Replayed right after the rotation it is a
+    // concurrent renewal (`409 refresh_superseded`): it renews nothing.
     let resp = test::call_service(&app, refresh(&first).to_request()).await;
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
     let resp = test::call_service(&app, refresh(&second).to_request()).await;
     assert_eq!(resp.status(), StatusCode::OK);
 }
