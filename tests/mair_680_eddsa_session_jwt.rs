@@ -1,8 +1,7 @@
 //! MAIR-680: Core signs session JWTs with its Ed25519 key, publishes the public key as a JWKS, and
-//! no longer accepts HS256 tokens once `JWT_SECRET` is removed.
+//! refuses every HS256 token (no `JWT_SECRET` since `mairie360_api_lib` 6.0.0).
 //!
-//! Own test binary: the key variables are process-wide, and the endpoint tests of
-//! `integration_test` still run with `JWT_SECRET` only.
+//! Own test binary: the key variables are process-wide, and this one checks the exact keys set.
 #![allow(clippy::cast_possible_wrap)]
 
 #[allow(dead_code, unused_imports)]

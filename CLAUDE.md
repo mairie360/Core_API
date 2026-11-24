@@ -47,12 +47,13 @@ variables below, see `docker-compose.yml` for the dev values. The Postgres URL i
 Session keys (MAIR-680): Core is the only service that signs session JWTs. `JWT_PRIVATE_KEY` (Ed25519 PKCS#8
 PEM, `openssl genpkey -algorithm ed25519`) + `JWT_PUBLIC_KEY` (its public key, `openssl pkey -pubout`; a second
 `PUBLIC KEY` block during a rotation) make Core sign `EdDSA` JWTs with `kid`, `iss` `mairie360-core` and `aud`
-`mairie360`; the other APIs and BFFs only get `JWT_PUBLIC_KEY`. `JWT_SECRET` is the transition: while it is set,
-HS256 tokens are still accepted (and signed when no private key is set); removing it ends the transition. Signing
-and verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib::jwt_manager`).
+`mairie360`; the other APIs and BFFs only get `JWT_PUBLIC_KEY`. Since `mairie360_api_lib` 6.0.0 both are required
+on Core: there is no `JWT_SECRET` any more (ignored when set) and every HS256 token is refused. Signing and
+verification are the lib's (`session_jwt.rs` delegates to `mairie360_api_lib::jwt_manager`).
 `GET /api/v1/auth/jwks` publishes the public keys (informational: nothing fetches it at runtime). The test stacks
-get a fresh key pair per run from `stack_secrets.sh`; the dev compose uses the lib's committed test pair, accepted
-only with `JWT_ALLOW_WEAK_SECRET=true`.
+get a fresh key pair per run from `stack_secrets.sh`; the dev compose takes them from the shell (`source
+./stack_secrets.sh` before `docker compose up --watch`, it refuses to start otherwise). The `cargo test` tests sign
+with the lib's test key pair (`init_test_jwt_env()`, `tests/common/session_tokens.rs` for chosen claims).
 
 WebAuthn (MAIR-810): `WEBAUTHN_RP_ID` + `WEBAUTHN_RP_ORIGIN` enable passkeys (see "Passkeys" below); the dev and test composes use
 `localhost` / `http://localhost`.
@@ -130,11 +131,13 @@ published `ghcr.io/mairie360/core-api:dev-<sha>` image; when it is empty the scr
 `development.Dockerfile` first. That image is distroless (no shell, no curl), so readiness is a `core-ready` sidecar
 polling `/health`, and dependent services wait for it with `service_completed_successfully`.
 
-The three test stacks get a random `JWT_SECRET` per run from `stack_secrets.sh` (sourced by the `*_test.sh`
-scripts, MAIR-428), which also signs `ADMIN_JWT` (`sub=1`, `role=admin`, 4 h): no secret or token is committed, and
-the compose files refuse to start without them. The API refuses a missing, short (< 32 bytes) or well-known
-`JWT_SECRET` at startup (mairie360_api_lib >= 2.0.0); only the dev `docker-compose.yml` keeps `b"secret"`, with
-`JWT_ALLOW_WEAK_SECRET=true`. To replay the Postman collection by hand, pass `--env-var jwt_secret=<the stack's secret>`.
+The three test stacks get a random Ed25519 key pair per run from `stack_secrets.sh` (sourced by the `*_test.sh`
+scripts, MAIR-428, MAIR-680), which also signs `ADMIN_JWT` (`sub=1`, `role=admin`, 4 h, `EdDSA` like Core): no key or
+token is committed, and the compose files refuse to start without them. The newman sandbox cannot sign Ed25519, so the
+integration stack runs a test-only signer (`jwt-signer`, `tests/postman/jwt-signer.js`, same image as newman, internal
+network only) that signs the JWTs the collection forges with the run's key; the collection reaches it through
+`jwtSignerUrl`. To replay the collection by hand, run that script with the stack's `JWT_PRIVATE_KEY`
+(`node tests/postman/jwt-signer.js`, port 8080) and pass `--env-var jwtSignerUrl=http://localhost:8080`.
 
 The ZAP scan is authenticated: `security-scan` injects `ADMIN_JWT` on every request, waits for the `seeder`
 service (`init-test.sql`: plain `User` accounts `id=2` and `id=42`, user `id=1` is the Admin created by liquibase) and fails on
@@ -189,7 +192,8 @@ stack and stay in the handler tests. Three collection-level scripts, identical i
   `openapi_covered`, so a next run in the Postman app starts from the spec of the image it tests.
 
 A new endpoint therefore fails the integration stack until the collection tests it. The refusal cases need a second
-plain account: the collection creates it through the admin route and forges its JWT (`jwt_other`) like the Admin's.
+plain account: the collection creates it through the admin route and forges its JWT (`jwt_other`) like the Admin's,
+through the stack's signer.
 The password reset reads its token from the fake Resend's journal (`fakeResendUrl`). The public auth routes are
 rate limited per address (`429`): replay the collection on a fresh stack (`docker compose down -v`), as CI does.
 

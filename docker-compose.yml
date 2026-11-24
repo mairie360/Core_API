@@ -115,15 +115,11 @@ services:
     environment:
       <<: *common-env
       PUBLIC_URL: http://core.development.mairie360.fr
-      # Well-known dev value: mairie360_api_lib >= 2.0.0 refuses it at startup unless
-      # JWT_ALLOW_WEAK_SECRET is set (MAIR-428). Never set that flag in a real deployment.
-      JWT_SECRET: b"secret"
-      # MAIR-680: Ed25519 session keys, taken from the shell and never committed (a private key in
-      # the repo trips Semgrep/Gitleaks). Unset, Core signs HS256 tokens with JWT_SECRET (transition).
-      # To try EdDSA locally: `source ./stack_secrets.sh` before `docker compose up --watch`.
-      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:-}
-      JWT_ALLOW_WEAK_SECRET: "true"
+      # MAIR-680: Core alone signs the session JWTs, with an Ed25519 key taken from the shell and never
+      # committed (a private key in the repo trips Semgrep/Gitleaks). Since mairie360_api_lib 6.0.0 there is
+      # no JWT_SECRET fallback: run `source ./stack_secrets.sh` before `docker compose up --watch`.
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY must be set, run `source ./stack_secrets.sh` first}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY must be set, run `source ./stack_secrets.sh` first}
       JWT_TIMEOUT: 3600
       # MAIR-805: seals the TOTP secrets; dev-only key, the second factor answers 503 without one.
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-ZGV2LW9ubHktdG90cC1rZXktMzItYnl0ZXMtbG9uZyE=}

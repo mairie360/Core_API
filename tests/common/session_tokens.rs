@@ -1,0 +1,25 @@
+#![allow(dead_code)]
+//! JWTs signed like Core signs them (MAIR-680): `EdDSA` with the lib's test key pair, Core's `kid`,
+//! `iss` `mairie360-core` and `aud` `mairie360`. Since `mairie360_api_lib` 6.0.0 there is no HS256
+//! any more, so a test that needs a token with chosen claims (expired, extra claims) signs it here.
+//! Needs `init_test_jwt_env()` first.
+
+use jsonwebtoken::{decode_header, encode, Algorithm, EncodingKey, Header};
+use mairie360_api_lib::jwt_manager::generate_jwt;
+use mairie360_api_lib::test_setup::http_setup::test_jwt_private_key;
+use serde_json::Value;
+
+/// Signs `claims` (a JSON object) with Core's test key; `iss` and `aud` default to Core's.
+pub fn sign_like_core(claims: &Value) -> String {
+    let kid = decode_header(&generate_jwt("1", "").unwrap()).unwrap().kid;
+    let mut header = Header::new(Algorithm::EdDSA);
+    header.kid = kid;
+    let mut claims = claims.clone();
+    let object = claims.as_object_mut().unwrap();
+    object
+        .entry("iss")
+        .or_insert_with(|| "mairie360-core".into());
+    object.entry("aud").or_insert_with(|| "mairie360".into());
+    let key = EncodingKey::from_ed_pem(test_jwt_private_key().as_bytes()).unwrap();
+    encode(&header, &claims, &key).unwrap()
+}

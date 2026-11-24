@@ -24,7 +24,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "mair_678_last_admin_guard_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 

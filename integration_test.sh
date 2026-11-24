@@ -20,7 +20,7 @@ fi
 export IMAGE_REF
 echo "==> API image under test: $IMAGE_REF"
 
-# Random JWT_SECRET for this run and the admin JWT signed with it (MAIR-428).
+# Random Ed25519 key pair for this run and the admin JWT signed with it (MAIR-428, MAIR-680).
 # shellcheck source=stack_secrets.sh
 source ./stack_secrets.sh || exit 1
 

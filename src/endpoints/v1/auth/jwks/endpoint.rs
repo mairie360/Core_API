@@ -12,9 +12,8 @@ use mairie360_api_lib::jwt_manager::session_jwks;
                    key, `iss` `mairie360-core`, `aud` `mairie360`); every API and BFF verifies \
                    them with these keys, which they receive through their own `JWT_PUBLIC_KEY` \
                    (this route is informational: nothing fetches it at runtime).\n\n\
-                   During a key rotation the set holds two keys. It is empty while the instance \
-                   still signs with the historical shared `JWT_SECRET` (HS256). Public, no JWT \
-                   needed; cacheable for 5 minutes.",
+                   During a key rotation the set holds two keys. HS256 tokens are always \
+                   refused. Public, no JWT needed; cacheable for 5 minutes.",
     responses(
         (
             status = 200,
