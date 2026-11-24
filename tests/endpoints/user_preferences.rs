@@ -218,7 +218,7 @@ async fn notification_settings_round_trip() {
     assert_eq!(read, body);
 }
 
-/// MAIR-1176: a new account has not done the welcome tour (`null`), `true` marks it done without
+/// A new account has not done the welcome tour (`null`), `true` marks it done without
 /// touching the other preferences, a second `true` changes nothing and `null` resets it.
 #[tokio::test]
 async fn mair_1176_welcome_tour_state_round_trip() {
@@ -274,7 +274,7 @@ async fn mair_1176_welcome_tour_state_round_trip() {
     assert_eq!(reset["theme"], json!("dark"));
 }
 
-/// MAIR-1176: `false` and a value of the wrong type are refused with a plain-text `400` and save
+/// `false` and a value of the wrong type are refused with a plain-text `400` and save
 /// nothing; without a JWT the route answers `401`.
 #[tokio::test]
 async fn mair_1176_welcome_tour_state_refusals() {
