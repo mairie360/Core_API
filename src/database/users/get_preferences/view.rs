@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Display preferences of a user. Every field is nullable: `null` means "use the application
-/// default", and a user who never saved a preference gets every field `null`.
+/// Display preferences of a user. Every display field is nullable: `null` means "use the application
+/// default", and a user who never saved a preference gets every display field `null` (and
+/// `onboarding_completed` `false`).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
 pub struct UserPreferences {
     /// `light`, `dark` or `system`.

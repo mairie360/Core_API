@@ -53,7 +53,14 @@ async fn get_preferences_without_row_is_all_null() {
         .await
         .unwrap();
 
-    assert_eq!(preferences, UserPreferences::default());
+    // Every display preference is the default, and the welcome tour is not done (never `null`).
+    assert_eq!(
+        preferences,
+        UserPreferences {
+            onboarding_completed: Some(false),
+            ..UserPreferences::default()
+        }
+    );
 }
 
 #[tokio::test]

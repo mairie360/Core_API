@@ -41,8 +41,8 @@ impl ResponseError for PreferencesError {
     path = "/preferences/",
     summary = "Read one's display preferences",
     description = "Returns the display preferences of the user carried by the JWT. A user who \
-                   never saved any preference gets every field `null`: the application defaults \
-                   apply.\n\n\
+                   never saved any preference gets every display field `null`: the application \
+                   defaults apply.\n\n\
                    `onboarding_completed` tells whether the user finished or skipped the welcome \
                    tour of the Dashboard: `false` while not done yet (a new account, or after a \
                    reset), `true` once done. It is always a boolean, never `null`.",

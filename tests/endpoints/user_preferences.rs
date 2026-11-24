@@ -85,10 +85,14 @@ async fn preferences_round_trip() {
         .insert_header(bearer.clone())
         .to_request();
     let body: Value = test::call_and_read_body_json(&app, req).await;
-    assert!(
-        body.as_object().unwrap().values().all(Value::is_null),
-        "{body}"
-    );
+    // Nothing saved: every display preference is the default, and the welcome tour is not done.
+    let (tour, display): (Vec<_>, Vec<_>) = body
+        .as_object()
+        .unwrap()
+        .iter()
+        .partition(|(key, _)| key.as_str() == "onboarding_completed");
+    assert!(display.iter().all(|(_, value)| value.is_null()), "{body}");
+    assert_eq!(tour, [(&"onboarding_completed".to_string(), &json!(false))]);
 
     let req = test::TestRequest::patch()
         .uri(PREFERENCES)
