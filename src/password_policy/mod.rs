@@ -42,17 +42,14 @@ pub struct Identity<'a> {
     pub last_name: &'a str,
 }
 
-/// The part of the account's identity that `password` contains, whatever the case: `"e-mail"`
-/// (the local part of the address), `"first name"` or `"last name"`. `None` when it contains none.
+/// The part of the account's identity that `password` contains, whatever the case.
+///
+/// `"first name"` or `"last name"`, `None` when it contains neither. The e-mail address is not
+/// looked for: a password may contain its local part.
 #[must_use]
 pub fn identity_fragment(password: &str, identity: Identity<'_>) -> Option<&'static str> {
     let password = password.to_lowercase();
-    let local_part = identity
-        .email
-        .rsplit_once('@')
-        .map_or(identity.email, |(local, _)| local);
     [
-        (local_part, "e-mail"),
         (identity.first_name, "first name"),
         (identity.last_name, "last name"),
     ]
@@ -84,7 +81,10 @@ mod tests {
 
     #[test]
     fn mair_757_identity_fragments_are_found_whatever_their_case() {
-        assert_eq!(identity_fragment("Jean.Dupont!2026x", JEAN), Some("e-mail"));
+        assert_eq!(
+            identity_fragment("Jean.Dupont!2026x", JEAN),
+            Some("first name")
+        );
         assert_eq!(
             identity_fragment("monprenomJEAN2026", JEAN),
             Some("first name")
@@ -104,5 +104,24 @@ mod tests {
             last_name: "Li",
         };
         assert_eq!(identity_fragment("totally-albino-lion", short), None);
+    }
+
+    #[test]
+    fn mair_1183_the_email_local_part_is_no_longer_refused() {
+        let agent = Identity {
+            email: "accueil.agent@mairie.fr",
+            first_name: "Jean",
+            last_name: "Dupont",
+        };
+        assert_eq!(identity_fragment("clef_ACCUEIL.agent_2026", agent), None);
+        assert_eq!(identity_fragment("clef_accueil_2026", agent), None);
+        assert_eq!(
+            identity_fragment("accueil.agent-jean", agent),
+            Some("first name")
+        );
+        assert_eq!(
+            identity_fragment("accueil.agent-dupont", agent),
+            Some("last name")
+        );
     }
 }

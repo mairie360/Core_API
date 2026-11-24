@@ -8,7 +8,7 @@ pub const MAX_PASSWORD_LENGTH: usize = 255;
 /// New password set by an administrator.
 #[derive(Deserialize, ToSchema)]
 pub struct AdminResetPasswordView {
-    /// New password, 12 to 255 characters (counted in characters, not in bytes), not a commonly used password, not containing the account's e-mail, first name or last name.
+    /// New password, 12 to 255 characters (counted in characters, not in bytes), not a commonly used password, not containing the account's first name or last name.
     #[schema(format = Password, min_length = 12, max_length = 255, example = "NouveauMotDePasse!123")]
     new_password: String,
 }

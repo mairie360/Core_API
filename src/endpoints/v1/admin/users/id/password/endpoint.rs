@@ -124,13 +124,13 @@ async fn reset_password(
                    mailbox. Reserved to administrators.\n\n\
                    The password must hold 12 to 255 characters, counted in \
                    characters, not in bytes, must not be a commonly used password and must not \
-                   contain the account's e-mail, first name or last name (MAIR-757). The response has an empty body.",
+                   contain the account's first name or last name (MAIR-757). The response has an empty body.",
     params(
         ("userId" = u64, Path, description = "Id of the user.", example = 42)
     ),
     request_body(
         content = AdminResetPasswordView,
-        description = "New password, 12 to 255 characters, not a commonly used password, not containing the account's e-mail, first name or last name.",
+        description = "New password, 12 to 255 characters, not a commonly used password, not containing the account's first name or last name.",
         example = json!({ "new_password": "NouveauMotDePasse!123" })
     ),
     responses(
@@ -140,7 +140,7 @@ async fn reset_password(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's e-mail, first name or last name.",
+            description = "Malformed JSON body, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's first name or last name.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `new_password`: must be at least 12 characters")
