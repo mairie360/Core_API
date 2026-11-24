@@ -9,6 +9,19 @@ use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::test_setup::http_setup::test_jwt_private_key;
 use serde_json::Value;
 
+/// Ed25519 signing key from a PKCS#8 PEM (Core builds jsonwebtoken without its `use_pem` feature).
+pub fn ed_key(pem: &str) -> EncodingKey {
+    use base64::Engine;
+    let body: String = pem
+        .lines()
+        .filter(|line| !line.starts_with("-----"))
+        .collect();
+    let der = base64::engine::general_purpose::STANDARD
+        .decode(body)
+        .unwrap();
+    EncodingKey::from_ed_der(&der)
+}
+
 /// Signs `claims` (a JSON object) with Core's test key; `iss` and `aud` default to Core's.
 pub fn sign_like_core(claims: &Value) -> String {
     let kid = decode_header(&generate_jwt("1", "").unwrap()).unwrap().kid;
@@ -20,6 +33,5 @@ pub fn sign_like_core(claims: &Value) -> String {
         .entry("iss")
         .or_insert_with(|| "mairie360-core".into());
     object.entry("aud").or_insert_with(|| "mairie360".into());
-    let key = EncodingKey::from_ed_pem(test_jwt_private_key().as_bytes()).unwrap();
-    encode(&header, &claims, &key).unwrap()
+    encode(&header, &claims, &ed_key(&test_jwt_private_key())).unwrap()
 }

@@ -207,12 +207,7 @@ fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
     let signed_with = |claims: &serde_json::Value, pem: &str| {
         let mut header = Header::new(Algorithm::EdDSA);
         header.kid.clone_from(&kid);
-        encode(
-            &header,
-            claims,
-            &EncodingKey::from_ed_pem(pem.as_bytes()).unwrap(),
-        )
-        .unwrap()
+        encode(&header, claims, &crate::common::session_tokens::ed_key(pem)).unwrap()
     };
     let core_claims = |sub: i32, exp: usize| {
         json!({ "sub": sub.to_string(), "role": "User", "exp": exp,
