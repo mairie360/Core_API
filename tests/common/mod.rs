@@ -6,6 +6,7 @@ mod get_raw_pool;
 pub use get_raw_pool::get_raw_pool;
 pub mod acl_redis;
 pub mod roles;
+pub mod session_tokens;
 pub mod users;
 
 /// URL of the Redis shared by the test binary (one container): every sign-in and refresh publishes its

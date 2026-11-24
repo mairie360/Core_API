@@ -21,7 +21,7 @@ const WITH_LAST_NAME: &str = "Rivoire-Mairie-2026";
 const WITH_NEW_FIRST_NAME: &str = "Bellerive-Velo-2026";
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 

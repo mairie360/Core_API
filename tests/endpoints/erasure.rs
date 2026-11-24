@@ -26,7 +26,7 @@ const NEEDS_DATABASE: &str =
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as the other endpoint tests: they share the test binary.
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 

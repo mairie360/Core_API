@@ -23,7 +23,7 @@ use webauthn_authenticator_rs::WebauthnAuthenticator;
 use webauthn_rs::prelude::{CreationChallengeResponse, RequestChallengeResponse, Url};
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 

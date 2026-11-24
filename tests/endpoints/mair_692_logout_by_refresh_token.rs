@@ -16,10 +16,9 @@ use uuid::Uuid;
 
 const LOGOUT_PATH: &str = "/api/v1/auth/logout";
 /// Same values as the other endpoint tests: they share the test binary.
-const SECRET: &str = "refresh_test_secret";
 
 fn init_env() {
-    std::env::set_var("JWT_SECRET", SECRET);
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 }
 
@@ -74,12 +73,9 @@ fn expired_jwt(session_id: Uuid) -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
+    crate::common::session_tokens::sign_like_core(
         &json!({ "sub": "1", "role": "", "exp": now - 120, "sid": session_id }),
-        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
     )
-    .unwrap()
 }
 
 fn post(path: &str, body: &Value) -> test::TestRequest {

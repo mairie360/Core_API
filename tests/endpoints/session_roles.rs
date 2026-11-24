@@ -35,7 +35,7 @@ macro_rules! init_app {
 fn init_env() {
     static JWT_ENV: std::sync::Once = std::sync::Once::new();
     JWT_ENV.call_once(|| {
-        std::env::set_var("JWT_SECRET", "refresh_test_secret");
+        mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
         std::env::set_var("JWT_TIMEOUT", "3600");
     });
 }
@@ -235,12 +235,9 @@ async fn mair_529_jwt_still_carrying_a_roles_claim_still_decodes() {
         .unwrap()
         .as_secs()
         + 3600;
-    let jwt = jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
+    let jwt = crate::common::session_tokens::sign_like_core(
         &json!({ "sub": "1", "role": "Admin", "exp": exp, "sid": uuid::Uuid::new_v4(), "roles": ["Admin", "Agent"] }),
-        &jsonwebtoken::EncodingKey::from_secret(b"refresh_test_secret"),
-    )
-    .unwrap();
+    );
 
     let claims = decode_session_jwt(&jwt).unwrap();
 

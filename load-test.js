@@ -32,7 +32,7 @@ const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 const FAKE_RESEND_URL = (__ENV.FAKE_RESEND_URL || 'http://localhost:8025').replace(/\/+$/, '');
 
 // Admin JWT (sub=1, the Admin seeded by liquibase, role=admin) signed with the stack's random
-// JWT_SECRET by stack_secrets.sh (MAIR-428): no token is committed any more.
+// Ed25519 key by stack_secrets.sh (MAIR-428, MAIR-680): no token is committed any more.
 const TOKEN = __ENV.JWT;
 if (!TOKEN) {
   throw new Error('JWT is not set: run performance_test.sh, which signs the admin token.');
@@ -286,7 +286,7 @@ const spec = loadSpec();
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
-  // MAIR-680: the public keys of the session JWTs; empty set while the stack signs with JWT_SECRET.
+  // MAIR-680: the public keys of the session JWTs.
   'GET /api/v1/auth/jwks': ({ request }) =>
     check(request(), { 'jwks 200': (r) => r.status === 200 && Array.isArray(r.json('keys')) }),
 
