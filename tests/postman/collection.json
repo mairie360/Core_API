@@ -8532,7 +8532,7 @@
           "response": []
         },
         {
-          "name": "Refreshing with a rotated-out token is rejected",
+          "name": "Refreshing with a just rotated-out token renews nothing (superseded)",
           "request": {
             "method": "POST",
             "header": [
@@ -8575,9 +8575,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 401\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
+                  "// Replayed right after its rotation, the token is a concurrent renewal: 409, no new token.",
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('The front is told to read the cookie again', () => pm.expect(pm.response.text()).to.eql('refresh_superseded'));"
                 ]
               }
             }
@@ -23026,7 +23026,9 @@
                   "    const token = pm.response.json().refresh_token;",
                   "    pm.expect(token).to.be.a('string').and.not.empty;",
                   "    pm.environment.set('mair_776_r2', token);",
-                  "});"
+                  "});",
+                  "// The refresh replaced the session's JWT: the previous one is refused from now on.",
+                  "pm.environment.set('mair_776_jwt', pm.response.headers.get('Authorization').replace(/^Bearer /, ''));"
                 ]
               }
             }
@@ -23163,7 +23165,9 @@
                   "    const token = pm.response.json().refresh_token;",
                   "    pm.expect(token).to.be.a('string').and.not.empty;",
                   "    pm.environment.set('mair_776_r3', token);",
-                  "});"
+                  "});",
+                  "// The refresh replaced the session's JWT: the previous one is refused from now on.",
+                  "pm.environment.set('mair_776_jwt', pm.response.headers.get('Authorization').replace(/^Bearer /, ''));"
                 ]
               }
             }
