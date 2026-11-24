@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 /// Role of the platform.
+///
+/// Published as `PublicRole`: the administration's `Role` (with `can_be_deleted` and `modules`) has the same Rust
+/// name, and two schemas of one name leave only one of them in the contract.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[schema(as = PublicRole)]
 struct Role {
     /// Id of the role, to reuse in `POST /api/v1/admin/users/{userId}/roles/`.
     #[schema(example = 1)]

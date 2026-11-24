@@ -5,11 +5,12 @@ use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::state::AppState;
 
 use crate::client_ip::client_ip;
-use crate::database::sessions::find_reused_refresh_token::{
-    FindReusedRefreshTokenQueryView, ReusedRefreshToken,
-};
 use crate::database::sessions::get_active_session_by_token::ActiveSession;
+use crate::database::sessions::report_refresh_token_reuse::{
+    RefreshTokenReuse, ReportRefreshTokenReuseQueryView,
+};
 use crate::database::sessions::rotate_refresh_token::RotateRefreshTokenQueryView;
+use crate::emails::AccountEmails;
 use crate::endpoints::v1::sessions::refresh::request_view::RefreshRequestView;
 use crate::endpoints::v1::sessions::refresh::response_view::RefreshResponseView;
 use crate::endpoints::validation::ValidatedJson;
@@ -19,17 +20,25 @@ use crate::session_jwt::{generate_session_jwt, publish_active_token, user_role_n
 use crate::session_revocation::publish_revoked_sessions;
 use uuid::Uuid;
 
-/// Seconds during which the refresh token replaced by a rotation is only refused.
+/// Seconds during which a refresh token replaced by a rotation is answered `refresh_superseded`.
 ///
 /// Several fronts of the same browser share the session cookie and may renew it at the same time:
-/// the losers present the token the winner has just replaced. Beyond this window, the replaced
-/// token coming back means someone else holds it, and the whole session is revoked.
-pub const REFRESH_REUSE_GRACE_SECONDS: i64 = 10;
+/// the losers present the token the winner has just replaced, and only have to read the cookie
+/// again. Beyond this window, a replaced token coming back means someone else holds it, and the
+/// whole session is revoked.
+pub const REFRESH_REUSE_GRACE_SECONDS: i32 = 10;
+
+/// Body of the `409` answered to a refresh token another renewal has just replaced.
+pub const REFRESH_SUPERSEDED: &str = "refresh_superseded";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefreshError {
     DatabaseError,
     InvalidToken,
+    /// The token was replaced by a concurrent renewal of the same session less than
+    /// [`REFRESH_REUSE_GRACE_SECONDS`] ago: the session is untouched, the caller reads the new
+    /// cookie that renewal set.
+    Superseded,
     TooManyRequests(u64),
     /// The new JWT could not be published to Redis: the rotation is rolled back (MAIR-772).
     SessionStoreUnavailable,
@@ -39,6 +48,7 @@ impl std::fmt::Display for RefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidToken => write!(f, "Session not found"),
+            Self::Superseded => write!(f, "{REFRESH_SUPERSEDED}"),
             Self::DatabaseError => {
                 write!(f, "An error occurred while accessing the database.")
             }
@@ -55,6 +65,7 @@ impl ResponseError for RefreshError {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::InvalidToken => StatusCode::UNAUTHORIZED,
+            Self::Superseded => StatusCode::CONFLICT,
             Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::SessionStoreUnavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -74,6 +85,8 @@ async fn refresh_request(
     view: RefreshRequestView,
     state: web::Data<AppState>,
     ip_address: std::net::IpAddr,
+    device_info: &str,
+    emails: Option<&web::Data<AccountEmails>>,
 ) -> Result<(String, String), RefreshError> {
     // The JWT is typically expired at this point: the user is identified by the refresh token,
     // not by an `AuthenticatedUser`. The token is single use: it is replaced in the same
@@ -94,8 +107,7 @@ async fn refresh_request(
         Ok(session) => session,
         Err(ApiLibError::Database(DbError::NotFound)) => {
             drop(tx);
-            handle_reuse(&state, &current_hash).await?;
-            return Err(RefreshError::InvalidToken);
+            return Err(handle_reuse(&state, &current_hash, ip_address, device_info, emails).await);
         }
         Err(e) => {
             tracing::error!("Refresh DB Error: {e}");
@@ -124,47 +136,70 @@ async fn refresh_request(
     Ok((jwt, new_refresh_token))
 }
 
-/// Handles a refresh token that matches no current token: when it is the token the
-/// last rotation of a session replaced, presented after [`REFRESH_REUSE_GRACE_SECONDS`], the
-/// session is revoked (Postgres, then the Redis revocation list) and an `audit` event is logged.
-/// The caller answers `401` in every case, so the answer never tells a reuse from an unknown token.
-async fn handle_reuse(state: &AppState, token_hash: &str) -> Result<(), RefreshError> {
-    let reused: ReusedRefreshToken = match state
+/// Handles a refresh token that matches no current token, and returns the error to answer.
+///
+/// Any token a rotation of a session replaced is recognized (`report_refresh_token_reuse()`):
+/// - replaced less than [`REFRESH_REUSE_GRACE_SECONDS`] ago while its session is active, it is a
+///   concurrent renewal by another front: [`RefreshError::Superseded`], nothing changes;
+/// - replaced longer ago, two parties hold the session's tokens: Database logs `REFRESH_REUSE` with
+///   the address and the device, revokes the session and queues the alert e-mails; Core publishes
+///   the session to the Redis revocation list.
+///
+/// Every other case answers [`RefreshError::InvalidToken`], so a reuse cannot be told from an
+/// unknown token.
+async fn handle_reuse(
+    state: &web::Data<AppState>,
+    token_hash: &str,
+    ip_address: std::net::IpAddr,
+    device_info: &str,
+    emails: Option<&web::Data<AccountEmails>>,
+) -> RefreshError {
+    let reuse: RefreshTokenReuse = match state
         .get_smart_db()
-        .fetch_one(&FindReusedRefreshTokenQueryView::new(
+        .fetch_one(&ReportRefreshTokenReuseQueryView::new(
             token_hash,
             REFRESH_REUSE_GRACE_SECONDS,
+            ip_address,
+            device_info,
         ))
         .await
     {
-        Ok(reused) => reused,
-        Err(ApiLibError::Database(DbError::NotFound)) => return Ok(()),
+        Ok(reuse) => reuse,
         Err(e) => {
-            tracing::error!("Refresh token reuse lookup DB Error: {e}");
-            return Err(RefreshError::DatabaseError);
+            tracing::error!("Refresh token reuse report DB Error: {e}");
+            return RefreshError::DatabaseError;
         }
     };
-    if !reused.revoked() {
+    if reuse.superseded {
         tracing::info!(
-            session_id = %reused.id(),
-            "Previous refresh token presented within the grace window, refused without revocation"
+            session_id = ?reuse.session_id,
+            "Refresh token replaced by a concurrent renewal presented within the grace window"
         );
-        return Ok(());
+        return RefreshError::Superseded;
     }
+    let (true, Some(session_id), Some(user_id)) = (reuse.reused, reuse.session_id, reuse.user_id)
+    else {
+        return RefreshError::InvalidToken;
+    };
     // The token itself is never logged, only the session it belongs to.
     tracing::warn!(
         target: "audit",
         event = "refresh_token_reuse",
-        session_id = %reused.id(),
-        user_id = reused.user_id(),
-        session_was_active = reused.was_active(),
+        session_id = %session_id,
+        user_id = user_id,
+        session_was_active = reuse.revoked,
+        alert_id = ?reuse.alert_id,
         "Refresh token reused after its rotation: session revoked"
     );
     // Other APIs refuse the session's JWTs only through the shared revocation list: a short
     // Redis outage must not leave them accepting a stolen session, so the write is retried.
     // Core already refuses the session through `session_guard` either way.
-    publish_with_retry(state, reused.id()).await;
-    Ok(())
+    publish_with_retry(state, session_id).await;
+    if reuse.alert_id.is_some() {
+        // The agent and the administrators are e-mailed now; the sweep retries a failure.
+        crate::session_alerts::spawn_delivery(state, emails);
+    }
+    RefreshError::InvalidToken
 }
 
 /// Waits before each new attempt of [`publish_with_retry`]: about 1.4 s in all.
@@ -211,15 +246,20 @@ async fn publish_with_retry(state: &AppState, session_id: Uuid) -> bool {
                    expired JWT can be renewed.\n\n\
                    **The refresh token is rotated**: the token sent in the request stops working \
                    as soon as this call succeeds, and the next refresh (or `/sessions/revoke`) \
-                   must use the one returned here. Presenting an already used token answers \
-                   `401`, as do two concurrent refreshes with the same token for the loser. The \
-                   session itself, its id and its expiry are unchanged.\n\n\
-                   **Reuse detection**: the token replaced by the last rotation is \
-                   only refused (`401`) during the 10 seconds after that rotation (concurrent \
-                   renewals of several fronts). Presented later, it means another party holds \
-                   the session's tokens: the whole session is revoked, the current refresh token \
-                   and the JWTs included (also through the Redis revocation list), an `audit` \
-                   event is logged, and the answer is the same `401`.\n\n\
+                   must use the one returned here. The session itself, its id and its expiry are \
+                   unchanged.\n\n\
+                   **Concurrent renewals**: a token replaced less than 10 seconds ago, while its \
+                   session is still active, answers `409` `refresh_superseded`: another front of \
+                   the same browser has just renewed the session, the caller reads the cookie that \
+                   renewal set instead of signing the user out. Nothing is changed.\n\n\
+                   **Reuse detection**: every token the rotations of a session replaced is kept \
+                   (as a hash) until the session ends. Presented more than 10 seconds after its \
+                   replacement, it means another party holds the session's tokens: the whole \
+                   session is revoked, the current refresh token and the JWTs included (also \
+                   through the Redis revocation list), the reuse is written to the sign-in \
+                   journal (`REFRESH_REUSE`, address and device) and the user and the \
+                   administrators are e-mailed. The answer is the same `401` as for an unknown \
+                   token.\n\n\
                    Rate limited: 60 requests per minute per client address, `429` beyond.",
     request_body(
         content = RefreshRequestView,
@@ -245,10 +285,17 @@ async fn publish_with_retry(state: &AppState, session_id: Uuid) -> bool {
         ),
         (
             status = 401,
-            description = "Unknown, revoked, expired or already rotated refresh token. The token replaced by the latest rotation, presented more than 10 seconds after it, also revokes its session; an older token is only refused.",
+            description = "Unknown, revoked or expired refresh token, or a token replaced more than 10 seconds ago, which also revokes its session.",
             body = String,
             content_type = "text/plain",
             example = json!("Session not found")
+        ),
+        (
+            status = 409,
+            description = "The refresh token was replaced by a concurrent renewal of the same session less than 10 seconds ago: nothing is changed, read the refresh token that renewal returned.",
+            body = String,
+            content_type = "text/plain",
+            example = json!("refresh_superseded")
         ),
         (
             status = 429,
@@ -284,6 +331,7 @@ pub async fn refresh(
     body: ValidatedJson<RefreshRequestView>,
     state: web::Data<AppState>,
     limits: Option<web::Data<RateLimits>>,
+    emails: Option<web::Data<AccountEmails>>,
     request: HttpRequest,
 ) -> Result<impl Responder, RefreshError> {
     if let Some(limits) = limits {
@@ -292,9 +340,27 @@ pub async fn refresh(
             .hit(&ip_key(client_ip(&request)))
             .map_err(|refused| RefreshError::TooManyRequests(refused.retry_after_seconds))?;
     }
-    let (new_jwt, new_refresh_token) =
-        refresh_request(body.into_inner(), state, client_ip(&request)).await?;
+    let view = body.into_inner();
+    let device_info = view.device_info().unwrap_or_else(|| user_agent(&request));
+    let (new_jwt, new_refresh_token) = refresh_request(
+        view,
+        state,
+        client_ip(&request),
+        &device_info,
+        emails.as_ref(),
+    )
+    .await?;
     Ok(HttpResponse::Ok()
         .append_header(("Authorization", format!("Bearer {new_jwt}")))
         .json(RefreshResponseView::new(new_refresh_token)))
+}
+
+/// The `User-Agent` of the request, cut to the length a device description may have.
+fn user_agent(request: &HttpRequest) -> String {
+    request
+        .headers()
+        .get(actix_web::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.chars().take(512).collect())
+        .unwrap_or_default()
 }

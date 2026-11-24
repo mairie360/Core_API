@@ -9,9 +9,9 @@ use std::fmt::Display;
 /// The outer `token_hash = $1` is re-checked on the locked row: of two concurrent refreshes with
 /// the same token, only one rotates it, the other finds nothing.
 ///
-/// The replaced hash and the rotation time are kept (`previous_token_hash`, `rotated_at`), so a
-/// later refresh with the replaced token is recognized as a reuse (see
-/// `find_reused_refresh_token`).
+/// Database keeps every replaced hash (trigger on `token_hash`), so a later refresh with any of them
+/// is recognized as a reuse (see `report_refresh_token_reuse`). `previous_token_hash` and
+/// `rotated_at` are still written for the Core release they replace, which reads them.
 #[derive(serde::Deserialize)]
 pub struct RotateRefreshTokenQueryView {
     params: Vec<QueryParam>,
