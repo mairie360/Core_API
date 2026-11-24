@@ -70,6 +70,11 @@ pub struct PatchPreferencesView {
     #[serde(default, deserialize_with = "double_option")]
     #[schema(value_type = Option<bool>, example = true)]
     autosave: Option<Option<bool>>,
+    /// Welcome tour of the Dashboard: `true` marks it done (finished or skipped), `null` resets it
+    /// so the tour shows again (read back as `false`). `false` is refused (`400`): send `null` to reset.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<bool>, example = true)]
+    onboarding_completed: Option<Option<bool>>,
 }
 
 impl PatchPreferencesView {
@@ -92,6 +97,7 @@ impl PatchPreferencesView {
             home_page: Self::text(&self.home_page),
             auto_open_notifications: self.auto_open_notifications,
             autosave: self.autosave,
+            onboarding_completed: self.onboarding_completed,
         }
     }
 
@@ -112,6 +118,12 @@ impl PatchPreferencesView {
             if !(1..=i32::from(i16::MAX)).contains(&size) {
                 return Err("Invalid `font_size`: must be between 1 and 32767".to_string());
             }
+        }
+        if patch.onboarding_completed == Some(Some(false)) {
+            return Err(
+                "Invalid `onboarding_completed`: must be `true` (tour done) or `null` (reset)"
+                    .to_string(),
+            );
         }
         check_one_of("font_family", patch.font_family, &FONT_FAMILIES)?;
         check_one_of("density", patch.density, &DENSITIES)?;
@@ -213,6 +225,28 @@ mod tests {
         for invalid in ["Lora", "comic-sans", ""] {
             assert!(!FONT_FAMILIES.contains(&invalid), "{invalid}");
         }
+    }
+
+    #[test]
+    fn mair_1176_onboarding_completed_accepts_true_or_null_only() {
+        let parse = |body: &str| serde_json::from_str::<PatchPreferencesView>(body).unwrap();
+        assert!(parse(r#"{"onboarding_completed": true}"#)
+            .validate()
+            .is_ok());
+        assert!(parse(r#"{"onboarding_completed": null}"#)
+            .validate()
+            .is_ok());
+        let refused = parse(r#"{"onboarding_completed": false}"#)
+            .validate()
+            .unwrap_err();
+        assert!(refused.contains("onboarding_completed"), "{refused}");
+        assert_eq!(
+            parse(r#"{"onboarding_completed": null}"#)
+                .as_patch()
+                .onboarding_completed,
+            Some(None)
+        );
+        assert_eq!(parse("{}").as_patch().onboarding_completed, None);
     }
 
     #[test]

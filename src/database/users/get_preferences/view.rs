@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Display preferences of a user. Every field is nullable: `null` means "use the application
-/// default", and a user who never saved a preference gets every field `null`.
+/// Display preferences of a user. Every display field is nullable: `null` means "use the application
+/// default", and a user who never saved a preference gets every display field `null` (and
+/// `onboarding_completed` `false`).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
 pub struct UserPreferences {
     /// `light`, `dark` or `system`.
@@ -33,6 +34,11 @@ pub struct UserPreferences {
     /// Save drafts automatically every 30 seconds (MAIR-823).
     #[schema(example = true)]
     pub autosave: Option<bool>,
+    /// Whether the user finished or skipped the welcome tour of the Dashboard: `false` while it has
+    /// not been done yet (a new account, or after a `null` reset), `true` once done. Typed nullable
+    /// like the other preferences, but always answered as a boolean, never `null`.
+    #[schema(example = true)]
+    pub onboarding_completed: Option<bool>,
 }
 
 /// Reads the preferences of a user: always one row, every field `null` when none is saved.
@@ -55,7 +61,7 @@ impl GetPreferencesQueryView {
 impl ApiRequestDto for GetPreferencesQueryView {
     fn query_sql(&self) -> &'static str {
         "SELECT to_jsonb(t) FROM ( \
-         SELECT p.theme, p.font_family, p.font_size, p.density, p.language, p.timezone, p.date_format, p.home_page, p.auto_open_notifications, p.autosave \
+         SELECT p.theme, p.font_family, p.font_size, p.density, p.language, p.timezone, p.date_format, p.home_page, p.auto_open_notifications, p.autosave, COALESCE(p.onboarding_completed, FALSE) AS onboarding_completed \
          FROM (SELECT $1::int AS user_id) u \
          LEFT JOIN user_preferences p ON p.user_id = u.user_id \
          ) t"

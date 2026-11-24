@@ -85,10 +85,14 @@ async fn preferences_round_trip() {
         .insert_header(bearer.clone())
         .to_request();
     let body: Value = test::call_and_read_body_json(&app, req).await;
-    assert!(
-        body.as_object().unwrap().values().all(Value::is_null),
-        "{body}"
-    );
+    // Nothing saved: every display preference is the default, and the welcome tour is not done.
+    let (tour, display): (Vec<_>, Vec<_>) = body
+        .as_object()
+        .unwrap()
+        .iter()
+        .partition(|(key, _)| key.as_str() == "onboarding_completed");
+    assert!(display.iter().all(|(_, value)| value.is_null()), "{body}");
+    assert_eq!(tour, [(&"onboarding_completed".to_string(), &json!(false))]);
 
     let req = test::TestRequest::patch()
         .uri(PREFERENCES)
@@ -216,4 +220,105 @@ async fn notification_settings_round_trip() {
         .to_request();
     let read: Value = test::call_and_read_body_json(&app, req).await;
     assert_eq!(read, body);
+}
+
+/// A new account has not done the welcome tour (`false`), `true` marks it done without
+/// touching the other preferences, a second `true` changes nothing and `null` resets it (`false`).
+#[tokio::test]
+async fn mair_1176_welcome_tour_state_round_trip() {
+    std::sync::LazyLock::force(&INIT);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let app = init_app!(state);
+    let jwt = fresh_user_jwt(&state).await;
+    let bearer = ("Authorization", format!("Bearer {jwt}"));
+
+    let req = test::TestRequest::get()
+        .uri(PREFERENCES)
+        .insert_header(bearer.clone())
+        .to_request();
+    let fresh: Value = test::call_and_read_body_json(&app, req).await;
+    assert_eq!(fresh["onboarding_completed"], json!(false));
+
+    let req = test::TestRequest::patch()
+        .uri(PREFERENCES)
+        .insert_header(bearer.clone())
+        .set_json(json!({ "theme": "dark" }))
+        .to_request();
+    let _: Value = test::call_and_read_body_json(&app, req).await;
+
+    for _ in 0..2 {
+        let req = test::TestRequest::patch()
+            .uri(PREFERENCES)
+            .insert_header(bearer.clone())
+            .set_json(json!({ "onboarding_completed": true }))
+            .to_request();
+        let done: Value = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(done["onboarding_completed"], json!(true));
+        assert_eq!(done["theme"], json!("dark"));
+    }
+
+    let req = test::TestRequest::get()
+        .uri(PREFERENCES)
+        .insert_header(bearer.clone())
+        .to_request();
+    let read: Value = test::call_and_read_body_json(&app, req).await;
+    assert_eq!(read["onboarding_completed"], json!(true));
+
+    let req = test::TestRequest::patch()
+        .uri(PREFERENCES)
+        .insert_header(bearer)
+        .set_json(json!({ "onboarding_completed": null }))
+        .to_request();
+    let reset: Value = test::call_and_read_body_json(&app, req).await;
+    assert_eq!(reset["onboarding_completed"], json!(false));
+    assert_eq!(reset["theme"], json!("dark"));
+}
+
+/// `false` and a value of the wrong type are refused with a plain-text `400` and save
+/// nothing; without a JWT the route answers `401`.
+#[tokio::test]
+async fn mair_1176_welcome_tour_state_refusals() {
+    std::sync::LazyLock::force(&INIT);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let app = init_app!(state);
+    let jwt = fresh_user_jwt(&state).await;
+    let bearer = ("Authorization", format!("Bearer {jwt}"));
+
+    let req = test::TestRequest::patch()
+        .uri(PREFERENCES)
+        .insert_header(bearer.clone())
+        .set_json(json!({ "onboarding_completed": false }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = String::from_utf8(test::read_body(resp).await.to_vec()).unwrap();
+    assert!(body.contains("onboarding_completed"), "{body}");
+
+    let req = test::TestRequest::patch()
+        .uri(PREFERENCES)
+        .insert_header(bearer.clone())
+        .set_json(json!({ "onboarding_completed": "yes" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let req = test::TestRequest::patch()
+        .uri(PREFERENCES)
+        .set_json(json!({ "onboarding_completed": true }))
+        .to_request();
+    // The middleware answers with an error, turned into the 401 response by actix.
+    let error = test::try_call_service(&app, req)
+        .await
+        .expect_err("a PATCH without JWT is refused");
+    assert_eq!(
+        error.as_response_error().status_code(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    let req = test::TestRequest::get()
+        .uri(PREFERENCES)
+        .insert_header(bearer)
+        .to_request();
+    let read: Value = test::call_and_read_body_json(&app, req).await;
+    assert_eq!(read["onboarding_completed"], json!(false));
 }
