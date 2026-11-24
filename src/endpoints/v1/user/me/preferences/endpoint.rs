@@ -42,7 +42,10 @@ impl ResponseError for PreferencesError {
     summary = "Read one's display preferences",
     description = "Returns the display preferences of the user carried by the JWT. A user who \
                    never saved any preference gets every field `null`: the application defaults \
-                   apply.",
+                   apply.\n\n\
+                   `onboarding_completed` tells whether the user finished or skipped the welcome \
+                   tour of the Dashboard: `true` once done, `null` while not done yet (a new \
+                   account, or after a reset). It is never `false`.",
     responses(
         (
             status = 200,
@@ -58,7 +61,8 @@ impl ResponseError for PreferencesError {
                 "date_format": null,
                 "home_page": null,
                 "auto_open_notifications": false,
-                "autosave": true
+                "autosave": true,
+                "onboarding_completed": true
             })
         ),
         (
@@ -104,7 +108,10 @@ pub async fn get_my_preferences(
     description = "Partially updates the display preferences of the user carried by the JWT, \
                    creating them on the first call, and returns the stored state.\n\n\
                    For every field, absent keeps the stored value, `null` resets it to the \
-                   application default and a value stores it.",
+                   application default and a value stores it.\n\n\
+                   `onboarding_completed` accepts `true` (the welcome tour is done: finished or \
+                   skipped; idempotent) or `null` (reset: the tour shows again), never `false`. \
+                   The other preferences are left untouched when only this key is sent.",
     request_body(
         content = PatchPreferencesView,
         description = "Fields to change. All optional: absent keeps the stored value, `null` resets it to the default.",
@@ -125,12 +132,13 @@ pub async fn get_my_preferences(
                 "date_format": null,
                 "home_page": null,
                 "auto_open_notifications": false,
-                "autosave": true
+                "autosave": true,
+                "onboarding_completed": true
             })
         ),
         (
             status = 400,
-            description = "Malformed JSON body, field of an unexpected type, or a value outside the ones the application understands (MAIR-479): `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` is `system`, `geist`, `atkinson` or `lora` (Settings V2, MAIR-1128), or one of the earlier `Marianne`, `Arial`, `Verdana`, `OpenDyslexic`, `system-ui`; `density` is `compact`, `normal` or `comfortable`; `date_format` is `DD/MM/YYYY`, `MM/DD/YYYY` or `YYYY-MM-DD`; `language` a language code such as `fr` or `fr-FR`; `timezone` an IANA time zone such as `Europe/Paris` (case-sensitive); `home_page` a path such as `/dashboard` (lowercase letters, digits, `-`, `_`, `/`, no `//`, 128 characters at most). The body names the first invalid field. Nothing is saved.",
+            description = "Malformed JSON body, field of an unexpected type, or a value outside the ones the application understands (MAIR-479): `theme` is `light`, `dark` or `system`; `font_size` 1 to 32767; `font_family` is `system`, `geist`, `atkinson` or `lora` (Settings V2, MAIR-1128), or one of the earlier `Marianne`, `Arial`, `Verdana`, `OpenDyslexic`, `system-ui`; `density` is `compact`, `normal` or `comfortable`; `date_format` is `DD/MM/YYYY`, `MM/DD/YYYY` or `YYYY-MM-DD`; `language` a language code such as `fr` or `fr-FR`; `timezone` an IANA time zone such as `Europe/Paris` (case-sensitive); `home_page` a path such as `/dashboard` (lowercase letters, digits, `-`, `_`, `/`, no `//`, 128 characters at most). `onboarding_completed` is `true` or `null`, `false` is refused. The body names the first invalid field. Nothing is saved.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `density`: must be one of `compact`, `normal`, `comfortable`")

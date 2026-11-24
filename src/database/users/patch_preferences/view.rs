@@ -18,6 +18,7 @@ pub struct PreferencesPatch<'a> {
     pub home_page: Option<Option<&'a str>>,
     pub auto_open_notifications: Option<Option<bool>>,
     pub autosave: Option<Option<bool>>,
+    pub onboarding_completed: Option<Option<bool>>,
 }
 
 /// Creates or partially updates the preferences row of a user and returns the stored state.
@@ -41,6 +42,7 @@ impl PatchPreferencesQueryView {
         push_text(&mut params, patch.home_page);
         push_bool(&mut params, patch.auto_open_notifications);
         push_bool(&mut params, patch.autosave);
+        push_bool(&mut params, patch.onboarding_completed);
         Self { user_id, params }
     }
 }
@@ -48,11 +50,11 @@ impl PatchPreferencesQueryView {
 impl ApiRequestDto for PatchPreferencesQueryView {
     fn query_sql(&self) -> &'static str {
         "WITH t AS ( \
-         INSERT INTO user_preferences (user_id, theme, font_family, font_size, density, language, timezone, date_format, home_page, auto_open_notifications, autosave) \
-         VALUES ($1, CASE WHEN $2 AND NOT $3 THEN $4::varchar END, CASE WHEN $5 AND NOT $6 THEN $7::varchar END, CASE WHEN $8 AND NOT $9 THEN $10::smallint END, CASE WHEN $11 AND NOT $12 THEN $13::varchar END, CASE WHEN $14 AND NOT $15 THEN $16::varchar END, CASE WHEN $17 AND NOT $18 THEN $19::varchar END, CASE WHEN $20 AND NOT $21 THEN $22::varchar END, CASE WHEN $23 AND NOT $24 THEN $25::varchar END, CASE WHEN $26 AND NOT $27 THEN $28::boolean END, CASE WHEN $29 AND NOT $30 THEN $31::boolean END) \
+         INSERT INTO user_preferences (user_id, theme, font_family, font_size, density, language, timezone, date_format, home_page, auto_open_notifications, autosave, onboarding_completed) \
+         VALUES ($1, CASE WHEN $2 AND NOT $3 THEN $4::varchar END, CASE WHEN $5 AND NOT $6 THEN $7::varchar END, CASE WHEN $8 AND NOT $9 THEN $10::smallint END, CASE WHEN $11 AND NOT $12 THEN $13::varchar END, CASE WHEN $14 AND NOT $15 THEN $16::varchar END, CASE WHEN $17 AND NOT $18 THEN $19::varchar END, CASE WHEN $20 AND NOT $21 THEN $22::varchar END, CASE WHEN $23 AND NOT $24 THEN $25::varchar END, CASE WHEN $26 AND NOT $27 THEN $28::boolean END, CASE WHEN $29 AND NOT $30 THEN $31::boolean END, CASE WHEN $32 AND NOT $33 THEN $34::boolean END) \
          ON CONFLICT (user_id) DO UPDATE SET \
-         theme = CASE WHEN $2 THEN EXCLUDED.theme ELSE user_preferences.theme END, font_family = CASE WHEN $5 THEN EXCLUDED.font_family ELSE user_preferences.font_family END, font_size = CASE WHEN $8 THEN EXCLUDED.font_size ELSE user_preferences.font_size END, density = CASE WHEN $11 THEN EXCLUDED.density ELSE user_preferences.density END, language = CASE WHEN $14 THEN EXCLUDED.language ELSE user_preferences.language END, timezone = CASE WHEN $17 THEN EXCLUDED.timezone ELSE user_preferences.timezone END, date_format = CASE WHEN $20 THEN EXCLUDED.date_format ELSE user_preferences.date_format END, home_page = CASE WHEN $23 THEN EXCLUDED.home_page ELSE user_preferences.home_page END, auto_open_notifications = CASE WHEN $26 THEN EXCLUDED.auto_open_notifications ELSE user_preferences.auto_open_notifications END, autosave = CASE WHEN $29 THEN EXCLUDED.autosave ELSE user_preferences.autosave END \
-         RETURNING theme, font_family, font_size, density, language, timezone, date_format, home_page, auto_open_notifications, autosave \
+         theme = CASE WHEN $2 THEN EXCLUDED.theme ELSE user_preferences.theme END, font_family = CASE WHEN $5 THEN EXCLUDED.font_family ELSE user_preferences.font_family END, font_size = CASE WHEN $8 THEN EXCLUDED.font_size ELSE user_preferences.font_size END, density = CASE WHEN $11 THEN EXCLUDED.density ELSE user_preferences.density END, language = CASE WHEN $14 THEN EXCLUDED.language ELSE user_preferences.language END, timezone = CASE WHEN $17 THEN EXCLUDED.timezone ELSE user_preferences.timezone END, date_format = CASE WHEN $20 THEN EXCLUDED.date_format ELSE user_preferences.date_format END, home_page = CASE WHEN $23 THEN EXCLUDED.home_page ELSE user_preferences.home_page END, auto_open_notifications = CASE WHEN $26 THEN EXCLUDED.auto_open_notifications ELSE user_preferences.auto_open_notifications END, autosave = CASE WHEN $29 THEN EXCLUDED.autosave ELSE user_preferences.autosave END, onboarding_completed = CASE WHEN $32 THEN EXCLUDED.onboarding_completed ELSE user_preferences.onboarding_completed END \
+         RETURNING theme, font_family, font_size, density, language, timezone, date_format, home_page, auto_open_notifications, autosave, onboarding_completed \
          ) \
          SELECT to_jsonb(t) FROM t"
     }
