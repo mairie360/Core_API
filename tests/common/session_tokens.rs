@@ -22,6 +22,14 @@ pub fn ed_key(pem: &str) -> EncodingKey {
     EncodingKey::from_ed_der(&der)
 }
 
+/// The private key Core signs with in this process: `JWT_PRIVATE_KEY` when set (e.g. exported by
+/// `stack_secrets.sh`, kept by `init_test_jwt_env()`), else the lib's test key.
+pub fn core_private_key() -> String {
+    std::env::var("JWT_PRIVATE_KEY")
+        .map(|key| key.replace("\\n", "\n"))
+        .unwrap_or_else(|_| test_jwt_private_key())
+}
+
 /// Signs `claims` (a JSON object) with Core's test key; `iss` and `aud` default to Core's.
 pub fn sign_like_core(claims: &Value) -> String {
     let kid = decode_header(&generate_jwt("1", "").unwrap()).unwrap().kid;
@@ -33,5 +41,5 @@ pub fn sign_like_core(claims: &Value) -> String {
         .entry("iss")
         .or_insert_with(|| "mairie360-core".into());
     object.entry("aud").or_insert_with(|| "mairie360".into());
-    encode(&header, &claims, &ed_key(&test_jwt_private_key())).unwrap()
+    encode(&header, &claims, &ed_key(&core_private_key())).unwrap()
 }

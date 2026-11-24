@@ -13,7 +13,7 @@ use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
 use jsonwebtoken::{decode_header, encode, Algorithm, EncodingKey, Header};
 use mairie360_api_lib::jwt_manager::{generate_jwt, Claims};
-use mairie360_api_lib::test_setup::http_setup::{init_test_jwt_env, test_jwt_private_key};
+use mairie360_api_lib::test_setup::http_setup::init_test_jwt_env;
 use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
@@ -259,7 +259,10 @@ fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
             "expired",
             format!(
                 "Bearer {}",
-                signed_with(&core_claims(user_id, now() - 60), &test_jwt_private_key())
+                signed_with(
+                    &core_claims(user_id, now() - 60),
+                    &crate::common::session_tokens::core_private_key()
+                )
             ),
         ),
         (

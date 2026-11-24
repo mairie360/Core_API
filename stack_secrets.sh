@@ -26,9 +26,10 @@ fi
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
 # `kid` of the session tokens: RFC 7638 thumbprint of the Ed25519 public key (the last 32 bytes of
-# its DER), computed like mairie360_api_lib does.
+# its DER), computed like mairie360_api_lib does. Derived from the private key that signs, so it
+# stays right during a rotation, when JWT_PUBLIC_KEY may list the previous key first.
 jwt_kid="$(printf '{"crv":"Ed25519","kty":"OKP","x":"%s"}' \
-    "$(printf '%s\n' "$JWT_PUBLIC_KEY" | openssl pkey -pubin -outform DER | tail -c 32 | b64url)" \
+    "$(openssl pkey -in <(printf '%s\n' "$JWT_PRIVATE_KEY") -pubout -outform DER | tail -c 32 | b64url)" \
     | openssl dgst -sha256 -binary | b64url)" || return 1
 jwt_header="$(printf '{"alg":"EdDSA","typ":"JWT","kid":"%s"}' "$jwt_kid" | b64url)"
 jwt_payload="$(printf '{"sub":"1","role":"admin","exp":%s,"iss":"mairie360-core","aud":"mairie360"}' \
