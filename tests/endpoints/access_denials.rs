@@ -11,8 +11,9 @@ use actix_web::{http::Method, http::StatusCode, test, web, App};
 use core_api::endpoints::session_guard::session_guard;
 use core_api::endpoints::swagger::ApiDoc;
 use core_api::endpoints::{config, public_config};
-use jsonwebtoken::{encode, EncodingKey, Header};
-use mairie360_api_lib::jwt_manager::{generate_jwt, get_jwt_secret, Claims};
+use jsonwebtoken::{decode_header, encode, Algorithm, EncodingKey, Header};
+use mairie360_api_lib::jwt_manager::{generate_jwt, Claims};
+use mairie360_api_lib::test_setup::http_setup::init_test_jwt_env;
 use mairie360_api_lib::test_setup::queries_setup::ADMIN_ID;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
@@ -21,7 +22,8 @@ use utoipa::OpenApi;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as `sessions_refresh`: both modules run in the same test binary.
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    // MAIR-680: Core signs with the lib's test key pair (no JWT_SECRET since lib 6.0.0).
+    init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
 
@@ -198,13 +200,36 @@ fn now() -> usize {
 
 /// Header values that must all be refused with `401`, labelled for the failure message.
 fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
-    let secret = get_jwt_secret().unwrap();
     let valid = Claims::new(&user_id.to_string(), "User", now() + 3600);
-    let sign = |claims: &Claims, key: &[u8]| {
-        encode(&Header::default(), claims, &EncodingKey::from_secret(key)).unwrap()
+    // A token Core really issues (EdDSA, `kid`, `iss`, `aud`): the variants below tamper with it.
+    let genuine = generate_jwt(&user_id.to_string(), "User").unwrap();
+    let kid = decode_header(&genuine).unwrap().kid;
+    let signed_with = |claims: &serde_json::Value, pem: &str| {
+        let mut header = Header::new(Algorithm::EdDSA);
+        header.kid.clone_from(&kid);
+        encode(&header, claims, &crate::common::session_tokens::ed_key(pem)).unwrap()
     };
-
-    let genuine = sign(&valid, &secret);
+    let core_claims = |sub: i32, exp: usize| {
+        json!({ "sub": sub.to_string(), "role": "User", "exp": exp,
+                "iss": "mairie360-core", "aud": "mairie360" })
+    };
+    // A key Core does not hold, built from its DER at run time (no PEM block in the repo).
+    let other_key = {
+        use base64::Engine;
+        let mut der = vec![
+            0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
+            0x04, 0x20,
+        ];
+        der.extend([0x11; 32]);
+        let label = "PRIVATE KEY";
+        let body = base64::engine::general_purpose::STANDARD.encode(der);
+        format!(
+            "-----BEGIN {label}-----
+{body}
+-----END {label}-----
+"
+        )
+    };
     let mut parts = genuine.split('.');
     let (header, signature) = (parts.next().unwrap(), parts.nth(1).unwrap());
     let other_user = base64url(
@@ -224,19 +249,19 @@ fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
         ("empty bearer", "Bearer ".to_string()),
         ("garbage", "Bearer not.a.jwt".to_string()),
         (
-            "other secret",
+            "other key",
             format!(
                 "Bearer {}",
-                sign(&valid, b"not-the-secret-of-this-deployment-0123")
+                signed_with(&core_claims(user_id, now() + 3600), &other_key)
             ),
         ),
         (
             "expired",
             format!(
                 "Bearer {}",
-                sign(
-                    &Claims::new(&user_id.to_string(), "User", now() - 60),
-                    &secret
+                signed_with(
+                    &core_claims(user_id, now() - 60),
+                    &crate::common::session_tokens::core_private_key()
                 )
             ),
         ),
@@ -250,6 +275,18 @@ fn refused_headers(user_id: i32) -> Vec<(&'static str, String)> {
         (
             "payload swapped under a valid signature",
             format!("Bearer {header}.{other_user}.{signature}"),
+        ),
+        (
+            "HS256, refused whatever its secret",
+            format!(
+                "Bearer {}",
+                encode(
+                    &Header::default(),
+                    &valid,
+                    &EncodingKey::from_secret(b"refresh_test_secret")
+                )
+                .unwrap()
+            ),
         ),
         (
             "asymmetric algorithm",

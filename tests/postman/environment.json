@@ -51,8 +51,8 @@
       "enabled": true
     },
     {
-      "key": "jwt_secret",
-      "value": "",
+      "key": "jwtSignerUrl",
+      "value": "http://localhost:8080",
       "type": "default",
       "enabled": true
     },

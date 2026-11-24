@@ -323,7 +323,7 @@ macro_rules! status {
 #[tokio::test]
 #[serial(process_env)]
 async fn every_role_gets_what_the_matrix_says() {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
     std::env::remove_var("DIRECTORY_GUEST_ACCESS");
     let host = crate::common::own_db_url().await;
@@ -426,7 +426,7 @@ impl Drop for GuestAccessClosed {
 #[tokio::test]
 #[serial(process_env)]
 async fn the_directory_can_be_closed_to_guests() {
-    std::env::set_var("JWT_SECRET", "refresh_test_secret");
+    mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
     let host = crate::common::own_db_url().await;
     let (_redis, redis) = start_redis_container().await;

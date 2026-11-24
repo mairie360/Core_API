@@ -12,9 +12,10 @@
 //! change shows in the JWT at the next refresh only.
 //!
 //! Since MAIR-680 signing and verification are the lib's (`mairie360_api_lib::jwt_manager`): Core
-//! signs with its Ed25519 key (`JWT_PRIVATE_KEY`, `alg` `EdDSA`, `kid`, `iss`, `aud`) when it is
-//! configured, else with `JWT_SECRET` (HS256, transition). The other services only hold the public
-//! key (`JWT_PUBLIC_KEY`): they can verify a session JWT, never issue one.
+//! signs with its Ed25519 key (`JWT_PRIVATE_KEY`, `alg` `EdDSA`, `kid`, `iss`, `aud`); since
+//! `mairie360_api_lib` 6.0.0 there is no `JWT_SECRET` fallback and every HS256 token is refused. The
+//! other services only hold the public key (`JWT_PUBLIC_KEY`): they can verify a session JWT, never
+//! issue one.
 
 use crate::database::roles::get_roles_by_id::Role;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
@@ -83,7 +84,7 @@ pub async fn user_role_name(state: &AppState, user_id: u64) -> Result<String, Ap
 }
 
 /// Issues a JWT for `user_id`, bound to the session `session_id` and carrying `role` (see
-/// [`user_role_name`]), signed by the lib (Ed25519 key when configured, else `JWT_SECRET`).
+/// [`user_role_name`]), signed by the lib with Core's Ed25519 key (`JWT_PRIVATE_KEY`).
 ///
 /// # Errors
 ///
