@@ -23787,7 +23787,7 @@
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('The preferences carry every documented key', () => pm.expect(Object.keys(pm.response.json()).sort()).to.eql(['theme', 'font_family', 'font_size', 'density', 'language', 'timezone', 'date_format', 'home_page', 'auto_open_notifications', 'autosave', 'onboarding_completed'].sort()));",
-                  "pm.test('The welcome tour is not done (null)', () => pm.expect(pm.response.json().onboarding_completed).to.eql(null));"
+                  "pm.test('The welcome tour is not done (false)', () => pm.expect(pm.response.json().onboarding_completed).to.eql(false));"
                 ]
               }
             }
@@ -23841,7 +23841,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('The tour is still not done', () => pm.expect(pm.response.json().onboarding_completed).to.eql(null));"
+                  "pm.test('The tour is still not done', () => pm.expect(pm.response.json().onboarding_completed).to.eql(false));"
                 ]
               }
             }
@@ -24039,7 +24039,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('The tour is still not done', () => pm.expect(pm.response.json().onboarding_completed).to.eql(null));"
+                  "pm.test('The tour is still not done', () => pm.expect(pm.response.json().onboarding_completed).to.eql(false));"
                 ]
               }
             }
@@ -24300,7 +24300,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('The tour is not done anymore', () => pm.expect(pm.response.json().onboarding_completed).to.eql(null));",
+                  "pm.test('The tour is not done anymore', () => pm.expect(pm.response.json().onboarding_completed).to.eql(false));",
                   "pm.test('The theme is kept', () => pm.expect(pm.response.json().theme).to.eql('dark'));"
                 ]
               }

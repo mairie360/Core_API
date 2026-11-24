@@ -71,7 +71,7 @@ pub struct PatchPreferencesView {
     #[schema(value_type = Option<bool>, example = true)]
     autosave: Option<Option<bool>>,
     /// Welcome tour of the Dashboard: `true` marks it done (finished or skipped), `null` resets it
-    /// so the tour shows again. `false` is refused (`400`): a tour is either done or not done yet.
+    /// so the tour shows again (read back as `false`). `false` is refused (`400`): send `null` to reset.
     #[serde(default, deserialize_with = "double_option")]
     #[schema(value_type = Option<bool>, example = true)]
     onboarding_completed: Option<Option<bool>>,

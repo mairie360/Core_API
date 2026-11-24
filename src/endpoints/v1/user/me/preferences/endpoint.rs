@@ -44,8 +44,8 @@ impl ResponseError for PreferencesError {
                    never saved any preference gets every field `null`: the application defaults \
                    apply.\n\n\
                    `onboarding_completed` tells whether the user finished or skipped the welcome \
-                   tour of the Dashboard: `true` once done, `null` while not done yet (a new \
-                   account, or after a reset). It is never `false`.",
+                   tour of the Dashboard: `false` while not done yet (a new account, or after a \
+                   reset), `true` once done. It is always a boolean, never `null`.",
     responses(
         (
             status = 200,
@@ -110,7 +110,8 @@ pub async fn get_my_preferences(
                    For every field, absent keeps the stored value, `null` resets it to the \
                    application default and a value stores it.\n\n\
                    `onboarding_completed` accepts `true` (the welcome tour is done: finished or \
-                   skipped; idempotent) or `null` (reset: the tour shows again), never `false`. \
+                   skipped; idempotent) or `null` (reset: the tour shows again and reads `false`), \
+                   never `false`. \
                    The other preferences are left untouched when only this key is sent.",
     request_body(
         content = PatchPreferencesView,

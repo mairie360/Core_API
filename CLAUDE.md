@@ -530,8 +530,8 @@ Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and ac
 ### Welcome tour state (MAIR-1176)
 
 `GET` / `PATCH /api/v1/user/me/preferences/` carry `onboarding_completed` (Database `mair-1176-01`,
-`user_preferences.onboarding_completed`): `true` once the caller finished or skipped the Dashboard welcome tour, `null`
-while not done (new account, or after a reset), never `false`. The `PATCH` accepts `true` or `null` and answers `400`
+`user_preferences.onboarding_completed`, NULL read as `false`): `true` once the caller finished or skipped the Dashboard
+welcome tour, `false` while not done (new account, or after a `null` reset), never `null`. The `PATCH` accepts `true` or `null` and answers `400`
 (plain text naming the field) to `false`; like every preference, a key left out keeps its value. BFF_Dashboard reads it in
 its bootstrap and writes `true` from `PUT /dashboard/onboarding`. Tests: `tests/endpoints/user_preferences.rs`
 (`mair_1176_*`), the unit test of `PatchPreferencesView`, newman folder "Welcome tour state (MAIR-1176)".

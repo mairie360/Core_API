@@ -218,8 +218,8 @@ async fn notification_settings_round_trip() {
     assert_eq!(read, body);
 }
 
-/// A new account has not done the welcome tour (`null`), `true` marks it done without
-/// touching the other preferences, a second `true` changes nothing and `null` resets it.
+/// A new account has not done the welcome tour (`false`), `true` marks it done without
+/// touching the other preferences, a second `true` changes nothing and `null` resets it (`false`).
 #[tokio::test]
 async fn mair_1176_welcome_tour_state_round_trip() {
     std::sync::LazyLock::force(&INIT);
@@ -233,11 +233,7 @@ async fn mair_1176_welcome_tour_state_round_trip() {
         .insert_header(bearer.clone())
         .to_request();
     let fresh: Value = test::call_and_read_body_json(&app, req).await;
-    assert_eq!(fresh["onboarding_completed"], Value::Null);
-    assert!(fresh
-        .as_object()
-        .unwrap()
-        .contains_key("onboarding_completed"));
+    assert_eq!(fresh["onboarding_completed"], json!(false));
 
     let req = test::TestRequest::patch()
         .uri(PREFERENCES)
@@ -270,7 +266,7 @@ async fn mair_1176_welcome_tour_state_round_trip() {
         .set_json(json!({ "onboarding_completed": null }))
         .to_request();
     let reset: Value = test::call_and_read_body_json(&app, req).await;
-    assert_eq!(reset["onboarding_completed"], Value::Null);
+    assert_eq!(reset["onboarding_completed"], json!(false));
     assert_eq!(reset["theme"], json!("dark"));
 }
 
@@ -320,5 +316,5 @@ async fn mair_1176_welcome_tour_state_refusals() {
         .insert_header(bearer)
         .to_request();
     let read: Value = test::call_and_read_body_json(&app, req).await;
-    assert_eq!(read["onboarding_completed"], Value::Null);
+    assert_eq!(read["onboarding_completed"], json!(false));
 }
