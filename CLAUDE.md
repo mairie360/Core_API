@@ -554,12 +554,16 @@ logging in, forcing a password change via `force_change_password`. On success it
 (`session_jwt::generate_session_jwt`) plus an opaque refresh token: only its SHA-256 digest is stored in
 `sessions.token_hash` (`refresh_token::hash`), and `POST /sessions/refresh` rotates it (the JSON body returns
 the new token, the old one stops working). Hash any refresh token before handing it to a session query view.
-Each rotation overwrites the replaced hash and its time (`sessions.previous_token_hash`, `rotated_at`, Database
-`v3.8.0`), so only the token replaced by the latest rotation is recognized; an older one is only refused. That
-token presented again within `REFRESH_REUSE_GRACE_SECONDS` (10 s on the Postgres clock, concurrent renewals of
-several fronts) is only refused (`401`); later, `find_reused_refresh_token` revokes the whole session, the refresh
-handler publishes it to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log) and logs an
-`audit` event (`refresh_token_reuse`, never the token), and the answer is the same `401`.
+Database keeps every hash a rotation replaced (`session_replaced_refresh_tokens`, filled by a trigger, until the
+session ends). A refresh token that matches no current token goes to Database's `report_refresh_token_reuse()`
+(`database::sessions::report_refresh_token_reuse`) with the client address and the device (`device_info` of the body,
+the request's `User-Agent` otherwise). Replaced less than `REFRESH_REUSE_GRACE_SECONDS` ago (10 s on the Postgres clock)
+while the session is active, it is a concurrent renewal by another front: `409` `refresh_superseded`, nothing changes,
+and the front reads the cookie the other renewal set. Later, Database logs `REFRESH_REUSE` in `connection_logs`, revokes
+the session and queues one `certain` alert (e-mailed like the stolen-session alerts below); the refresh handler
+publishes the session to the Redis revocation list (retried 3 times, then a `[CRITICAL]` audit log), logs an `audit`
+event (`refresh_token_reuse`, never the token), and the answer is the same `401` as for an unknown token. The rotation
+still writes `previous_token_hash` / `rotated_at` for the Core release they replace.
 
 Session state (MAIR-772, `mairie360_api_lib` 5.1.0): every JWT Core issues (`login::finish_session`, so every sign-in path,
 and the refresh) is published as the active token of its session with `session_jwt::publish_active_token`

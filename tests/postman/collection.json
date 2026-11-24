@@ -10970,19 +10970,15 @@
           "response": []
         },
         {
-          "name": "MAIR-695 Another front renewing at the same time with the replaced token is refused",
+          "name": "MAIR-695 Another front renewing at the same time with the replaced token is told it was superseded",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 401\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});",
-                  "pm.test(\"Same plain-text answer as an unknown token\", function () {",
-                  "    pm.expect(pm.response.text()).to.eql(\"Session not found\");",
-                  "});"
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('The front is told to read the cookie again', () => pm.expect(pm.response.text()).to.eql('refresh_superseded'));"
                 ]
               }
             }
@@ -22814,6 +22810,768 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email_694}}\",\n  \"password\": \"{{password_694}}\",\n  \"device_info\": \"newman\"\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Refresh token reuse alerts (MAIR-776)",
+      "item": [
+        {
+          "name": "MAIR-776 Pre-request: a fresh e-mail for the agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('mair_776_email', `newman.reuse.${Date.now()}@mairie360.test`);",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 An administrator creates the agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('mair_776_user_id', pm.response.json().id);",
+                  "pm.sendRequest({",
+                  "    url: `${pm.environment.get('fakeResendUrl')}/__admin/requests/find`,",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({ method: 'POST', url: '/emails', bodyPatterns: [{ matchesJsonPath: `$.to[?(@ == '${pm.environment.get('mair_776_email')}')]` }] }) },",
+                  "}, (err, res) => {",
+                  "    pm.test('The invitation e-mail carries a token', () => {",
+                  "        pm.expect(err).to.not.be.ok;",
+                  "        const email = JSON.parse(res.json().requests[0].body);",
+                  "        const token = /[?&]token=([0-9a-f-]{36})/.exec(email.template.variables.SET_PASSWORD_URL);",
+                  "        pm.expect(token, 'token in SET_PASSWORD_URL').to.be.ok;",
+                  "        pm.environment.set('mair_776_invitation', token[1]);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Robin\",\n  \"last_name\": \"Reuse\",\n  \"email\": \"{{mair_776_email}}\",\n  \"password\": \"Provisional!123\",\n  \"phone_number\": \"0612345678\",\n  \"phone_country\": \"FR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The invitation opens the agent's session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('A JWT and a refresh token are issued', () => {",
+                  "    pm.environment.set('mair_776_jwt', pm.response.headers.get('Authorization').replace(/^Bearer /, ''));",
+                  "    pm.environment.set('mair_776_r1', pm.response.json().refresh_token);",
+                  "    pm.expect(pm.environment.get('mair_776_r1')).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset_password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset_password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{mair_776_invitation}}\",\n  \"new_password\": \"Chosen!Pass456\",\n  \"device_info\": \"newman-776\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 A refresh with a device description that is too long answers 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The field is named', () => pm.expect(pm.response.text()).to.include('device_info'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r1}}\",\n  \"device_info\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 A front renews the session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('A new refresh token is issued', () => {",
+                  "    const token = pm.response.json().refresh_token;",
+                  "    pm.expect(token).to.be.a('string').and.not.empty;",
+                  "    pm.environment.set('mair_776_r2', token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r1}}\",\n  \"device_info\": \"newman-776\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 Another front renewing at the same time is told the token was superseded",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('The front is told to read the cookie again', () => pm.expect(pm.response.text()).to.eql('refresh_superseded'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r1}}\",\n  \"device_info\": \"newman-776\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The concurrent renewal did not sign the agent out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204: no alert, the session works', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_776_jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/security-alert/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "security-alert",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The session is renewed again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('A new refresh token is issued', () => {",
+                  "    const token = pm.response.json().refresh_token;",
+                  "    pm.expect(token).to.be.a('string').and.not.empty;",
+                  "    pm.environment.set('mair_776_r3', token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r2}}\",\n  \"device_info\": \"newman-776\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 A thief replays the token of two rotations ago after the grace window",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The grace window is 10 seconds after the rotation that replaced this token.",
+                  "setTimeout(function () {}, 11000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Same plain-text answer as an unknown token', () => pm.expect(pm.response.text()).to.eql('Session not found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r1}}\",\n  \"device_info\": \"newman-776-thief\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The whole session is closed: the current refresh token is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Same plain-text answer as an unknown token', () => pm.expect(pm.response.text()).to.eql('Session not found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{mair_776_r3}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The whole session is closed: its JWT is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_776_jwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The agent and the administrators are e-mailed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The alert e-mails are sent on a background task right after the reuse.",
+                  "setTimeout(function () {}, 2000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.sendRequest({",
+                  "    url: `${pm.environment.get('fakeResendUrl')}/__admin/requests/find`,",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({ method: 'POST', url: '/emails' }) },",
+                  "}, (err, res) => {",
+                  "    const mails = res.json().requests.map((r) => JSON.parse(r.body));",
+                  "    pm.test('The agent gets the certain alert with the thief\\'s device', () => {",
+                  "        pm.expect(err).to.not.be.ok;",
+                  "        const mail = mails.find((m) => m.template.id === 'account-session-alert' && m.to.includes(pm.environment.get('mair_776_email')));",
+                  "        pm.expect(mail, 'account-session-alert to the agent').to.be.ok;",
+                  "        pm.expect(mail.template.variables.CERTAINTY).to.eql('certaine');",
+                  "        pm.expect(mail.template.variables.DEVICE).to.eql('newman-776-thief');",
+                  "    });",
+                  "    pm.test('The administrators get the alert naming the agent', () => {",
+                  "        const mail = mails.find((m) => m.template.id === 'admin-session-alert' && String(m.template.variables.AGENT_NAME).includes('Reuse'));",
+                  "        pm.expect(mail, 'admin-session-alert').to.be.ok;",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The agent signs in again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('mair_776_jwt2', pm.response.headers.get('Authorization').replace(/^Bearer /, ''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{mair_776_email}}\",\n  \"password\": \"Chosen!Pass456\",\n  \"device_info\": \"newman-776\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The next sign-in reads the certain alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('The alert names the replay', () => {",
+                  "    const alert = pm.response.json();",
+                  "    pm.expect(alert.level).to.eql('certain');",
+                  "    pm.expect(alert.device_info).to.eql('newman-776-thief');",
+                  "    pm.environment.set('mair_776_alert_id', alert.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_776_jwt2}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/security-alert/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "security-alert",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 The administrator reads REFRESH_REUSE in the sign-in journal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('The journal holds the reuse with the device', () => {",
+                  "    const line = pm.response.json().find((l) => l.action === 'REFRESH_REUSE');",
+                  "    pm.expect(line, 'REFRESH_REUSE line').to.be.ok;",
+                  "    pm.expect(line.device_info).to.eql('newman-776-thief');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{mair_776_user_id}}/connection-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{mair_776_user_id}}",
+                "connection-logs"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-776 Acknowledge the alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_776_jwt2}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/security-alert/{{mair_776_alert_id}}/acknowledge/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "security-alert",
+                "{{mair_776_alert_id}}",
+                "acknowledge",
+                ""
+              ]
             }
           },
           "response": []

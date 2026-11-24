@@ -1,7 +1,8 @@
 //! A refresh token already replaced by a rotation was only refused (`401`), so a stolen
-//! token replayed after the rotation went unnoticed and the session stayed open. The token the last
-//! rotation replaced is now recognized: within 10 seconds (concurrent renewals of several fronts)
-//! it is only refused, later the whole session is revoked.
+//! token replayed after the rotation went unnoticed and the session stayed open (MAIR-695). Every
+//! token a rotation replaced is now recognized (MAIR-776): within 10 seconds (concurrent renewals of
+//! several fronts) it answers `409 refresh_superseded`, later the whole session is revoked, the reuse
+//! is logged in `connection_logs` and the alert e-mails are queued.
 //!
 //! Own test binary: one test captures the logs with a thread-local `tracing` subscriber, which
 //! misses events when other tests of the same process install their own subscribers in parallel.
@@ -9,7 +10,7 @@
 #[allow(dead_code, unused_imports)]
 mod common;
 
-use crate::common::{core_db_url, get_raw_pool};
+use crate::common::{core_db_url, get_raw_pool, own_db_url};
 use actix_web::{http::StatusCode, test, web, App};
 use core_api::database::sessions::create_session::CreateSessionQueryView;
 use core_api::endpoints::v1::sessions::REFRESH_PATH;
@@ -46,10 +47,18 @@ macro_rules! init_app {
 
 /// Refreshes with `token`: returns the status and, on success, the new refresh token.
 macro_rules! refresh {
-    ($app:expr, $token:expr) => {{
+    ($app:expr, $token:expr) => {
+        refresh!($app, $token, json!(null))
+    };
+    ($app:expr, $token:expr, $device:expr) => {{
+        let mut body = json!({ "refresh_token": $token });
+        if !$device.is_null() {
+            body["device_info"] = $device;
+        }
         let request = test::TestRequest::post()
             .uri(REFRESH_PATH)
-            .set_json(json!({ "refresh_token": $token }))
+            .insert_header(("User-Agent", "mair776 user agent"))
+            .set_json(body)
             .to_request();
         let response = test::call_service(&$app, request).await;
         let status = response.status();
@@ -99,17 +108,42 @@ async fn session_state(session_id: Uuid) -> (bool, bool, bool) {
     )
 }
 
-/// Moves the last rotation of the session `seconds` into the past.
+/// Moves every rotation of the session `seconds` into the past.
 async fn age_rotation(session_id: Uuid, seconds: i32) {
-    let raw = get_raw_pool(core_db_url().await).await;
+    // Superuser: no API role reaches the replaced hashes.
+    let raw = get_raw_pool(own_db_url().await).await;
     sqlx::query(
-        "UPDATE sessions SET rotated_at = rotated_at - make_interval(secs => $2) WHERE id = $1",
+        "UPDATE session_replaced_refresh_tokens \
+         SET replaced_at = replaced_at - make_interval(secs => $2) WHERE session_id = $1",
     )
     .bind(session_id)
     .bind(f64::from(seconds))
     .execute(&raw)
     .await
     .unwrap();
+}
+
+/// `(address, device)` of the `REFRESH_REUSE` lines of the session.
+async fn reuse_logs(session_id: Uuid) -> Vec<(Option<String>, Option<String>)> {
+    let raw = get_raw_pool(core_db_url().await).await;
+    sqlx::query_as(
+        "SELECT host(ip_address), device_info FROM connection_logs \
+         WHERE session_id = $1 AND action_type = 'REFRESH_REUSE' ORDER BY timestamp",
+    )
+    .bind(session_id)
+    .fetch_all(&raw)
+    .await
+    .unwrap()
+}
+
+/// Levels of the alerts queued for the session.
+async fn alert_levels(session_id: Uuid) -> Vec<String> {
+    let raw = get_raw_pool(core_db_url().await).await;
+    sqlx::query_scalar("SELECT level FROM session_security_alerts WHERE session_id = $1")
+        .bind(session_id)
+        .fetch_all(&raw)
+        .await
+        .unwrap()
 }
 
 async fn on_revocation_list(redis_url: &str, session_id: Uuid) -> bool {
@@ -148,7 +182,7 @@ async fn mair_695_rotation_keeps_the_replaced_token_and_the_chain_goes_on() {
 }
 
 #[tokio::test]
-async fn mair_695_previous_token_within_the_grace_window_is_refused_without_revoking() {
+async fn mair_776_previous_token_within_the_grace_window_is_superseded_without_revoking() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
@@ -156,12 +190,19 @@ async fn mair_695_previous_token_within_the_grace_window_is_refused_without_revo
     let (session_id, first) = open_session(&state).await;
     let (_, second) = refresh!(app, &first);
 
-    // A second front renewing at the same time presents the token just replaced.
-    let (status, token) = refresh!(app, &first);
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-    assert!(token.is_none());
+    // A second front renewing at the same time presents the token just replaced: it is told to
+    // read the cookie again instead of being signed out.
+    let request = test::TestRequest::post()
+        .uri(REFRESH_PATH)
+        .set_json(json!({ "refresh_token": &first }))
+        .to_request();
+    let response = test::call_service(&app, request).await;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(test::read_body(response).await, "refresh_superseded");
     assert!(!session_state(session_id).await.0, "the session stays open");
     assert!(!on_revocation_list(&redis.url, session_id).await);
+    assert!(reuse_logs(session_id).await.is_empty(), "nothing is logged");
+    assert!(alert_levels(session_id).await.is_empty(), "no alert");
     let (status, _) = refresh!(app, second.unwrap());
     assert_eq!(status, StatusCode::OK, "the current token still works");
 }
@@ -198,7 +239,7 @@ async fn mair_695_previous_token_after_the_grace_window_revokes_the_whole_sessio
 }
 
 #[tokio::test]
-async fn mair_695_token_older_than_the_previous_one_is_only_refused() {
+async fn mair_776_token_replaced_several_rotations_ago_revokes_the_session() {
     init_env();
     let (_redis, redis) = start_redis_container().await;
     let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
@@ -208,12 +249,85 @@ async fn mair_695_token_older_than_the_previous_one_is_only_refused() {
     let (_, third) = refresh!(app, second.unwrap());
     age_rotation(session_id, 11).await;
 
-    // Only the last replaced token is kept: an older one is unknown, like any other token.
+    // The bug: only the token of the last rotation was kept, an older one was merely refused.
+    let (status, _) = refresh!(app, &first, json!("Thief browser"));
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "same answer as an unknown token"
+    );
+    assert!(session_state(session_id).await.0, "the session is revoked");
+    assert!(on_revocation_list(&redis.url, session_id).await);
+    let (status, _) = refresh!(app, third.unwrap());
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "the current token is revoked too"
+    );
+}
+
+#[tokio::test]
+async fn mair_776_reuse_is_logged_with_the_device_and_raises_one_certain_alert() {
+    init_env();
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (session_id, first) = open_session(&state).await;
+    let (_, _second) = refresh!(app, &first);
+    age_rotation(session_id, 11).await;
+
+    let (status, _) = refresh!(app, &first, json!("Thief browser"));
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    // Replayed again: logged once more, no second alert.
     let (status, _) = refresh!(app, &first);
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let logs = reuse_logs(session_id).await;
+    assert_eq!(logs.len(), 2, "{logs:?}");
+    assert_eq!(
+        logs[0].1.as_deref(),
+        Some("Thief browser"),
+        "the device sent by the BFF"
+    );
+    assert_eq!(
+        logs[1].1.as_deref(),
+        Some("mair776 user agent"),
+        "the request's User-Agent when the body has none"
+    );
+    assert_eq!(alert_levels(session_id).await, vec!["certain".to_string()]);
+}
+
+#[tokio::test]
+async fn mair_776_unknown_token_writes_nothing() {
+    init_env();
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (session_id, _first) = open_session(&state).await;
+
+    let (status, _) = refresh!(app, "mair776-never-issued");
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert!(!session_state(session_id).await.0);
-    let (status, _) = refresh!(app, third.unwrap());
-    assert_eq!(status, StatusCode::OK);
+    assert!(reuse_logs(session_id).await.is_empty());
+}
+
+#[tokio::test]
+async fn mair_776_device_info_is_validated() {
+    init_env();
+    let (_redis, redis) = start_redis_container().await;
+    let state = web::Data::new(AppState::new(redis.url.clone(), core_db_url().await).await);
+    let app = init_app!(state);
+    let (_session_id, first) = open_session(&state).await;
+
+    let (status, _) = refresh!(app, &first, json!("a".repeat(513)));
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, token) = refresh!(app, &first, json!("Firefox 140"));
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "the token is still valid after the 400"
+    );
+    assert!(token.is_some());
 }
 
 /// Log lines written by the endpoint, captured through a test subscriber.
@@ -254,11 +368,11 @@ async fn mair_695_reuse_is_audited_with_its_session_but_never_with_the_token() {
     let (session_id, first) = open_session(&state).await;
     let (_, second) = refresh!(app, &first);
 
-    // Within the grace window: a plain refusal, logged without the audit event.
+    // Within the grace window: superseded, logged without the audit event.
     let (status, _) = refresh!(app, &first);
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(status, StatusCode::CONFLICT);
     let logs = captured.text();
-    assert!(logs.contains("refused without revocation"), "{logs}");
+    assert!(logs.contains("concurrent renewal"), "{logs}");
     assert!(!logs.contains("refresh_token_reuse"), "{logs}");
 
     // After it: the audit event names the session and its user.
