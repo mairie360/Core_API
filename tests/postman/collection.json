@@ -10477,7 +10477,7 @@
     },
     {
       "name": "Password policy (MAIR-757)",
-      "description": "MAIR-757: CNIL 2022 policy. A password of fewer than 12 characters, a commonly used one or one containing the account's e-mail, first name or last name is refused with a 400 naming the rule, on account creation and on the first-connection change; a compliant password goes through the whole journey.",
+      "description": "MAIR-757: CNIL 2022 policy. A password of fewer than 12 characters, a commonly used one or one containing the account's first name or last name is refused with a 400 naming the rule, on account creation and on the first-connection change; a compliant password goes through the whole journey.",
       "item": [
         {
           "name": "MAIR-757 A password of 11 characters is refused",
@@ -24306,6 +24306,301 @@
               }
             }
           ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Passwords containing the e-mail local part (MAIR-1183)",
+      "description": "MAIR-1183: a password may contain the local part of the account's e-mail address. An administrator creates an account with such a password, sets its final password (still containing the local part) through the administrator reset, and the user signs in with it at once: the reset clears the first-connection step. The first name and last name are still refused.",
+      "item": [
+        {
+          "name": "MAIR-1183 An administrator creates an account whose password contains the e-mail local part",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Array.from({ length: 8 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');",
+                  "const local = `agent${suffix}`;",
+                  "pm.environment.set('local_1183', local);",
+                  "pm.environment.set('email_1183', `${local}@mairie360.test`);",
+                  "pm.environment.set('password_1183', `Clef_${local}_2026`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('The new account id is returned', function () {",
+                  "    pm.expect(pm.response.json().id).to.be.a('number');",
+                  "});",
+                  "pm.environment.set('user_1183', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Dominique\",\n  \"last_name\": \"Fontaine\",\n  \"email\": \"{{email_1183}}\",\n  \"password\": \"{{password_1183}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-1183 The administrator reset still refuses a password containing the first name",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('password_1183_first_name', `${pm.environment.get('local_1183')}-Dominique`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('The plain-text error names the broken rule', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+                  "    pm.expect(pm.response.text()).to.include('first name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{user_1183}}/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{user_1183}}",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"{{password_1183_first_name}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-1183 The administrator reset still refuses a password containing the last name",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('password_1183_last_name', `FONTAINE-${pm.environment.get('local_1183')}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('The plain-text error names the broken rule', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+                  "    pm.expect(pm.response.text()).to.include('last name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{user_1183}}/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{user_1183}}",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"{{password_1183_last_name}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-1183 The administrator sets a final password containing the e-mail local part",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('password_1183_final', `${pm.environment.get('local_1183').toUpperCase()}-Velo-2026`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{user_1183}}/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{user_1183}}",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"{{password_1183_final}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "MAIR-1183 The user signs in with that password, without the first-connection step",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('A session is opened', function () {",
+                  "    pm.expect(pm.response.json().refresh_token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "['local_1183', 'email_1183', 'password_1183', 'password_1183_first_name', 'password_1183_last_name', 'password_1183_final', 'user_1183'].forEach((key) => pm.environment.unset(key));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_1183}}\",\n  \"password\": \"{{password_1183_final}}\",\n  \"device_info\": \"newman\"\n}"
+            }
+          },
           "response": []
         }
       ]

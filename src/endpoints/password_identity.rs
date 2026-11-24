@@ -1,6 +1,6 @@
 //! The identity rule of the password policy (MAIR-757).
 //!
-//! On the routes that set the password of an existing account, the password must not contain the account's e-mail (local part), first name
+//! On the routes that set the password of an existing account, the password must not contain the account's first name
 //! or last name. The length and common-password rules are applied by the views' `Validate`.
 //!
 //! The routes check it twice: [`check`] before anything is spent (the one-time token or the reset link stays

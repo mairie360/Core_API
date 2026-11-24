@@ -193,7 +193,7 @@ async fn consume_first_connection_token(state: &AppState, token: &str, user_id: 
         ),
         (
             status = 400,
-            description = "Malformed JSON body, missing field, `token` longer than 512 characters or containing a control character, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's e-mail, first name or last name.",
+            description = "Malformed JSON body, missing field, `token` longer than 512 characters or containing a control character, or `new_password` shorter than 12 characters, longer than 255 characters, containing a control character, a commonly used password or containing the account's first name or last name.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `new_password`: must be at least 12 characters")

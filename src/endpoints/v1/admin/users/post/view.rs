@@ -19,7 +19,7 @@ pub struct CreateUserView {
     /// E-mail address, unique on the platform. Must hold an `@` and a dotted domain.
     #[schema(max_length = 320, format = Email, example = "jean.dupont@mairie360.fr")]
     email: String,
-    /// Temporary password, 12 to 255 characters, no control character, not a commonly used password, not containing the account's e-mail, first name or last name. The user must choose
+    /// Temporary password, 12 to 255 characters, no control character, not a commonly used password, not containing the account's first name or last name. The user must choose
     /// another one at their first login.
     #[schema(min_length = 12, max_length = 255, format = Password, example = "MotDePasse!123")]
     password: String,

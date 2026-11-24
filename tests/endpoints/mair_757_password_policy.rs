@@ -1,6 +1,6 @@
 //! MAIR-757: the password policy (CNIL 2022) on every route that sets a password. A password of
-//! fewer than 12 characters, a commonly used one, or one containing the account's e-mail, first
-//! name or last name answers `400` naming the rule; the one-time tokens stay usable after a
+//! fewer than 12 characters, a commonly used one, or one containing the account's first name or
+//! last name answers `400` naming the rule; the one-time tokens stay usable after a
 //! refusal so the agent can try again.
 
 use crate::common::{core_db_url, get_pool, users::create_user, users::unique_marker};
@@ -131,7 +131,7 @@ async fn mair_757_first_connection_change_refuses_the_name_and_keeps_the_token()
 }
 
 #[tokio::test]
-async fn mair_757_password_reset_refuses_the_email_and_keeps_the_link() {
+async fn mair_757_password_reset_refuses_the_name_and_keeps_the_link() {
     std::sync::LazyLock::force(&INIT);
     let host = crate::common::own_db_url().await;
     let (_redis, redis_config) = start_redis_container().await;
@@ -168,10 +168,9 @@ async fn mair_757_password_reset_refuses_the_email_and_keeps_the_link() {
             .set_json(json!({ "token": token, "new_password": password, "device_info": "test" }))
     };
 
-    let local_part = email.split('@').next().unwrap().to_uppercase();
-    let (status, body) = call!(app, reset(format!("{local_part}!2026")));
+    let (status, body) = call!(app, reset(format!("{}!2026", marker.to_uppercase())));
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.contains("e-mail"), "{body}");
+    assert!(body.contains("last name"), "{body}");
     let (status, body) = call!(app, reset(COMPLIANT.to_string()));
     assert_eq!(
         status,
