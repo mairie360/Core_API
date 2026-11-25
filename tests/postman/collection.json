@@ -16360,45 +16360,6 @@
           }
         },
         {
-          "name": "Archive the second account",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 204\", function () {",
-                  "    pm.response.to.have.status(204);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{jwt_admin}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/users/{{other_user_id}}/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "users",
-                "{{other_user_id}}",
-                ""
-              ]
-            }
-          }
-        },
-        {
           "name": "Login again to get a session that is not revoked",
           "request": {
             "method": "POST",
@@ -24659,6 +24620,51 @@
             }
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cleanup of the second account",
+      "description": "The second plain account (`other_user_id`, `jwt_other`) carries the refusal cases of every folder, so it is archived last: archived earlier, its JWT answered 404 instead of the 403 those cases check.",
+      "item": [
+        {
+          "name": "Archive the second account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{other_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{other_user_id}}",
+                ""
+              ]
+            }
+          }
         }
       ]
     },
