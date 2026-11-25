@@ -1,0 +1,79 @@
+# GDPR simulation risks reviewed and accepted (mairie360/CICD tests/gdpr/simulation/accepted.mjs).
+# A high-risk AI finding whose fingerprint is listed no longer blocks the Prod release.
+version: 1
+risks:
+  - fingerprint: 06aefdd84cc04b14fbc01a53  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 23a7593ee93b5ce97d434808  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 2f3ef93ac034df37b96d24fb  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 33b1259e374adea7a7a4e567  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 3934071b1a77d164d430d2b8  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 61a29372b605317453c4fac6  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 869dc01219410982ec0cd269  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 905ec967c74ee685da4a9c63  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 9b8295d91e4c08c1c31662db  # users_audit_log.new_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 30a0c4b1a2264d0e775fc1ad  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 357f854674255d02f86a03ff  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 361e87e1d614f1bc0d22c8ce  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: 399b66750af3606af391a7c7  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: abad02b45069b7d20d086d2e  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
+  - fingerprint: f46cff88896f412aaba8e1bd  # users_audit_log.previous_data
+    reason: >-
+      Audit trail of the accounts (users_audit_log), written by the database trigger on every change of a user row. Kept for accountability, purged by the retention policy (MAIR-286) and pseudonymised when the account is erased (MAIR-289); only administrators read it. Reviewed and accepted for the release.
+    date: 2026-11-25
+    author: Quentintnrl
