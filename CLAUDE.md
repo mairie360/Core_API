@@ -85,6 +85,11 @@ silences a later `POST /auth/forgot_password`; `POST /auth/reset_password` consu
 undoes the account. The template must be published in Resend before deploying. There is no Keycloak any more: no sign-in,
 no migration binary, no mirroring of the administration routes (the account system is Core alone).
 
+An administrator never sets the password of an existing account: there is no `PATCH /admin/users/{userId}/password`
+any more, and `PATCH /admin/users/{userId}/` refuses unknown fields, `password` included (`400`). The agent changes
+it through the forgotten password link (`POST /auth/forgot_password`); the administrator only chooses the temporary
+password of `POST /admin/users/` (changed at the first login) and can close the sessions or suspend the account.
+
 E-mail change (`src/email_change.rs`): `PATCH /api/v1/user/me/` with a new `email` (and `current_password`, rate limited per user as
 before) no longer writes it. The address is recorded as a pending request in Redis for `EMAIL_CHANGE_TTL_SECONDS` (1 hour:
 `<token>/email_change_request` = `<user id>|<new address>`, `<user id>/email_change_token` = the token, `<token>/email_change_spent` = `SET NX` marker of a used token, so a user has one pending
@@ -515,7 +520,7 @@ Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and ac
   revocation list (`session_jwt::current_session_id` reads the `sid` of the request).
 - `POST /api/v1/user/me/password {current_password, new_password}` changes the caller's password (`204`). It spends
   `password_check_per_user` first (`429` + `Retry-After`, budget shared with the e-mail change of `PATCH /user/me/`), answers
-  `403` to a wrong current password or an account without one, `400` to a new password outside the 8-255 rule
+  `403` to a wrong current password or an account without one, `400` to a new password outside the 12-255 rule
   (`MIN_PASSWORD_LENGTH`) or equal to the current one, and writes the hash and revokes every **other** session in one
   transaction, published after the commit (MAIR-420).
 - Preferences gain `autosave`, notification settings `system_updates` and `login_alerts` (Database `mair-823-01`, nullable

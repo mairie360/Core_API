@@ -152,34 +152,6 @@ async fn a_system_role_cannot_be_renamed() {
 }
 
 #[tokio::test]
-async fn admin_password_reset_refuses_a_weak_password_and_an_unknown_user() {
-    std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
-    let pool = get_pool().await;
-    let app = init_app!(state);
-    let user = create_user(&pool, "Reset", &unique_marker("reset")).await;
-    let reset = |id: i64, password: &str| {
-        test::TestRequest::patch()
-            .uri(&format!("/api/v1/admin/users/{id}/password"))
-            .insert_header(admin_bearer())
-            .set_json(json!({ "new_password": password }))
-    };
-
-    assert_eq!(
-        call!(app, reset(i64::from(user), "short")),
-        StatusCode::BAD_REQUEST
-    );
-    assert_eq!(
-        call!(app, reset(2_147_483_000, "UnBonMotDePasse!123")),
-        StatusCode::NOT_FOUND
-    );
-    assert_eq!(
-        call!(app, reset(i64::from(user), "UnBonMotDePasse!123")),
-        StatusCode::NO_CONTENT
-    );
-}
-
-#[tokio::test]
 async fn a_user_cannot_revoke_the_session_of_another_user() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);

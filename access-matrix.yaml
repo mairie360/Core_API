@@ -145,7 +145,6 @@ operations:
     personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, groups]
   PATCH /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/: {access: admin, roles: [Admin], note: "archives the account and revokes its sessions"}
-  PATCH /api/v1/admin/users/{userId}/password: {access: admin, roles: [Admin]}
   DELETE /api/v1/admin/users/{userId}/2fa: {access: admin, roles: [Admin], note: "removes the TOTP secret and backup codes, closes every session of the user (MAIR-805)"}
   DELETE /api/v1/admin/users/{userId}/sessions: {access: admin, roles: [Admin], note: "closes every session of the user, published to the revocation list (MAIR-584)"}
   DELETE /api/v1/admin/users/{userId}/sessions/{sessionId}: {access: admin, roles: [Admin], note: "closes one session of the user (MAIR-584)"}

@@ -144,10 +144,10 @@ async fn change_password(
         (status = 204, description = "Password changed; the other sessions are revoked. Empty body."),
         (
             status = 400,
-            description = "Malformed JSON body, unknown field, `new_password` shorter than 8 or longer than 255 characters or holding a control character, `current_password` longer than 255 characters, or `new_password` equal to the current password. Nothing is changed.",
+            description = "Malformed JSON body, unknown field, `new_password` shorter than 12 or longer than 255 characters, holding a control character or a commonly used password, `current_password` longer than 255 characters, or `new_password` equal to the current password. Nothing is changed.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `new_password`: must be at least 8 characters")
+            example = json!("Invalid `new_password`: must be at least 12 characters")
         ),
         (
             status = 401,

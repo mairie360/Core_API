@@ -1,14 +1,10 @@
 use crate::endpoints::admin_guard::AdminUser;
-use crate::endpoints::password_identity::{self, IdentityChanges, IdentityCheckError};
 use crate::endpoints::validation::ValidatedJson;
-use crate::passwords;
-use crate::session_revocation::{publish_revoked_sessions, revoke_all_user_sessions_in};
 use actix_web::{error::ResponseError, http::StatusCode, patch, web, HttpResponse, Responder};
 use mairie360_api_lib::database::error::DbError;
 use mairie360_api_lib::error::ApiLibError;
 use mairie360_api_lib::smart_db::SmartDatabase;
 use mairie360_api_lib::state::AppState;
-use uuid::Uuid;
 
 use crate::{
     database::users::patch_user::PatchUserQueryView,
@@ -48,36 +44,13 @@ impl ResponseError for PatchUserError {
     }
 }
 
-/// Writes the patch to Core. A new password also revokes every session of the user, in the same
-/// transaction (MAIR-420): the sessions to publish to the revocation list are returned.
+/// Writes the patch to Core. An administrator never sets the password of an account
+/// (the agent uses the forgotten password link), so the patch carries none.
 async fn patch_in_core(
     smart_db: &SmartDatabase,
     user_id: u64,
     view: &PatchUserView,
-) -> Result<Vec<Uuid>, PatchUserError> {
-    if let Some(password) = view.password() {
-        let changes = IdentityChanges {
-            email: view.email(),
-            first_name: view.first_name(),
-            last_name: view.last_name(),
-        };
-        // An unknown account is left to the update, which answers its own `404`.
-        match password_identity::check(smart_db, user_id, "password", password, changes).await {
-            Ok(()) | Err(IdentityCheckError::UnknownUser) => {}
-            Err(IdentityCheckError::Rejected(e)) => {
-                return Err(PatchUserError::BadRequest(e.to_string()))
-            }
-            Err(IdentityCheckError::Database) => return Err(PatchUserError::DatabaseError),
-        }
-    }
-    let hashed_password = match view.password() {
-        Some(password) => Some(passwords::hash(password).await.map_err(|e| {
-            tracing::error!("Password hashing error: {e}");
-            PatchUserError::DatabaseError
-        })?),
-        None => None,
-    };
-
+) -> Result<(), PatchUserError> {
     let phone = view
         .phone_change()
         .map_err(|e| PatchUserError::BadRequest(e.to_string()))?;
@@ -87,55 +60,18 @@ async fn patch_in_core(
         view.last_name(),
         view.email(),
         &phone,
-        hashed_password.as_deref(),
+        None,
     );
     if query.is_noop() {
-        return Ok(Vec::new());
+        return Ok(());
     }
-    let database_error = |e: ApiLibError| match e {
+    smart_db.execute(query).await.map_err(|e| match e {
         ApiLibError::Database(DbError::UniqueViolation(_)) => PatchUserError::EmailAlreadyUsed,
         e => {
             tracing::error!("Admin patch user DB Error: {e}");
             PatchUserError::DatabaseError
         }
-    };
-    let mut tx = smart_db.begin().await.map_err(database_error)?;
-    if let Some(password) = view.password() {
-        let changes = IdentityChanges {
-            email: view.email(),
-            first_name: view.first_name(),
-            last_name: view.last_name(),
-        };
-        // Checked again on the row locked until the commit: a rename committed since the first
-        // check cannot end up in the stored password (MAIR-757).
-        match password_identity::check_in(&mut tx, user_id, "password", password, changes).await {
-            Ok(()) | Err(IdentityCheckError::UnknownUser) => {}
-            Err(IdentityCheckError::Rejected(e)) => {
-                return Err(PatchUserError::BadRequest(e.to_string()))
-            }
-            Err(IdentityCheckError::Database) => return Err(PatchUserError::DatabaseError),
-        }
-    }
-    tx.execute(&query).await.map_err(database_error)?;
-    // A new password ends the sessions opened with the previous one, in every API, like
-    // `PATCH /admin/users/{userId}/password` (MAIR-390).
-    let revoked = if hashed_password.is_some() {
-        revoke_all_user_sessions_in(&mut tx, user_id)
-            .await
-            .map_err(database_error)?
-    } else {
-        Vec::new()
-    };
-    tx.commit().await.map_err(database_error)?;
-    Ok(revoked)
-}
-
-async fn patch_user(
-    state: web::Data<AppState>,
-    user_id: u64,
-    view: PatchUserView,
-) -> Result<Vec<Uuid>, PatchUserError> {
-    patch_in_core(state.get_smart_db(), user_id, &view).await
+    })
 }
 
 #[utoipa::path(
@@ -144,9 +80,9 @@ async fn patch_user(
     summary = "Edit a user (administration)",
     description = "Partially updates an account: only the fields present in the body are \
                    written. Reserved to administrators.\n\n\
-                   Unlike `PATCH /api/v1/user/me/`, an administrator can also change the \
-                   password here (same rules as `PATCH /api/v1/admin/users/{userId}/password`); \
-                   every session of the user is then revoked.\n\n\
+                   An administrator never sets the password of an account: the body \
+                   refuses unknown fields, `password` included (`400`); the agent changes it \
+                   through the forgotten password link.\n\n\
                    An empty body is accepted and writes nothing. As the account's existence is \
                    not checked beforehand, an unknown `userId` then answers `200`.",
     params(
@@ -170,10 +106,10 @@ async fn patch_user(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`; `password` 12 to 255 characters without control character, not a commonly used password, not containing the account's first name or last name. The body names the first invalid field.",
+            description = "Malformed JSON body, `userId` in the path not an integer, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, no control character; `email` a valid address of at most 320 characters; `phone_number` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone_number`; a field the body does not know, such as `password` (an administrator never sets a password). The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
-            example = json!("Invalid `password`: must be at least 12 characters")
+            example = json!("Invalid `first_name`: must be at most 64 characters")
         ),
         (
             status = 401,
@@ -198,7 +134,7 @@ async fn patch_user(
         ),
         (
             status = 500,
-            description = "The account could not be read or written, its new password could not be hashed (internal argon2 error), or its sessions could not be revoked after a password change.",
+            description = "The account could not be written.",
             body = String,
             content_type = "text/plain",
             example = json!("An error occurred while accessing the database.")
@@ -218,8 +154,7 @@ pub async fn admin_patch_user(
 ) -> Result<impl Responder, PatchUserError> {
     let user_id = path.into_inner();
     let view = view.into_inner();
-    let revoked = patch_user(state.clone(), user_id, view).await?;
-    publish_revoked_sessions(state.get_redis(), &revoked).await;
+    patch_in_core(state.get_smart_db(), user_id, &view).await?;
 
     Ok(HttpResponse::Ok().body("User patched successfully!"))
 }

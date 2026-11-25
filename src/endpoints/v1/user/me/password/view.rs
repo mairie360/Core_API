@@ -11,8 +11,9 @@ pub struct ChangePasswordView {
     /// Password the account signs in with today.
     #[schema(max_length = 255, example = "Old-password-42")]
     current_password: String,
-    /// New password: 8 to 255 characters, no control character, different from the current one.
-    #[schema(min_length = 8, max_length = 255, example = "New-password-2026")]
+    /// New password: 12 to 255 characters, no control character, not a commonly used password,
+    /// different from the current one.
+    #[schema(min_length = 12, max_length = 255, example = "New-password-2026")]
     new_password: String,
 }
 

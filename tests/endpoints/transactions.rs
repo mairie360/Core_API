@@ -80,39 +80,62 @@ async fn password_of(raw: &PgPool, user_id: i32) -> Option<String> {
 }
 
 #[tokio::test]
-async fn refused_admin_patch_keeps_the_password_and_the_sessions() {
-    let (state, raw, user, other) = setup().await;
+async fn admin_patch_never_sets_a_password() {
+    let (state, raw, user, _) = setup().await;
     let app = init_app!(state);
     open_session(&raw, user).await;
     let password_before = password_of(&raw, user).await;
-    let taken_email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
-        .bind(other)
-        .fetch_one(&raw)
-        .await
-        .unwrap();
 
-    // The e-mail is taken: the update fails, so the session revocation is rolled back with it.
+    // An administrator never sets the password of an account: the field is refused and
+    // nothing of the request is written, the sessions stay open.
     let req = test::TestRequest::patch()
         .uri(&format!("/api/v1/admin/users/{user}/"))
         .insert_header(admin_bearer())
-        .set_json(json!({ "email": taken_email, "password": "Another!Pass123" }))
+        .set_json(json!({ "first_name": "Renamed", "password": "Another!Pass123" }))
         .to_request();
     assert_eq!(
         test::call_service(&app, req).await.status(),
-        StatusCode::CONFLICT
+        StatusCode::BAD_REQUEST
     );
     assert_eq!(password_of(&raw, user).await, password_before);
     assert_eq!(active_sessions(&raw, user).await, 1);
+    let first_name: String = sqlx::query_scalar("SELECT first_name FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    assert_ne!(first_name, "Renamed");
 
-    // Accepted: the password and the revocation land together.
+    // The dedicated route is gone.
     let req = test::TestRequest::patch()
-        .uri(&format!("/api/v1/admin/users/{user}/"))
+        .uri(&format!("/api/v1/admin/users/{user}/password"))
         .insert_header(admin_bearer())
-        .set_json(json!({ "password": "Another!Pass123" }))
+        .set_json(json!({ "new_password": "Another!Pass123" }))
         .to_request();
-    assert_eq!(test::call_service(&app, req).await.status(), StatusCode::OK);
-    assert_ne!(password_of(&raw, user).await, password_before);
-    assert_eq!(active_sessions(&raw, user).await, 0);
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(password_of(&raw, user).await, password_before);
+
+    // An empty patch writes nothing and answers 200; a real one still writes and keeps the
+    // password and the sessions.
+    for body in [json!({}), json!({ "first_name": "Renamed" })] {
+        let req = test::TestRequest::patch()
+            .uri(&format!("/api/v1/admin/users/{user}/"))
+            .insert_header(admin_bearer())
+            .set_json(body)
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), StatusCode::OK);
+    }
+    let first_name: String = sqlx::query_scalar("SELECT first_name FROM users WHERE id = $1")
+        .bind(user)
+        .fetch_one(&raw)
+        .await
+        .unwrap();
+    assert_eq!(first_name, "Renamed");
+    assert_eq!(password_of(&raw, user).await, password_before);
+    assert_eq!(active_sessions(&raw, user).await, 1);
 }
 
 #[tokio::test]

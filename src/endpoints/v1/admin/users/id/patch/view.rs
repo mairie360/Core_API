@@ -1,16 +1,19 @@
 use crate::endpoints::v1::user::me::nullable::double_option;
 use crate::endpoints::validation::{
-    check_email, check_label, check_optional, check_password, check_phone_change, Validate,
-    ValidationError, MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH,
+    check_email, check_label, check_optional, check_phone_change, Validate, ValidationError,
+    MAX_NAME_LENGTH,
 };
 use crate::phone::PhoneChange;
 use serde::Deserialize;
 use std::fmt::Display;
 use utoipa::ToSchema;
 
-/// Partial update of a user by an administrator: only the given fields are updated.
+/// Partial update of a user by an administrator: only the given fields are updated. Unknown
+/// fields are refused, `password` included: an administrator never sets the password of an
+/// account.
 #[allow(clippy::option_option)]
 #[derive(Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PatchUserView {
     /// New first name. Absent or `null` to leave it unchanged.
     #[schema(min_length = 1, max_length = 64, example = "Jean")]
@@ -33,10 +36,6 @@ pub struct PatchUserView {
     #[schema(min_length = 2, max_length = 2, pattern = "^[A-Z]{2}$", example = "FR")]
     #[serde(default)]
     phone_country: Option<String>,
-    /// New password, 12 to 255 characters, no control character, not a commonly used password, not containing the account's first name or last name. Absent or `null` to leave it
-    /// unchanged. `PATCH /api/v1/admin/users/{userId}/password` is the dedicated route.
-    #[schema(min_length = 12, max_length = 255, format = Password, example = "NouveauMotDePasse!123")]
-    password: Option<String>,
 }
 
 impl PatchUserView {
@@ -64,22 +63,25 @@ impl PatchUserView {
             self.phone_country.as_deref(),
         )
     }
-
-    pub fn password(&self) -> Option<&str> {
-        self.password.as_deref()
-    }
 }
 
 impl Display for PatchUserView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {}, password: {} }}",
+            "PatchUserView {{ first_name: {}, last_name: {}, email: {}, phone_number: {} }}",
             self.first_name.as_deref().unwrap_or(""),
             self.last_name.as_deref().unwrap_or(""),
-            if self.email.is_some() { "[PROTECTED]" } else { "unchanged" },
-            if self.phone_number.is_some() { "[PROTECTED]" } else { "unchanged" },
-            if self.password.is_some() { "[PROTECTED]" } else { "unchanged" }
+            if self.email.is_some() {
+                "[PROTECTED]"
+            } else {
+                "unchanged"
+            },
+            if self.phone_number.is_some() {
+                "[PROTECTED]"
+            } else {
+                "unchanged"
+            }
         )
     }
 }
@@ -93,9 +95,62 @@ impl Validate for PatchUserView {
             check_label("last_name", name, MAX_NAME_LENGTH)
         })?;
         check_optional(self.email.as_deref(), |email| check_email("email", email))?;
-        self.phone_change()?;
-        check_optional(self.password.as_deref(), |password| {
-            check_password("password", password, MIN_PASSWORD_LENGTH)
-        })
+        self.phone_change().map(|_| ())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(body: &str) -> Result<PatchUserView, serde_json::Error> {
+        serde_json::from_str(body)
+    }
+
+    #[test]
+    fn an_administrator_never_sends_a_password() {
+        let refused = parse(r#"{"password":"x"}"#)
+            .err()
+            .expect("password is not a field of the admin patch");
+        assert!(refused.to_string().contains("unknown field `password`"));
+    }
+
+    #[test]
+    fn display_hides_the_email_and_the_phone() {
+        let view = parse(
+            r#"{"first_name":"Jean","email":"jean@mairie360.fr","phone_number":"+33612345678"}"#,
+        )
+        .unwrap();
+        let shown = view.to_string();
+        assert_eq!(
+            shown,
+            "PatchUserView { first_name: Jean, last_name: , email: [PROTECTED], phone_number: [PROTECTED] }"
+        );
+        assert!(!shown.contains("jean@mairie360.fr") && !shown.contains("612345678"));
+
+        let unchanged = parse(r#"{"last_name":"Dupont"}"#).unwrap().to_string();
+        assert_eq!(
+            unchanged,
+            "PatchUserView { first_name: , last_name: Dupont, email: unchanged, phone_number: unchanged }"
+        );
+    }
+
+    #[test]
+    fn validate_checks_each_given_field() {
+        assert!(
+            parse(r#"{"first_name":"Jean","email":"jean@mairie360.fr"}"#)
+                .unwrap()
+                .validate()
+                .is_ok()
+        );
+        assert!(parse(r#"{"first_name":""}"#).unwrap().validate().is_err());
+        assert!(parse(r#"{"email":"not-an-address"}"#)
+            .unwrap()
+            .validate()
+            .is_err());
+        assert!(parse(r#"{"phone_country":"FR"}"#)
+            .unwrap()
+            .validate()
+            .is_err());
     }
 }

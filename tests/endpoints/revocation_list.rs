@@ -163,38 +163,6 @@ async fn sessions_revoke_publishes_the_session() {
     assert_not_revoked(&env.redis, current);
 }
 
-#[tokio::test]
-async fn admin_password_reset_publishes_every_session() {
-    let env = env().await;
-    let app = init_app!(env.state);
-    let user = fresh_user("AdminReset").await;
-    let (first, _, _) = open_session(&env.state, user).await;
-    let (second, _, _) = open_session(&env.state, user).await;
-    let admin = u64::try_from(*ADMIN_ID.get().unwrap()).unwrap();
-    let (_, admin_jwt, _) = open_session(&env.state, admin).await;
-
-    let req = test::TestRequest::patch()
-        .uri(&format!("/api/v1/admin/users/{user}/password"))
-        .insert_header(("Authorization", format!("Bearer {admin_jwt}")))
-        .set_json(json!({ "new_password": "a-brand-new-password" }))
-        .to_request();
-    let status = status!(app, req);
-    assert!(status.is_success(), "{status}");
-    assert_revoked(&env.redis, first);
-    assert_revoked(&env.redis, second);
-
-    // MAIR-169: the new password is stored hashed, never in plaintext.
-    let stored_password: String = sqlx::query_scalar("SELECT password FROM users WHERE id = $1")
-        .bind(i32::try_from(user).unwrap())
-        .fetch_one(&crate::common::get_raw_pool(env.host.clone()).await)
-        .await
-        .unwrap();
-    assert!(
-        mairie360_api_lib::password::is_hashed(&stored_password),
-        "admin reset stored a plaintext password"
-    );
-}
-
 /// MAIR-287: an account archived by an administrator can neither use its JWTs (in Core, and in
 /// the other APIs through the revocation list) nor log in again.
 #[tokio::test]
