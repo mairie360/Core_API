@@ -613,13 +613,6 @@ const writeHandlers = {
     });
     deleteUser(account.id);
   },
-  'PATCH /api/v1/admin/users/{userId}/password': ({ request }) => {
-    const account = registerAccount('password');
-    check(request({ path: { userId: account.id }, body: { new_password: PASSWORD } }), {
-      'admin reset password 204': (r) => r.status === 204,
-    });
-    deleteUser(account.id);
-  },
   'DELETE /api/v1/admin/users/{userId}/': ({ request }) => {
     const account = registerAccount('delete');
     check(request({ path: { userId: account.id } }), { 'admin delete user 204': (r) => r.status === 204 });

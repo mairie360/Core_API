@@ -17,7 +17,6 @@ use uuid::Uuid;
 /// A password every rule accepts (and one containing the last name « Rivoire »), kept in constants so
 /// the JSON bodies below carry no literal value after a `password` key (Gitleaks `generic-api-key`).
 const COMPLIANT: &str = "Ecole-Jardin-Pont-2026";
-const WITH_LAST_NAME: &str = "Rivoire-Mairie-2026";
 const WITH_NEW_FIRST_NAME: &str = "Bellerive-Velo-2026";
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
@@ -179,61 +178,6 @@ async fn mair_757_password_reset_refuses_the_name_and_keeps_the_link() {
     );
     let session: Value = serde_json::from_str(&body).unwrap();
     assert!(session["refresh_token"].is_string());
-}
-
-#[tokio::test]
-async fn mair_757_administrator_reset_applies_the_policy() {
-    std::sync::LazyLock::force(&INIT);
-    let state = web::Data::new(
-        AppState::new("redis://127.0.0.1:6379".to_string(), core_db_url().await).await,
-    );
-    let app = init_app!(state);
-    let marker = unique_marker("admin");
-    let user = create_user(&get_pool().await, "Isidore", &marker).await;
-    let set = |password: &str| {
-        test::TestRequest::patch()
-            .uri(&format!("/api/v1/admin/users/{user}/password"))
-            .insert_header(admin_bearer())
-            .set_json(json!({ "new_password": password }))
-    };
-
-    for (password, rule) in [
-        ("short-pass", "at least 12 characters"),
-        ("Isidore-Mairie-2026", "first name"),
-    ] {
-        let (status, body) = call!(app, set(password));
-        assert_eq!(status, StatusCode::BAD_REQUEST, "{password}: {body}");
-        assert!(body.contains(rule), "{password}: {body}");
-    }
-    let (status, body) = call!(app, set(COMPLIANT));
-    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
-    // The account patch checks the identity the account will have: its new last name too.
-    let patch = |body: Value| {
-        test::TestRequest::patch()
-            .uri(&format!("/api/v1/admin/users/{user}/"))
-            .insert_header(admin_bearer())
-            .set_json(body)
-    };
-    let (status, body) = call!(
-        app,
-        patch(json!({ "password": format!("{marker}-Mairie-2026") }))
-    );
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.contains("last name"), "{body}");
-    let (status, body) = call!(
-        app,
-        patch(json!({ "last_name": "Rivoire", "password": WITH_LAST_NAME }))
-    );
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.contains("last name"), "{body}");
-    let (status, _) = call!(
-        app,
-        test::TestRequest::patch()
-            .uri("/api/v1/admin/users/2147483000/password")
-            .insert_header(admin_bearer())
-            .set_json(json!({ "new_password": COMPLIANT }))
-    );
-    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 /// Review of MAIR-757: the identity rule is checked again inside the transaction that writes the password, on the account

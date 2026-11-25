@@ -3,7 +3,6 @@ pub mod doc;
 mod erase;
 mod export;
 mod get;
-mod password;
 mod patch;
 mod roles;
 mod service;
@@ -20,7 +19,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(erase::endpoint::admin_erase_user)
             .service(export::endpoint::admin_export_user_data)
             .service(patch::endpoint::admin_patch_user)
-            .service(password::endpoint::admin_reset_user_password)
             .service(two_factor::endpoint::admin_reset_user_two_factor)
             .service(sessions::endpoint::admin_revoke_user_sessions)
             .service(sessions::endpoint::admin_revoke_user_session)

@@ -1,7 +1,9 @@
 //! MAIR-1183: a password may contain the local part of the account's e-mail address. The
-//! administrator creates an account and sets its password with one, the user then signs in with
-//! it; the other rules of the policy (length, common passwords, first name, last name) still
-//! refuse a password.
+//! administrator creates an account with a temporary password holding one, the user changes it at
+//! the first connection for another one holding it, then signs in with it; the other rules of the
+//! policy (length, common passwords, first name, last name) still refuse a password. An
+//! administrator never sets the password of an existing account: the change goes through
+//! `force_change_password`.
 
 use crate::common::{core_db_url, redis_url};
 use actix_web::{http::StatusCode, test, web, App};
@@ -75,17 +77,28 @@ fn create(email: &str, password: &str) -> test::TestRequest {
         }))
 }
 
-fn reset(user: u64, password: &str) -> test::TestRequest {
-    test::TestRequest::patch()
-        .uri(&format!("/api/v1/admin/users/{user}/password"))
-        .insert_header(admin_bearer())
-        .set_json(json!({ "new_password": password }))
+fn change(token: &str, password: &str) -> test::TestRequest {
+    test::TestRequest::post()
+        .uri("/api/v1/auth/force_change_password")
+        .set_json(json!({ "token": token, "new_password": password }))
 }
 
 fn login(email: &str, password: &str) -> test::TestRequest {
     test::TestRequest::post()
         .uri("/api/v1/auth/login")
         .set_json(json!({ "email": email, "password": password, "device_info": "test suite" }))
+}
+
+/// Signs in with the temporary password: the first connection answers 412 and its one-time token.
+macro_rules! first_connection_token {
+    ($app:expr, $email:expr, $password:expr) => {{
+        let (status, body) = call!($app, login($email, $password));
+        assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{body}");
+        serde_json::from_str::<Value>(&body).unwrap()["token"]
+            .as_str()
+            .expect("first-connection token")
+            .to_string()
+    }};
 }
 
 #[tokio::test]
@@ -96,21 +109,20 @@ async fn mair_1183_a_password_containing_the_email_local_part_is_accepted() {
     let local = local_part();
     let email = format!("{local}@mairie360.test");
 
-    let (status, body) = call!(app, create(&email, &format!("Clef_{local}_2026")));
+    let temporary = format!("Clef_{local}_2026");
+    let (status, body) = call!(app, create(&email, &temporary));
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    let user = serde_json::from_str::<Value>(&body).unwrap()["id"]
-        .as_u64()
-        .unwrap();
 
+    let token = first_connection_token!(app, &email, &temporary);
     let final_password = format!("{}-Velo-2026", local.to_uppercase());
-    let (status, body) = call!(app, reset(user, &final_password));
-    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let (status, body) = call!(app, change(&token, &final_password));
+    assert_eq!(status, StatusCode::OK, "{body}");
 
     let (status, body) = call!(app, login(&email, &final_password));
     assert_eq!(
         status,
         StatusCode::OK,
-        "the reset password opens a session, with no first-connection step: {body}"
+        "the changed password opens a session, with no first-connection step: {body}"
     );
     let session: Value = serde_json::from_str(&body).unwrap();
     assert!(session["refresh_token"].is_string(), "{body}");
@@ -137,16 +149,15 @@ async fn mair_1183_the_other_rules_still_refuse_a_password_containing_the_local_
         assert!(body.contains(rule), "{rule}: {body}");
     }
 
-    let (status, body) = call!(app, create(&email, &format!("Clef_{local}_2026")));
+    let temporary = format!("Clef_{local}_2026");
+    let (status, body) = call!(app, create(&email, &temporary));
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    let user = serde_json::from_str::<Value>(&body).unwrap()["id"]
-        .as_u64()
-        .unwrap();
+    let token = first_connection_token!(app, &email, &temporary);
     for (password, rule) in [
         (format!("{local}-dominique"), "first name"),
         (format!("FONTAINE-{local}"), "last name"),
     ] {
-        let (status, body) = call!(app, reset(user, &password));
+        let (status, body) = call!(app, change(&token, &password));
         assert_eq!(status, StatusCode::BAD_REQUEST, "{rule}: {body}");
         assert!(body.contains(rule), "{rule}: {body}");
     }
