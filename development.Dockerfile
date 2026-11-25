@@ -1,5 +1,5 @@
 # Same toolchain as the production `Dockerfile`, pinned by digest (MAIR-427).
-FROM rust:1.100-trixie@sha256:1f65e0abcce9b449f9533df5994f2a62391059196c481a09b8e1b522dd6d75af AS development
+FROM rust:1.100-trixie@sha256:e84068000361bf3d4a5ba2b7647f62893528b1eb9f847d7a23b493f5ce8ea254 AS development
 
 RUN apt update && apt install -y curl && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-watch --locked
