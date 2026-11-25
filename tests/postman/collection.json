@@ -52,6 +52,15 @@
           "        pm.collectionVariables.set('openapi_spec', res.text());",
           "        pm.collectionVariables.set('openapi_covered', '[]');",
           "    });",
+          "}",
+          "// The password-token routes share a budget of 10 requests per 15 minutes per client address",
+          "// (src/rate_limit.rs, password_token_per_ip), and the collection replays more than that. newman",
+          "// sits on the trusted docker network (TRUSTED_PROXIES), so each such request announces its own",
+          "// documentation address (RFC 5737): the per-account budgets and the other limits still apply.",
+          "if (/\\/api\\/v1\\/auth\\/(reset_password|force_change_password)$/.test(pm.request.url.getPath())) {",
+          "    const client = Number(pm.collectionVariables.get('password_token_client') || '0') + 1;",
+          "    pm.collectionVariables.set('password_token_client', String(client));",
+          "    pm.request.headers.upsert({ key: 'X-Forwarded-For', value: `198.51.100.${(client % 250) + 1}` });",
           "}"
         ]
       }

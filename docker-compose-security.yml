@@ -123,6 +123,9 @@ services:
       JWT_TIMEOUT: 3600
       # MAIR-805: seals the TOTP secrets (stack_secrets.sh), the second factor answers 503 without it.
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY must be set, run the matching *_test.sh script}
+      # MAIR-810: passkeys answer 503 (and the policy refuses passkey_allowed) without a relying party.
+      WEBAUTHN_RP_ID: "localhost"
+      WEBAUTHN_RP_ORIGIN: "http://localhost"
       # Serves Swagger UI and /api-docs/openapi.json (MAIR-424), off in production.
       SWAGGER_ENABLED: "true"
       # E-mails go to the fake Resend (MAIR-522), from no-reply@mairie360.local.
