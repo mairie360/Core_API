@@ -1,0 +1,5 @@
+# Accepted image scan findings (mairie360/CICD docker-release, Trivy --ignorefile).
+# CVE-2026-124851, libzstd1 1.5.7+dfsg-1 of gcr.io/distroless/cc-debian13:nonroot: Debian fixed it in
+# 1.5.7+dfsg-1+deb13u1, but no distroless image ships the fix yet. Ignored until the base digest is
+# bumped (Renovate); the entry expires on its own.
+CVE-2026-124851 exp:2026-12-09
