@@ -17764,8 +17764,13 @@
                 "v1",
                 "admin",
                 "users",
-                "?search={{s584_email}}",
                 ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{s584_email}}"
+                }
               ]
             }
           },
@@ -18755,8 +18760,21 @@
                 "v1",
                 "admin",
                 "users",
-                "?search={{s584_email}}",
                 ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{s584_email}}"
+                },
+                {
+                  "key": "account_status",
+                  "value": "suspended"
+                },
+                {
+                  "key": "sort",
+                  "value": "-name"
+                }
               ]
             }
           },
