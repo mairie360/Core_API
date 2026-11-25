@@ -24625,6 +24625,777 @@
       ]
     },
     {
+      "name": "Passkey enrolment at the first sign-in (MAIR-810)",
+      "description": "The public enrolment routes of an agent the policy obliges to set up a second factor: `POST /api/v1/auth/passkey/setup/options` and `POST /api/v1/auth/passkey/setup`, with the enrolment token of `2fa_setup_required`. The success of `setup` needs a real authenticator (coverage exception).",
+      "item": [
+        {
+          "name": "MAIR-810 Create the account of the passkey enrolment journey",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('pke_email', `newman.passkey.setup.${Date.now()}@mairie360.test`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.environment.set('pke_user_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Paula\",\n  \"last_name\": \"Enrolment\",\n  \"email\": \"{{pke_email}}\",\n  \"password\": \"{{test_user_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 An administrator ends its first connection with a password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{pke_user_id}}/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{pke_user_id}}",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"{{test_user_new_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The second factor becomes mandatory, without passkeys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Mandatory, passkeys refused', () => { const body = pm.response.json(); pm.expect(body.required).to.eql(true); pm.expect(body.passkey_allowed).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/two-factor-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "two-factor-policy"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"required\": true,\n  \"totp_allowed\": true,\n  \"passkey_allowed\": false,\n  \"backup_codes_allowed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The password login asks for the enrolment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 202\", function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('The enrolment is announced', () => { pm.expect(body.status).to.eql('2fa_setup_required'); pm.expect(body.token).to.be.a('string').and.not.empty; });",
+                  "pm.environment.set('pke_setup_token', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{pke_email}}\",\n  \"password\": \"{{test_user_new_password}}\",\n  \"device_info\": \"newman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The passkey enrolment challenge is refused while passkeys are not accepted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup",
+                "options"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{pke_setup_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The passkey enrolment answer is refused while passkeys are not accepted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{pke_setup_token}}\",\n  \"label\": \"Portable\",\n  \"credential\": {\n    \"id\": \"AAAA\",\n    \"rawId\": \"AAAA\",\n    \"type\": \"public-key\",\n    \"response\": {\n      \"attestationObject\": \"AAAA\",\n      \"clientDataJSON\": \"AAAA\"\n    },\n    \"extensions\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The administrator accepts passkeys for the mandatory enrolment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Passkeys are accepted', () => { pm.expect(pm.response.json().passkey_allowed).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/two-factor-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "two-factor-policy"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"required\": true,\n  \"totp_allowed\": true,\n  \"passkey_allowed\": true,\n  \"backup_codes_allowed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The enrolment challenge with a malformed body is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup",
+                "options"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The enrolment challenge with an unknown token answers 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup",
+                "options"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"unknown-token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The enrolment token gets the registration challenge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('The challenge names the account and requires user verification', () => {",
+                  "    const options = pm.response.json().options.publicKey;",
+                  "    pm.expect(options.challenge).to.be.a('string').and.not.empty;",
+                  "    pm.expect(options.user.name).to.eql(pm.environment.get('pke_email'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup",
+                "options"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{pke_setup_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The enrolment answer with a malformed body is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 The enrolment answer with an unknown token answers 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"unknown-token\",\n  \"label\": \"Portable\",\n  \"credential\": {\n    \"id\": \"AAAA\",\n    \"rawId\": \"AAAA\",\n    \"type\": \"public-key\",\n    \"response\": {\n      \"attestationObject\": \"AAAA\",\n      \"clientDataJSON\": \"AAAA\"\n    },\n    \"extensions\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 A forged enrolment answer is refused and opens no session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('No JWT', () => { pm.expect(pm.response.headers.has('Authorization')).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/passkey/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "passkey",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{pke_setup_token}}\",\n  \"label\": \"Portable\",\n  \"credential\": {\n    \"id\": \"AAAA\",\n    \"rawId\": \"AAAA\",\n    \"type\": \"public-key\",\n    \"response\": {\n      \"attestationObject\": \"AAAA\",\n      \"clientDataJSON\": \"AAAA\"\n    },\n    \"extensions\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 Cleanup: the second factor is optional again, without passkeys",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Optional again', () => { pm.expect(pm.response.json().required).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/two-factor-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "two-factor-policy"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"required\": false,\n  \"totp_allowed\": true,\n  \"passkey_allowed\": false,\n  \"backup_codes_allowed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "MAIR-810 Cleanup: archive the account of the passkey enrolment journey",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{pke_user_id}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{pke_user_id}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Cleanup of the second account",
       "description": "The second plain account (`other_user_id`, `jwt_other`) carries the refusal cases of every folder, so it is archived last: archived earlier, its JWT answered 404 instead of the 403 those cases check.",
       "item": [
@@ -24749,7 +25520,7 @@
     },
     {
       "key": "openapi_coverage_exceptions",
-      "value": "{\n  \"GET /api/v1/user/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"GET /api/v1/user/{id}/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\",\n  \"POST /api/v1/auth/2fa/setup 409\": \"Needs an enrolment token of an account that got a factor meanwhile: tests/endpoints/second_factor.rs (mair_808_setup_refused_when_the_factor_got_active)\",\n  \"POST /api/v1/auth/passkey 2xx\": \"Needs a signature of a real authenticator, the Postman sandbox cannot produce one: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/auth/passkey 403\": \"Checked after the passkey is identified, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_810_sign_in_is_refused_once_the_policy_stops_allowing_passkeys)\",\n  \"POST /api/v1/user/me/passkeys/ 2xx\": \"Needs a registration answer of a real authenticator: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"POST /api/v1/user/me/passkeys/ 403\": \"Same refusal as the challenge's, reached before the answer is read: tests/endpoints/passkeys.rs (mair_810_the_policy_gates_passkeys_and_the_administrator_may_allow_them)\",\n  \"POST /api/v1/user/me/passkeys/ 409\": \"Needs the same credential registered twice, which the authenticator refuses through excludeCredentials: tests/database (user_passkeys unique credential_id)\",\n  \"DELETE /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\",\n  \"PATCH /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_811_rename_a_passkey)\"\n}",
+      "value": "{\"GET /api/v1/user/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\", \"GET /api/v1/user/{id}/ 403\": \"Only with DIRECTORY_GUEST_ACCESS=none, not the stack's setting: tests/endpoints/access_matrix.rs (GuestAccessClosed)\", \"POST /api/v1/auth/2fa/setup 409\": \"Needs an enrolment token of an account that got a factor meanwhile: tests/endpoints/second_factor.rs (mair_808_setup_refused_when_the_factor_got_active)\", \"POST /api/v1/auth/passkey 2xx\": \"Needs a signature of a real authenticator, the Postman sandbox cannot produce one: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\", \"POST /api/v1/auth/passkey 403\": \"Checked after the passkey is identified, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_810_sign_in_is_refused_once_the_policy_stops_allowing_passkeys)\", \"POST /api/v1/user/me/passkeys/ 2xx\": \"Needs a registration answer of a real authenticator: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\", \"POST /api/v1/user/me/passkeys/ 403\": \"Same refusal as the challenge's, reached before the answer is read: tests/endpoints/passkeys.rs (mair_810_the_policy_gates_passkeys_and_the_administrator_may_allow_them)\", \"POST /api/v1/user/me/passkeys/ 409\": \"Needs the same credential registered twice, which the authenticator refuses through excludeCredentials: tests/database (user_passkeys unique credential_id)\", \"DELETE /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey: tests/endpoints/passkeys.rs (mair_810_register_sign_in_and_delete_a_passkey)\", \"PATCH /api/v1/user/me/passkeys/{id}/ 2xx\": \"Needs a registered passkey, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_811_rename_a_passkey)\", \"POST /api/v1/auth/passkey/setup 2xx\": \"Needs a registration answer of a real authenticator: tests/endpoints/passkeys.rs (mair_810_the_enrolment_token_registers_a_passkey_and_opens_the_session)\", \"POST /api/v1/auth/passkey/setup/options 409\": \"Needs the enrolment token of an account that got a factor meanwhile: tests/endpoints/passkeys.rs (mair_810_a_token_of_an_archived_or_already_protected_account_enrols_nothing)\", \"POST /api/v1/auth/passkey/setup 409\": \"Same check as the challenge's (ensure_can_enrol), or the same credential registered twice, which needs a real authenticator: tests/endpoints/passkeys.rs (mair_810_a_token_of_an_archived_or_already_protected_account_enrols_nothing)\"}",
       "type": "string"
     }
   ]
