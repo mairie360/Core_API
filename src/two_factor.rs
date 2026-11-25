@@ -255,12 +255,18 @@ pub async fn issue_backup_codes(
         .await
         .map_err(|e| internal("delete the backup codes", &e))?;
     let codes = second_factor::generate_backup_codes();
-    for code in &codes {
-        // Hashed in the canonical form the login normalizes to.
-        let hash = passwords::hash(&second_factor::normalize_backup_code(code))
+    // Hashed in the canonical form the login normalizes to, all at once on the blocking pool:
+    // one after the other, the argon2 hashes added up to about half a second per request.
+    let normalized: Vec<String> = codes
+        .iter()
+        .map(|code| second_factor::normalize_backup_code(code))
+        .collect();
+    let hashes =
+        futures_util::future::try_join_all(normalized.iter().map(|code| passwords::hash(code)))
             .await
             .map_err(|e| internal("hash a backup code", &e))?;
-        tx.execute(&InsertBackupCodeQueryView::new(user_id, &hash))
+    for hash in &hashes {
+        tx.execute(&InsertBackupCodeQueryView::new(user_id, hash))
             .await
             .map_err(|e| internal("store a backup code", &e))?;
     }
