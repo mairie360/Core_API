@@ -85,6 +85,7 @@ impl ApiRequestDto for GlobalSearchQueryView {
 
 impl Display for GlobalSearchQueryView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GlobalSearchQueryView: {:?}", self.params)
+        // The search term is not logged.
+        write!(f, "GlobalSearchQueryView: limit={:?}", self.params[1])
     }
 }
