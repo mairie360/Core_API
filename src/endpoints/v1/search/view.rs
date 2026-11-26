@@ -1,4 +1,4 @@
-use crate::database::search::view::SearchItem;
+use crate::database::search::view::GlobalSearchItem;
 use crate::endpoints::validation::{Validate, ValidationError};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -17,26 +17,40 @@ pub const MAX_SEARCH_LIMIT: u64 = 20;
 pub struct SearchQuery {
     /// Searched text, case-insensitive and partial; leading and trailing spaces are ignored. From
     /// 2 to 100 characters once trimmed, no control character. `%` and `_` match themselves.
-    #[param(min_length = 2, max_length = 100, example = "dupont")]
-    q: String,
-    /// Maximum number of results, from 1 to 20 (8 by default).
-    #[param(minimum = 1, maximum = 20, example = 8)]
-    limit: Option<u64>,
+    #[param(required = true, value_type = String, min_length = 2, max_length = 100, example = "dupont")]
+    q: Option<String>,
+    /// Maximum number of results, an integer from 1 to 20 (8 by default).
+    #[param(value_type = Option<u64>, minimum = 1, maximum = 20, example = 8)]
+    limit: Option<String>,
 }
 
 impl SearchQuery {
     /// The term, trimmed.
     pub fn term(&self) -> &str {
-        self.q.trim()
+        self.q.as_deref().unwrap_or_default().trim()
     }
 
+    /// The parsed `limit` (8 without one); `None` when it is not an integer. Both parameters are
+    /// read as text so that a malformed value gets a `400` naming it, like the other rules.
+    fn parsed_limit(&self) -> Option<u64> {
+        self.limit
+            .as_deref()
+            .map_or(Some(DEFAULT_SEARCH_LIMIT), |limit| {
+                limit.trim().parse().ok()
+            })
+    }
+
+    /// The bounded `limit`, once [`Self::validate`] accepted it.
     pub fn limit(&self) -> u64 {
-        self.limit.unwrap_or(DEFAULT_SEARCH_LIMIT)
+        self.parsed_limit().unwrap_or(DEFAULT_SEARCH_LIMIT)
     }
 }
 
 impl Validate for SearchQuery {
     fn validate(&self) -> Result<(), ValidationError> {
+        let Some(raw) = self.q.as_deref() else {
+            return Err(ValidationError::new("q", "is required"));
+        };
         let term = self.term();
         let length = term.chars().count();
         if length < MIN_SEARCH_TERM_LENGTH {
@@ -52,16 +66,19 @@ impl Validate for SearchQuery {
             ));
         }
         // On the raw value: `trim` would drop a leading or trailing newline.
-        if self.q.chars().any(char::is_control) {
+        if raw.chars().any(char::is_control) {
             return Err(ValidationError::new(
                 "q",
                 "must not contain control characters",
             ));
         }
-        if !(1..=MAX_SEARCH_LIMIT).contains(&self.limit()) {
+        if !self
+            .parsed_limit()
+            .is_some_and(|limit| (1..=MAX_SEARCH_LIMIT).contains(&limit))
+        {
             return Err(ValidationError::new(
                 "limit",
-                &format!("must be between 1 and {MAX_SEARCH_LIMIT}"),
+                &format!("must be an integer between 1 and {MAX_SEARCH_LIMIT}"),
             ));
         }
         Ok(())
@@ -82,9 +99,9 @@ pub fn like_escape(term: &str) -> String {
 
 /// Results of a global search, best match first.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-pub struct SearchResultView {
+pub struct GlobalSearchResultView {
     /// At most `limit` results; empty when nothing matches.
-    pub items: Vec<SearchItem>,
+    pub items: Vec<GlobalSearchItem>,
 }
 
 #[cfg(test)]
@@ -93,8 +110,8 @@ mod tests {
 
     fn query(q: &str, limit: Option<u64>) -> SearchQuery {
         SearchQuery {
-            q: q.to_string(),
-            limit,
+            q: Some(q.to_string()),
+            limit: limit.map(|limit| limit.to_string()),
         }
     }
 
@@ -121,6 +138,23 @@ mod tests {
         assert!(query("ab", Some(20)).validate().is_ok());
         assert!(query("ab", Some(21)).validate().is_err());
         assert!(query("ab", Some(0)).validate().is_err());
+        for malformed in ["abc", "-1", "2.5", ""] {
+            let search = SearchQuery {
+                q: Some("ab".to_string()),
+                limit: Some(malformed.to_string()),
+            };
+            let error = search.validate().unwrap_err().to_string();
+            assert!(error.contains("`limit`"), "{malformed}: {error}");
+        }
+    }
+
+    #[test]
+    fn mair_1228_a_missing_term_is_named() {
+        let search = SearchQuery {
+            q: None,
+            limit: None,
+        };
+        assert!(search.validate().unwrap_err().to_string().contains("`q`"));
     }
 
     #[test]

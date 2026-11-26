@@ -130,7 +130,15 @@ async fn mair_1228_rejects_a_short_term_a_bad_limit_and_no_session() {
     let app = init_app!(state);
     let caller = create_user(&pool, "Caller", &unique_marker("caller")).await;
 
-    for query in ["?q=a", "?q=%20a%20", "", "?q=ab&limit=21", "?q=ab&limit=0"] {
+    for query in [
+        "?q=a",
+        "?q=%20a%20",
+        "",
+        "?q=ab&limit=21",
+        "?q=ab&limit=0",
+        "?q=ab&limit=abc",
+        "?q=ab&limit=-1",
+    ] {
         let (status, body) = search!(app, caller, query);
         assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {body}");
     }
@@ -152,9 +160,11 @@ async fn mair_1228_like_wildcards_match_themselves() {
     let pool = get_pool().await;
     let app = init_app!(state);
     let caller = create_user(&pool, "Caller", &unique_marker("caller")).await;
+    let marker = unique_marker("wildcard");
+    create_user(&pool, "Agent", &marker).await;
 
-    // `%_` would match every agent if the wildcards were not escaped.
-    let (status, body) = search!(app, caller, "?q=%25_");
+    // Unescaped, `%_<marker>` would match « Agent <marker> » (any character before the marker).
+    let (status, body) = search!(app, caller, format!("?q=%25_{marker}"));
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(items(&body).is_empty(), "{body}");
 }

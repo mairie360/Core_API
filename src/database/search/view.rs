@@ -7,15 +7,15 @@ use utoipa::ToSchema;
 /// What a global search result is. Core finds agents only.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum SearchKind {
+pub enum GlobalSearchKind {
     /// A non-archived user of the directory; `id` is reusable in `GET /api/v1/user/{id}/`.
     Agent,
 }
 
 /// One result of the global search.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-pub struct SearchItem {
-    pub kind: SearchKind,
+pub struct GlobalSearchItem {
+    pub kind: GlobalSearchKind,
     /// Id of the agent.
     #[schema(example = 12)]
     pub id: i64,
