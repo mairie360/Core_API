@@ -25691,6 +25691,704 @@
       ]
     },
     {
+      "name": "Profile details of the Settings (MAIR-1231)",
+      "item": [
+        {
+          "name": "MAIR-1231 Pre-request: a fresh e-mail for the agent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('mair_1231_marker', `m${Date.now().toString(36)}`);",
+                  "pm.environment.set('mair_1231_email', `newman.profile.${Date.now()}@mairie360.test`);",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-1231 An administrator creates the agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Sam\",\n  \"last_name\": \"Settings\",\n  \"email\": \"{{mair_1231_email}}\",\n  \"password\": \"Provisional!123\",\n  \"phone_number\": \"0612345678\",\n  \"phone_country\": \"FR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('mair_1231_user_id', pm.response.json().id);",
+                  "pm.sendRequest({",
+                  "    url: `${pm.environment.get('fakeResendUrl')}/__admin/requests/find`,",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({ method: 'POST', url: '/emails', bodyPatterns: [{ matchesJsonPath: `$.to[?(@ == '${pm.environment.get('mair_1231_email')}')]` }] }) },",
+                  "}, (err, res) => {",
+                  "    pm.test('The invitation e-mail carries a token', () => {",
+                  "        pm.expect(err).to.not.be.ok;",
+                  "        const email = JSON.parse(res.json().requests[0].body);",
+                  "        const token = /[?&]token=([0-9a-f-]{36})/.exec(email.template.variables.SET_PASSWORD_URL);",
+                  "        pm.expect(token, 'token in SET_PASSWORD_URL').to.be.ok;",
+                  "        pm.environment.set('mair_1231_invitation', token[1]);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-1231 The agent signs in for the first time",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset_password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset_password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{mair_1231_invitation}}\",\n  \"new_password\": \"Chosen!Pass456\",\n  \"device_info\": \"newman-1231\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "function sidOf(header) {",
+                  "    const jwt = header.replace(/^Bearer /, '');",
+                  "    const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+                  "    return JSON.parse(atob(part + '='.repeat((4 - part.length % 4) % 4))).sid;",
+                  "}",
+                  "pm.test('The session JWT carries its session id', () => {",
+                  "    const header = pm.response.headers.get('Authorization');",
+                  "    pm.environment.set('mair_1231_jwt', header.replace(/^Bearer /, ''));",
+                  "    pm.environment.set('mair_1231_jwt_sid', sidOf(header));",
+                  "    pm.expect(pm.environment.get('mair_1231_jwt_sid')).to.match(/^[0-9a-f-]{36}$/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "MAIR-1231 A new agent has no biography, job title, photo nor service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const me = pm.response.json();",
+                  "pm.test('The profile details are empty', () => {",
+                  "    pm.expect(me.biography).to.eql(null);",
+                  "    pm.expect(me.job_title).to.eql(null);",
+                  "    pm.expect(me.has_photo).to.eql(false);",
+                  "    pm.expect(me.service).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The agent writes a biography and a job title",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"biography\": \"  Agent of the roads department.\\nOn call on Mondays.  \",\n  \"job_title\": \" Head of roads {{mair_1231_marker}} \"\n}"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 A job title over 100 characters answers 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The answer names the field', () => pm.expect(pm.response.text()).to.include('job_title'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"job_title\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The agent sets a WebP photo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "image/webp"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "RIFF\u0000\u0000\u0000\u0000WEBPVP8 newman-profile-photo"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 A photo that is not a WebP answers 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('The answer names the field', () => pm.expect(pm.response.text()).to.include('photo'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "image/webp"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "<svg xmlns='http://www.w3.org/2000/svg'/>"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 Setting a photo needs a JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/webp"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "RIFF\u0000\u0000\u0000\u0000WEBPVP8 newman-profile-photo"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The agent reads the photo back",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('It is the WebP that was sent', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('image/webp');",
+                  "    pm.expect(pm.response.text()).to.include('newman-profile-photo');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The profile shows the details, trimmed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const me = pm.response.json();",
+                  "pm.test('Biography, job title and photo flag are read back', () => {",
+                  "    pm.expect(me.biography).to.eql('Agent of the roads department.\\nOn call on Mondays.');",
+                  "    pm.expect(me.job_title).to.eql(`Head of roads ${pm.environment.get('mair_1231_marker')}`);",
+                  "    pm.expect(me.has_photo).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The agent removes the photo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 A removed photo answers 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The agent sets a photo again, for the erasure to clear",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mair_1231_jwt}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "image/webp"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/me/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                "me",
+                "photo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "RIFF\u0000\u0000\u0000\u0000WEBPVP8 newman-profile-photo"
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 An administrator erases the agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{mair_1231_user_id}}/erase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{mair_1231_user_id}}",
+                "erase"
+              ]
+            }
+          }
+        },
+        {
+          "name": "MAIR-1231 The export of the erased agent holds no profile detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const text = JSON.stringify(pm.response.json());",
+                  "pm.test('Biography and job title are gone', () => {",
+                  "    pm.expect(text).not.to.include(pm.environment.get('mair_1231_marker'));",
+                  "    pm.expect(text).not.to.include('roads department');",
+                  "});",
+                  "pm.environment.unset('mair_1231_user_id');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{mair_1231_user_id}}/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                "{{mair_1231_user_id}}",
+                "export"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Cleanup of the second account",
       "description": "The second plain account (`other_user_id`, `jwt_other`) carries the refusal cases of every folder, so it is archived last: archived earlier, its JWT answered 404 instead of the 403 those cases check.",
       "item": [

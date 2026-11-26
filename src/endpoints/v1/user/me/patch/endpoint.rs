@@ -10,6 +10,7 @@ use crate::database::auth::email_in_use::EmailInUseQueryView;
 use crate::database::auth::user_password::{GetUserPasswordQueryView, UserPassword};
 use crate::database::users::get_user_by_id::{GetUserByIdQueryResultView, GetUserByIdQueryView};
 use crate::database::users::patch_user::PatchUserQueryView;
+use crate::database::users::profile_details::PatchProfileDetailsQueryView;
 use crate::email_change;
 use crate::emails::AccountEmails;
 use crate::endpoints::v1::auth::login::endpoint::is_password_valid;
@@ -187,21 +188,27 @@ async fn trigger_patch_me(
         &phone,
         None,
     );
-    if !db_view.is_noop() {
-        state
-            .get_smart_db()
-            .execute(db_view)
-            .await
-            .map_err(|e| match e {
-                ApiLibError::Database(DbError::UniqueViolation(_)) => {
-                    PatchMeError::EmailAlreadyUsed
-                }
-                e => {
-                    tracing::error!("Error: {e:?}");
-                    PatchMeError::DatabaseError
-                }
-            })?;
+    let details = (view.biography().is_some() || view.job_title().is_some())
+        .then(|| PatchProfileDetailsQueryView::new(user_id, view.biography(), view.job_title()));
+    if db_view.is_noop() && details.is_none() {
+        return Ok(());
     }
+    let database_error = |e: ApiLibError| {
+        tracing::error!("Patch me DB Error: {e:?}");
+        PatchMeError::DatabaseError
+    };
+    // The identity and the profile details are written together or not at all.
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    if !db_view.is_noop() {
+        tx.execute(&db_view).await.map_err(|e| match e {
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchMeError::EmailAlreadyUsed,
+            e => database_error(e),
+        })?;
+    }
+    if let Some(details) = &details {
+        tx.execute(details).await.map_err(database_error)?;
+    }
+    tx.commit().await.map_err(database_error)?;
     Ok(())
 }
 
@@ -213,8 +220,11 @@ async fn trigger_patch_me(
                    of the JWT. Partial update: only the fields present in the \
                    body are written, the others stay unchanged.\n\n\
                    An empty body is accepted and writes nothing: the response stays \
-                   `200`. A `null` field is ignored, except `phone`: `null` or `\"\"` removes \
-                   the phone (MAIR-480).\n\n\
+                   `200`. A `null` field is ignored, except `phone` (`null` or `\"\"` removes it) \
+                   and `biography` / `job_title` (`null` or a blank text removes them).\n\n\
+                   `biography` (plain text, line breaks allowed, 1000 characters at most) and \
+                   `job_title` (one line, 100 characters at most) are stored trimmed. The photo has \
+                   its own route, `PUT /api/v1/user/me/photo`.\n\n\
                    The phone is sent as typed, in national format with \
                    `phone_country` (`\"06 12 34 56 78\"` + `\"FR\"`) or in E.164 \
                    (`\"+33612345678\"`). It is validated against the numbering plan of the country and \
@@ -231,11 +241,12 @@ async fn trigger_patch_me(
                    `GET /api/v1/user/me/` again to read the profile back.",
     request_body(
         content = PatchMeView,
-        description = "Fields to change, all optional: absent or `null` is ignored, except `phone` where `null` or `\"\"` removes the phone.",
+        description = "Fields to change, all optional: absent or `null` is ignored, except `phone` (`null` or `\"\"` removes it) and `biography` / `job_title` (`null` or a blank text removes them).",
         examples(
             ("Change the phone" = (value = json!({ "first_name": "Jean", "phone": "06 12 34 56 78", "phone_country": "FR" }))),
             ("International number" = (value = json!({ "phone": "+32 470 12 34 56" }))),
-            ("Remove the phone" = (value = json!({ "phone": null })))
+            ("Remove the phone" = (value = json!({ "phone": null }))),
+            ("Biography and function" = (value = json!({ "biography": "Roads department agent since 2018.", "job_title": "Head of the roads department" })))
         )
     ),
     responses(
@@ -245,7 +256,7 @@ async fn trigger_patch_me(
         ),
         (
             status = 400,
-            description = "Malformed JSON body, field of an unexpected type, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character; `email` a valid address of at most 320 characters; `phone` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone`; `current_password` missing while `email` is sent. The body names the first invalid field.",
+            description = "Malformed JSON body, field of an unexpected type, or a field breaking its rules: `first_name` / `last_name` 1 to 64 characters, not blank, no control character; `email` a valid address of at most 320 characters; `phone` not a valid number of `phone_country` (or a national number without `phone_country`, 32 characters at most); `phone_country` not an ISO 3166-1 alpha-2 code, or sent without `phone`; `current_password` missing while `email` is sent; `biography` over 1000 characters or holding a control character other than a line break or a tab; `job_title` over 100 characters or holding a control character. The body names the first invalid field.",
             body = String,
             content_type = "text/plain",
             example = json!("Invalid `phone`: is not a phone number of the selected country")

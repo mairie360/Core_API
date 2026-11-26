@@ -1,7 +1,8 @@
 use crate::endpoints::v1::user::me::nullable::double_option;
 use crate::endpoints::validation::{
-    check_email, check_label, check_opaque, check_optional, check_phone_change, Validate,
-    ValidationError, MAX_NAME_LENGTH, MAX_PASSWORD_LENGTH,
+    check_description, check_email, check_label, check_opaque, check_optional, check_phone_change,
+    Validate, ValidationError, MAX_BIOGRAPHY_LENGTH, MAX_JOB_TITLE_LENGTH, MAX_NAME_LENGTH,
+    MAX_PASSWORD_LENGTH,
 };
 use crate::phone::PhoneChange;
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,26 @@ pub struct PatchMeView {
     #[schema(max_length = 255, format = Password, example = "MotDePasse!123")]
     #[serde(default)]
     current_password: Option<String>,
+    /// New biography, plain text: line breaks allowed, at most 1000 characters. Absent keeps it;
+    /// `null` or a blank text removes it. Stored trimmed.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>, max_length = 1000, example = "Roads department agent since 2018.")]
+    biography: Option<Option<String>>,
+    /// New function (job title), plain text on one line, at most 100 characters. Absent keeps it;
+    /// `null` or a blank text removes it. Stored trimmed.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>, max_length = 100, example = "Head of the roads department")]
+    job_title: Option<Option<String>>,
+}
+
+/// `null` and blank texts clear an optional text; any other value is stored trimmed.
+#[allow(clippy::option_option)]
+fn clearable(value: Option<&Option<String>>) -> Option<Option<&str>> {
+    value.map(|text| {
+        text.as_deref()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+    })
 }
 
 impl PatchMeView {
@@ -57,7 +78,36 @@ impl PatchMeView {
             phone,
             phone_country,
             current_password: None,
+            biography: None,
+            job_title: None,
         }
+    }
+
+    /// Sets the biography and the job title of the update (`Some(None)` removes one).
+    #[must_use]
+    #[allow(clippy::option_option)]
+    pub fn with_details(
+        mut self,
+        biography: Option<Option<String>>,
+        job_title: Option<Option<String>>,
+    ) -> Self {
+        self.biography = biography;
+        self.job_title = job_title;
+        self
+    }
+
+    /// What the request does to the biography: `None` keeps it, `Some(None)` removes it.
+    #[must_use]
+    #[allow(clippy::option_option)]
+    pub fn biography(&self) -> Option<Option<&str>> {
+        clearable(self.biography.as_ref())
+    }
+
+    /// What the request does to the job title: `None` keeps it, `Some(None)` removes it.
+    #[must_use]
+    #[allow(clippy::option_option)]
+    pub fn job_title(&self) -> Option<Option<&str>> {
+        clearable(self.job_title.as_ref())
     }
 
     #[must_use]
@@ -119,6 +169,12 @@ impl Validate for PatchMeView {
             check_label("last_name", name, MAX_NAME_LENGTH)
         })?;
         check_optional(self.email.as_deref(), |email| check_email("email", email))?;
+        if let Some(Some(biography)) = self.biography() {
+            check_description("biography", biography, MAX_BIOGRAPHY_LENGTH)?;
+        }
+        if let Some(Some(job_title)) = self.job_title() {
+            check_label("job_title", job_title, MAX_JOB_TITLE_LENGTH)?;
+        }
         self.phone_change()?;
         if self.email.is_some() && self.current_password.is_none() {
             return Err(ValidationError::new(
@@ -129,5 +185,58 @@ impl Validate for PatchMeView {
         check_optional(self.current_password.as_deref(), |password| {
             check_opaque("current_password", password, MAX_PASSWORD_LENGTH)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(body: &str) -> PatchMeView {
+        serde_json::from_str(body).unwrap()
+    }
+
+    #[test]
+    fn mair_1231_absent_keeps_null_and_blank_clear_a_value_is_trimmed() {
+        let view = parse("{}");
+        assert_eq!(view.biography(), None);
+        assert_eq!(view.job_title(), None);
+        let view = parse(r#"{ "biography": null, "job_title": "  \t " }"#);
+        assert_eq!(view.biography(), Some(None));
+        assert_eq!(view.job_title(), Some(None));
+        let view = parse(r#"{ "biography": " Bio\nline two ", "job_title": " Chef " }"#);
+        assert_eq!(view.biography(), Some(Some("Bio\nline two")));
+        assert_eq!(view.job_title(), Some(Some("Chef")));
+        assert!(view.validate().is_ok());
+    }
+
+    #[test]
+    fn mair_1231_job_title_is_one_line_of_at_most_100_characters() {
+        assert!(
+            parse(&format!(r#"{{ "job_title": "{}" }}"#, "a".repeat(100)))
+                .validate()
+                .is_ok()
+        );
+        let error = parse(&format!(r#"{{ "job_title": "{}" }}"#, "a".repeat(101)))
+            .validate()
+            .unwrap_err();
+        assert!(error.to_string().contains("job_title"));
+        assert!(parse(r#"{ "job_title": "Chef\nde service" }"#)
+            .validate()
+            .is_err());
+    }
+
+    #[test]
+    fn mair_1231_biography_allows_line_breaks_up_to_1000_characters() {
+        assert!(
+            parse(&format!(r#"{{ "biography": "{}" }}"#, "a".repeat(1000)))
+                .validate()
+                .is_ok()
+        );
+        let error = parse(&format!(r#"{{ "biography": "{}" }}"#, "a".repeat(1001)))
+            .validate()
+            .unwrap_err();
+        assert!(error.to_string().contains("biography"));
+        assert!(parse(r#"{ "biography": "Bio\u0007" }"#).validate().is_err());
     }
 }

@@ -1,5 +1,6 @@
 use crate::database::{
-    groups::get_group::Group, users::get_user_by_id::GetUserByIdQueryResultView,
+    admin::list_users::AdminUserService, groups::get_group::Group,
+    users::get_user_by_id::GetUserByIdQueryResultView, users::profile_details::ProfileDetails,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -48,6 +49,17 @@ pub struct GetMeResponseView {
     modules: Vec<String>,
     /// Groups the user is a member of. Empty if they belong to none.
     groups: Vec<Group>,
+    /// Biography written by the user, plain text with line breaks, `null` when empty.
+    #[schema(example = "Roads department agent since 2018.")]
+    biography: Option<String>,
+    /// Function (job title) of the user, `null` when empty.
+    #[schema(example = "Head of the roads department")]
+    job_title: Option<String>,
+    /// Whether the user stored a photo, read with `GET /api/v1/user/me/photo`.
+    #[schema(example = false)]
+    has_photo: bool,
+    /// Service of the mairie the administration attached the user to, `null` when none.
+    service: Option<AdminUserService>,
 }
 
 impl GetMeResponseView {
@@ -65,6 +77,7 @@ impl GetMeResponseView {
         modules: Vec<String>,
         groups: Vec<Group>,
         pending_email: Option<String>,
+        details: ProfileDetails,
     ) -> Self {
         Self {
             first_name: first_name.to_string(),
@@ -78,6 +91,10 @@ impl GetMeResponseView {
             roles,
             modules,
             groups,
+            biography: details.biography,
+            job_title: details.job_title,
+            has_photo: details.has_photo,
+            service: details.service,
         }
     }
 
@@ -132,6 +149,26 @@ impl GetMeResponseView {
     pub fn groups(&self) -> &[Group] {
         &self.groups
     }
+
+    #[must_use]
+    pub fn biography(&self) -> Option<&str> {
+        self.biography.as_deref()
+    }
+
+    #[must_use]
+    pub fn job_title(&self) -> Option<&str> {
+        self.job_title.as_deref()
+    }
+
+    #[must_use]
+    pub const fn has_photo(&self) -> bool {
+        self.has_photo
+    }
+
+    #[must_use]
+    pub const fn service(&self) -> Option<&AdminUserService> {
+        self.service.as_ref()
+    }
 }
 
 impl Display for GetMeResponseView {
@@ -167,6 +204,10 @@ impl From<GetUserByIdQueryResultView> for GetMeResponseView {
             roles: Vec::new(),
             modules: Vec::new(),
             groups: Vec::new(),
+            biography: None,
+            job_title: None,
+            has_photo: false,
+            service: None,
         }
     }
 }

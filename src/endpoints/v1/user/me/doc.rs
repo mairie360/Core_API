@@ -9,6 +9,9 @@ use crate::endpoints::v1::user::me::passkeys::endpoint::{
 };
 use crate::endpoints::v1::user::me::password::endpoint::__path_change_my_password;
 use crate::endpoints::v1::user::me::patch::endpoint::__path_patch_me;
+use crate::endpoints::v1::user::me::photo::endpoint::{
+    __path_delete_my_photo, __path_get_my_photo, __path_set_my_photo,
+};
 use crate::endpoints::v1::user::me::preferences::endpoint::{
     __path_get_my_preferences, __path_patch_my_preferences,
 };
@@ -27,6 +30,9 @@ use utoipa::OpenApi;
         get_me,
         export_my_data,
         patch_me,
+        set_my_photo,
+        get_my_photo,
+        delete_my_photo,
         change_my_password,
         get_my_preferences,
         patch_my_preferences,

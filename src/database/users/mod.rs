@@ -26,4 +26,5 @@ pub mod nullable_patch;
 pub mod patch_notification_settings;
 pub mod patch_preferences;
 pub mod patch_user;
+pub mod profile_details;
 pub mod remove_role;

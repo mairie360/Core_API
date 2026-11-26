@@ -8,6 +8,7 @@ pub mod nullable;
 pub mod passkeys;
 pub mod password;
 pub mod patch;
+pub mod photo;
 pub mod preferences;
 pub mod security_alert;
 pub mod two_factor;
@@ -18,6 +19,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(get::endpoint::get_me)
             .service(export::endpoint::export_my_data)
             .service(patch::endpoint::patch_me)
+            .service(photo::endpoint::set_my_photo)
+            .service(photo::endpoint::get_my_photo)
+            .service(photo::endpoint::delete_my_photo)
             .service(password::endpoint::change_my_password)
             .service(preferences::endpoint::get_my_preferences)
             .service(preferences::endpoint::patch_my_preferences)

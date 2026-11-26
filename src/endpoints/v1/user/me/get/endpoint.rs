@@ -1,6 +1,7 @@
 use crate::database::groups::get_user_groups::GetUserGroupsQuerView;
 use crate::database::roles::get_roles_of_user::GetRolesOfUserQueryView;
 use crate::database::users::get_user_by_id::GetUserByIdQueryView;
+use crate::database::users::profile_details::{GetProfileDetailsQueryView, ProfileDetails};
 use crate::email_change;
 use crate::endpoints::v1::user::me::get::view::GetMeResponseView;
 use actix_web::http::StatusCode;
@@ -58,6 +59,14 @@ async fn trigger_get_me(
             GetMeError::DatabaseError
         })?;
 
+    let details: ProfileDetails = smart_db
+        .fetch_one(&GetProfileDetailsQueryView::new(user_id))
+        .await
+        .map_err(|e| {
+            tracing::error!("Get user DB Error: {e}");
+            GetMeError::DatabaseError
+        })?;
+
     // A Redis failure only hides the pending change: the profile is still served.
     let pending_email = email_change::pending_email(state.get_redis(), user_id)
         .await
@@ -79,6 +88,7 @@ async fn trigger_get_me(
             .unwrap_or_default(),
         groups,
         pending_email,
+        details,
     ))
 }
 
@@ -108,7 +118,11 @@ async fn trigger_get_me(
                 "roles": ["agent"],
                 "groups": [
                     { "id": 3, "owner_id": 2, "name": "Planning department", "description": "Building permit processing", "color": "teal", "project_count": 2 }
-                ]
+                ],
+                "biography": "Roads department agent since 2018.",
+                "job_title": "Head of the roads department",
+                "has_photo": true,
+                "service": { "id": 3, "name": "Roads" }
             })
         ),
         (

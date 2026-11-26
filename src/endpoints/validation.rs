@@ -23,6 +23,10 @@ pub const MAX_NAME_LENGTH: usize = 64;
 pub const MAX_EMAIL_LENGTH: usize = 320;
 /// Role and group descriptions (`TEXT` columns, capped to keep the payloads reasonable).
 pub const MAX_DESCRIPTION_LENGTH: usize = 1000;
+/// `users.job_title` is `VARCHAR(100)`.
+pub const MAX_JOB_TITLE_LENGTH: usize = 100;
+/// `users.biography`: the same cap as the descriptions.
+pub const MAX_BIOGRAPHY_LENGTH: usize = MAX_DESCRIPTION_LENGTH;
 /// Passwords, as typed by the user, on the routes that create an account or set a password
 /// (MAIR-757: 12, the CNIL 2022 minimum for a password used alone).
 pub const MIN_PASSWORD_LENGTH: usize = crate::password_policy::MIN_LENGTH;
