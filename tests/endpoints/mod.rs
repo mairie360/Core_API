@@ -11,6 +11,7 @@ mod free_text;
 mod id_aliases;
 mod mair_1183_password_local_part;
 mod mair_1228_global_search;
+mod mair_1231_profile_details;
 mod mair_534_negative_cases;
 mod mair_584_admin_user_sessions;
 mod mair_692_logout_by_refresh_token;

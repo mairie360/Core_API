@@ -527,6 +527,20 @@ Routes the Settings front needs (through BFF_Settings), all `jwt`-secured and ac
   before deploying.** Tests: `tests/endpoints/mair_823_settings_v2.rs`, newman folder "Settings V2: sessions, password,
   alerts (MAIR-823)".
 
+### Profile details (MAIR-1231)
+
+`GET /api/v1/user/me/` also returns `biography`, `job_title` (`null` when empty), `has_photo` and `service`
+(`{id, name}` of `users.service_id`, set by the administration, `null` when none), read by
+`database::users::profile_details::GetProfileDetailsQueryView` next to the shared `GetUserByIdQueryView`. `PATCH
+/api/v1/user/me/` takes `biography` (line breaks allowed, 1000 characters) and `job_title` (one line, 100 characters,
+`users.job_title` from Database `mair-1231-01`): absent keeps the value, `null` or a blank text removes it, the rest is
+stored trimmed. The photo has its own routes so that `/me`, read on every page load, never carries it: `PUT
+/api/v1/user/me/photo` takes the raw image (a WebP checked on its RIFF/WEBP signature, `400` otherwise, `413` over
+100 KiB; the fronts crop it to 256 × 256 first), `GET` serves it as `image/webp` (`404` when none), `DELETE` removes it
+(`204` either way). The lib binds no `bytea`, so the bytes travel base64-encoded and Postgres `decode`s / `encode`s
+them. `anonymize_user()` clears all three. Tests: `tests/endpoints/mair_1231_profile_details.rs`, newman folder "Profile
+details of the Settings (MAIR-1231)".
+
 ### Welcome tour state (MAIR-1176)
 
 `GET` / `PATCH /api/v1/user/me/preferences/` carry `onboarding_completed` (Database `mair-1176-01`,

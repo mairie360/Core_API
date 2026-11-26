@@ -283,6 +283,10 @@ function revokeAccess(accessId) {
 
 const spec = loadSpec();
 
+// A 64-byte WebP: Core only checks the RIFF/WEBP signature and the size.
+const WEBP_PHOTO = new Uint8Array(64);
+WEBP_PHOTO.set([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20]);
+
 const readHandlers = {
   'GET /health': ({ request }) => check(request(), { 'health 200': (r) => r.status === 200 }),
   'GET /ready': ({ request }) => check(request(), { 'ready 200': (r) => r.status === 200 }),
@@ -316,6 +320,9 @@ const readHandlers = {
     });
   },
   'GET /api/v1/user/me/': ({ request }) => check(request(), { 'me 200': (r) => r.status === 200 }),
+  // 404 while the caller has no photo.
+  'GET /api/v1/user/me/photo': ({ request }) =>
+    check(request(), { 'photo 200 or none 404': (r) => r.status === 200 || r.status === 404 }),
   'GET /api/v1/user/me/2fa/': ({ request }) =>
     check(request(), { 'second factor status 200': (r) => r.status === 200 && r.json('enabled') === false }),
   'GET /api/v1/user/me/passkeys/': ({ request }) =>
@@ -520,7 +527,16 @@ const writeHandlers = {
 
   // Own profile of the Admin (idempotent value).
   'PATCH /api/v1/user/me/': ({ request }) =>
-    check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR' } }), { 'patch me 200': (r) => r.status === 200 }),
+    check(request({ body: { phone: '06 12 34 56 78', phone_country: 'FR', job_title: 'Head of roads' } }), {
+      'patch me 200': (r) => r.status === 200,
+    }),
+  // The Settings profile photo: a small WebP (RIFF/WEBP signature) set, then removed.
+  'PUT /api/v1/user/me/photo': ({ request }) =>
+    check(request({ body: WEBP_PHOTO.buffer, headers: { 'Content-Type': 'image/webp' } }), {
+      'set photo 204': (r) => r.status === 204,
+    }),
+  'DELETE /api/v1/user/me/photo': ({ request }) =>
+    check(request(), { 'delete photo 204': (r) => r.status === 204 }),
   'PATCH /api/v1/user/me/notifications/': ({ request }) =>
     check(request({ body: { email: true, system_updates: true, login_alerts: false } }), {
       'patch notification settings 200': (r) => r.status === 200 && r.json('system_updates') === true,
