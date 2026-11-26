@@ -101,6 +101,11 @@ operations:
     roles: [Admin, Maire, Responsable, User, Guest]
     personal: [first_name, last_name, email, phone_number, phone_country, status, is_archived, roles, groups]
     note: "an archived account answers 404 except to itself and to the administrators; the phone is visible to every agent; closed to Guest-only agents (except their own record) with DIRECTORY_GUEST_ACCESS=none"
+  GET /api/v1/search:
+    access: authenticated
+    roles: [Admin, Maire, Responsable, User, Guest]
+    personal: [first_name, last_name, email]
+    note: "agents of the global search, active accounts only; an empty list (never 403) for Guest-only agents with DIRECTORY_GUEST_ACCESS=none"
   GET /api/v1/roles/:
     access: authenticated
     roles: [Admin, Maire, Responsable, User, Guest]

@@ -11,6 +11,7 @@ use core_api::endpoints::{config, public_config};
 use mairie360_api_lib::jwt_manager::generate_jwt;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::Value;
+use serial_test::serial;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
     // Same values as the other endpoint tests: they share the test binary.
@@ -62,6 +63,7 @@ fn items(body: &str) -> Vec<Value> {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1228_finds_an_agent_then_no_longer_once_archived() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -95,6 +97,7 @@ async fn mair_1228_finds_an_agent_then_no_longer_once_archived() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1228_names_starting_with_the_term_come_first_and_limit_cuts() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -119,6 +122,7 @@ async fn mair_1228_names_starting_with_the_term_come_first_and_limit_cuts() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1228_rejects_a_short_term_a_bad_limit_and_no_session() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
@@ -141,6 +145,7 @@ async fn mair_1228_rejects_a_short_term_a_bad_limit_and_no_session() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1228_like_wildcards_match_themselves() {
     std::sync::LazyLock::force(&INIT);
     let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);

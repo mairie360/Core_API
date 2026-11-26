@@ -51,7 +51,8 @@ impl Validate for SearchQuery {
                 &format!("must be at most {MAX_SEARCH_TERM_LENGTH} characters"),
             ));
         }
-        if term.chars().any(char::is_control) {
+        // On the raw value: `trim` would drop a leading or trailing newline.
+        if self.q.chars().any(char::is_control) {
             return Err(ValidationError::new(
                 "q",
                 "must not contain control characters",
@@ -110,6 +111,8 @@ mod tests {
         assert!(query(&"a".repeat(100), None).validate().is_ok());
         assert!(query(&"a".repeat(101), None).validate().is_err());
         assert!(query("ab\u{0}c", None).validate().is_err());
+        assert!(query("\nab", None).validate().is_err());
+        assert!(query("ab\n", None).validate().is_err());
     }
 
     #[test]
