@@ -31,7 +31,7 @@ RUN touch src/main.rs src/lib.rs src/bin/invite_passwordless.rs \
 # `:nonroot` runs as uid/gid 65532. The binary stays owned by root and is only readable and
 # executable by that user: the API never writes to the filesystem (configuration comes from
 # environment variables, state lives in Postgres and Redis), so a read-only root filesystem works.
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:532c7a94f9e96ba9db75eb9388f4227751131c7cb0a411d1a8521af4096135de
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:29ee70762214fe8190cea04ef1c0a84a8365879e047ce8f911ae5a5ab2355fa2
 WORKDIR /app
 
 COPY --from=builder --chown=0:0 --chmod=0555 /usr/src/app/target/release/core_api /app/core-api
