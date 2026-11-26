@@ -53,11 +53,14 @@ operations:
   GET /api/v1/user/me/:
     access: authenticated
     ownership: self
-    personal: [first_name, last_name, email, pending_email, phone_number, phone_country, status, roles, groups]
+    personal: [first_name, last_name, email, pending_email, phone_number, phone_country, status, roles, groups, biography, job_title, has_photo, service]
   PATCH /api/v1/user/me/:
     access: authenticated
     ownership: self
     note: "changing the e-mail needs the current password and the confirmation of the new address, which gets a link; the current address stays active until then"
+  PUT /api/v1/user/me/photo: {access: authenticated, ownership: self, note: "WebP of at most 100 KiB, checked on its signature"}
+  GET /api/v1/user/me/photo: {access: authenticated, ownership: self, personal: [photo]}
+  DELETE /api/v1/user/me/photo: {access: authenticated, ownership: self}
   GET /api/v1/user/me/export: {access: authenticated, ownership: self, personal: [user, data], note: "export_user_data() of the caller (GDPR art. 15 and 20, MAIR-289)"}
   GET /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
   PATCH /api/v1/user/me/notifications/: {access: authenticated, ownership: self}
