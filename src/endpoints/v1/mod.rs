@@ -4,6 +4,7 @@ pub mod doc;
 pub mod groups;
 pub mod ressources;
 pub mod roles;
+pub mod search;
 pub mod sessions;
 pub mod user;
 
@@ -16,6 +17,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .configure(groups::config)
             .configure(ressources::config)
             .configure(roles::config)
+            .service(web::scope("/search").configure(search::config))
             .configure(sessions::config)
             .configure(user::config)
             .configure(admin::config),
