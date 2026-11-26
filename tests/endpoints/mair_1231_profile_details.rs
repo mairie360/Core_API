@@ -14,11 +14,13 @@ use core_api::session_jwt::generate_session_jwt;
 use mairie360_api_lib::test_setup::redis_setup::start_redis_container;
 use mairie360_api_lib::{security::JwtMiddleware, state::AppState};
 use serde_json::{json, Value};
+use serial_test::serial;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
-    // Same values as the other endpoint tests: they share the test binary.
+    // Same values as the other endpoint tests: they share the test binary. The tests join
+    // `process_env`, since this first call writes the environment.
     mairie360_api_lib::test_setup::http_setup::init_test_jwt_env();
     std::env::set_var("JWT_TIMEOUT", "3600");
 });
@@ -144,6 +146,7 @@ fn json_of(body: &[u8]) -> Value {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_get_me_returns_the_empty_profile_details() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -159,6 +162,7 @@ async fn mair_1231_get_me_returns_the_empty_profile_details() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_patch_me_sets_and_clears_the_biography_and_the_job_title() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -196,6 +200,7 @@ async fn mair_1231_patch_me_sets_and_clears_the_biography_and_the_job_title() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_patch_me_refuses_a_too_long_or_control_character_text() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -218,6 +223,7 @@ async fn mair_1231_patch_me_refuses_a_too_long_or_control_character_text() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_photo_is_stored_served_and_removed() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -252,6 +258,7 @@ async fn mair_1231_photo_is_stored_served_and_removed() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_photo_refuses_other_formats_and_large_images() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -274,6 +281,7 @@ async fn mair_1231_photo_refuses_other_formats_and_large_images() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_photo_routes_need_a_session() {
     let (state, _raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -289,6 +297,7 @@ async fn mair_1231_photo_routes_need_a_session() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_get_me_returns_the_service_of_the_agent() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);
@@ -312,6 +321,7 @@ async fn mair_1231_get_me_returns_the_service_of_the_agent() {
 }
 
 #[tokio::test]
+#[serial(process_env)]
 async fn mair_1231_anonymizing_the_agent_clears_its_profile_details() {
     let (state, raw, _redis) = setup().await;
     let app = init_app!(state);

@@ -188,29 +188,27 @@ async fn trigger_patch_me(
         &phone,
         None,
     );
-    if !db_view.is_noop() {
-        state
-            .get_smart_db()
-            .execute(db_view)
-            .await
-            .map_err(|e| match e {
-                ApiLibError::Database(DbError::UniqueViolation(_)) => {
-                    PatchMeError::EmailAlreadyUsed
-                }
-                e => {
-                    tracing::error!("Error: {e:?}");
-                    PatchMeError::DatabaseError
-                }
-            })?;
+    let details = (view.biography().is_some() || view.job_title().is_some())
+        .then(|| PatchProfileDetailsQueryView::new(user_id, view.biography(), view.job_title()));
+    if db_view.is_noop() && details.is_none() {
+        return Ok(());
     }
-    if view.biography().is_some() || view.job_title().is_some() {
-        let details =
-            PatchProfileDetailsQueryView::new(user_id, view.biography(), view.job_title());
-        state.get_smart_db().execute(details).await.map_err(|e| {
-            tracing::error!("Patch me profile details DB Error: {e:?}");
-            PatchMeError::DatabaseError
+    let database_error = |e: ApiLibError| {
+        tracing::error!("Patch me DB Error: {e:?}");
+        PatchMeError::DatabaseError
+    };
+    // The identity and the profile details are written together or not at all.
+    let mut tx = state.get_smart_db().begin().await.map_err(database_error)?;
+    if !db_view.is_noop() {
+        tx.execute(&db_view).await.map_err(|e| match e {
+            ApiLibError::Database(DbError::UniqueViolation(_)) => PatchMeError::EmailAlreadyUsed,
+            e => database_error(e),
         })?;
     }
+    if let Some(details) = &details {
+        tx.execute(details).await.map_err(database_error)?;
+    }
+    tx.commit().await.map_err(database_error)?;
     Ok(())
 }
 
@@ -222,8 +220,8 @@ async fn trigger_patch_me(
                    of the JWT. Partial update: only the fields present in the \
                    body are written, the others stay unchanged.\n\n\
                    An empty body is accepted and writes nothing: the response stays \
-                   `200`. A `null` field is ignored, except `phone`, `biography` and `job_title`: \
-                   `null` or a blank text removes them.\n\n\
+                   `200`. A `null` field is ignored, except `phone` (`null` or `\"\"` removes it) \
+                   and `biography` / `job_title` (`null` or a blank text removes them).\n\n\
                    `biography` (plain text, line breaks allowed, 1000 characters at most) and \
                    `job_title` (one line, 100 characters at most) are stored trimmed. The photo has \
                    its own route, `PUT /api/v1/user/me/photo`.\n\n\
@@ -243,7 +241,7 @@ async fn trigger_patch_me(
                    `GET /api/v1/user/me/` again to read the profile back.",
     request_body(
         content = PatchMeView,
-        description = "Fields to change, all optional: absent or `null` is ignored, except `phone`, `biography` and `job_title` where `null` or a blank text removes the value.",
+        description = "Fields to change, all optional: absent or `null` is ignored, except `phone` (`null` or `\"\"` removes it) and `biography` / `job_title` (`null` or a blank text removes them).",
         examples(
             ("Change the phone" = (value = json!({ "first_name": "Jean", "phone": "06 12 34 56 78", "phone_country": "FR" }))),
             ("International number" = (value = json!({ "phone": "+32 470 12 34 56" }))),
