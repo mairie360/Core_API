@@ -289,6 +289,12 @@ const readHandlers = {
   // MAIR-680: the public keys of the session JWTs.
   'GET /api/v1/auth/jwks': ({ request }) =>
     check(request(), { 'jwks 200': (r) => r.status === 200 && Array.isArray(r.json('keys')) }),
+  // Global search of the shared header (agents): a seeded name, case-insensitive.
+  'GET /api/v1/search': ({ request }) =>
+    check(request({ query: { q: 'martin', limit: 8 } }), {
+      'search 200': (r) => r.status === 200,
+      'search finds seeded agents': (r) => r.status === 200 && r.json('items').length > 0,
+    }),
 
   // Directory and profile.
   // The directory is cached in Redis for 60 s, one entry per filter set (MAIR-524). Three

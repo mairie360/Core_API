@@ -3,6 +3,7 @@ use super::auth::doc::AuthDoc;
 use super::groups::doc::GroupsDoc;
 use super::ressources::doc::RessourcesDoc;
 use super::roles::doc::RolesDoc;
+use super::search::doc::SearchDoc;
 use super::sessions::doc::SessionsDoc;
 use super::user::doc::UserDoc;
 use utoipa::OpenApi;
@@ -14,6 +15,7 @@ use utoipa::OpenApi;
     (path = "/groups", api = GroupsDoc),
     (path = "/ressources", api = RessourcesDoc),
     (path = "/roles", api = RolesDoc),
+    (path = "/search", api = SearchDoc),
     (path = "/sessions", api = SessionsDoc),
     (path = "/user", api = UserDoc),
 ))]
