@@ -223,7 +223,7 @@ async fn trigger_patch_me(
                    body are written, the others stay unchanged.\n\n\
                    An empty body is accepted and writes nothing: the response stays \
                    `200`. A `null` field is ignored, except `phone`, `biography` and `job_title`: \
-                   `null` or a blank text removes them (MAIR-480 for the phone).\n\n\
+                   `null` or a blank text removes them.\n\n\
                    `biography` (plain text, line breaks allowed, 1000 characters at most) and \
                    `job_title` (one line, 100 characters at most) are stored trimmed. The photo has \
                    its own route, `PUT /api/v1/user/me/photo`.\n\n\
