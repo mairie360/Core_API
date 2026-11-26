@@ -121,6 +121,29 @@ async fn mair_1228_names_starting_with_the_term_come_first_and_limit_cuts() {
     );
 }
 
+#[actix_web::test]
+#[serial(process_env)]
+async fn mair_1228_a_last_name_first_prefix_also_comes_first() {
+    std::sync::LazyLock::force(&INIT);
+    let state = web::Data::new(AppState::new(String::new(), core_db_url().await).await);
+    let pool = get_pool().await;
+    let app = init_app!(state);
+    let marker = unique_marker("reversed");
+    let caller = create_user(&pool, "Caller", &unique_marker("caller")).await;
+    // « <marker> Jean » typed last name first; the newer « x<marker> Jeanne » only contains it.
+    let reversed = create_user(&pool, "Jean", &marker).await;
+    create_user(&pool, "Jeanne", &format!("x{marker}")).await;
+
+    let (status, body) = search!(app, caller, format!("?q={marker}%20Jea&limit=1"));
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let found = items(&body);
+    assert_eq!(found.len(), 1, "{body}");
+    assert_eq!(
+        found[0]["id"], reversed,
+        "the last-name-first prefix comes first: {body}"
+    );
+}
+
 #[tokio::test]
 #[serial(process_env)]
 async fn mair_1228_rejects_a_short_term_a_bad_limit_and_no_session() {

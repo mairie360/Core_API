@@ -72,6 +72,7 @@ impl ApiRequestDto for GlobalSearchQueryView {
             crate::user_search_text_sql!(),
             " LIKE '%' || lower($1) || '%' \
              ORDER BY (lower(u.first_name || ' ' || u.last_name) LIKE lower($1) || '%' \
+                       OR lower(u.last_name || ' ' || u.first_name) LIKE lower($1) || '%' \
                        OR lower(u.last_name) LIKE lower($1) || '%') DESC, \
                       COALESCE(u.updated_at, u.created_at) DESC NULLS LAST, u.id DESC \
              LIMIT $2"
